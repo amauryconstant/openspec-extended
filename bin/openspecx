@@ -1,0 +1,95 @@
+#!/bin/bash
+# OpenSpec-extended - Simplified installer for OpenSpec skills
+# Usage: openspecx init <tool>
+
+set -euo pipefail
+
+readonly VERSION="0.1.0"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly RESOURCES_DIR="$SCRIPT_DIR/../resources"
+
+# Color codes
+readonly COLOR_GREEN='\033[0;32m'
+readonly COLOR_RED='\033[0;31m'
+readonly COLOR_RESET='\033[0m'
+
+# Tool mapping
+declare -A TOOL_DIRS=(
+    ["claude"]=".claude/skills"
+    ["opencode"]=".opencode/skills"
+)
+
+log_success() {
+    echo -e "${COLOR_GREEN}✓${COLOR_RESET} $*"
+}
+
+log_error() {
+    echo -e "${COLOR_RED}✗${COLOR_RESET} $*" >&2
+}
+
+# Check arguments
+if [[ $# -eq 0 ]]; then
+    log_error "Usage: openspecx init <tool>"
+    echo "  Available tools: claude, opencode"
+    exit 1
+fi
+
+COMMAND="$1"
+
+if [[ "$COMMAND" != "init" ]]; then
+    log_error "Unknown command: $COMMAND"
+    echo "  Available commands: init"
+    echo
+    echo "Usage: openspecx init <tool>"
+    echo "  Available tools: claude, opencode"
+    exit 1
+fi
+
+# Check if tool is specified
+if [[ $# -lt 2 ]]; then
+    log_error "Usage: openspecx init <tool>"
+    echo "  Available tools: claude, opencode"
+    exit 1
+fi
+
+TOOL="$2"
+
+if [[ -z "${TOOL_DIRS[$TOOL]:-}" ]]; then
+    log_error "Unknown tool: $TOOL"
+    echo "  Available tools: claude, opencode"
+    exit 1
+fi
+
+TARGET_DIR="${TOOL_DIRS[$TOOL]}"
+FULL_PATH="$(pwd)/$TARGET_DIR"
+
+# Create target directory
+mkdir -p "$FULL_PATH"
+
+# Copy skills
+if [[ -d "$RESOURCES_DIR/$TOOL/skills" ]]; then
+    SOURCE_COUNT=$(find "$RESOURCES_DIR/$TOOL/skills" -mindepth 1 -maxdepth 1 -type d | wc -l)
+    
+    if [[ $SOURCE_COUNT -gt 0 ]]; then
+        cp -r "$RESOURCES_DIR/$TOOL/skills"/* "$FULL_PATH/"
+        log_success "Copied $SOURCE_COUNT skill(s) to $TOOL"
+        echo "  Target: $TARGET_DIR"
+    else
+        echo "No skills found in resources/$TOOL/skills/"
+    fi
+else
+    echo "resources/$TOOL/skills/ directory not found"
+fi
+
+# Copy commands if they exist
+COMMANDS_DIR="$(pwd)/$(dirname "$TARGET_DIR")/commands"
+if [[ -d "$RESOURCES_DIR/$TOOL/commands" ]]; then
+    COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
+    
+    if [[ $COMMAND_COUNT -gt 0 ]]; then
+        mkdir -p "$COMMANDS_DIR"
+        cp -r "$RESOURCES_DIR/$TOOL/commands"/* "$COMMANDS_DIR/"
+        log_success "Copied $COMMAND_COUNT command(s) to $TOOL"
+        echo "  Target: $(basename "$COMMANDS_DIR")/"
+    fi
+fi
