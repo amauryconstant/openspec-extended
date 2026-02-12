@@ -82,9 +82,9 @@ else
 fi
 
 # Copy commands if they exist
-COMMANDS_DIR="$(pwd)/$(dirname "$TARGET_DIR")/commands"
-if [[ -d "$RESOURCES_DIR/$TOOL/commands" ]]; then
-    COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
+COMMANDS_DIR="$(pwd)/$(dirname "$TARGET_DIR")/command"
+if [[ -d "$RESOURCES_DIR/$TOOL/command" ]]; then
+    COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/command" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
     
     if [[ $COMMAND_COUNT -gt 0 ]]; then
         mkdir -p "$COMMANDS_DIR"
