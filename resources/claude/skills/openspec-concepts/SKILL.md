@@ -1,6 +1,7 @@
 ---
 name: openspec-concepts
 description: AI agent guide to OpenSpec - framework for spec-driven development. Understand artifacts, structure, and when to use spec-driven approach.
+argument-hint: ""
 ---
 
 # OpenSpec for AI Agents
