@@ -12,6 +12,9 @@
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
 - `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
 - `openspec-review-artifact`: Reviews OpenSpec artifacts for quality, completeness, and consistency
+- `openspec-maintain-ai-docs`: Maintain AGENTS.md and CLAUDE.md documentation to keep synchronized with available skills
+- `openspec-generate-changelog`: Generate changelogs in Keep a Changelog format from archived changes
+- `openspec-review-test-compliance`: Review test coverage for OpenSpec changes, ensuring spec requirements have corresponding tests
 
 **Research Maintenance**: Use `update-research` skill to maintain `research/` documentation (accuracy, structure, consistency).
 
