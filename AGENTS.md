@@ -11,6 +11,7 @@
 **Skills Distributed**:
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
 - `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
+- `openspec-review-artifact`: Reviews OpenSpec artifacts for quality, completeness, and consistency
 
 **Research Maintenance**: Use `update-research` skill to maintain `research/` documentation (accuracy, structure, consistency).
 
