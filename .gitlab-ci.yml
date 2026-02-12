@@ -1,0 +1,16 @@
+stages:
+  - distribute
+
+mirror-to-github:
+  stage: distribute
+  image: bitnami/git:latest
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_DEPTH: 0
+  script:
+    - git remote add github "https://${GITHUB_ACCESS_TOKEN}@github.com/${GITHUB_REPO_URL}.git"
+    - git fetch github
+    - git push github HEAD:$CI_COMMIT_BRANCH --tags --force
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $GITHUB_ACCESS_TOKEN'
