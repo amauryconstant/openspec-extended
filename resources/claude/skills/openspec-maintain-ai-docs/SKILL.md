@@ -2,10 +2,9 @@
 name: openspec-maintain-ai-docs
 description: Maintain AGENTS.md and CLAUDE.md documentation to keep synchronized with available skills. Use when adding new skills, updating existing ones, or ensuring documentation reflects current state.
 license: MIT
-compatibility: Requires openspec CLI.
 metadata:
   author: openspec-extended
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 # AI Documentation Maintenance
@@ -210,3 +209,7 @@ See `references/update-rules.md` for:
 - Rules for adding skills
 - Rules for updating entries
 - Rules for removing skills
+
+See `references/update-examples.md` for:
+- Example discrepancy reports
+- Before/after documentation examples

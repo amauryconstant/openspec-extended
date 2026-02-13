@@ -2,10 +2,9 @@
 name: openspec-review-test-compliance
 description: Review test coverage for OpenSpec changes, ensuring spec requirements have corresponding tests. Use when verifying implementation completeness, identifying test gaps, or understanding test/spec alignment.
 license: MIT
-compatibility: Requires openspec CLI.
 metadata:
   author: openspec-extended
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 # Test Compliance Review
@@ -315,3 +314,9 @@ openspec-review-test-compliance --since 2024-01-01 --until 2024-03-31
 5. **Handle reality**: Acknowledge unit tests ≠ scenario tests
 6. **Multiple evidence sources**: Combine semantic + structural matching
 7. **Confidence transparency**: Show scores and explain matching logic
+
+## References
+
+- **Report format**: See `references/report-format.md` for detailed report structure and examples
+- **Semantic extraction**: See `references/semantic-extraction.md` for extraction algorithms and heuristics
+- **Test discovery**: See `references/test-discovery-strategies.md` for language-specific test patterns

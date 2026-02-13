@@ -2,11 +2,10 @@
 name: openspec-concepts
 description: AI agent guide to OpenSpec - framework for spec-driven development. Understand artifacts, structure, and when to use spec-driven approach.
 license: MIT
-compatibility: opencode
 argument-hint: ""
 metadata:
   author: openspec-extended
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 # OpenSpec for AI Agents

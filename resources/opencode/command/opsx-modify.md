@@ -129,7 +129,7 @@ After completion, display:
 
 Load the corresponding skill for detailed implementation:
 
-See `.opencode/skills/openspec-modify-artifact/SKILL.md` for:
+See `.opencode/skills/openspec-modify-artifacts/SKILL.md` for:
 - Detailed inference logic and auto-selection behavior
 - Complete modification modes and workflows
 - Validation against rules

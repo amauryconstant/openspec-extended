@@ -2,10 +2,9 @@
 name: openspec-generate-changelog
 description: Generate changelogs in Keep a Changelog format from archived OpenSpec changes. Use when publishing releases, generating user-facing documentation, or creating release notes.
 license: MIT
-compatibility: Requires openspec CLI.
 metadata:
   author: openspec-extended
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 # Changelog Generation
