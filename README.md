@@ -26,11 +26,15 @@ export PATH="$HOME/.local/bin:$PATH"
 ## Usage
 
 ```bash
-# Install skills to Claude Code
-openspecx init claude
+# Install skills to Claude Code (add missing only)
+openspecx install claude
 
-# Install skills to OpenCode
-openspecx init opencode
+# Install skills to OpenCode (add missing only)
+openspecx install opencode
+
+# Force update all skills (overwrite existing)
+openspecx update claude
+openspecx update opencode
 ```
 
 ## Project Structure
@@ -68,7 +72,7 @@ EOF
 
 Then run:
 ```bash
-openspecx init claude  # or opencode
+openspecx install claude  # or opencode
 ```
 
 ## Skills Format

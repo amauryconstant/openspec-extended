@@ -1,6 +1,6 @@
 #!/bin/bash
 # OpenSpec-extended - Simplified installer for OpenSpec skills
-# Usage: openspecx init <tool>
+# Usage: openspecx <install|update> <tool>
 
 set -euo pipefail
 
@@ -69,51 +69,70 @@ copy_and_process_skills() {
     local source_dir="$1"
     local target_dir="$2"
     local version="$3"
+    local force="$4"
     
-    local count=0
+    local processed_count=0
+    local skipped_count=0
     
     while IFS= read -r -d '' skill_dir; do
         local skill_name
         skill_name=$(basename "$skill_dir")
         local target_skill_dir="$target_dir/$skill_name"
         
-        cp -r "$skill_dir" "$target_dir/"
-        
-        local skill_file="$target_skill_dir/SKILL.md"
-        if [[ -f "$skill_file" ]]; then
-            inject_generated_by "$skill_file" "$version"
+        if [[ "$force" == "true" ]]; then
+            cp -r "$skill_dir" "$target_dir/"
+            
+            local skill_file="$target_skill_dir/SKILL.md"
+            if [[ -f "$skill_file" ]]; then
+                inject_generated_by "$skill_file" "$version"
+            fi
+            
+            processed_count=$((processed_count + 1))
+        else
+            if [[ -d "$target_skill_dir" ]]; then
+                skipped_count=$((skipped_count + 1))
+            else
+                cp -r "$skill_dir" "$target_dir/"
+                
+                local skill_file="$target_skill_dir/SKILL.md"
+                if [[ -f "$skill_file" ]]; then
+                    inject_generated_by "$skill_file" "$version"
+                fi
+                
+                processed_count=$((processed_count + 1))
+            fi
         fi
-        
-        count=$((count + 1))
     done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d -print0)
     
-    echo "$count"
+    echo "$processed_count:$skipped_count"
 }
 
-if [[ $# -eq 0 ]]; then
-    log_error "Usage: openspecx init <tool>"
-    echo "  Available tools: claude, opencode"
+show_usage() {
+    log_error "Usage: openspecx <command> <tool>"
+    echo
+    echo "Commands:"
+    echo "  install <tool>  Add missing skills (skip existing)"
+    echo "  update <tool>   Force update all skills (overwrite existing)"
+    echo
+    echo "Available tools: claude, opencode"
+}
+
+if [[ $# -lt 2 ]]; then
+    show_usage
     exit 1
 fi
 
 COMMAND="$1"
-
-if [[ "$COMMAND" != "init" ]]; then
-    log_error "Unknown command: $COMMAND"
-    echo "  Available commands: init"
-    echo
-    echo "Usage: openspecx init <tool>"
-    echo "  Available tools: claude, opencode"
-    exit 1
-fi
-
-if [[ $# -lt 2 ]]; then
-    log_error "Usage: openspecx init <tool>"
-    echo "  Available tools: claude, opencode"
-    exit 1
-fi
-
 TOOL="$2"
+
+if [[ "$COMMAND" != "install" && "$COMMAND" != "update" ]]; then
+    log_error "Unknown command: $COMMAND"
+    echo
+    echo "Available commands: install, update"
+    echo
+    show_usage
+    exit 1
+fi
 
 if [[ -z "${TOOL_DIRS[$TOOL]:-}" ]]; then
     log_error "Unknown tool: $TOOL"
@@ -128,13 +147,33 @@ FULL_PATH="$(pwd)/$TARGET_DIR"
 mkdir -p "$FULL_PATH"
 
 if [[ -d "$RESOURCES_DIR/$TOOL/skills" ]]; then
-    SOURCE_COUNT=$(copy_and_process_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH" "$SCRIPT_VERSION")
-    
-    if [[ $SOURCE_COUNT -gt 0 ]]; then
-        log_success "Copied $SOURCE_COUNT skill(s) to $TOOL (v$SCRIPT_VERSION)"
-        echo "  Target: $TARGET_DIR"
+    if [[ "$COMMAND" == "update" ]]; then
+        RESULT=$(copy_and_process_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH" "$SCRIPT_VERSION" "true")
+        UPDATED_COUNT="${RESULT%%:*}"
+        
+        if [[ $UPDATED_COUNT -gt 0 ]]; then
+            log_success "Updated $UPDATED_COUNT skill(s) in $TOOL (v$SCRIPT_VERSION)"
+            echo "  Target: $TARGET_DIR"
+        else
+            echo "No skills found in resources/$TOOL/skills/"
+        fi
     else
-        echo "No skills found in resources/$TOOL/skills/"
+        RESULT=$(copy_and_process_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH" "$SCRIPT_VERSION" "false")
+        INSTALLED_COUNT="${RESULT%%:*}"
+        SKIPPED_COUNT="${RESULT##*:}"
+        
+        if [[ $INSTALLED_COUNT -gt 0 ]]; then
+            log_success "Installed $INSTALLED_COUNT skill(s) to $TOOL (v$SCRIPT_VERSION)"
+            echo "  Target: $TARGET_DIR"
+        fi
+        
+        if [[ $SKIPPED_COUNT -gt 0 ]]; then
+            echo "  Skipped $SKIPPED_COUNT existing skill(s)"
+        fi
+        
+        if [[ $INSTALLED_COUNT -eq 0 && $SKIPPED_COUNT -eq 0 ]]; then
+            echo "No skills found in resources/$TOOL/skills/"
+        fi
     fi
 else
     echo "resources/$TOOL/skills/ directory not found"

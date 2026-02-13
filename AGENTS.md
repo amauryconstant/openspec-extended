@@ -24,7 +24,7 @@
 
 Minimal shell script utility extending OpenSpec with custom skills.
 
-**Purpose**: Install OpenSpec skills via `openspecx init <tool>`
+**Purpose**: Install/update OpenSpec skills via `openspecx <install|update> <tool>`
 
 **Location**: `/home/amaury/Projects/OpenSpec-extended`
 
@@ -34,8 +34,10 @@ Minimal shell script utility extending OpenSpec with custom skills.
 
 | Command | Purpose |
 |----------|----------|
-| `openspecx init claude` | Install skills to `.claude/skills/` |
-| `openspecx init opencode` | Install skills to `.opencode/skills/` |
+| `openspecx install claude` | Add missing skills to `.claude/skills/` |
+| `openspecx install opencode` | Add missing skills to `.opencode/skills/` |
+| `openspecx update claude` | Force update all skills in `.claude/skills/` |
+| `openspecx update opencode` | Force update all skills in `.opencode/skills/` |
 
 ---
 
@@ -44,8 +46,8 @@ Minimal shell script utility extending OpenSpec with custom skills.
 **No automated tests** - manual testing only.
 
 ```bash
-./bin/openspecx init claude
-./bin/openspecx init opencode
+./bin/openspecx install claude
+./bin/openspecx install opencode
 
 # Verify
 ls .claude/skills/
