@@ -1,0 +1,16 @@
+repos:
+  - repo: local
+    hooks:
+      - id: shellcheck
+        name: shellcheck
+        entry: mise exec -- shellcheck -s bash --rcfile=.shellcheckrc
+        language: system
+        types: [shell]
+        files: ^(bin/openspecx|\.mise/tasks/)
+
+      - id: check-version-bump
+        name: Check SKILL.md version bump
+        entry: mise run version:check
+        language: system
+        files: ^resources/.*SKILL\.md$
+        pass_filenames: false

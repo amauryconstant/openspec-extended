@@ -4,16 +4,15 @@
 
 set -euo pipefail
 
-readonly VERSION="0.1.0"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly FALLBACK_VERSION="0.1.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 readonly RESOURCES_DIR="$SCRIPT_DIR/../resources"
 
-# Color codes
 readonly COLOR_GREEN='\033[0;32m'
 readonly COLOR_RED='\033[0;31m'
 readonly COLOR_RESET='\033[0m'
 
-# Tool mapping
 declare -A TOOL_DIRS=(
     ["claude"]=".claude/skills"
     ["opencode"]=".opencode/skills"
@@ -27,7 +26,70 @@ log_error() {
     echo -e "${COLOR_RED}✗${COLOR_RESET} $*" >&2
 }
 
-# Check arguments
+get_script_version() {
+    local version
+    version=$(git -C "$SCRIPT_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "")
+    if [[ -n "$version" ]]; then
+        echo "$version"
+    else
+        echo "$FALLBACK_VERSION"
+    fi
+}
+
+inject_generated_by() {
+    local file="$1"
+    local version="$2"
+    
+    if [[ ! -f "$file" ]]; then
+        return
+    fi
+    
+    local content
+    content=$(cat "$file")
+    local new_content
+    
+    if echo "$content" | grep -q "^metadata:"; then
+        if echo "$content" | grep -q "^  generatedBy:"; then
+            new_content=$(echo "$content" | sed "s/^  generatedBy: \".*\"/  generatedBy: \"$version\"/")
+        else
+            new_content=$(echo "$content" | sed "/^metadata:/a\\  generatedBy: \"$version\"")
+        fi
+    else
+        if echo "$content" | grep -q "^---"; then
+            new_content=$(echo "$content" | sed "/^---$/a\\metadata:\\n  generatedBy: \"$version\"")
+        else
+            new_content="$content"
+        fi
+    fi
+    
+    echo "$new_content" > "$file"
+}
+
+copy_and_process_skills() {
+    local source_dir="$1"
+    local target_dir="$2"
+    local version="$3"
+    
+    local count=0
+    
+    while IFS= read -r -d '' skill_dir; do
+        local skill_name
+        skill_name=$(basename "$skill_dir")
+        local target_skill_dir="$target_dir/$skill_name"
+        
+        cp -r "$skill_dir" "$target_dir/"
+        
+        local skill_file="$target_skill_dir/SKILL.md"
+        if [[ -f "$skill_file" ]]; then
+            inject_generated_by "$skill_file" "$version"
+        fi
+        
+        count=$((count + 1))
+    done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d -print0)
+    
+    echo "$count"
+}
+
 if [[ $# -eq 0 ]]; then
     log_error "Usage: openspecx init <tool>"
     echo "  Available tools: claude, opencode"
@@ -45,7 +107,6 @@ if [[ "$COMMAND" != "init" ]]; then
     exit 1
 fi
 
-# Check if tool is specified
 if [[ $# -lt 2 ]]; then
     log_error "Usage: openspecx init <tool>"
     echo "  Available tools: claude, opencode"
@@ -60,19 +121,17 @@ if [[ -z "${TOOL_DIRS[$TOOL]:-}" ]]; then
     exit 1
 fi
 
+SCRIPT_VERSION=$(get_script_version)
 TARGET_DIR="${TOOL_DIRS[$TOOL]}"
 FULL_PATH="$(pwd)/$TARGET_DIR"
 
-# Create target directory
 mkdir -p "$FULL_PATH"
 
-# Copy skills
 if [[ -d "$RESOURCES_DIR/$TOOL/skills" ]]; then
-    SOURCE_COUNT=$(find "$RESOURCES_DIR/$TOOL/skills" -mindepth 1 -maxdepth 1 -type d | wc -l)
+    SOURCE_COUNT=$(copy_and_process_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH" "$SCRIPT_VERSION")
     
     if [[ $SOURCE_COUNT -gt 0 ]]; then
-        cp -r "$RESOURCES_DIR/$TOOL/skills"/* "$FULL_PATH/"
-        log_success "Copied $SOURCE_COUNT skill(s) to $TOOL"
+        log_success "Copied $SOURCE_COUNT skill(s) to $TOOL (v$SCRIPT_VERSION)"
         echo "  Target: $TARGET_DIR"
     else
         echo "No skills found in resources/$TOOL/skills/"
@@ -81,7 +140,6 @@ else
     echo "resources/$TOOL/skills/ directory not found"
 fi
 
-# Copy commands if they exist
 COMMANDS_DIR="$(pwd)/$(dirname "$TARGET_DIR")/command"
 if [[ -d "$RESOURCES_DIR/$TOOL/command" ]]; then
     mkdir -p "$COMMANDS_DIR"

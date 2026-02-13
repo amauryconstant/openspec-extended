@@ -4,6 +4,9 @@ description: AI agent guide to OpenSpec - framework for spec-driven development.
 license: MIT
 compatibility: opencode
 argument-hint: ""
+metadata:
+  author: openspec-extended
+  version: "0.1.0"
 ---
 
 # OpenSpec for AI Agents

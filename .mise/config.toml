@@ -1,0 +1,3 @@
+[tools]
+shellcheck = "latest"
+pre-commit = {version = "latest", postinstall = "pre-commit install"}

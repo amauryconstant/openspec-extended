@@ -1,8 +1,12 @@
 ---
-name: openspec-modify-artifact
+name: openspec-modify-artifacts
 description: Modify existing artifacts in OpenSpec changes. Use when updating specs, design, proposal, or tasks during or after change creation. Supports natural language descriptions and targeted edits with dependency tracking. Uses inference to reduce prompts when context is clear.
+license: MIT
 argument-hint: "[change-name] [artifact-id]"
 allowed-tools: "Bash,Edit,Write,AskUserQuestion"
+metadata:
+  author: openspec-extended
+  version: "0.1.0"
 ---
 
 Modify an existing artifact in an OpenSpec change.

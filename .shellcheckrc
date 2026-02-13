@@ -1,0 +1,25 @@
+# Shellcheck configuration for OpenSpec-extended
+# See: https://www.shellcheck.net/wiki/
+
+# Shell dialect auto-detection (from shebang)
+shell=auto
+
+# Disable style warnings that block commits
+# SC2001: See if you can use ${variable//search/replace} instead
+#         (sed is more readable for complex patterns)
+# SC2155: Declare and assign separately to avoid masking return values
+# SC2249: Consider adding a default *) case (we validate inputs earlier)
+# SC2312: Consider invoking command separately (acceptable in this codebase)
+disable=SC2001,SC2155,SC2249,SC2312
+
+# Enable optional checks for better code quality
+enable=add-default-case
+enable=avoid-nullary-conditions
+enable=check-extra-masked-returns
+enable=check-set-e-suppressed
+enable=deprecate-which
+enable=quote-safe-variables
+enable=require-double-brackets
+
+# Only show errors and warnings (not style)
+severity=warning

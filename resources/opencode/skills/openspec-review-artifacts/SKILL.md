@@ -1,6 +1,11 @@
 ---
-name: openspec-review-artifact
+name: openspec-review-artifacts
 description: Review OpenSpec artifacts (proposal.md, design.md, tasks.md, specs/) for quality, completeness, consistency, and alignment with schema requirements. Use when validating artifacts before archiving, checking consistency across change artifacts, or identifying issues that prevent successful archiving.
+license: MIT
+compatibility: opencode
+metadata:
+  author: openspec-extended
+  version: "0.1.0"
 ---
 
 # Artifact Review
