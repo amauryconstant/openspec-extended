@@ -1,8 +1,2 @@
-node_modules/
-dist/
-coverage/
-*.log
-.env
-.env.*
-.DS_Store
-.mise.local/
+openspec-core/*
+!openspec-core/AGENTS.md

@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#MISE description="Sync OpenSpec core skills from upstream repository"
+
+set -euo pipefail
+
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+readonly TARGET_DIR="$PROJECT_ROOT/openspec-core"
+readonly UPSTREAM_REPO="https://github.com/Fission-AI/OpenSpec"
+
+readonly COLOR_GREEN='\033[0;32m' COLOR_YELLOW='\033[0;33m' COLOR_RESET='\033[0m'
+
+log_info() { echo -e "${COLOR_YELLOW}→${COLOR_RESET} $*"; }
+log_success() { echo -e "${COLOR_GREEN}✓${COLOR_RESET} $*"; }
+
+check_dependencies() {
+    if ! command -v pnpm &> /dev/null; then
+        echo "Error: pnpm is required but not installed." >&2
+        echo "Install with: npm install -g pnpm" >&2
+        exit 1
+    fi
+    if ! command -v node &> /dev/null; then
+        echo "Error: node is required but not installed." >&2
+        exit 1
+    fi
+}
+
+main() {
+    check_dependencies
+    
+    local temp_dir
+    temp_dir=$(mktemp -d)
+    
+    trap 'rm -rf "$temp_dir"' EXIT
+    
+    log_info "Cloning OpenSpec repository..."
+    git clone --depth 1 "$UPSTREAM_REPO" "$temp_dir/openspec"
+    
+    log_info "Installing dependencies..."
+    cd "$temp_dir/openspec"
+    pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+    
+    log_info "Building OpenSpec..."
+    pnpm run build
+    
+    log_info "Generating AI assistant files..."
+    local gen_dir="$temp_dir/generated"
+    mkdir -p "$gen_dir"
+    cd "$gen_dir"
+    
+    git init -q
+    "$temp_dir/openspec/bin/openspec.js" init --tools claude,opencode --force
+    
+    log_info "Syncing to openspec-core..."
+    mkdir -p "$TARGET_DIR"
+    
+    if [[ -d "$gen_dir/.claude" ]]; then
+        rm -rf "$TARGET_DIR/.claude"
+        cp -r "$gen_dir/.claude" "$TARGET_DIR/"
+        log_success "Synced .claude/"
+    else
+        echo "Warning: No .claude directory generated" >&2
+    fi
+    
+    if [[ -d "$gen_dir/.opencode" ]]; then
+        rm -rf "$TARGET_DIR/.opencode"
+        cp -r "$gen_dir/.opencode" "$TARGET_DIR/"
+        log_success "Synced .opencode/"
+    else
+        echo "Warning: No .opencode directory generated" >&2
+    fi
+    
+    log_success "OpenSpec core skills synced successfully"
+}
+
+main "$@"

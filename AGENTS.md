@@ -8,7 +8,7 @@
 
 **Project Scope**: This is a rough, minimal project. No deep infrastructure, CI, or complex install scripts needed.
 
-**Skills Distributed**:
+**Extension Skills** (see `openspec-core/AGENTS.md` for core workflow skills):
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
 - `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
 - `openspec-review-artifact`: Reviews OpenSpec artifacts for quality, completeness, and consistency
@@ -128,10 +128,18 @@ SOURCE_COUNT=$(find "$DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
 
 ```
 bin/openspecx              # Main executable
-resources/
-  ├── claude/skills/        # Claude Code skills
-  └── opencode/skills/      # OpenCode skills
+openspec-core/             # Official OpenSpec workflow skills (read-only)
+  ├── .claude/             # Claude Code commands + skills
+  └── .opencode/           # OpenCode commands + skills
+resources/                 # Extended utility skills (maintained here)
+  ├── claude/skills/       # Claude Code extension skills
+  └── opencode/skills/     # OpenCode extension skills
+research/                  # Platform documentation
 ```
+
+**Key Distinction**:
+- `openspec-core/` - Official OpenSpec workflows, sync from upstream only
+- `resources/` - Extended skills, maintained locally
 
 ---
 
