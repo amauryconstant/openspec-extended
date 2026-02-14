@@ -1,9 +1,5 @@
 ---
 description: Generate changelogs in Keep a Changelog format from archived OpenSpec changes
-license: MIT
-metadata:
-  author: openspec-extended
-  version: "0.2.0"
 ---
 
 Generate changelogs from archived OpenSpec changes in Keep a Changelog format.
@@ -29,7 +25,7 @@ No arguments required. The AI will guide you through scope selection.
 
 2. **Prompt for scope selection**
 
-   If multiple archived changes exist, use **AskUserQuestion** to ask:
+   If multiple archived changes exist, use **Ask** to ask:
    - All archived changes
    - Changes since a specific date
    - Specific changes by name
@@ -80,7 +76,7 @@ No arguments required. The AI will guide you through scope selection.
    - Categorization summary (X Added, Y Changed, Z Fixed)
    - Preview of generated entries
 
-   Use **AskUserQuestion** to confirm before writing.
+   Use **Ask** to confirm before writing.
 
 7. **Update or create CHANGELOG.md**
 
@@ -135,4 +131,4 @@ No arguments required. The AI will guide you through scope selection.
 
 ---
 
-See `.opencode/skills/openspec-generate-changelog/SKILL.md` for detailed categorization algorithm and version management.
+See `.claude/skills/openspec-generate-changelog/SKILL.md` for detailed categorization algorithm and version management.

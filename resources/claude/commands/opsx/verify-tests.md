@@ -1,9 +1,5 @@
 ---
 description: Review test coverage for OpenSpec changes to ensure spec requirements have tests
-license: MIT
-metadata:
-  author: openspec-extended
-  version: "0.2.0"
 ---
 
 Review test coverage for OpenSpec changes, ensuring spec requirements have corresponding tests.
@@ -14,7 +10,7 @@ Review test coverage for OpenSpec changes, ensuring spec requirements have corre
 
 ## Input
 
-Optionally specify `[change-name]` after `/opsx-verify-tests`. If omitted, the AI will infer from context or prompt for selection.
+Optionally specify `[change-name]` after `/opsx:verify-tests`. If omitted, the AI will infer from context or prompt for selection.
 
 ---
 
@@ -25,7 +21,7 @@ Optionally specify `[change-name]` after `/opsx-verify-tests`. If omitted, the A
    If name provided: use it. Otherwise:
    - Infer from conversation context
    - Auto-select if only one active change
-   - If ambiguous: run `openspec list --json` and use **AskUserQuestion** to prompt
+   - If ambiguous: run `openspec list --json` and use **Ask** to prompt
 
    Announce: "Reviewing tests for change: <name>" and how to override.
 
@@ -103,7 +99,7 @@ Optionally specify `[change-name]` after `/opsx-verify-tests`. If omitted, the A
 
 8. **Generate report**
 
-   Ask user for confirmation using **AskUserQuestion** before saving.
+   Ask user for confirmation using **Ask** before saving.
 
    Default output: `openspec/changes/<name>/test-compliance-report.md`
 
@@ -152,4 +148,4 @@ Optionally specify `[change-name]` after `/opsx-verify-tests`. If omitted, the A
 
 ---
 
-See `.opencode/skills/openspec-review-test-compliance/SKILL.md` for detailed semantic matching and gap analysis methodology.
+See `.claude/skills/openspec-review-test-compliance/SKILL.md` for detailed semantic matching and gap analysis methodology.

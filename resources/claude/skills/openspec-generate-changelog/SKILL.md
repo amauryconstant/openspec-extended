@@ -1,272 +1,264 @@
 ---
 name: openspec-generate-changelog
-description: Generate changelogs in Keep a Changelog format from archived OpenSpec changes. Use when publishing releases, generating user-facing documentation, or creating release notes.
+description: Generate CHANGELOG.md in Keep a Changelog format from archived OpenSpec changes. Use after archiving changes, before publishing releases, or when creating release notes. Reads archived proposals and categorizes changes automatically.
 license: MIT
+compatibility: Requires openspec CLI.
 metadata:
   author: openspec-extended
-  version: "0.1.1"
+  version: "0.2.0"
 ---
 
-# Changelog Generation
+Generate CHANGELOG.md from archived OpenSpec changes using Keep a Changelog format.
 
-Generate changelogs from archived OpenSpec changes using Keep a Changelog format.
+**IMPORTANT: This skill processes ARCHIVED changes only.** Changes must be archived via `openspec-archive-change` before they appear in the changelog. Active (unarchived) changes are not included.
+
+---
+
+## Input
+
+Optionally specify filters. If omitted, processes all archived changes.
+
+**Arguments**: `[filter]`
+
+**Examples**:
+- `/opsx:changelog` - Generate from all archived changes
+- `/opsx:changelog --since 2025-01-01` - Changes after date
+- `/opsx:changelog add-dark-mode` - Only specific change(s)
+
+---
 
 ## When to Use
 
-- Before publishing a release
-- When generating release notes for users
-- When creating version summaries
-- After completing significant milestone
-- As part of documentation generation workflow
+| Timing | Use Case |
+|--------|----------|
+| After `archive` | Generate changelog for newly archived change |
+| Before release | Create version summary for release notes |
+| During documentation | Update user-facing change documentation |
+| After milestone | Summarize multiple completed changes |
 
-## Quick Reference
+**Prerequisite**: Changes must be archived in `openspec/changes/archive/YYYY-MM-DD-<name>/`
 
-| Option | Description | Example |
-|---------|-------------|----------|
-| `--all` | Process all archived changes | `openspec-generate-changelog --all` |
-| `--since <date>` | Only changes after specified date | `openspec-generate-changelog --since 2025-01-01` |
-| `--until <date>` | Only changes before specified date | `openspec-generate-changelog --until 2025-12-31` |
-| `--changes <list>` | Specific changes by name | `openspec-generate-changelog --changes add-dark-mode,fix-login-bug` |
-| `--output <path>` | Custom output file path | `openspec-generate-changelog --output docs/RELEASE_NOTES.md` |
+---
 
-## Workflow
+## Steps
 
-### 1. Discover Archived Changes
+1. **Discover archived changes**
 
-Scan `openspec/changes/archive/` directory for archived changes:
+   Use Bash to find archived change directories:
 
-```bash
-# List archived changes (sorted by date)
-find openspec/changes/archive -type d -name "YYYY-MM-DD-*" | sort
-```
+   ```bash
+   find openspec/changes/archive -type d -name "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*" | sort
+   ```
 
-**Change directory format**: `YYYY-MM-DD-<change-name>/`
+   This returns directories like:
+   - `openspec/changes/archive/2026-02-12-add-dark-mode/`
+   - `openspec/changes/archive/2026-02-10-fix-login-bug/`
 
-### 2. Parse Proposal Files
+2. **Apply filters (if specified)**
 
-For each change, read `proposal.md` and extract:
+   **Date filter** (`--since YYYY-MM-DD`):
+   - Parse date from directory name (first 10 chars)
+   - Include only changes after the specified date
+
+   **Specific changes**:
+   - Filter to only the named change(s)
+   - Match against the `<name>` portion of directory
+
+3. **Read proposal files**
+
+   For each archived change, read `proposal.md`:
+
+   ```
+   openspec/changes/archive/YYYY-MM-DD-<name>/proposal.md
+   ```
+
+    Extract from each proposal:
+    - **## Summary**: First paragraph from Summary section for changelog entry
+    - **## Proposed Change**: Detailed change description for categorization
+
+   If `proposal.md` is missing, check for `design.md` or `tasks.md` as fallback context.
+
+4. **Categorize changes**
+
+   Analyze the "## Proposed Change" section for keywords:
+
+    **Category priority** (highest wins, first match within priority):
+
+    | Category | Keywords | Priority |
+    |----------|----------|----------|
+    | Security | security, vulnerability, CVE, critical, exploit | 1 (highest) |
+    | Breaking | BREAKING, breaking, incompatible, major change | 2 |
+    | Added | add, create, introduce, new, implement, feature | 3 |
+    | Changed | modify, update, change, refactor, improve, enhance | 4 |
+    | Fixed | fix, bug, resolve, correct, error, failure, patch | 5 |
+    | Removed | remove, delete, deprecate, drop | 6 |
+    | Deprecated | deprecate, obsolete | 7 |
+
+   **Example categorization**:
+   - "Add dark mode support" → Added
+   - "Fix session timeout handling" → Fixed
+   - "BREAKING: Migrate to v2 API" → Breaking
+   - "Patch security vulnerability" → Security (not Fixed)
+
+5. **Read existing changelog**
+
+   If `CHANGELOG.md` exists in project root:
+   - Read current content
+   - Identify latest version header (e.g., `## [1.2.3]`)
+   - Preserve existing version history
+
+   If no changelog exists, will create new one.
+
+6. **Generate changelog entries**
+
+   Format in Keep a Changelog structure:
+
+   ```markdown
+   # Changelog
+
+   All notable changes to this project will be documented in this file.
+
+   The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+   ## [Unreleased]
+
+   ### Added
+   - Add dark mode support (add-dark-mode)
+   - Implement user authentication (add-user-auth)
+
+   ### Fixed
+   - Fix session timeout handling (fix-session-timeout)
+
+   ### Breaking
+   - **BREAKING**: Migrate to v2 API endpoints (migrate-api)
+
+   ### Security
+   - Patch JWT token leak vulnerability (patch-jwt-leak)
+   ```
+
+   **Entry format**:
+   - Hyphen prefix: `- `
+   - Description: Brief summary from proposal
+   - Change reference: `(<change-name>)` in parentheses
+
+7. **Preview changes**
+
+   Show user:
+   - Number of changes processed
+   - Categorization summary (X Added, Y Changed, Z Fixed)
+   - Preview of generated/updated changelog
+   - Ask for confirmation before writing
+
+8. **Write changelog**
+
+   After confirmation:
+   - Create new `CHANGELOG.md` if it doesn't exist
+   - Or update existing `CHANGELOG.md`:
+     - New entries go under `## [Unreleased]`
+     - Create new section if needed
+     - Preserve existing version history
+
+---
+
+## Output
+
+**Preview**:
 
 ```markdown
-## Summary
+## Changelog Preview
 
-<brief description>
+**Changes to Process**: 5
+- Added: 2
+- Fixed: 2
+- Breaking: 1
 
-## Proposed Change
-
-<detailed description of what changed>
-```
-
-**Key sections to extract**:
-- **## Summary** → Changelog entry summary
-- **## Proposed Change** → Change details and categorization
-
-### 3. Categorize Changes
-
-Analyze "## Proposed Change" section for keywords:
-
-**Default categorization** (auto):
-```markdown
-### Added
-- Keywords: "add", "create", "introduce", "new", "implement"
-
-### Changed
-- Keywords: "modify", "update", "change", "refactor", "improve", "enhance"
-
-### Fixed
-- Keywords: "fix", "bug", "resolve", "correct", "error", "failure"
-
-### Removed
-- Keywords: "remove", "delete", "deprecate", "drop"
-
-### Breaking
-- Keywords: "BREAKING", "break", "breaking", "incompatible", "major"
-
-### Security
-- Keywords: "security", "vulnerability", "cve", "patch", "critical", "CVE"
-```
-
-**Multi-category detection**:
-- Changes with multiple category keywords → Most significant category
-- Example: "fix security vulnerability" → Security (not Fixed)
-
-**User override**:
-- Prompt for category confirmation if needed
-- Provide option to reclassify manually
-
-### 4. Generate Changelog
-
-Use Keep a Changelog format:
-
-```markdown
-# Changelog
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+### Generated Entries
 
 ## [Unreleased]
 
 ### Added
 - Add dark mode support (add-dark-mode)
-
-### Changed
-- Update API authentication flow (update-auth-flow)
+- Implement user authentication (add-user-auth)
 
 ### Fixed
 - Fix session timeout handling (fix-session-timeout)
-
-### Removed
-- Remove legacy export feature (remove-legacy-export)
+- Resolve race condition in event handler (fix-race-condition)
 
 ### Breaking
-- **BREAKING**: API endpoint /v1/users is now /v2/users (migrate-users)
+- **BREAKING**: Migrate to v2 API endpoints (migrate-api)
 
-### Security
-- **Security**: Patch JWT token leak vulnerability (patch-jwt-leak)
+---
+
+Write to CHANGELOG.md? [Y/n]
 ```
 
-**Entry format**:
-- Hyphen prefix (-) before each entry
-- Change name in parentheses (optional, for reference)
-- Description of the change
-- References to related issues/PRs (optional)
-
-### 5. Update Existing Changelog
-
-If `CHANGELOG.md` exists:
-
-1. **Detect current version**
-   - Look for `## [Version]` headers
-   - Identify latest version number
-
-2. **Move unreleased to version**
-   - If `## [Unreleased]` has entries
-   - Create new version section: `## [1.2.3]`
-   - Move unreleased entries to new version
-
-3. **Update release date**
-   - Add release date: `## [1.2.3] - 2026-02-12`
-
-**If creating new changelog**:
-- Start with `## [Unreleased]`
-- No version header until first release
-
-### 6. Write Output
-
-Default output: `CHANGELOG.md` in project root
-
-User-specified: Custom path via `--output`
-
-### 7. Preview and Confirm
-
-Show user:
-
-- Number of changes processed
-- Categorization summary (X Added, Y Changed, Z Fixed)
-- Preview of generated changelog
-- Ask for confirmation before writing
-
-## Output
+**After Writing**:
 
 ```markdown
-## Changelog Generated
+## Changelog Updated
 
-**Changes Processed**: 12
-- Added: 5
-- Changed: 3
-- Fixed: 3
-- Removed: 1
+**File**: CHANGELOG.md
+**Changes Added**: 5
+**Categories**:
+- Added: 2
+- Fixed: 2
+- Breaking: 1
 
-**Preview**:
+### Next Steps
+- Review CHANGELOG.md for accuracy
+- Update version header when ready to release
+- Commit changelog with release
+```
 
-# Changelog
+**No Archived Changes**:
 
+```markdown
+## No Archived Changes Found
+
+No changes found in `openspec/changes/archive/`.
+
+**To archive changes:**
+1. Complete implementation: `/opsx:apply <name>`
+2. Verify implementation: `/opsx:verify <name>`
+3. Archive the change: `/opsx:archive <name>`
+4. Re-run changelog generation: `/opsx:changelog`
+```
+
+---
+
+## Version Header Guidance
+
+When creating a release, update the version header:
+
+**Before**:
+```markdown
 ## [Unreleased]
 
 ### Added
 - Add dark mode support
-- Implement user authentication
-
-### Fixed
-- Fix session timeout
-
-**Output File**: CHANGELOG.md
-
-Write to file? [y/N]
 ```
 
-## Advanced Usage
+**After** (for release):
+```markdown
+## [Unreleased]
 
-### Dry Run
+## [1.2.0] - 2026-02-14
 
-Preview changes without writing:
-
-```bash
-openspec-generate-changelog --all --dry-run
+### Added
+- Add dark mode support
 ```
 
-### Custom Templates
+This skill does NOT automatically version - that's a manual release decision.
 
-Use project-specific changelog format via references/ templates:
+---
 
-```bash
-openspec-generate-changelog --template custom-changelog.md
-```
+## Guardrails
 
-### Date Filters
-
-Process changes within date range:
-
-```bash
-# Changes from January 2026 only
-openspec-generate-changelog --since 2026-01-01 --until 2026-01-31
-
-# Changes since last release
-openspec-generate-changelog --since $(git log -1 --format=%ai --date=short)
-```
-
-### Change Selection
-
-Generate changelog for specific changes:
-
-```bash
-# Only specific changes
-openspec-generate-changelog --changes add-dark-mode,update-auth-flow
-
-# Combine with date filter
-openspec-generate-changelog --changes add-dark-mode --since 2026-01-01
-```
-
-## Troubleshooting
-
-**No archived changes found**:
-- Check `openspec/changes/archive/` directory exists
-- Verify changes are in `YYYY-MM-DD-<name>` format
-- Run without `--all` flag for current changes
-
-**Category seems wrong**:
-- Manually reclassify using skill
-- Override category by editing changelog after generation
-- Check proposal.md "## Proposed Change" section for context
-
-**Missing proposal.md**:
-- Change may be infrastructure-only (no spec modifications)
-- Use design.md or tasks.md for context
-- Mark as "Infrastructure update" in changelog
-
-## Best Practices
-
-- **Release-driven**: Generate changelog as part of release process
-- **One truth**: Keep CHANGELOG.md as source of truth, don't have multiple copies
-- **Version tracking**: Follow semantic versioning when creating version headers
-- **Breaking changes**: Highlight breaking changes prominently with `**BREAKING**` marker
-- **Link references**: Include issue/PR numbers when possible
-- **Concise entries**: Each entry should be 1-2 sentences for user-facing docs
-
-## References
-
-See `references/changelog-format.md` for detailed Keep a Changelog specification.
-
-See `references/proposal-parsing-guide.md` for parsing guidelines based on OpenSpec proposal format.
-
-See `references/example-output.md` for sample generated changelogs.
+- Only process ARCHIVED changes, never active ones
+- Require user confirmation before writing to CHANGELOG.md
+- Preserve existing changelog content and version history
+- Use Keep a Changelog format consistently
+- Include change name reference in parentheses for traceability
+- If proposal.md is missing, use design.md or tasks.md as fallback
+- Don't auto-version - that's a release-time decision
+- Sort entries within categories by date (newest first)

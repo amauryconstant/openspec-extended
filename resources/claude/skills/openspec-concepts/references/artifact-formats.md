@@ -222,3 +222,139 @@ openspec/changes/archive/2025-01-15-add-feature-x/
 ```
 
 **Date prefix** - `YYYY-MM-DD-<name>` for chronological sorting.
+
+---
+
+## Schemas
+
+Schemas define which artifacts exist and their dependencies. They drive the OPSX workflow.
+
+### Built-in Schema: spec-driven
+
+The default workflow with the standard artifact chain:
+
+```mermaid
+graph TB
+    proposal["proposal<br/>(root)"]
+    specs["specs"]
+    design["design"]
+    tasks["tasks"]
+    
+    proposal --> specs
+    proposal --> design
+    specs --> tasks
+    design --> tasks
+    
+    style proposal fill:#c8e6c9
+    style specs fill:#fff9c4
+    style design fill:#fff9c4
+    style tasks fill:#ffccbc
+```
+
+**schema.yaml structure**:
+
+```yaml
+name: spec-driven
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    requires: []
+    
+  - id: specs
+    generates: specs/**/*.md
+    requires: [proposal]
+    
+  - id: design
+    generates: design.md
+    requires: [proposal]
+    
+  - id: tasks
+    generates: tasks.md
+    requires: [specs, design]
+```
+
+### Custom Schemas
+
+Create custom workflows to match your team's process:
+
+```bash
+# Create new schema
+openspec schema init research-first
+
+# Fork existing
+openspec schema fork spec-driven rapid-iteration
+```
+
+**Example: research-first schema**:
+
+```yaml
+name: research-first
+artifacts:
+  - id: research
+    generates: research.md
+    requires: []
+    
+  - id: proposal
+    generates: proposal.md
+    requires: [research]
+    
+  - id: tasks
+    generates: tasks.md
+    requires: [proposal]
+```
+
+```mermaid
+graph LR
+    research["research"] --> proposal["proposal"] --> tasks["tasks"]
+    
+    style research fill:#e3f2fd
+    style proposal fill:#fff8e1
+    style tasks fill:#e8f5e9
+```
+
+### Schema Precedence
+
+Schemas are resolved in this order (highest to lowest):
+
+1. **CLI flag**: `--schema <name>`
+2. **Change metadata**: `.openspec.yaml` in change folder
+3. **Project config**: `openspec/config.yaml`
+4. **Default**: `spec-driven`
+
+### Schema Locations
+
+| Location | Purpose |
+|----------|---------|
+| `openspec/schemas/<name>/` | Project-local, version controlled |
+| `~/.local/share/openspec/schemas/<name>/` | User global |
+| Package built-in | Default schemas |
+
+---
+
+## Project Configuration
+
+Optional `openspec/config.yaml` for project-wide defaults:
+
+```yaml
+schema: spec-driven
+
+context: |
+  Tech stack: TypeScript, React, Node.js
+  API conventions: RESTful, JSON responses
+  Testing: Vitest for unit tests, Playwright for e2e
+  Style: ESLint with Prettier, strict TypeScript
+
+rules:
+  proposal:
+    - Include rollback plan
+    - Identify affected teams
+  specs:
+    - Use Given/When/Then format for scenarios
+  design:
+    - Include sequence diagrams for complex flows
+```
+
+**How it works**:
+- `context` is injected into all artifact instructions
+- `rules` are injected only for matching artifacts
+- Helps AI understand project conventions

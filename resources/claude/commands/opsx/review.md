@@ -1,9 +1,5 @@
 ---
 description: Review OpenSpec artifacts for quality, completeness, and consistency
-license: MIT
-metadata:
-  author: openspec-extended
-  version: "0.2.0"
 ---
 
 Review OpenSpec artifacts (proposal, design, tasks, specs) for quality and completeness.
@@ -12,14 +8,14 @@ Review OpenSpec artifacts (proposal, design, tasks, specs) for quality and compl
 
 ## Input
 
-Optionally specify `[change-name] [artifact-id]` after `/opsx-review`. If omitted, the AI will infer from context or prompt for selection.
+Optionally specify `[change-name] [artifact-id]` after `/opsx:review`. If omitted, the AI will infer from context or prompt for selection.
 
 **Patterns**:
 | Input | Behavior |
 |-------|----------|
-| `/opsx-review add-auth proposal` | Review specific artifact in specific change |
-| `/opsx-review add-auth` | Review entire change (all artifacts) |
-| `/opsx-review` | Infer from context or prompt |
+| `/opsx:review add-auth proposal` | Review specific artifact in specific change |
+| `/opsx:review add-auth` | Review entire change (all artifacts) |
+| `/opsx:review` | Infer from context or prompt |
 
 ---
 
@@ -30,7 +26,7 @@ Optionally specify `[change-name] [artifact-id]` after `/opsx-review`. If omitte
    If name provided: use it. Otherwise:
    - Infer from conversation context
    - Auto-select if only one active change
-   - If ambiguous: run `openspec list --json` and use **AskUserQuestion** to prompt
+   - If ambiguous: run `openspec list --json` and use **Ask** to prompt
 
    Announce: "Reviewing change: <name>" and how to override.
 
@@ -111,4 +107,4 @@ Optionally specify `[change-name] [artifact-id]` after `/opsx-review`. If omitte
 
 ---
 
-See `.opencode/skills/openspec-review-artifacts/SKILL.md` for detailed review criteria and common issues catalog.
+See `.claude/skills/openspec-review-artifacts/SKILL.md` for detailed review criteria and common issues catalog.

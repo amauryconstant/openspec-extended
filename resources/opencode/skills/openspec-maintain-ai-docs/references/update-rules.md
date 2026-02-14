@@ -42,7 +42,7 @@ Rules for updating AGENTS.md and CLAUDE.md documentation files when adding, upda
 ```markdown
 **Core Skills**:
 - `openspec-concepts`: Framework understanding
-- `openspec-modify-artifact`: Artifact modification
+- `openspec-modify-artifacts`: Artifact modification
 
 **Quality Skills**:
 - `openspec-review-artifacts`: Artifact review
@@ -227,7 +227,7 @@ def update_skills_distributed(content, skill_name, new_description):
 
 Some changes should apply to both files:
 
-- Core framework skills (openspec-concepts, openspec-modify-artifact)
+- Core framework skills (openspec-concepts, openspec-modify-artifacts)
 - General utility skills
 - Project configuration changes
 

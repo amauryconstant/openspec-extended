@@ -19,14 +19,14 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 **Skills Distributed**:
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
+- `openspec-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
 
 ## Quick Reference
 
 | Command | Purpose |
 |----------|----------|
-| `openspecx init claude` | Install skills to `.claude/skills/` |
-| `openspecx init opencode` | Install skills to `.opencode/skills/` |
+| `openspecx install claude` | Install skills to `.claude/skills/` |
+| `openspecx install opencode` | Install skills to `.opencode/skills/` |
 ```
 
 ### After
@@ -44,34 +44,8 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 **Skills Distributed**:
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
+- `openspec-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
 - `openspec-review-artifacts`: Reviews OpenSpec artifacts for quality, completeness, and consistency
-
-## Quick Reference
-
-| Command | Purpose |
-|----------|----------|
-| `openspecx init claude` | Install skills to `.claude/skills/` |
-| `openspecx init opencode` | Install skills to `.opencode/skills/` |
-| `openspec-maintain-ai-docs`: Maintain AGENTS.md and CLAUDE.md documentation |
-```
-
-**Changes**:
-- Added new skill entry for `openspec-review-artifact`
-- Updated Skills Distributed count (3 skills)
-- Added new command to Quick Reference table
-
----
-
-## Example 2: Updating a Skill Description
-
-### Before
-
-```markdown
-**Skills Distributed**:
-- `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts
-- `openspec-review-artifacts`: Reviews OpenSpec artifacts
 ```
 
 ### After
@@ -79,35 +53,8 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 ```markdown
 **Skills Distributed**:
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
+- `openspec-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
 - `openspec-review-artifacts`: Reviews OpenSpec artifacts for quality, completeness, and consistency
-```
-
-**Changes**:
-- Updated description for `openspec-review-artifacts` to be more specific
-- Added "completeness, and consistency" to clarify scope
-
----
-
-## Example 3: Removing a Deprecated Skill
-
-### Before
-
-```markdown
-**Skills Distributed**:
-- `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
-- `openspec-old-parser`: Legacy parser (deprecated in favor of core)
-- `openspec-review-artifacts`: Reviews OpenSpec artifacts for quality
-```
-
-### After
-
-```markdown
-**Skills Distributed**:
-- `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
-- `openspec-review-artifacts`: Reviews OpenSpec artifacts for quality
 ```
 
 **Changes**:
@@ -126,7 +73,7 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 | Command | Purpose |
 |----------|----------|
-| `openspecx init claude` | Install skills |
+| `openspecx install claude` | Install skills |
 ```
 
 ### After
@@ -136,13 +83,12 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 | Command | Purpose |
 |----------|----------|
-| `openspecx init claude` | Install skills to `.claude/skills/` |
-| `openspecx init opencode` | Install skills to `.opencode/skills/` |
-| `openspec-maintain-ai-docs`: Maintain AGENTS.md and CLAUDE.md documentation |
+| `openspecx install claude` | Install skills to `.claude/skills/` |
+| `openspecx install opencode` | Install skills to `.opencode/skills/` |
 ```
 
 **Changes**:
-- Added command for `openspecx init opencode`
+- Added command for `openspecx install opencode`
 - Maintained table format and alignment
 - Sorted commands alphabetically
 
@@ -155,7 +101,7 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 ```markdown
 **Skills Distributed**:
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts
+- `openspec-modify-artifacts`: Modifies OpenSpec artifacts
 - `openspec-review-artifacts`: Reviews OpenSpec artifacts
 ```
 
@@ -164,12 +110,12 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 ```markdown
 **Skills Distributed**:
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking (v1.0)
+- `openspec-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking (v1.0)
 - `openspec-review-artifacts`: Reviews OpenSpec artifacts for quality and consistency
 ```
 
 **Changes**:
-- Added version (v1.0) to `openspec-modify-artifact` entry
+- Added version (v1.0) to `openspec-modify-artifacts` entry
 - Preserved other entries unchanged
 - Version format consistent across all skills
 
@@ -182,7 +128,7 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 ```markdown
 **Skills Distributed**:
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts
+- `openspec-modify-artifacts`: Modifies OpenSpec artifacts
 - `openspec-review-artifacts`: Reviews OpenSpec artifacts
 - `openspec-new-change`: Start a new OpenSpec change
 - `openspec-apply-change`: Implement tasks from an OpenSpec change
@@ -197,8 +143,8 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
 
 **Artifact Management**:
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
-- `openspec-review-artifact`: Reviews OpenSpec artifacts for quality
+- `openspec-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
+- `openspec-review-artifacts`: Reviews OpenSpec artifacts for quality
 
 **Workflow Skills**:
 - `openspec-new-change`: Start a new OpenSpec change
@@ -221,7 +167,7 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 **Skills Distributed**:
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
+- `openspec-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
 - `openspec-review-artifacts`: Reviews OpenSpec artifacts
 - `openspec-maintain-ai-docs`: Maintain AGENTS.md and CLAUDE.md documentation
 ```
@@ -244,7 +190,7 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 ```markdown
 **Skills Distributed**:
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
+- `openspec-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
 - `openspec-review-artifacts`: Reviews OpenSpec artifacts
 - `openspec-review-artifacts`: Reviews OpenSpec artifacts for quality
 ```
@@ -269,13 +215,13 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 **Skills Distributed**:
 - `openspec-concepts`: Framework understanding
-- `openspec-modify-artifact`: Artifact modification
+- `openspec-modify-artifacts`: Artifact modification
 
 ## Quick Reference
 
 | Command | Purpose |
 |----------|----------|
-| `openspecx init claude` | Install skills |
+| `openspecx install claude` | Install skills |
 ```
 
 ### After (organized structure)
@@ -293,16 +239,15 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 **Skills Distributed**:
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
+- `openspec-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
 - `openspec-review-artifacts`: Reviews OpenSpec artifacts for quality, completeness, and consistency
 
 ## Quick Reference
 
 | Command | Purpose |
 |----------|----------|
-| `openspecx init claude` | Install skills to `.claude/skills/` |
-| `openspecx init opencode` | Install skills to `.opencode/skills/` |
-| `openspec-maintain-ai-docs`: Maintain AGENTS.md and CLAUDE.md documentation |
+| `openspecx install claude` | Install skills to `.claude/skills/` |
+| `openspecx install opencode` | Install skills to `.opencode/skills/` |
 
 ## Running / Testing
 

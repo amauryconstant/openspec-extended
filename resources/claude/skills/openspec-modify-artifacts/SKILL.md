@@ -1,40 +1,55 @@
 ---
 name: openspec-modify-artifacts
-description: Modify existing artifacts in OpenSpec changes. Use when updating specs, design, proposal, or tasks during or after change creation. Supports natural language descriptions and targeted edits with dependency tracking. Uses inference to reduce prompts when context is clear.
+description: Modify an existing artifact in an OpenSpec change. Use during pre-implementation review iteration (after review-artifacts feedback) or during implementation when requirements change. Supports natural language descriptions and targeted edits with dependency tracking.
 license: MIT
-argument-hint: "[change-name] [artifact-id]"
-allowed-tools: "Bash,Edit,Write,AskUserQuestion"
+compatibility: Requires openspec CLI.
 metadata:
   author: openspec-extended
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
-Modify an existing artifact in an OpenSpec change.
+Modify an existing artifact in an OpenSpec change with dependency-aware updates.
 
-**Input**: Optionally specify a change name. If omitted, the skill will try to infer from conversation context or auto-select if only one active change exists.
+**IMPORTANT: `context` and `rules` from openspec instructions are constraints for YOU, not content for the artifact file.** Do NOT copy `<context>`, `<rules>`, or `<project_context>` blocks into artifacts. These guide what you write but should never appear in output.
 
-**Steps**
+---
+
+## Input
+
+Optionally specify a change name and artifact ID. If omitted, the skill will infer from context or prompt for selection.
+
+**Arguments**: `[change-name] [artifact-id]`
+
+**Examples**:
+- `/opsx:modify add-auth` - Modify change "add-auth" (will prompt for artifact)
+- `/opsx:modify add-auth proposal` - Modify proposal.md in "add-auth"
+- "Fix the missing rationale in design decision 2" - Infer from context
+
+---
+
+## Steps
 
 1. **Select the change**
 
    If a name is provided, use it. Otherwise:
-   - Try to infer from conversation context if the user mentioned a change
-   - If only one active change exists: auto-select it
-   - If multiple active changes and no inference: run `openspec list --json` and use the **AskUserQuestion tool** to let the user select
+   - Infer from conversation context if the user mentioned a change
+   - Auto-select if only one active change exists
+   - If ambiguous: run `openspec list --json` and use the **AskUserQuestion tool** to let the user select
 
    When showing changes, include: name, schema, status, last modified. Mark the most recently modified as "(Recommended)".
 
-   Always announce: "Using change: <name>" and how to override (e.g., "/opsx:modify-artifact <change> <artifact>")
+   Always announce: "Using change: <name>" and how to override (e.g., `/opsx:modify <other> <artifact>`).
 
 2. **Check change status**
+
    ```bash
    openspec status --change "<name>" --json
    ```
+
    Parse the JSON to understand:
    - `schemaName`: The workflow being used (e.g., "spec-driven")
    - `artifacts`: Array of artifacts with status (done/ready/blocked)
    - `isComplete`: Whether all artifacts are done
-   - `applyRequires`: Artifacts needed before implementation
 
 3. **Select artifact to modify**
 
@@ -50,12 +65,14 @@ Modify an existing artifact in an OpenSpec change.
    - Unlocks count
 
 4. **Get modification context**
+
    ```bash
    openspec instructions <artifact-id> --change "<name>" --json
    ```
+
    Parse the JSON to extract:
-   - `rules`: Validation rules for this artifact
-   - `context`: Project background (constraints for you - do NOT include in output)
+   - `rules`: Validation rules for this artifact (constraints for you)
+   - `context`: Project background (constraints for you)
    - `template`: Expected structure
    - `dependencies`: Artifacts this artifact depends on
    - `unlocks`: Artifacts that depend on this one
@@ -64,14 +81,30 @@ Modify an existing artifact in an OpenSpec change.
 
    **Read the current artifact file** from `outputPath`.
 
-5. **Display validation constraints**
+5. **Detect workflow scenario**
+
+   Check conversation context for review feedback:
+   - If user references review-artifacts output or specific issue numbers → **Review Iteration Mode**
+   - If user describes new requirements or changes discovered during coding → **Amendment Mode**
+
+   **Review Iteration Mode**:
+   - Focus on specific issues identified in review
+   - Validate fixes against the review criteria
+   - After modification, suggest re-running review-artifacts
+
+    **Amendment Mode**:
+    - Focus on capturing requirement changes
+    - Consider impact on existing implementation
+    - After modification, suggest running `/opsx:apply <name>`
+
+6. **Display validation constraints**
 
    Show the user:
    - `rules` array (as constraints, not content)
    - `dependencies` list (what this artifact relies on)
    - `unlocks` list (what artifacts depend on this)
 
-6. **Determine modification mode**
+7. **Determine modification mode**
 
    **Mode A: Describe Changes** - Use when user provides natural language:
    - "Add a requirement for..."
@@ -83,16 +116,16 @@ Modify an existing artifact in an OpenSpec change.
    - "Replace the second paragraph..."
    - "Update the authentication section..."
 
-   Decision: Auto-select based on input type. No explicit prompt needed.
+   Auto-select based on input type. No explicit prompt needed.
 
-7. **Apply modifications based on mode**
+8. **Apply modifications**
 
    **Mode A (Describe Changes)**:
    - Parse user's description
    - Analyze current artifact content
    - Identify which sections need changes
    - Apply changes autonomously if clear
-   - If ambiguous or uncertain: pause and ask for clarification using AskUserQuestion
+    - If ambiguous: pause and ask for clarification using **AskUserQuestion tool**
 
    **Mode B (Interactive Edit)**:
    - Parse entire artifact file
@@ -102,73 +135,99 @@ Modify an existing artifact in an OpenSpec change.
    - Apply targeted changes using Edit tool
    - If more sections need changes, repeat
 
-8. **Validate modifications**
+9. **Validate modifications**
 
-   Check the proposed changes against the `rules` array from step 4 (`openspec instructions` output):
+   Check proposed changes against:
+   
+   a) The `rules` array from step 4 (structural/format requirements)
+   
+   b) **If in Review Iteration Mode**: The specific issues from review-artifacts feedback
+   
+   c) **If in Amendment Mode**: Backward compatibility with implementation
 
-   1. Identify any rule violations
-   2. Clear/fixable violations → Fix automatically and continue
-   3. Ambiguous violations → Explain issue and ask user
-   4. If user's intent is clear despite violation → Proceed with warning
+   Handle validation results:
+   - Clear/fixable violations → Fix automatically and continue
+   - Ambiguous violations → Explain issue and ask user
+   - If user's intent is clear despite violation → Proceed with warning
 
-   Note: Use the `rules` from instructions, do NOT run `openspec validate`.
+   Note: Use `rules` from instructions. Do NOT run `openspec validate`.
 
-9. **Write the updated artifact file**
+10. **Write the updated artifact file**
 
-   Use Edit tool for targeted changes, Write tool for complete rewrites.
+    Use Edit tool for targeted changes, Write tool for complete rewrites. Verify the file was written successfully.
 
-   Verify the file was written successfully.
+11. **Handle dependent artifacts**
 
-10. **Handle dependent artifacts**
+    From the instructions output, check the `unlocks` array (reverse dependencies).
 
-     From the instructions output, check the `unlocks` array (reverse dependencies).
-
-     **For each artifact in `unlocks`**:
-     - Run `openspec instructions <dependent-id> --change "<name>" --json`
-     - Read the dependent artifact file
-     - Analyze if the modification affects this dependent artifact
-     - Track affected artifacts
+    **For each artifact in `unlocks`**:
+    - Run `openspec instructions <dependent-id> --change "<name>" --json`
+    - Read the dependent artifact file
+    - Analyze if the modification affects this dependent artifact
+    - Track affected artifacts
 
      **Decision logic** (prefer reasonable decisions):
-     - **0-1 affected**: Auto-update and explain (no prompt)
-     - **2+ affected**: Show the list and prompt for confirmation
+     - **Single dependent affected**: Auto-update and explain (no prompt)
+     - **Multiple dependents affected**: Show the list and prompt for confirmation
      - **User mentioned "cascade"**: Auto-update regardless of count
 
-     **When auto-updating**:
-     - Apply the same modification principles
-     - Summarize changes after all updates complete
-     - Mark dependent artifacts as modified
+12. **Show success summary**
 
-11. **Show success summary**
+    Display:
+    - Which artifact was modified
+    - Changes applied (summary)
+    - Dependent artifacts updated
+    - Context-aware next steps based on scenario
 
-     Display:
-     - Which artifact was modified
-     - Changes applied (summary)
-     - Dependent artifacts updated
-     - Next steps: "Run `/opsx:apply <name>` to re-sync implementation with updated artifacts" or "Continue modifying other artifacts"
+---
 
-**Output**
+## Output
 
-After completion, show:
+**On Success**:
 
 ```
 ## Modification Complete
 
 **Change:** <name>
 **Artifact:** <artifact-id>
+**Mode:** [Review Iteration / Amendment]
 
 ### Changes Applied
 - [Section]: [Action] - [Summary]
 
 ### Dependent Artifacts Updated
-- [✓] <artifact-id>: [Summary]
+- [x] <artifact-id>: [Summary]
 
 ### Next Steps
-- Ready to implement: `/opsx:apply <name>`
-- Continue modifying: [describe next artifact]
+**Pre-implementation review:**
+- Continue with: [next flagged artifact if any]
+- Verify fixes: `/opsx:review <name>`
+- Ready to implement: `/opsx:apply <name>` after review passes
+
+**Implementation phase:**
+- Sync changes: `/opsx:apply <name>`
+- Check tests: [affected test files if known]
 ```
 
-**Guardrails**
+**On Pause (Ambiguous Input)**:
+
+```
+## Modification Paused
+
+**Issue:** <description of ambiguity>
+
+**Options:**
+1. <option 1>
+2. <option 2>
+3. Describe differently
+
+What would you like to do?
+```
+
+---
+
+## Guardrails
+
 - Always read current artifact before modifying
 - Check dependents before finalizing changes
 - Use `rules` from instructions for validation (not CLI validate command)
@@ -176,6 +235,4 @@ After completion, show:
 - Prefer reasonable decisions to keep momentum (0-1 dependents → auto-update)
 - Pause and ask for clarification if unable to act autonomously
 - Follow schema order for artifact selection
-- IMPORTANT: `context` and `rules` are constraints for YOU, not content for the file
-  - Do NOT copy `<context>`, `<rules>`, `<project_context>` blocks into the artifact
-  - These guide what you write, but should never appear in the output
+- Never copy `context`, `rules`, or `project_context` blocks into artifact files

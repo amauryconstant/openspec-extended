@@ -1,215 +1,321 @@
 ---
 name: openspec-maintain-ai-docs
-description: Maintain AGENTS.md and CLAUDE.md documentation to keep synchronized with available skills. Use when adding new skills, updating existing ones, or ensuring documentation reflects current state.
+description: Update AGENTS.md after implementing an OpenSpec change. Use between sync and archive to document what was built for future OpenCode sessions.
 license: MIT
 metadata:
   author: openspec-extended
-  version: "0.1.1"
+  version: "0.2.0"
 ---
 
-# AI Documentation Maintenance
+Update project documentation after implementing an OpenSpec change.
 
-Maintain AI coding assistant documentation files (AGENTS.md, CLAUDE.md) to keep them synchronized with available skills.
+**Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
 
-## When to Use
+---
 
-- After creating new skills
-- When skill metadata changes (name, description, version)
-- Before releasing or publishing OpenSpec-extended
-- As part of periodic documentation audits
-- When documentation drifts from actual skills available
+## Core Principles
 
-## Quick Reference
+| Principle | Application |
+|-----------|-------------|
+| **Ruthless conciseness** | Only document what AI can't infer from code |
+| **Progressive disclosure** | Reference details, don't embed them |
+| **Token efficiency** | Tables over verbose lists, front-load essentials |
+| **Specificity** | Concrete commands, not vague instructions |
 
-| Documentation File | Purpose | Key Sections | Location |
-|------------------|---------|---------------|----------|
-| `AGENTS.md` | Project context and skills list | Project root (OpenSpec-extended) |
-| `CLAUDE.md` | Claude Code-specific documentation | Project root (if applicable) |
+**Target lengths**:
+- Ideal: <300 lines (~1200 tokens)
+- Warning: >300 lines (review needed)
+- Maximum: >500 lines (must split)
 
-## Workflow
+---
 
-### 1. Detect Documentation Files
+## Steps
 
-Scan current directory for documentation files:
+1. **Select the change**
 
-```bash
-# Check for AGENTS.md
-test -f AGENTS.md && echo "AGENTS.md found" || echo "AGENTS.md not found"
+   If a name is provided, use it. Otherwise:
+   - Infer from conversation context if the user mentioned a change
+   - Auto-select if only one active change exists
+   - If ambiguous, run `openspec list --json` to get available changes and use the **AskUserQuestion tool** to let the user select
 
-# Check for CLAUDE.md  
-test -f CLAUDE.md && echo "CLAUDE.md found" || echo "CLAUDE.md not found"
-```
+   Always announce: "Using change: <name>" and how to override.
 
-**Detected files**: Report which documentation files exist.
+2. **Read change artifacts**
 
-### 2. Read Current Documentation
+   Read files from `openspec/changes/<name>/`:
+   
+   | File | Extract |
+   |------|---------|
+   | `proposal.md` | Intent, scope, new features/capabilities |
+   | `specs/` | New requirements, modified behaviors |
+   | `design.md` | Architectural decisions, new patterns, file changes |
+   | `tasks.md` | Checked items = what was actually built |
 
-For each detected file:
+   **Key extraction**:
+   - New commands/CLI tools added
+   - New components/modules created
+   - New patterns or conventions established
+   - New APIs/endpoints exposed
+   - Architectural changes
 
-- Parse skills list sections
-- Extract quick reference tables
-- Preserve existing content structure
+3. **Read recent code changes**
 
-**Key sections to preserve**:
-- Skills Distributed (list of skills with descriptions)
-- Quick Reference (if exists)
-- Project Context / Overview
-- Any project-specific sections
+   Use git to identify what code was actually modified:
 
-### 3. Scan Available Skills
+   ```bash
+   # Get recent commits related to the change
+   git log --oneline -20
 
-Discover skills in `.opencode/skills/openspec-*`:
+   # See what files changed in recent commits
+   git diff HEAD~5..HEAD --stat
 
-```bash
-# List OpenSpec skills
-find .opencode/skills/openspec-* -type f -name "SKILL.md" | sort
-```
+   # View actual diff content for context
+   git diff HEAD~5..HEAD --name-only
+   ```
 
-For each skill:
+   **What to look for**:
+   - New files created (indicate new components/modules)
+   - Modified files (indicate pattern changes or extensions)
+   - Deleted files (indicate removed functionality)
+   - Commit messages (provide context on what was built)
 
-- Parse SKILL.md frontmatter (name, description, license, version)
-- Extract skill summary
-- Build skills metadata
+   **Cross-reference with artifacts**:
+   - Match git changes to tasks.md checked items
+   - Identify any implementation that differs from design.md
+   - Note any additional work not in original artifacts
 
-### 4. Identify Discrepancies
+4. **Detect or create documentation file**
 
-Compare detected skills vs documented skills:
+   ```bash
+   test -f AGENTS.md && echo "AGENTS.md found"
+   ```
 
-**Types of discrepancies**:
-- **Missing in docs**: Skill exists but not documented
-- **Outdated entries**: Documented skill has wrong description or outdated info
-- **Orphaned entries**: Documented skill no longer exists
-- **Version mismatch**: Documented version doesn't match SKILL.md
+   **If AGENTS.md doesn't exist**, create minimal documentation:
 
-**Discrepancy report format**:
-```markdown
-## Documentation Discrepancies
+   ```markdown
+   # Project - OpenCode Reference
 
-### Missing in Documentation
-- `openspec-new-skill`: Not listed in Skills Distributed section
+   ## Quick Reference
 
-### Outdated Entries
-- `openspec-review-artifacts`: Description needs update (current: "Reviews artifacts" - should be: "Reviews artifacts for quality...")
+   | Command | Purpose |
+   |---------|---------|
+   | `npm run dev` | Start development |
+   | `npm run build` | Production build |
 
-### Orphaned Entries
-- `openspec-old-skill`: Documented but no longer exists
-```
+   ## Architecture
 
-### 5. Update Documentation
+   [Brief overview based on codebase structure]
 
-For each discrepancy:
+   ## Conventions
 
-**For missing skills**:
-- Add entry to Skills Distributed section
-- Follow existing format (alphabetical or grouped)
-- Include name, description, and brief purpose
+   [Key patterns observed from git changes]
+   ```
 
-**For outdated entries**:
-- Update description to match SKILL.md frontmatter
-- Update version if specified
-- Preserve any notes or context
+5. **Read current documentation**
 
-**For orphaned entries**:
-- Remove entry from documentation
-- Optionally archive to "Deprecated Skills" section
+   - Parse existing structure and sections
+   - Note current line count
+   - Identify sections to preserve
 
-### 6. Validate Changes
+   **Warn if**:
+   - AGENTS.md > 300 lines
 
-Before writing:
+   **Error if**:
+   - AGENTS.md > 500 lines (split required before adding content)
 
-- Check markdown formatting
-- Verify no duplicate entries
-- Confirm skill names are links to actual skill directories
-- Ensure consistency across all documentation files
+6. **Assess documentation needs**
 
-### 7. Preview and Confirm
+   For each implemented item, determine if docs need updating:
 
-Show user:
+   | Implementation Type | Action |
+   |---------------------|--------|
+   | New CLI commands/scripts | Add to Quick Reference |
+   | New components/modules | Add brief entry with purpose |
+   | New patterns/conventions | Add specific pattern |
+   | New APIs/endpoints | Add endpoint summary table |
+   | Architecture changes | Update overview section |
+   | Bug fixes/refactors | Usually no update needed |
+   | Internal changes | Skip unless affects conventions |
 
-- Summary of changes (X added, Y updated, Z removed)
-- Diff view (if supported) or detailed change list
-- Ask for confirmation before writing
+   **Filter out**:
+   - Generic patterns AI already knows
+   - Self-evident implementations
+   - Standard language conventions
+
+7. **Generate proposed updates**
+
+   Apply best practices:
+   
+   **Use tables for lists**:
+   ```markdown
+   | Command | Purpose |
+   |---------|---------|
+   | `npm run dev` | Start dev server |
+   | `npm run build` | Production build |
+   ```
+
+   **Be specific**:
+   ```markdown
+   ✅ "Run `npm run typecheck` after TypeScript changes"
+   ❌ "Run the typechecker"
+   ```
+
+   **Progressive disclosure**:
+   ```markdown
+   ✅ "See `src/auth/AGENTS.md` for auth patterns"
+   ❌ [500 lines of auth documentation embedded]
+   ```
+
+   **Cut generic advice**:
+   ```markdown
+   ❌ "Follow coding best practices"
+   ❌ "Write clean code"
+   ❌ "Test thoroughly"
+   ```
+
+8. **Show proposal and confirm**
+
+   Present changes with impact:
+
+   ```markdown
+   ## Documentation Updates: <change-name>
+
+   **Current state**:
+   - AGENTS.md: 180 lines (~720 tokens)
+
+   **Proposed changes**:
+   - Add "Feature X" to Quick Reference (table format)
+   - Add pattern: "Use `useX()` hook for X state"
+
+   **After update**: ~195 lines (within target)
+
+   Apply these updates?
+   ```
+
+   Use **AskUserQuestion tool** to confirm before writing.
+
+9. **Write updates**
+
+   - Preserve existing structure
+   - Add new content in appropriate sections
+
+---
 
 ## Output
 
-After confirmation, display:
+**On new docs created**:
 
 ```markdown
-## Documentation Updated
+## Documentation Created: <change-name>
 
-**Files Modified**:
-- `AGENTS.md`: X skills added, Y skills updated, Z skills removed
+**File created**:
+- AGENTS.md (new, 45 lines)
 
-**Summary**:
-- Skills Distributed section now reflects current state
-- Quick Reference updated if applicable
-- All discrepancies resolved
+**Initial content**:
+- Quick Reference with detected commands
+- Architecture overview from codebase
+- Conventions from recent changes
 
-**Next Steps**:
-- Run `openspecx init <tool>` to reinstall updated skills
-- Commit changes to version control
+**Next step**: Review and refine, then ready to archive with `/opsx-archive`.
 ```
 
-## Advanced Usage
+**On updates applied**:
 
-### Update specific documentation only
+```markdown
+## Documentation Updated: <change-name>
 
-```bash
-# Update only AGENTS.md
-openspec-maintain-ai-docs --files AGENTS.md
+**File modified**:
+- AGENTS.md: +5 lines (180 → 185)
 
-# Update only CLAUDE.md
-openspec-maintain-ai-docs --files CLAUDE.md
+**Changes applied**:
+- Added "Theme System" to Quick Reference
+- Added theme hook pattern
+- Updated architecture overview
+
+**Next step**: Ready to archive with `/opsx-archive`.
 ```
 
-### Dry run mode
+**On no updates needed**:
 
-```bash
-# Preview changes without writing
-openspec-maintain-ai-docs --dry-run
+```markdown
+## Documentation Current
+
+Implementation doesn't require documentation updates:
+- All changes are internal/refactoring
+- Existing documentation covers functionality
+- Changes are inferable from code structure
+
+Ready to archive with `/opsx-archive`.
 ```
 
-### Custom skills directory
+**On length warning**:
 
-```bash
-# Scan different directory
-openspec-maintain-ai-docs --skills-dir /path/to/skills
+```markdown
+## Documentation Warning
+
+**AGENTS.md**: 420 lines (exceeds 300 line target)
+
+Recommendations:
+1. Move detailed patterns to subdirectory AGENTS.md files
+2. Use progressive disclosure (reference, don't embed)
+3. Convert verbose lists to tables
+
+Proceed anyway, or address first?
 ```
 
-## Troubleshooting
+---
 
-**No documentation files found**:
-- Ensure you're in project root
-- Create AGENTS.md if none exists (skill can provide template)
+## Guardrails
 
-**Skills directory empty**:
-- Check path is correct (`.opencode/skills/` or `.claude/skills/`)
-- Verify permissions allow reading
+- **DO**: Preserve existing structure and sections
+- **DO**: Use tables for command/reference lists
+- **DO**: Confirm with user before writing changes
+- **DON'T**: Document standard patterns AI already knows
+- **DON'T**: Add verbose file-by-file descriptions
+- **DON'T**: Include tutorials, history, or generic advice
+- **DON'T**: Let files exceed 500 lines
 
-**Duplicate entries**:
-- Skill should detect duplicates during validation
-- Manually review and remove duplicates if found
+---
 
-## Best Practices
+## Anti-Patterns to Avoid
 
-- **Keep skills in sync**: Run this skill after adding/updating any skill
-- **Preserve structure**: Don't reorganize entire documentation, update targeted sections
-- **Add context**: Include brief descriptions for each skill's purpose
-- **Version tracking**: Document skill versions if specified in frontmatter
-- **Consistency**: Use same format across AGENTS.md and CLAUDE.md
+### Generic Advice
 
-## References
+```markdown
+# BAD
+- Follow coding best practices
+- Write clean, maintainable code
+- Test thoroughly
 
-See `references/doc-structures.md` for:
-- AGENTS.md section definitions
-- CLAUDE.md section definitions
-- Entry format specifications
+# GOOD (or skip entirely if standard)
+- Run `npm run typecheck` after TypeScript changes
+- Use `set -euo pipefail` for shell scripts
+```
 
-See `references/update-rules.md` for:
-- Rules for adding skills
-- Rules for updating entries
-- Rules for removing skills
+### Verbose Descriptions
 
-See `references/update-examples.md` for:
-- Example discrepancy reports
-- Before/after documentation examples
+```markdown
+# BAD
+- ThemeContext: This component provides theme state management
+  using React Context API. It integrates with localStorage for
+  persistence and supports system preference detection...
+
+# GOOD
+- `useTheme()`: Returns `{ theme, setTheme }` - see `src/contexts/ThemeContext.tsx`
+```
+
+---
+
+## Effectiveness Indicators
+
+### Positive Signs
+
+- AI follows new patterns without asking
+- File stays under 300 lines
+- No outdated or orphaned sections
+
+### Negative Signs (Fix Needed)
+
+- AI asks about documented items → improve clarity
+- File >300 lines → review and condense
+- File >500 lines → split immediately

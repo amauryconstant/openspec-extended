@@ -290,3 +290,26 @@ Comprehensive review criteria for each OpenSpec artifact type.
 ### proposal ↔ tasks
 - What Changes items covered by task sections
 - Impact items considered in tasks
+
+## Implementation Readiness
+
+### Feasibility Assessment
+
+- Are required dependencies available and compatible?
+- Is the scope achievable with available team skills?
+- Are there unresolved technical blockers?
+- Do design decisions have viable implementation paths?
+
+### Technical Soundness
+
+- Do design trade-offs align with system constraints?
+- Are there obvious alternative approaches missing from rationale?
+- Do requirements conflict with existing architecture?
+- Is the task ordering correct for dependencies?
+
+### Completeness for Implementation
+
+- Can a developer implement from specs alone?
+- Are all edge cases covered by scenarios?
+- Are error handling and failure modes specified?
+- Is there enough context to start coding without questions?

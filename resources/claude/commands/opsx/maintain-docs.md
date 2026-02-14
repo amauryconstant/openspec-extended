@@ -1,18 +1,14 @@
 ---
 description: Update AGENTS.md and CLAUDE.md after implementing an OpenSpec change
-license: MIT
-metadata:
-  author: openspec-extended
-  version: "0.2.0"
 ---
 
-Update project documentation after implementing an OpenSpec change. Runs after `/opsx-sync` and before `/opsx-archive`.
+Update project documentation after implementing an OpenSpec change. Runs after `/opsx:sync` and before `/opsx:archive`.
 
 **Input**: Optionally specify a change name. If omitted, infer from context or prompt for selection.
 
 **Steps**
 
-1. **Select the change** - Infer from context, auto-select if only one active, or prompt with **AskUserQuestion tool**
+1. **Select the change** - Infer from context, auto-select if only one active, or prompt with **Ask tool**
 
 2. **Read change artifacts** from `openspec/changes/<name>/`:
    - `proposal.md` - Intent, scope, new capabilities
@@ -50,7 +46,7 @@ Update project documentation after implementing an OpenSpec change. Runs after `
    - Progressive disclosure (reference, don't embed)
    - Cut generic advice
 
-8. **Show proposal and confirm** with **AskUserQuestion tool**
+8. **Show proposal and confirm** with **Ask tool**
 
 9. **Write updates** - Preserve structure, sync both platforms
 
@@ -67,7 +63,7 @@ Update project documentation after implementing an OpenSpec change. Runs after `
 - Added "Feature X" to Quick Reference
 - Added pattern for Y
 
-**Next step**: Ready to archive with `/opsx-archive`.
+**Next step**: Ready to archive with `/opsx:archive`.
 ```
 
 **Guardrails**
@@ -80,7 +76,7 @@ Update project documentation after implementing an OpenSpec change. Runs after `
 
 ---
 
-See `.opencode/skills/openspec-maintain-ai-docs/SKILL.md` for:
+See `.claude/skills/openspec-maintain-ai-docs/SKILL.md` for:
 - Core principles (conciseness, progressive disclosure)
 - Best practices for documentation updates
 - Anti-patterns to avoid

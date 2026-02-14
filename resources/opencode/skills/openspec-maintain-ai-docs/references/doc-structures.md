@@ -51,7 +51,7 @@ Project-level documentation for OpenSpec-extended. Serves as:
 
 ```bash
 # Example test command
-./bin/openspecx init claude
+./bin/openspecx install claude
 ```
 
 ---
@@ -149,7 +149,7 @@ Patterns unique to Claude Code development
 ```markdown
 **Skills Distributed**:
 - `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
+- `openspec-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
 - `openspec-review-artifacts`: Reviews OpenSpec artifacts for quality
 ```
 
@@ -168,8 +168,8 @@ Patterns unique to Claude Code development
 
 | Command | Purpose |
 |----------|----------|
-| `openspecx init claude` | Install skills to `.claude/skills/` |
-| `openspecx init opencode` | Install skills to `.opencode/skills/` |
+| `openspecx install claude` | Install skills to `.claude/skills/` |
+| `openspecx install opencode` | Install skills to `.opencode/skills/` |
 ```
 
 **Properties**:

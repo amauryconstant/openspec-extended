@@ -1,9 +1,5 @@
 ---
 description: Modify artifacts in OpenSpec changes with dependency tracking
-license: MIT
-metadata:
-  author: openspec-extended
-  version: "0.2.0"
 ---
 
 Modify existing artifacts in an OpenSpec change, automatically tracking and updating dependent artifacts.
@@ -12,14 +8,14 @@ Modify existing artifacts in an OpenSpec change, automatically tracking and upda
 
 ## Input
 
-Optionally specify `[change-name] [artifact-id]` after `/opsx-modify`. If omitted, the AI will infer from context or prompt for selection.
+Optionally specify `[change-name] [artifact-id]` after `/opsx:modify`. If omitted, the AI will infer from context or prompt for selection.
 
 **Patterns**:
 | Input | Behavior |
 |-------|----------|
-| `/opsx-modify add-auth proposal` | Direct: use specified change and artifact |
-| `/opsx-modify add-auth` | Change specified, auto-select artifact |
-| `/opsx-modify` | Infer from context or prompt for both |
+| `/opsx:modify add-auth proposal` | Direct: use specified change and artifact |
+| `/opsx:modify add-auth` | Change specified, auto-select artifact |
+| `/opsx:modify` | Infer from context or prompt for both |
 
 ---
 
@@ -30,7 +26,7 @@ Optionally specify `[change-name] [artifact-id]` after `/opsx-modify`. If omitte
    If name provided: use it. Otherwise:
    - Infer from conversation context
    - Auto-select if only one active change
-   - If ambiguous: run `openspec list --json` and use **AskUserQuestion** to prompt
+   - If ambiguous: run `openspec list --json` and use **Ask** to prompt
 
    Announce: "Using change: <name>" and how to override.
 
@@ -104,7 +100,7 @@ Optionally specify `[change-name] [artifact-id]` after `/opsx-modify`. If omitte
 - [x] <artifact-id>: [Summary]
 
 ### Next Steps
-- Ready to implement: `/opsx-apply <name>`
+- Ready to implement: `/opsx:apply <name>`
 - Continue modifying: [describe next artifact]
 ```
 
@@ -121,4 +117,4 @@ Optionally specify `[change-name] [artifact-id]` after `/opsx-modify`. If omitte
 
 ---
 
-See `.opencode/skills/openspec-modify-artifacts/SKILL.md` for detailed implementation logic.
+See `.claude/skills/openspec-modify-artifacts/SKILL.md` for detailed implementation logic.

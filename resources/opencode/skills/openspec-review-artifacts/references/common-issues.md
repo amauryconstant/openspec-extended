@@ -281,13 +281,21 @@ grep -n "^- [0-9]" openspec/changes/<name>/tasks.md
 - [ ] tasks.md uses `- [ ] X.Y` format
 - [ ] Tasks are specific and verifiable
 
+### Before Implementation (Pre-Apply)
+
+- [ ] Run `openspec-review-artifacts` to validate artifacts
+- [ ] Design decisions have clear rationale and alternatives
+- [ ] Tasks are specific and achievable in one session each
+- [ ] All proposal What Changes have corresponding tasks
+- [ ] Specs have testable scenarios for all requirements
+- [ ] No blocking technical feasibility issues
+
 ### Before Archiving
 
 - [ ] Run `openspec validate`
 - [ ] All tasks are checked `[x]`
+- [ ] Implementation verified with openspec-verify-change
 - [ ] proposal Capabilities match specs/ directories
-- [ ] tasks cover all proposal What Changes
-- [ ] design decisions reflected in tasks
 
 ## Getting Help
 
