@@ -1,5 +1,9 @@
 ---
 description: Learn about OpenSpec framework - philosophy, artifacts, OPSX workflow, and ecosystem
+license: MIT
+metadata:
+  author: openspec-extended
+  version: "0.2.0"
 ---
 
 Teach the OpenSpec framework: a spec-driven development approach where you agree on WHAT to build before writing code.

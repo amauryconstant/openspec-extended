@@ -1,5 +1,9 @@
 ---
 description: Modify artifacts in OpenSpec changes with dependency tracking
+license: MIT
+metadata:
+  author: openspec-extended
+  version: "0.2.0"
 ---
 
 Modify existing artifacts in an OpenSpec change, automatically tracking and updating dependent artifacts.

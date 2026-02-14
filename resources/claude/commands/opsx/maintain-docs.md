@@ -1,5 +1,9 @@
 ---
 description: Update AGENTS.md and CLAUDE.md after implementing an OpenSpec change
+license: MIT
+metadata:
+  author: openspec-extended
+  version: "0.2.0"
 ---
 
 Update project documentation after implementing an OpenSpec change. Runs after `/opsx:sync` and before `/opsx:archive`.

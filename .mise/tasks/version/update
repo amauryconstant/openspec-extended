@@ -1,21 +1,46 @@
 #!/usr/bin/env bash
-#MISE description="Bump version in a SKILL.md file"
-#USAGE arg "<file>" help="Path to SKILL.md file"
+#MISE description="Bump version in all paired files for a concept"
+#USAGE arg "<concept>" help="Concept name (concepts, changelog, maintain-docs, modify, review, verify-tests)"
 #USAGE arg "<bump>" help="Version bump type" {
 #USAGE   choices "patch" "minor" "major"
 #USAGE }
 
 set -euo pipefail
 
-FILE="${usage_file?}"
+CONCEPT="${usage_concept?}"
 BUMP_TYPE="${usage_bump?}"
 
-if [[ ! -f "$FILE" ]]; then
-  echo "Error: File not found: $FILE"
+declare -A SKILL_DIRS=(
+  ["concepts"]="openspec-concepts"
+  ["changelog"]="openspec-generate-changelog"
+  ["maintain-docs"]="openspec-maintain-ai-docs"
+  ["modify"]="openspec-modify-artifacts"
+  ["review"]="openspec-review-artifacts"
+  ["verify-tests"]="openspec-review-test-compliance"
+)
+
+if [[ -z "${SKILL_DIRS[$CONCEPT]:-}" ]]; then
+  echo "Error: Unknown concept: $CONCEPT"
+  echo "Valid concepts: ${!SKILL_DIRS[*]}"
   exit 1
 fi
 
-CURRENT_VERSION=$(grep -A2 "^metadata:" "$FILE" | grep "version:" | head -1 | cut -d'"' -f2)
+SKILL_DIR="${SKILL_DIRS[$CONCEPT]}"
+
+FILES=(
+  "resources/claude/skills/${SKILL_DIR}/SKILL.md"
+  "resources/opencode/skills/${SKILL_DIR}/SKILL.md"
+  "resources/claude/commands/opsx/${CONCEPT}.md"
+  "resources/opencode/command/opsx-${CONCEPT}.md"
+)
+
+FIRST_FILE="${FILES[0]}"
+if [[ ! -f "$FIRST_FILE" ]]; then
+  echo "Error: File not found: $FIRST_FILE"
+  exit 1
+fi
+
+CURRENT_VERSION=$(grep -A2 "^metadata:" "$FIRST_FILE" | grep "version:" | head -1 | cut -d'"' -f2)
 
 if [[ -z "$CURRENT_VERSION" ]]; then
   echo "Error: No version found in metadata block"
@@ -39,8 +64,19 @@ case "$BUMP_TYPE" in
     ;;
 esac
 
-echo "Bumping: $CURRENT_VERSION → $NEW_VERSION in $FILE"
+echo "Bumping: $CURRENT_VERSION → $NEW_VERSION"
+echo ""
 
-sed -i "s/^\(  version: \)\".*\"/\1\"$NEW_VERSION\"/" "$FILE"
+UPDATED=0
+for file in "${FILES[@]}"; do
+  if [[ -f "$file" ]]; then
+    sed -i "s/^\(  version: \)\".*\"/\1\"$NEW_VERSION\"/" "$file"
+    echo "✓ $file"
+    ((UPDATED++))
+  else
+    echo "⊘ $file (not found)"
+  fi
+done
 
-echo "✓ Updated to $NEW_VERSION"
+echo ""
+echo "Updated $UPDATED files to $NEW_VERSION"

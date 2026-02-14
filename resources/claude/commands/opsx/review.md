@@ -1,5 +1,9 @@
 ---
 description: Review OpenSpec artifacts for quality, completeness, and consistency
+license: MIT
+metadata:
+  author: openspec-extended
+  version: "0.2.0"
 ---
 
 Review OpenSpec artifacts (proposal, design, tasks, specs) for quality and completeness.

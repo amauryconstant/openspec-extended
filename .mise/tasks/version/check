@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-#MISE description="Verify SKILL.md files have version bump when modified"
+#MISE description="Verify SKILL.md and command files have version bump when modified"
 
 set -euo pipefail
 
 HAS_ERROR=0
 
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- 'resources/**/SKILL.md')
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- \
+  'resources/**/SKILL.md' \
+  'resources/claude/commands/opsx/*.md' \
+  'resources/opencode/command/opsx-*.md')
 
 if [[ -z "$STAGED_FILES" ]]; then
   exit 0
@@ -27,7 +30,7 @@ done
 if [[ $HAS_ERROR -eq 1 ]]; then
   echo ""
   echo "Bump the version in metadata.version field before committing."
-  echo "Use: mise run version:update <file> <patch|minor|major>"
+  echo "Use: mise run version:update <concept> <patch|minor|major>"
   exit 1
 fi
 

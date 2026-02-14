@@ -1,5 +1,9 @@
 ---
 description: Generate changelogs in Keep a Changelog format from archived OpenSpec changes
+license: MIT
+metadata:
+  author: openspec-extended
+  version: "0.2.0"
 ---
 
 Generate changelogs from archived OpenSpec changes in Keep a Changelog format.
