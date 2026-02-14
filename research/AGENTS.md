@@ -12,8 +12,13 @@ Factual overview of Claude Code and OpenCode platform capabilities. These docume
 
 ## Files
 
+### Platform Capabilities
 - **claude-code-docs.md** - Claude Code capabilities (skills, subagents, memory, settings, permissions)
 - **opencode-docs.md** - OpenCode capabilities (agents, skills, permissions, commands, tools)
+
+### Building Skills & Commands
+- **building-openspec-skills.md** - Guide for creating OpenSpec-style AI assistant skills
+- **building-openspec-commands.md** - Guide for creating OpenSpec-style slash commands
 
 ---
 
