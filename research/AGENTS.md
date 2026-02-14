@@ -20,6 +20,13 @@ Factual overview of Claude Code and OpenCode platform capabilities. These docume
 - **building-openspec-skills.md** - Guide for creating OpenSpec-style AI assistant skills
 - **building-openspec-commands.md** - Guide for creating OpenSpec-style slash commands
 
+### OpenSpec Core Reference (from [upstream docs](https://github.com/Fission-AI/OpenSpec/tree/main/docs))
+- **openspec-opsx.md** - OPSX workflow overview (fluid, iterative approach vs legacy)
+- **openspec-concepts.md** - Core philosophy, specs, changes, delta specs, schemas, archive
+- **openspec-workflows.md** - Workflow patterns (explore, quick feature, parallel changes)
+- **openspec-commands.md** - AI slash commands (`/opsx:new`, `/opsx:apply`, `/opsx:archive`, etc.)
+- **openspec-cli.md** - CLI reference (`openspec init`, `openspec list`, `openspec validate`, etc.)
+
 ---
 
 ## Usage Guidelines
