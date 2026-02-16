@@ -358,3 +358,12 @@ rules:
 - `context` is injected into all artifact instructions
 - `rules` are injected only for matching artifacts
 - Helps AI understand project conventions
+
+---
+
+## Related Documentation
+
+- Main skill: `../SKILL.md`
+- `references/cli-reference.md` - CLI commands for status and instructions
+- `references/opsx-lifecycle.md` - Workflow lifecycle details
+- `references/change-guidance.md` - When to update vs. start fresh

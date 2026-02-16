@@ -491,6 +491,7 @@ Change A: /opsx:apply (resume) → /opsx:archive
 
 ## Related Documentation
 
-- `cli-reference.md` - CLI commands for status and instructions
-- `change-guidance.md` - When to update vs. start fresh
-- `artifact-formats.md` - Detailed artifact structure
+- Main skill: `../SKILL.md`
+- `references/cli-reference.md` - CLI commands for status and instructions
+- `references/change-guidance.md` - When to update vs. start fresh
+- `references/artifact-formats.md` - Detailed artifact structure

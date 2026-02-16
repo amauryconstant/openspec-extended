@@ -222,3 +222,12 @@ This works because:
 | One change blocks another | Archive blocking change first |
 | Uncertain about implementation | Use `/opsx:verify` first |
 | Large number of changes (>5) | Consider batching |
+
+---
+
+## Related Documentation
+
+- Main skill: `../SKILL.md`
+- `references/cli-reference.md` - CLI commands for status and instructions
+- `references/opsx-lifecycle.md` - Workflow lifecycle details
+- `references/artifact-formats.md` - Artifact structure
