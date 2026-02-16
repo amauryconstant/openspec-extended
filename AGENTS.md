@@ -180,6 +180,66 @@ EOF
 
 ---
 
+## Autonomous Workflow
+
+**Purpose**: Run OpenSpec changes through a fully autonomous 7-phase implementation loop.
+
+**Script**: `openspec-auto` (deployed to `.claude/scripts/` or `.opencode/scripts/`)
+
+**Phases**:
+- PHASE0: Artifact Review - Validate artifacts before implementation
+- PHASE1: Implementation - Execute tasks with milestone commits
+- PHASE2: Review - Validate implementation matches artifacts
+- PHASE3: Maintain-Docs - Update project documentation
+- PHASE4: Sync - Merge delta specs to main specs
+- PHASE5: Archive - Archive completed change
+- PHASE6: Self-Reflection - Evaluate process improvements
+
+**Usage**:
+```bash
+# Run autonomous implementation
+.claude/scripts/openspec-auto <change-name>
+
+# Or from .opencode
+.opencode/scripts/openspec-auto <change-name>
+
+# With options
+.claude/scripts/openspec-auto add-auth --max-iterations 20 --verbose
+
+# Continue from specific phase
+.claude/scripts/openspec-auto add-auth --from-phase PHASE3
+
+# Dry run
+.claude/scripts/openspec-auto add-auth --dry-run
+
+# Clean state and restart
+.claude/scripts/openspec-auto add-auth --clean --force
+```
+
+**Options**:
+- `--max-iterations N` - Max iterations per phase (default: 10, -1 for unlimited)
+- `--timeout N` - Timeout per iteration in seconds (default: 1800)
+- `--model MODEL` - Model to use (default: zai-coding-plan/glm-4.7)
+- `--verbose` - Show detailed progress
+- `--dry-run` - Show what would be done
+- `--force` - Continue without prompts
+- `--clean` - Clean existing state
+- `--from-phase PHASEX` - Resume from specific phase
+- `--no-color` - Disable colored output
+- `--list` - List available changes
+- `--version`, `-h` - Show version/help
+
+**State Files**:
+- `openspec-state/<change>/state.json` - Current phase and iteration
+- `openspec-state/<change>/complete.json` - Completion status
+- `openspec-state/<change>/iterations.json` - Iteration history
+- `openspec-state/<change>/decision-log.md` - Agent decision log
+- `.openspec-baseline.json` - Baseline artifact snapshot
+
+**Template**: `prompt-template.md` deployed alongside script
+
+---
+
 ## License
 
 MIT License - see LICENSE file

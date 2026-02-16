@@ -190,3 +190,46 @@ if [[ -d "$RESOURCES_DIR/$TOOL/command" ]]; then
         echo "  Target: $(basename "$COMMANDS_DIR")/"
     fi
 fi
+
+# Handle scripts
+SCRIPTS_DIR="$(pwd)/$(dirname "$TARGET_DIR")/scripts"
+if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
+    mkdir -p "$SCRIPTS_DIR"
+    SCRIPT_COUNT=$(find "$RESOURCES_DIR/$TOOL/scripts" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
+    
+    if [[ $SCRIPT_COUNT -gt 0 ]]; then
+        if [[ "$COMMAND" == "update" ]]; then
+            cp -f "$RESOURCES_DIR/$TOOL/scripts"/* "$SCRIPTS_DIR/"
+            # Ensure shell scripts are executable
+            find "$SCRIPTS_DIR" -type f -name "*.sh" -exec chmod +x {} \;
+            # Ensure openspec-auto is executable (no .sh extension)
+            if [[ -f "$SCRIPTS_DIR/openspec-auto" ]]; then
+                chmod +x "$SCRIPTS_DIR/openspec-auto"
+            fi
+            log_success "Updated $SCRIPT_COUNT script(s) in $TOOL"
+            echo "  Target: $(basename "$SCRIPTS_DIR")/"
+        else
+            NEW_SCRIPT_COUNT=0
+            while IFS= read -r -d '' script_file; do
+                script_name=$(basename "$script_file")
+                if [[ ! -f "$SCRIPTS_DIR/$script_name" ]]; then
+                    cp "$script_file" "$SCRIPTS_DIR/"
+                    # Set executable for shell scripts
+                    if [[ "$script_name" == *.sh ]]; then
+                        chmod +x "$SCRIPTS_DIR/$script_name"
+                    fi
+                    # Set executable for openspec-auto
+                    if [[ "$script_name" == "openspec-auto" ]]; then
+                        chmod +x "$SCRIPTS_DIR/$script_name"
+                    fi
+                    NEW_SCRIPT_COUNT=$((NEW_SCRIPT_COUNT + 1))
+                fi
+            done < <(find "$RESOURCES_DIR/$TOOL/scripts" -mindepth 1 -maxdepth 1 -type f -print0)
+            
+            if [[ $NEW_SCRIPT_COUNT -gt 0 ]]; then
+                log_success "Installed $NEW_SCRIPT_COUNT script(s) to $TOOL"
+                echo "  Target: $(basename "$SCRIPTS_DIR")/"
+            fi
+        fi
+    fi
+fi

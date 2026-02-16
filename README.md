@@ -37,6 +37,23 @@ openspecx update claude
 openspecx update opencode
 ```
 
+## Autonomous Implementation
+
+OpenSpec-extended includes an autonomous workflow for end-to-end OpenSpec changes:
+
+```bash
+# Install autonomous harness
+openspecx install
+
+# Run autonomous implementation
+.claude/scripts/openspec-auto <change-name>
+
+# Or with options
+.claude/scripts/openspec-auto add-auth --verbose --max-iterations 20
+```
+
+See [AGENTS.md](AGENTS.md#autonomous-workflow) for full documentation.
+
 ## Project Structure
 
 ```
