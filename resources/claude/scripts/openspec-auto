@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.3.0"
+readonly SCRIPT_VERSION="0.3.1"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -618,7 +618,7 @@ run_phase() {
       return 1
     fi
     
-    if is_phase_complete "$phase" || check_complete_signal; then
+    if check_complete_signal; then
       log_success "$phase completed in $iteration iteration(s)"
       return 0
     fi
@@ -628,6 +628,20 @@ run_phase() {
   
   log_warning "$phase reached max iterations ($MAX_ITERATIONS)"
   return 1
+}
+
+advance_phase() {
+  local current="$1"
+  case "$current" in
+    PHASE0) echo "PHASE1" ;;
+    PHASE1) echo "PHASE2" ;;
+    PHASE2) echo "PHASE3" ;;
+    PHASE3) echo "PHASE4" ;;
+    PHASE4) echo "PHASE5" ;;
+    PHASE5) echo "PHASE6" ;;
+    PHASE6) echo "COMPLETE" ;;
+    *) echo "COMPLETE" ;;
+  esac
 }
 
 validate_archive() {
@@ -938,6 +952,12 @@ main() {
           exit 1
         fi
         show_progress
+        
+        local next_phase
+        next_phase=$(advance_phase "$current_phase")
+        write_state "$next_phase" "0"
+        log "Phase transition: $current_phase → $next_phase"
+        current_phase="$next_phase"
         ;;
       COMPLETE)
         log "All phases complete, validating..."

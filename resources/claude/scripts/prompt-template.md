@@ -32,6 +32,8 @@ IMPORTANT: Each invocation is a fresh process with no memory. You must read stat
 
 ## Phase Transition Logic
 
+**IMPORTANT**: Phase transitions are managed automatically by the script. You do NOT need to update `state.json` to advance phases. Simply signal completion via `complete.json` when your current phase is done.
+
 ```mermaid
 stateDiagram-v2
     [*] --> PHASE0: Start
@@ -354,6 +356,30 @@ Examples of CRITICAL blockers (signal COMPLETE):
 - **MANDATORY**: Log CLI outputs for `openspec status` and `instructions apply` in PHASE1 & 2
 - **MANDATORY**: Maintain `iterations.json` with structured data for every iteration
 - Read `iterations.json` at iteration start to understand history (if exists)
+
+### COMMIT PROTOCOL (MANDATORY FOR PHASE1)
+
+When making commits during PHASE1 (IMPLEMENTATION), follow this priority order:
+
+1. **Check for dedicated commit skills**: Look for skills like `commit` in your skills directory (e.g., `.claude/skills/commit/` or `.opencode/skills/commit/`). If available, load and use that skill's workflow.
+
+2. **Check AGENTS.md**: Read the project's AGENTS.md for project-specific commit conventions, message formats, or pre-commit requirements.
+
+3. **Default commit workflow** (if no skill or AGENTS.md guidance):
+   - Make logical, atomic commits after completing coherent work units
+   - Review staged changes before committing: `git diff --staged`
+   - Commit with clear, descriptive messages
+
+4. **Pre-commit hook guardrails** (ALWAYS apply):
+   - **NEVER use `--no-verify`** to bypass pre-commit hooks
+   - If pre-commit hooks fail, fix the issues identified in the output
+   - Re-run the commit after fixing - hooks must pass
+   - This is a HARD REQUIREMENT for quality
+
+5. **Persistent failures**: If fixes aren't possible within 3 attempts:
+   - Document the issue in decision-log.md
+   - Consider if artifacts need modification
+   - May need to signal COMPLETE with blocker_reason
 
 ### ERROR HANDLING GUIDANCE
 
@@ -816,9 +842,16 @@ Follow the skill completely. Do NOT recreate the skill's workflow or output form
 2. Follow archive workflow (prompts for sync if needed)
 3. Archive will move change to `openspec/changes/archive/YYYY-MM-DD-{{CHANGE_NAME}}/`
 
-4. Log archive summary in `decision-log.md`
+4. **Commit the archive**:
+   ```bash
+   git add openspec/changes/archive/
+   git commit -m "Archive change {{CHANGE_NAME}}"
+   ```
+
+5. Log archive summary in `decision-log.md`
     - Archive location: <path>
     - Schema: <name>
+    - Commit hash: <hash>
     - Status: archived
 
 ### TRANSITION
@@ -938,6 +971,7 @@ You may ONLY signal completion when **ALL** of the following are met:
 
 ### PHASE5 (ARCHIVE)
 - Change archived to `openspec/changes/archive/`
+- Archive commit made
 - Archive summary logged
 
 ### PHASE6 (SELF-REFLECTION)
