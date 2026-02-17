@@ -246,7 +246,8 @@ Ensure OpenSpec artifacts are excellent before implementation begins. This phase
 
 5. IF CLEAN (no CRITICAL or WARNING issues):
     a. Log: "Artifact review complete - artifacts are excellent"
-    b. Make commit: "Review and iterate artifacts for {{CHANGE_NAME}}"
+    b. IF artifacts were modified during this phase:
+       - Make commit: "Review and iterate artifacts for {{CHANGE_NAME}}"
     c. Continue to PHASE1 on next iteration
 
 6. IF MAX ITERATIONS (5) reached without clean review:

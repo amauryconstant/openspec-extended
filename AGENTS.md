@@ -229,12 +229,12 @@ EOF
 - `--list` - List available changes
 - `--version`, `-h` - Show version/help
 
-**State Files**:
-- `openspec-state/<change>/state.json` - Current phase and iteration
-- `openspec-state/<change>/complete.json` - Completion status
-- `openspec-state/<change>/iterations.json` - Iteration history
-- `openspec-state/<change>/decision-log.md` - Agent decision log
-- `.openspec-baseline.json` - Baseline artifact snapshot
+**State Files** (in `openspec/changes/<change>/`):
+- `state.json` - Current phase and iteration
+- `complete.json` - Completion status
+- `iterations.json` - Iteration history
+- `decision-log.md` - Agent decision log
+- `.openspec-baseline.json` - Baseline artifact snapshot (project root)
 
 **Template**: `prompt-template.md` deployed alongside script
 

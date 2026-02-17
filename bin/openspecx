@@ -117,6 +117,33 @@ show_usage() {
     echo "Available tools: claude, opencode"
 }
 
+update_gitignore() {
+    local gitignore="$(pwd)/.gitignore"
+    local marker_start="# BEGIN OpenSpec autonomous workflow state"
+    local marker_end="# END OpenSpec autonomous workflow state"
+    
+    if [[ ! -f "$gitignore" ]]; then
+        touch "$gitignore"
+    fi
+    
+    if grep -qF "$marker_start" "$gitignore" 2>/dev/null; then
+        return 0
+    fi
+    
+    {
+        echo ""
+        echo "$marker_start"
+        echo ".openspec-baseline.json"
+        echo "openspec/changes/*/state.json"
+        echo "openspec/changes/*/complete.json"
+        echo "openspec/changes/*/iterations.json"
+        echo "openspec/changes/*/decision-log.md"
+        echo "$marker_end"
+    } >> "$gitignore"
+    
+    log_success "Added OpenSpec state files to .gitignore"
+}
+
 if [[ $# -lt 2 ]]; then
     show_usage
     exit 1
@@ -232,4 +259,9 @@ if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
             fi
         fi
     fi
+fi
+
+# Update .gitignore if openspec-auto was installed
+if [[ -f "$SCRIPTS_DIR/openspec-auto" ]]; then
+    update_gitignore
 fi
