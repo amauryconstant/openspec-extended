@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.3.1"
+readonly SCRIPT_VERSION="0.3.2"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -42,6 +42,8 @@ FORCE=false
 CLEAN=false
 FROM_PHASE=""
 NO_COLOR=false
+INTERRUPTED=false
+CHILD_PID=""
 
 AI_PLATFORM=""
 AI_BINARY=""
@@ -571,11 +573,22 @@ run_agent() {
   local exit_code
   
   if [[ "$AI_PLATFORM" == "opencode" ]]; then
-    timeout "$TIMEOUT" "$AI_BINARY" run --model="$MODEL" "$prompt_content"
+    timeout --foreground "$TIMEOUT" "$AI_BINARY" run --model="$MODEL" "$prompt_content" &
+    CHILD_PID=$!
+    wait "$CHILD_PID"
     exit_code=$?
   elif [[ "$AI_PLATFORM" == "claude" ]]; then
-    timeout "$TIMEOUT" "$AI_BINARY" --print --model="$MODEL" "$prompt_content"
+    timeout --foreground "$TIMEOUT" "$AI_BINARY" --print --model="$MODEL" "$prompt_content" &
+    CHILD_PID=$!
+    wait "$CHILD_PID"
     exit_code=$?
+  fi
+  
+  CHILD_PID=""
+  
+  if [[ "$INTERRUPTED" == true ]]; then
+    log_warning "Execution interrupted by user"
+    exit 130
   fi
   
   if [[ $exit_code -eq 124 ]]; then
@@ -755,6 +768,26 @@ show_progress() {
 cleanup() {
   local exit_code=$?
   
+  if [[ -n "${CHILD_PID:-}" ]] && kill -0 "$CHILD_PID" 2>/dev/null; then
+    log "Terminating child process (PID: $CHILD_PID)..."
+    kill -TERM "$CHILD_PID" 2>/dev/null || true
+    wait "$CHILD_PID" 2>/dev/null || true
+    CHILD_PID=""
+  fi
+  
+  if [[ "$INTERRUPTED" == true ]]; then
+    log ""
+    log_warning "Execution interrupted by user"
+    log "State files preserved for resumption:"
+    log "  $CHANGE_DIR/state.json"
+    log "  $CHANGE_DIR/complete.json"
+    log "  $CHANGE_DIR/iterations.json"
+    log "  $CHANGE_DIR/decision-log.md"
+    log ""
+    log "To resume: Run script again with same change-id"
+    exit 130
+  fi
+  
   if [[ $exit_code -ne 0 ]]; then
     log ""
     log_error "Script exited with error (code $exit_code)"
@@ -778,6 +811,13 @@ cleanup() {
   fi
   
   return $exit_code
+}
+
+handle_interrupt() {
+  INTERRUPTED=true
+  if [[ -n "${CHILD_PID:-}" ]] && kill -0 "$CHILD_PID" 2>/dev/null; then
+    kill -TERM "$CHILD_PID" 2>/dev/null || true
+  fi
 }
 
 find_change_dir() {
@@ -877,6 +917,7 @@ main() {
     fi
   fi
   
+  trap handle_interrupt SIGINT SIGTERM
   trap cleanup EXIT
   
   local current_phase="PHASE0"
