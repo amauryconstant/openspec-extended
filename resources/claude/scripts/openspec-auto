@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.3.3"
+readonly SCRIPT_VERSION="0.4.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -15,6 +15,16 @@ declare -A PHASE_NAMES=(
   ["PHASE4"]="SYNC"
   ["PHASE5"]="ARCHIVE"
   ["PHASE6"]="SELF-REFLECTION"
+)
+
+declare -A PHASE_TEMPLATES=(
+  ["PHASE0"]="analyzer"
+  ["PHASE1"]="builder"
+  ["PHASE2"]="analyzer"
+  ["PHASE3"]="maintainer"
+  ["PHASE4"]="maintainer"
+  ["PHASE5"]="maintainer"
+  ["PHASE6"]="analyzer"
 )
 
 readonly REQUIRED_SKILLS=(
@@ -565,10 +575,22 @@ run_agent() {
   TOTAL_INVOCATIONS=$((TOTAL_INVOCATIONS + 1))
   log "Agent invocation #$TOTAL_INVOCATIONS for $phase"
   
+  local agent_role="${PHASE_TEMPLATES[$phase]}"
+  local agent_file="$SCRIPT_DIR/../agents/openspec-${agent_role}.md"
+  
+  if [[ ! -f "$agent_file" ]]; then
+    log_error "Agent definition not found: $agent_file"
+    return 1
+  fi
+  
+  if [[ "$VERBOSE" == true ]]; then
+    log "Using agent: openspec-$agent_role"
+  fi
+  
   local escaped_change_id
   escaped_change_id=$(printf '%s\n' "$CHANGE_ID" | sed 's/[&/\]/\\&/g')
   local prompt_content
-  prompt_content=$(sed "s/{{CHANGE_NAME}}/$escaped_change_id/g" "$SCRIPT_DIR/prompt-template.md")
+  prompt_content=$(sed "s/{{CHANGE_NAME}}/$escaped_change_id/g" "$agent_file")
   
   local exit_code
   
