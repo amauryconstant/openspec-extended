@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.3.2"
+readonly SCRIPT_VERSION="0.3.3"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -29,7 +29,7 @@ readonly REQUIRED_SKILLS=(
   "openspec-archive-change"
 )
 
-MODEL="zai-coding-plan/glm-4.7"
+MODEL=""
 CHANGE_ID=""
 CHANGE_DIR=""
 MAX_ITERATIONS=$DEFAULT_MAX_ITERATIONS
@@ -117,7 +117,7 @@ Arguments:
   Options:
   --max-iterations N  Maximum number of iterations (default: 10, -1 for unlimited)
   --timeout N        Timeout per iteration in seconds (default: 1800)
-  --model MODEL      Model to use for AI assistant (default: zai-coding-plan/glm-4.7)
+  --model MODEL      Model to use for AI assistant (optional, uses CLI default if not set)
   --verbose          Show detailed progress information
   --dry-run          Show what would be done without executing
   --force            Continue without prompts (for CI/CD)
@@ -573,12 +573,20 @@ run_agent() {
   local exit_code
   
   if [[ "$AI_PLATFORM" == "opencode" ]]; then
-    timeout --foreground "$TIMEOUT" "$AI_BINARY" run --model="$MODEL" "$prompt_content" &
+    if [[ -n "$MODEL" ]]; then
+      timeout --foreground "$TIMEOUT" "$AI_BINARY" run --model="$MODEL" "$prompt_content" &
+    else
+      timeout --foreground "$TIMEOUT" "$AI_BINARY" run "$prompt_content" &
+    fi
     CHILD_PID=$!
     wait "$CHILD_PID"
     exit_code=$?
   elif [[ "$AI_PLATFORM" == "claude" ]]; then
-    timeout --foreground "$TIMEOUT" "$AI_BINARY" --print --model="$MODEL" "$prompt_content" &
+    if [[ -n "$MODEL" ]]; then
+      timeout --foreground "$TIMEOUT" "$AI_BINARY" --print --model="$MODEL" "$prompt_content" &
+    else
+      timeout --foreground "$TIMEOUT" "$AI_BINARY" --print "$prompt_content" &
+    fi
     CHILD_PID=$!
     wait "$CHILD_PID"
     exit_code=$?
@@ -865,7 +873,9 @@ main() {
   echo "Version: $SCRIPT_VERSION"
   echo "Change ID: $CHANGE_ID"
   echo "Change directory: $CHANGE_DIR"
-  echo "Model: $MODEL"
+  if [[ -n "$MODEL" ]]; then
+    echo "Model: $MODEL"
+  fi
   echo "Max iterations: $MAX_ITERATIONS"
   echo "Timeout: $TIMEOUT seconds"
   echo "================================"
