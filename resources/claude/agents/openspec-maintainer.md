@@ -2,7 +2,6 @@
 name: openspec-maintainer
 description: OpenSpec maintainer for documentation (PHASE3), spec syncing (PHASE4), and archiving (PHASE5). Handles completion and cleanup tasks.
 tools: Read, Write, Edit, Bash, Grep, Glob
-model: haiku
 skills: openspec-maintain-ai-docs,openspec-sync-specs,openspec-archive-change
 permissionMode: acceptEdits
 ---

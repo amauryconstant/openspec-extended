@@ -2,7 +2,6 @@
 name: openspec-analyzer
 description: OpenSpec analyzer for artifact review (PHASE0), verification (PHASE2), and self-reflection (PHASE6). Specializes in critical analysis, comparison, and meta-cognition.
 tools: Read, Grep, Glob, Bash(git *), Bash(openspec *)
-model: sonnet
 skills: openspec-concepts,openspec-review-artifacts,openspec-modify-artifacts,openspec-verify-change
 permissionMode: default
 ---

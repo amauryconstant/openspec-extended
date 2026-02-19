@@ -2,7 +2,6 @@
 description: OpenSpec analyzer for artifact review (PHASE0), verification (PHASE2), and self-reflection (PHASE6). Specializes in critical analysis, comparison, and meta-cognition.
 mode: subagent
 hidden: true
-model: anthropic/claude-sonnet-4-20250514
 temperature: 0.1
 tools:
   read: true

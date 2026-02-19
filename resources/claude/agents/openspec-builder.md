@@ -2,7 +2,6 @@
 name: openspec-builder
 description: OpenSpec builder for implementation (PHASE1). Specializes in code generation, file manipulation, and test-driven development.
 tools: Read, Write, Edit, Bash, Grep, Glob
-model: sonnet
 skills: openspec-concepts,openspec-apply-change,openspec-review-test-compliance
 permissionMode: acceptEdits
 ---

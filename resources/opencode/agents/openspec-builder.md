@@ -2,7 +2,6 @@
 description: OpenSpec builder for implementation (PHASE1). Specializes in code generation, file manipulation, and test-driven development.
 mode: subagent
 hidden: true
-model: anthropic/claude-sonnet-4-20250514
 temperature: 0.2
 tools:
   read: true

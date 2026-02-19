@@ -2,7 +2,6 @@
 description: OpenSpec maintainer for documentation (PHASE3), spec syncing (PHASE4), and archiving (PHASE5). Handles completion and cleanup tasks.
 mode: subagent
 hidden: true
-model: anthropic/claude-haiku-4-20250514
 temperature: 0.1
 tools:
   read: true
