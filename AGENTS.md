@@ -17,8 +17,6 @@
 - `openspec-generate-changelog`: Generate changelogs in Keep a Changelog format from archived changes
 - `openspec-review-test-compliance`: Review test coverage for OpenSpec changes, ensuring spec requirements have corresponding tests
 
-**Research Maintenance**: Use `update-research` skill to maintain `research/` documentation (accuracy, structure, consistency).
-
 **Resource Creation**: See `research/claude-code-docs.md` for Claude Code specifics, `research/opencode-docs.md` for OpenCode.
 
 ---

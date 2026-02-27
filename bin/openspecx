@@ -107,13 +107,16 @@ copy_and_process_skills() {
 }
 
 show_usage() {
-    log_error "Usage: openspecx <command> <tool>"
+    log_error "Usage: openspecx <command> <tool> [--with-core]"
     echo
     echo "Commands:"
     echo "  install <tool>  Add missing skills (skip existing)"
     echo "  update <tool>   Force update all skills (overwrite existing)"
     echo
     echo "Available tools: claude, opencode"
+    echo
+    echo "Options:"
+    echo "  --with-core     Also deploy core OpenSpec skills from openspec-core/"
 }
 
 update_gitignore() {
@@ -143,6 +146,45 @@ update_gitignore() {
     log_success "Added OpenSpec state files to .gitignore"
 }
 
+deploy_core() {
+    local tool="$1"
+    local core_dir="$SCRIPT_DIR/../openspec-core/.$tool"
+    local target_base="$(pwd)/.$tool"
+    
+    if [[ ! -d "$core_dir" ]]; then
+        echo "  Core directory not found: openspec-core/.$tool"
+        return 1
+    fi
+    
+    local core_count=0
+    
+    if [[ -d "$core_dir/skills" ]]; then
+        mkdir -p "$target_base/skills"
+        for skill_dir in "$core_dir/skills"/*; do
+            if [[ -d "$skill_dir" ]]; then
+                local skill_name=$(basename "$skill_dir")
+                cp -r "$skill_dir" "$target_base/skills/"
+                core_count=$((core_count + 1))
+            fi
+        done
+    fi
+    
+    if [[ -d "$core_dir/commands" ]]; then
+        mkdir -p "$target_base/commands"
+        if [[ -d "$core_dir/commands/opsx" ]]; then
+            mkdir -p "$target_base/commands/opsx"
+            cp -r "$core_dir/commands/opsx"/* "$target_base/commands/opsx/" 2>/dev/null || true
+        else
+            cp -r "$core_dir/commands"/* "$target_base/commands/" 2>/dev/null || true
+        fi
+        core_count=$((core_count + 1))
+    fi
+    
+    if [[ $core_count -gt 0 ]]; then
+        log_success "Deployed core skills/commands to $tool"
+    fi
+}
+
 if [[ $# -lt 2 ]]; then
     show_usage
     exit 1
@@ -150,6 +192,22 @@ fi
 
 COMMAND="$1"
 TOOL="$2"
+WITH_CORE=false
+
+shift 2
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --with-core)
+            WITH_CORE=true
+            shift
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            show_usage
+            exit 1
+            ;;
+    esac
+done
 
 if [[ "$COMMAND" != "install" && "$COMMAND" != "update" ]]; then
     log_error "Unknown command: $COMMAND"
@@ -205,15 +263,25 @@ else
     echo "resources/$TOOL/skills/ directory not found"
 fi
 
-COMMANDS_DIR="$(pwd)/$(dirname "$TARGET_DIR")/command"
-if [[ -d "$RESOURCES_DIR/$TOOL/command" ]]; then
+COMMANDS_DIR="$(pwd)/$(dirname "$TARGET_DIR")/commands"
+if [[ -d "$RESOURCES_DIR/$TOOL/commands" ]]; then
     mkdir -p "$COMMANDS_DIR"
-    COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/command" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
     
-    if [[ $COMMAND_COUNT -gt 0 ]]; then
-        cp -r "$RESOURCES_DIR/$TOOL/command"/* "$COMMANDS_DIR/"
-        log_success "Copied $COMMAND_COUNT command(s) to $TOOL"
-        echo "  Target: $(basename "$COMMANDS_DIR")/"
+    if [[ -d "$RESOURCES_DIR/$TOOL/commands/opsx" ]]; then
+        mkdir -p "$COMMANDS_DIR/opsx"
+        COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands/opsx" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
+        if [[ $COMMAND_COUNT -gt 0 ]]; then
+            cp -r "$RESOURCES_DIR/$TOOL/commands/opsx"/* "$COMMANDS_DIR/opsx/"
+            log_success "Copied $COMMAND_COUNT command(s) to $TOOL"
+            echo "  Target: commands/opsx/"
+        fi
+    else
+        COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
+        if [[ $COMMAND_COUNT -gt 0 ]]; then
+            cp -r "$RESOURCES_DIR/$TOOL/commands"/* "$COMMANDS_DIR/"
+            log_success "Copied $COMMAND_COUNT command(s) to $TOOL"
+            echo "  Target: commands/"
+        fi
     fi
 fi
 
@@ -279,4 +347,9 @@ fi
 # Update .gitignore if openspec-auto was installed
 if [[ -f "$SCRIPTS_DIR/openspec-auto" ]]; then
     update_gitignore
+fi
+
+# Deploy core skills if requested
+if [[ "$WITH_CORE" == "true" ]]; then
+    deploy_core "$TOOL"
 fi
