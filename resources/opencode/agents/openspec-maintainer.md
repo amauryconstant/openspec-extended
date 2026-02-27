@@ -4,7 +4,7 @@ mode: subagent
 hidden: true
 temperature: 0.3
 metadata:
-  version: "0.4.1"
+  version: "0.1.0"
 tools:
   read: true
   grep: true

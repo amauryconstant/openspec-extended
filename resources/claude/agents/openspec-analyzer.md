@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash(git *), Bash(openspec *)
 skills: openspec-concepts,openspec-review-artifacts,openspec-modify-artifacts,openspec-verify-change
 permissionMode: default
 metadata:
-  version: "0.4.1"
+  version: "0.1.0"
 ---
 
 # OpenSpec Analyzer Agent

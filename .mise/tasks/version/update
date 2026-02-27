@@ -1,47 +1,26 @@
 #!/usr/bin/env bash
-#MISE description="Bump version in all paired files for a concept"
-#USAGE arg "<concept>" help="Concept name (concepts, changelog, maintain-docs, modify, review, verify-tests, auto)"
-#USAGE arg "<bump>" help="Version bump type" {
-#USAGE   choices "patch" "minor" "major"
-#USAGE }
+#MISE description="Bump version in all paired files for concepts needing updates"
+#USAGE flag "--dry-run" help="Show what would be updated without making changes"
 
 set -euo pipefail
 
-CONCEPT="${usage_concept?}"
-BUMP_TYPE="${usage_bump?}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/lib/common.sh"
 
-declare -A CONCEPT_CONFIG=(
-  ["concepts"]="openspec-concepts:skill"
-  ["changelog"]="openspec-generate-changelog:skill"
-  ["maintain-docs"]="openspec-maintain-ai-docs:skill"
-  ["modify"]="openspec-modify-artifacts:skill"
-  ["review"]="openspec-review-artifacts:skill"
-  ["verify-tests"]="openspec-review-test-compliance:skill"
-  ["auto"]="auto:script"
-)
+DRY_RUN=false
 
-if [[ -z "${CONCEPT_CONFIG[$CONCEPT]:-}" ]]; then
-  echo "Error: Unknown concept: $CONCEPT"
-  echo "Valid concepts: ${!CONCEPT_CONFIG[*]}"
-  exit 1
-fi
-
-IFS=':' read -r SKILL_DIR FILE_TYPE <<< "${CONCEPT_CONFIG[$CONCEPT]}"
-
-get_version_yaml() {
-  local file="$1"
-  grep -A2 "^metadata:" "$file" 2>/dev/null | grep "version:" | head -1 | sed 's/.*version: *["'\'']*\([^"'\'']*\)["'\'']*.*/\1/' || echo ""
-}
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=true; shift ;;
+    *) shift ;;
+  esac
+done
 
 set_version_yaml() {
   local file="$1"
   local version="$2"
   sed -i "s/^\(  version: *\)\".*\"/\1\"$version\"/" "$file"
-}
-
-get_version_bash() {
-  local file="$1"
-  grep "^readonly SCRIPT_VERSION=" "$file" 2>/dev/null | sed 's/SCRIPT_VERSION="\([^"]*\)"/\1/' || echo ""
 }
 
 set_version_bash() {
@@ -50,79 +29,160 @@ set_version_bash() {
   sed -i "s/^readonly SCRIPT_VERSION=\".*\"/readonly SCRIPT_VERSION=\"$version\"/" "$file"
 }
 
-declare -a FILES=()
+declare -A CONCEPT_CONFIG=(
+  ["concepts"]="openspec-concepts:skill"
+  ["changelog"]="openspec-generate-changelog:skill"
+  ["maintain-docs"]="openspec-maintain-ai-docs:skill"
+  ["modify"]="openspec-modify-artifacts:skill"
+  ["review"]="openspec-review-artifacts:skill"
+  ["verify-tests"]="openspec-review-test-compliance:skill"
+  ["openspec-auto"]="openspec-auto:script"
+  ["openspec-analyzer"]="openspec-analyzer:agent"
+  ["openspec-builder"]="openspec-builder:agent"
+  ["openspec-maintainer"]="openspec-maintainer:agent"
+)
 
-if [[ "$FILE_TYPE" == "skill" ]]; then
-  FILES=(
-    "resources/claude/skills/${SKILL_DIR}/SKILL.md"
-    "resources/opencode/skills/${SKILL_DIR}/SKILL.md"
-    "resources/claude/commands/opsx/${CONCEPT}.md"
-    "resources/opencode/commands/opsx-${CONCEPT}.md"
-  )
-elif [[ "$FILE_TYPE" == "script" ]]; then
-  FILES=(
-    "resources/claude/scripts/openspec-auto"
-    "resources/opencode/scripts/openspec-auto"
-    "resources/claude/agents/openspec-analyzer.md"
-    "resources/claude/agents/openspec-builder.md"
-    "resources/claude/agents/openspec-maintainer.md"
-    "resources/opencode/agents/openspec-analyzer.md"
-    "resources/opencode/agents/openspec-builder.md"
-    "resources/opencode/agents/openspec-maintainer.md"
-  )
-fi
+get_files_for_concept() {
+  local concept="$1"
+  local config="${CONCEPT_CONFIG[$concept]:-}"
+  
+  if [[ -z "$config" ]]; then
+    return 1
+  fi
+  
+  IFS=':' read -r skill_dir file_type <<< "$config"
+  
+  if [[ "$file_type" == "skill" ]]; then
+    echo "resources/claude/skills/${skill_dir}/SKILL.md"
+    echo "resources/opencode/skills/${skill_dir}/SKILL.md"
+    echo "resources/claude/commands/opsx/${concept}.md"
+    echo "resources/opencode/commands/opsx-${concept}.md"
+  elif [[ "$file_type" == "script" ]]; then
+    echo "resources/claude/scripts/${skill_dir}"
+    echo "resources/opencode/scripts/${skill_dir}"
+  elif [[ "$file_type" == "agent" ]]; then
+    echo "resources/claude/agents/${skill_dir}.md"
+    echo "resources/opencode/agents/${skill_dir}.md"
+  fi
+}
 
-FIRST_FILE="${FILES[0]}"
-if [[ ! -f "$FIRST_FILE" ]]; then
-  echo "Error: File not found: $FIRST_FILE"
+bump_concept() {
+  local concept="$1"
+  local bump_type="$2"
+  
+  if [[ -z "${CONCEPT_CONFIG[$concept]:-}" ]]; then
+    echo "Error: Unknown concept: $concept" >&2
+    return 1
+  fi
+  
+  local files
+  mapfile -t files < <(get_files_for_concept "$concept")
+  
+  local first_file="${files[0]}"
+  if [[ ! -f "$first_file" ]]; then
+    echo "Error: File not found: $first_file" >&2
+    return 1
+  fi
+  
+  local current_version
+  current_version=$(get_version_from_file "$first_file")
+  
+  if [[ -z "$current_version" ]]; then
+    echo "Error: Could not extract version from $first_file" >&2
+    return 1
+  fi
+  
+  if ! validate_semver "$current_version"; then
+    return 1
+  fi
+  
+  local new_version
+  new_version=$(bump_version "$current_version" "$bump_type")
+  
+  echo "  $concept: $current_version → $new_version"
+  
+  if [[ "$DRY_RUN" == "true" ]]; then
+    for file in "${files[@]}"; do
+      if [[ -f "$file" ]]; then
+        echo "    ✓ $file (dry-run)"
+      fi
+    done
+    return 0
+  fi
+  
+  local updated=0
+  for file in "${files[@]}"; do
+    if [[ -f "$file" ]]; then
+      if [[ "$file" == *.md ]]; then
+        set_version_yaml "$file" "$new_version"
+      else
+        set_version_bash "$file" "$new_version"
+      fi
+      echo "    ✓ $file"
+      updated=$((updated + 1))
+    fi
+  done
+  
+  return 0
+}
+
+if [[ ! -f "$VERSION_STATE_FILE" ]]; then
+  echo "Error: No state file found. Run 'mise run version:check' first." >&2
   exit 1
 fi
 
-if [[ "$FIRST_FILE" == *.md ]]; then
-  CURRENT_VERSION=$(get_version_yaml "$FIRST_FILE")
-else
-  CURRENT_VERSION=$(get_version_bash "$FIRST_FILE")
+STATE_STATUS=$(get_state_status)
+if [[ "$STATE_STATUS" != "error" ]]; then
+  echo "No version bumps required (status: $STATE_STATUS)"
+  exit 0
 fi
 
-if [[ -z "$CURRENT_VERSION" ]]; then
-  echo "Error: No version found in $FIRST_FILE"
+STATE_FILES=$(get_state_files)
+if [[ "$STATE_FILES" == "[]" ]]; then
+  echo "No files in state. Run 'mise run version:check' first."
   exit 1
 fi
 
-IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+declare -A CONCEPT_BUMPS=()
 
-case "$BUMP_TYPE" in
-  patch)
-    NEW_PATCH=$((PATCH + 1))
-    NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
-    ;;
-  minor)
-    NEW_MINOR=$((MINOR + 1))
-    NEW_VERSION="${MAJOR}.${NEW_MINOR}.0"
-    ;;
-  major)
-    NEW_MAJOR=$((MAJOR + 1))
-    NEW_VERSION="${NEW_MAJOR}.0.0"
-    ;;
-esac
+while IFS= read -r file_entry; do
+  [[ -z "$file_entry" ]] && continue
+  
+  path=$(echo "$file_entry" | jq -r '.path')
+  status=$(echo "$file_entry" | jq -r '.status')
+  
+  if [[ ! "$status" =~ ^needs_(patch|minor|major)$ ]]; then
+    continue
+  fi
+  
+  concept=$(get_concept_from_path "$path")
+  if [[ -z "$concept" ]]; then
+    echo "Warning: Could not determine concept for $path" >&2
+    continue
+  fi
+  
+  bump_type=$(echo "$status" | sed 's/needs_//')
+  
+  existing="${CONCEPT_BUMPS[$concept]:-}"
+  if [[ -z "$existing" ]]; then
+    CONCEPT_BUMPS[$concept]="$bump_type"
+  else
+    CONCEPT_BUMPS[$concept]=$(highest_bump_type "$existing $bump_type")
+  fi
+done < <(echo "$STATE_FILES" | jq -c '.[]')
 
-echo "Bumping: $CURRENT_VERSION → $NEW_VERSION"
+if [[ ${#CONCEPT_BUMPS[@]} -eq 0 ]]; then
+  echo "No concepts need version bumps"
+  exit 0
+fi
+
+echo "Executing version bumps:"
 echo ""
 
-UPDATED=0
-for file in "${FILES[@]}"; do
-  if [[ -f "$file" ]]; then
-    if [[ "$file" == *.md ]]; then
-      set_version_yaml "$file" "$NEW_VERSION"
-    else
-      set_version_bash "$file" "$NEW_VERSION"
-    fi
-    echo "✓ $file"
-    ((UPDATED++))
-  else
-    echo "⊘ $file (not found)"
-  fi
+for concept in "${!CONCEPT_BUMPS[@]}"; do
+  bump_type="${CONCEPT_BUMPS[$concept]}"
+  bump_concept "$concept" "$bump_type"
 done
 
 echo ""
-echo "Updated $UPDATED files to $NEW_VERSION"
+echo "Done. Commit the version changes."

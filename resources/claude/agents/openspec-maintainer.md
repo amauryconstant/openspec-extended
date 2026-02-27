@@ -5,7 +5,7 @@ tools: Read, Write, Edit, Bash, Grep, Glob
 skills: openspec-maintain-ai-docs,openspec-sync-specs,openspec-archive-change
 permissionMode: acceptEdits
 metadata:
-  version: "0.4.1"
+  version: "0.1.0"
 ---
 
 # OpenSpec Maintainer Agent

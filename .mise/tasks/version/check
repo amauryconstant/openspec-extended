@@ -3,7 +3,17 @@
 
 set -euo pipefail
 
-HAS_ERROR=0
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/lib/common.sh"
+
+OUTPUT_FORMAT="table"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json) OUTPUT_FORMAT="json"; shift ;;
+    *) shift ;;
+  esac
+done
 
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- \
   'resources/**/SKILL.md' \
@@ -13,18 +23,20 @@ STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- \
   'resources/**/agents/*.md')
 
 if [[ -z "$STAGED_FILES" ]]; then
+  write_version_state "ok" "[]"
+  if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+    echo '{"status":"ok","files":[]}'
+  fi
   exit 0
 fi
 
-get_version_yaml() {
-  local content="$1"
-  echo "$content" | grep -A2 "^metadata:" | grep "version:" | head -1 | sed 's/.*version: *["'\'']*\([^"'\'']*\)["'\'']*.*/\1/' || echo ""
-}
+declare -a FILE_PATHS=()
+declare -a FILE_CURRENT=()
+declare -a FILE_PREVIOUS=()
+declare -a FILE_STATUS=()
+declare -a FILE_ERRORS=()
 
-get_version_bash() {
-  local content="$1"
-  echo "$content" | grep "^readonly SCRIPT_VERSION=" | head -1 | sed 's/SCRIPT_VERSION="\([^"]*\)"/\1/' || echo ""
-}
+HAS_ERROR=0
 
 for file in $STAGED_FILES; do
   CURRENT_CONTENT=$(git show ":$file" 2>/dev/null || echo "")
@@ -33,6 +45,26 @@ for file in $STAGED_FILES; do
     CURRENT_VERSION=$(get_version_yaml "$CURRENT_CONTENT")
   else
     CURRENT_VERSION=$(get_version_bash "$CURRENT_CONTENT")
+  fi
+  
+  if [[ -z "$CURRENT_VERSION" ]]; then
+    FILE_PATHS+=("$file")
+    FILE_CURRENT+=("")
+    FILE_PREVIOUS+=("")
+    FILE_STATUS+=("error")
+    FILE_ERRORS+=("Could not extract version")
+    HAS_ERROR=1
+    continue
+  fi
+  
+  if ! validate_semver "$CURRENT_VERSION" 2>/dev/null; then
+    FILE_PATHS+=("$file")
+    FILE_CURRENT+=("$CURRENT_VERSION")
+    FILE_PREVIOUS+=("")
+    FILE_STATUS+=("error")
+    FILE_ERRORS+=("Invalid version format")
+    HAS_ERROR=1
+    continue
   fi
   
   if git show "HEAD:$file" &>/dev/null; then
@@ -45,17 +77,165 @@ for file in $STAGED_FILES; do
     fi
     
     if [[ "$CURRENT_VERSION" == "$PREVIOUS_VERSION" ]]; then
-      echo "Error: $file modified but version not bumped (still $CURRENT_VERSION)"
+      FILE_PATHS+=("$file")
+      FILE_CURRENT+=("$CURRENT_VERSION")
+      FILE_PREVIOUS+=("$PREVIOUS_VERSION")
+      FILE_STATUS+=("needs_bump")
+      FILE_ERRORS+=("")
       HAS_ERROR=1
+    else
+      FILE_PATHS+=("$file")
+      FILE_CURRENT+=("$CURRENT_VERSION")
+      FILE_PREVIOUS+=("$PREVIOUS_VERSION")
+      FILE_STATUS+=("ok")
+      FILE_ERRORS+=("")
     fi
+  else
+    FILE_PATHS+=("$file")
+    FILE_CURRENT+=("$CURRENT_VERSION")
+    FILE_PREVIOUS+=("")
+    FILE_STATUS+=("new")
+    FILE_ERRORS+=("")
   fi
 done
 
-if [[ $HAS_ERROR -eq 1 ]]; then
+LOW_CONFIDENCE_INDICES=""
+
+for i in "${!FILE_PATHS[@]}"; do
+  if [[ "${FILE_STATUS[$i]}" == "needs_bump" ]]; then
+    DETECT_RESULT=$("$SCRIPT_DIR/lib/detect-bump" "${FILE_PATHS[$i]}" 2>/dev/null || echo "patch:ambiguous:low")
+    
+    BUMP_TYPE=$(echo "$DETECT_RESULT" | cut -d: -f1)
+    CONFIDENCE=$(echo "$DETECT_RESULT" | cut -d: -f3)
+    
+    if [[ "$BUMP_TYPE" =~ ^(patch|minor|major)$ ]]; then
+      FILE_STATUS[i]="needs_$BUMP_TYPE"
+    else
+      FILE_STATUS[i]="needs_patch"
+      CONFIDENCE="low"
+    fi
+    
+    if [[ "$CONFIDENCE" == "low" ]]; then
+      LOW_CONFIDENCE_INDICES="$LOW_CONFIDENCE_INDICES $i"
+    fi
+  elif [[ "${FILE_STATUS[$i]}" == "new" ]]; then
+    FILE_STATUS[i]="needs_minor"
+  fi
+done
+
+if [[ -n "$LOW_CONFIDENCE_INDICES" ]] && command -v opencode &>/dev/null; then
+  AI_FILES_JSON="["
+  first=true
+  for i in $LOW_CONFIDENCE_INDICES; do
+    if [[ "$first" == "true" ]]; then
+      first=false
+    else
+      AI_FILES_JSON+=","
+    fi
+    AI_FILES_JSON+="{\"path\":\"${FILE_PATHS[$i]}\",\"current_version\":\"${FILE_CURRENT[$i]}\"}"
+  done
+  AI_FILES_JSON+="]"
+  
+  ANALYSIS_TIMEOUT=60
+  ANALYSIS_FILE=$(mktemp)
+  
+  timeout "$ANALYSIS_TIMEOUT" opencode run --format json \
+    "Analyze these ambiguous file changes. Return JSON array with objects containing 'path' and 'status' (needs_patch, needs_minor, or needs_major). Input: $AI_FILES_JSON. Output ONLY a JSON array, no markdown, no explanation." \
+    >"$ANALYSIS_FILE" 2>/dev/null
+  
+  if [[ -s "$ANALYSIS_FILE" ]]; then
+    TEXT_OUTPUT=$(grep '"type":"text"' "$ANALYSIS_FILE" | head -1 | jq -r '.part.text // empty' 2>/dev/null || echo "")
+    
+    if [[ -n "$TEXT_OUTPUT" ]] && echo "$TEXT_OUTPUT" | jq -e 'type == "array"' >/dev/null 2>&1; then
+      for i in $LOW_CONFIDENCE_INDICES; do
+        AI_STATUS=$(echo "$TEXT_OUTPUT" | jq -r --arg path "${FILE_PATHS[$i]}" '.[] | select(.path == $path) | .status // empty' 2>/dev/null || echo "")
+        if [[ -n "$AI_STATUS" && "$AI_STATUS" =~ ^needs_(patch|minor|major)$ ]]; then
+          FILE_STATUS[i]="$AI_STATUS"
+        fi
+      done
+    fi
+  fi
+  
+  rm -f "$ANALYSIS_FILE"
+fi
+
+build_files_json() {
+  local files_json="["
+  local first=true
+  
+  for i in "${!FILE_PATHS[@]}"; do
+    if [[ "$first" == "true" ]]; then
+      first=false
+    else
+      files_json+=","
+    fi
+    
+    files_json+="{\"path\":\"${FILE_PATHS[$i]}\",\"current_version\":\"${FILE_CURRENT[$i]}\",\"status\":\"${FILE_STATUS[$i]}\"}"
+  done
+  
+  files_json+="]"
+  echo "$files_json"
+}
+
+output_json() {
+  local status="ok"
+  if [[ $HAS_ERROR -eq 1 ]]; then
+    status="error"
+  fi
+  
+  local files_json
+  files_json=$(build_files_json)
+  
+  write_version_state "$status" "$files_json"
+  
+  echo "{\"status\":\"$status\",\"files\":$files_json}"
+}
+
+output_table() {
+  local status="ok"
+  if [[ $HAS_ERROR -eq 1 ]]; then
+    status="error"
+  fi
+  
+  local files_json
+  files_json=$(build_files_json)
+  
+  write_version_state "$status" "$files_json"
+  
+  if [[ $HAS_ERROR -eq 0 ]]; then
+    return
+  fi
+  
   echo ""
-  echo "Bump the version before committing."
-  echo "Skills/commands: mise run version:update <concept> <patch|minor|major>"
-  echo "Auto workflow:   mise run version:update auto <patch|minor|major>"
+  echo "Version Bump Required"
+  echo "====================="
+  echo ""
+  
+  printf "%-50s  %-10s  %-15s\n" "File" "Current" "Status"
+  printf "%-50s  %-10s  %-15s\n" "$(printf '=%.0s' {1..50})" "$(printf '=%.0s' {1..10})" "$(printf '=%.0s' {1..15})"
+  
+  for i in "${!FILE_PATHS[@]}"; do
+    local display_path="${FILE_PATHS[$i]}"
+    if [[ ${#display_path} -gt 48 ]]; then
+      display_path="...${display_path: -45}"
+    fi
+    
+    local status_text="${FILE_STATUS[$i]}"
+    
+    printf "%-50s  %-10s  %-15s\n" "$display_path" "${FILE_CURRENT[$i]}" "$status_text"
+  done
+  
+  echo ""
+  echo "Run: mise run version:update"
+}
+
+if [[ "$OUTPUT_FORMAT" == "json" ]]; then
+  output_json
+else
+  output_table
+fi
+
+if [[ $HAS_ERROR -eq 1 ]]; then
   exit 1
 fi
 
