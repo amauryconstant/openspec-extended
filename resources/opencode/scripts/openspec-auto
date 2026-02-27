@@ -595,14 +595,19 @@ run_agent() {
   local exit_code
   
   if [[ "$AI_PLATFORM" == "opencode" ]]; then
+    local prompt_file
+    prompt_file=$(mktemp)
+    echo "$prompt_content" > "$prompt_file"
+    
     if [[ -n "$MODEL" ]]; then
-      timeout --foreground "$TIMEOUT" "$AI_BINARY" run --model="$MODEL" "$prompt_content" &
+      timeout --foreground "$TIMEOUT" "$AI_BINARY" run --model="$MODEL" -f "$prompt_file" &
     else
-      timeout --foreground "$TIMEOUT" "$AI_BINARY" run "$prompt_content" &
+      timeout --foreground "$TIMEOUT" "$AI_BINARY" run -f "$prompt_file" &
     fi
     CHILD_PID=$!
     wait "$CHILD_PID"
     exit_code=$?
+    rm -f "$prompt_file"
   elif [[ "$AI_PLATFORM" == "claude" ]]; then
     if [[ -n "$MODEL" ]]; then
       timeout --foreground "$TIMEOUT" "$AI_BINARY" --print --model="$MODEL" "$prompt_content" &
