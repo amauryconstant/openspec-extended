@@ -28,7 +28,6 @@ check_dependencies() {
 main() {
     check_dependencies
     
-    local temp_dir
     temp_dir=$(mktemp -d)
     
     trap 'rm -rf "$temp_dir"' EXIT
@@ -43,13 +42,24 @@ main() {
     log_info "Building OpenSpec..."
     pnpm run build
     
+    log_info "Configuring custom profile with all workflows..."
+    local config_dir="$HOME/.config/openspec"
+    mkdir -p "$config_dir"
+    cat > "$config_dir/config.json" << 'CONFIGEOF'
+{
+  "profile": "custom",
+  "delivery": "both",
+  "workflows": ["propose", "explore", "new", "continue", "apply", "ff", "sync", "archive", "bulk-archive", "verify", "onboard"]
+}
+CONFIGEOF
+    
     log_info "Generating AI assistant files..."
     local gen_dir="$temp_dir/generated"
     mkdir -p "$gen_dir"
     cd "$gen_dir"
     
     git init -q
-    "$temp_dir/openspec/bin/openspec.js" init --tools claude,opencode --force
+    "$temp_dir/openspec/bin/openspec.js" init --tools claude,opencode --profile custom --force
     
     log_info "Syncing to openspec-core..."
     mkdir -p "$TARGET_DIR"
