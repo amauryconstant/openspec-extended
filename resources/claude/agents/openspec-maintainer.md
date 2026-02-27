@@ -4,6 +4,8 @@ description: OpenSpec maintainer for documentation (PHASE3), spec syncing (PHASE
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills: openspec-maintain-ai-docs,openspec-sync-specs,openspec-archive-change
 permissionMode: acceptEdits
+metadata:
+  version: "0.4.1"
 ---
 
 # OpenSpec Maintainer Agent

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Bump version in all paired files for a concept"
-#USAGE arg "<concept>" help="Concept name (concepts, changelog, maintain-docs, modify, review, verify-tests)"
+#USAGE arg "<concept>" help="Concept name (concepts, changelog, maintain-docs, modify, review, verify-tests, auto)"
 #USAGE arg "<bump>" help="Version bump type" {
 #USAGE   choices "patch" "minor" "major"
 #USAGE }
@@ -10,29 +10,67 @@ set -euo pipefail
 CONCEPT="${usage_concept?}"
 BUMP_TYPE="${usage_bump?}"
 
-declare -A SKILL_DIRS=(
-  ["concepts"]="openspec-concepts"
-  ["changelog"]="openspec-generate-changelog"
-  ["maintain-docs"]="openspec-maintain-ai-docs"
-  ["modify"]="openspec-modify-artifacts"
-  ["review"]="openspec-review-artifacts"
-  ["verify-tests"]="openspec-review-test-compliance"
+declare -A CONCEPT_CONFIG=(
+  ["concepts"]="openspec-concepts:skill"
+  ["changelog"]="openspec-generate-changelog:skill"
+  ["maintain-docs"]="openspec-maintain-ai-docs:skill"
+  ["modify"]="openspec-modify-artifacts:skill"
+  ["review"]="openspec-review-artifacts:skill"
+  ["verify-tests"]="openspec-review-test-compliance:skill"
+  ["auto"]="auto:script"
 )
 
-if [[ -z "${SKILL_DIRS[$CONCEPT]:-}" ]]; then
+if [[ -z "${CONCEPT_CONFIG[$CONCEPT]:-}" ]]; then
   echo "Error: Unknown concept: $CONCEPT"
-  echo "Valid concepts: ${!SKILL_DIRS[*]}"
+  echo "Valid concepts: ${!CONCEPT_CONFIG[*]}"
   exit 1
 fi
 
-SKILL_DIR="${SKILL_DIRS[$CONCEPT]}"
+IFS=':' read -r SKILL_DIR FILE_TYPE <<< "${CONCEPT_CONFIG[$CONCEPT]}"
 
-FILES=(
-  "resources/claude/skills/${SKILL_DIR}/SKILL.md"
-  "resources/opencode/skills/${SKILL_DIR}/SKILL.md"
-  "resources/claude/commands/opsx/${CONCEPT}.md"
-  "resources/opencode/command/opsx-${CONCEPT}.md"
-)
+get_version_yaml() {
+  local file="$1"
+  grep -A2 "^metadata:" "$file" 2>/dev/null | grep "version:" | head -1 | sed 's/.*version: *["'\'']*\([^"'\'']*\)["'\'']*.*/\1/' || echo ""
+}
+
+set_version_yaml() {
+  local file="$1"
+  local version="$2"
+  sed -i "s/^\(  version: *\)\".*\"/\1\"$version\"/" "$file"
+}
+
+get_version_bash() {
+  local file="$1"
+  grep "^readonly SCRIPT_VERSION=" "$file" 2>/dev/null | sed 's/SCRIPT_VERSION="\([^"]*\)"/\1/' || echo ""
+}
+
+set_version_bash() {
+  local file="$1"
+  local version="$2"
+  sed -i "s/^readonly SCRIPT_VERSION=\".*\"/readonly SCRIPT_VERSION=\"$version\"/" "$file"
+}
+
+declare -a FILES=()
+
+if [[ "$FILE_TYPE" == "skill" ]]; then
+  FILES=(
+    "resources/claude/skills/${SKILL_DIR}/SKILL.md"
+    "resources/opencode/skills/${SKILL_DIR}/SKILL.md"
+    "resources/claude/commands/opsx/${CONCEPT}.md"
+    "resources/opencode/commands/opsx-${CONCEPT}.md"
+  )
+elif [[ "$FILE_TYPE" == "script" ]]; then
+  FILES=(
+    "resources/claude/scripts/openspec-auto"
+    "resources/opencode/scripts/openspec-auto"
+    "resources/claude/agents/openspec-analyzer.md"
+    "resources/claude/agents/openspec-builder.md"
+    "resources/claude/agents/openspec-maintainer.md"
+    "resources/opencode/agents/openspec-analyzer.md"
+    "resources/opencode/agents/openspec-builder.md"
+    "resources/opencode/agents/openspec-maintainer.md"
+  )
+fi
 
 FIRST_FILE="${FILES[0]}"
 if [[ ! -f "$FIRST_FILE" ]]; then
@@ -40,10 +78,14 @@ if [[ ! -f "$FIRST_FILE" ]]; then
   exit 1
 fi
 
-CURRENT_VERSION=$(grep -A2 "^metadata:" "$FIRST_FILE" | grep "version:" | head -1 | cut -d'"' -f2)
+if [[ "$FIRST_FILE" == *.md ]]; then
+  CURRENT_VERSION=$(get_version_yaml "$FIRST_FILE")
+else
+  CURRENT_VERSION=$(get_version_bash "$FIRST_FILE")
+fi
 
 if [[ -z "$CURRENT_VERSION" ]]; then
-  echo "Error: No version found in metadata block"
+  echo "Error: No version found in $FIRST_FILE"
   exit 1
 fi
 
@@ -70,7 +112,11 @@ echo ""
 UPDATED=0
 for file in "${FILES[@]}"; do
   if [[ -f "$file" ]]; then
-    sed -i "s/^\(  version: \)\".*\"/\1\"$NEW_VERSION\"/" "$file"
+    if [[ "$file" == *.md ]]; then
+      set_version_yaml "$file" "$NEW_VERSION"
+    else
+      set_version_bash "$file" "$NEW_VERSION"
+    fi
     echo "✓ $file"
     ((UPDATED++))
   else

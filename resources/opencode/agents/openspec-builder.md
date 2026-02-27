@@ -2,7 +2,9 @@
 description: OpenSpec builder for implementation (PHASE1). Specializes in code generation, file manipulation, and test-driven development.
 mode: subagent
 hidden: true
-temperature: 0.2
+temperature: 0.4
+metadata:
+  version: "0.4.1"
 tools:
   read: true
   grep: true

@@ -4,6 +4,8 @@ description: OpenSpec builder for implementation (PHASE1). Specializes in code g
 tools: Read, Write, Edit, Bash, Grep, Glob
 skills: openspec-concepts,openspec-apply-change,openspec-review-test-compliance
 permissionMode: acceptEdits
+metadata:
+  version: "0.4.1"
 ---
 
 # OpenSpec Builder Agent

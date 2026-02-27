@@ -3,6 +3,8 @@ description: OpenSpec analyzer for artifact review (PHASE0), verification (PHASE
 mode: subagent
 hidden: true
 temperature: 0.1
+metadata:
+  version: "0.4.1"
 tools:
   read: true
   grep: true

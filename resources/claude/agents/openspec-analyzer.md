@@ -4,6 +4,8 @@ description: OpenSpec analyzer for artifact review (PHASE0), verification (PHASE
 tools: Read, Grep, Glob, Bash(git *), Bash(openspec *)
 skills: openspec-concepts,openspec-review-artifacts,openspec-modify-artifacts,openspec-verify-change
 permissionMode: default
+metadata:
+  version: "0.4.1"
 ---
 
 # OpenSpec Analyzer Agent

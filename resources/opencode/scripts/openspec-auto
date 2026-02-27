@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.4.0"
+readonly SCRIPT_VERSION="0.4.1"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -600,9 +600,9 @@ run_agent() {
     echo "$prompt_content" > "$prompt_file"
     
     if [[ -n "$MODEL" ]]; then
-      timeout --foreground "$TIMEOUT" "$AI_BINARY" run --model="$MODEL" -f "$prompt_file" &
+      timeout --foreground "$TIMEOUT" "$AI_BINARY" run "Execute the OpenSpec autonomous workflow" -f "$prompt_file" --model="$MODEL" &
     else
-      timeout --foreground "$TIMEOUT" "$AI_BINARY" run -f "$prompt_file" &
+      timeout --foreground "$TIMEOUT" "$AI_BINARY" run "Execute the OpenSpec autonomous workflow" -f "$prompt_file" &
     fi
     CHILD_PID=$!
     wait "$CHILD_PID"

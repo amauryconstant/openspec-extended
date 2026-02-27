@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Verify SKILL.md and command files have version bump when modified"
+#MISE description="Verify version bump when versioned files are modified"
 
 set -euo pipefail
 
@@ -8,17 +8,41 @@ HAS_ERROR=0
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- \
   'resources/**/SKILL.md' \
   'resources/claude/commands/opsx/*.md' \
-  'resources/opencode/command/opsx-*.md')
+  'resources/opencode/commands/opsx-*.md' \
+  'resources/**/scripts/openspec-auto' \
+  'resources/**/agents/*.md')
 
 if [[ -z "$STAGED_FILES" ]]; then
   exit 0
 fi
 
+get_version_yaml() {
+  local content="$1"
+  echo "$content" | grep -A2 "^metadata:" | grep "version:" | head -1 | sed 's/.*version: *["'\'']*\([^"'\'']*\)["'\'']*.*/\1/' || echo ""
+}
+
+get_version_bash() {
+  local content="$1"
+  echo "$content" | grep "^readonly SCRIPT_VERSION=" | head -1 | sed 's/SCRIPT_VERSION="\([^"]*\)"/\1/' || echo ""
+}
+
 for file in $STAGED_FILES; do
-  CURRENT_VERSION=$(git show ":$file" 2>/dev/null | grep -A2 "^metadata:" | grep "version:" | head -1 | cut -d'"' -f2 || echo "")
+  CURRENT_CONTENT=$(git show ":$file" 2>/dev/null || echo "")
+  
+  if [[ "$file" == *.md ]]; then
+    CURRENT_VERSION=$(get_version_yaml "$CURRENT_CONTENT")
+  else
+    CURRENT_VERSION=$(get_version_bash "$CURRENT_CONTENT")
+  fi
   
   if git show "HEAD:$file" &>/dev/null; then
-    PREVIOUS_VERSION=$(git show "HEAD:$file" | grep -A2 "^metadata:" | grep "version:" | head -1 | cut -d'"' -f2 || echo "")
+    PREVIOUS_CONTENT=$(git show "HEAD:$file")
+    
+    if [[ "$file" == *.md ]]; then
+      PREVIOUS_VERSION=$(get_version_yaml "$PREVIOUS_CONTENT")
+    else
+      PREVIOUS_VERSION=$(get_version_bash "$PREVIOUS_CONTENT")
+    fi
     
     if [[ "$CURRENT_VERSION" == "$PREVIOUS_VERSION" ]]; then
       echo "Error: $file modified but version not bumped (still $CURRENT_VERSION)"
@@ -29,8 +53,9 @@ done
 
 if [[ $HAS_ERROR -eq 1 ]]; then
   echo ""
-  echo "Bump the version in metadata.version field before committing."
-  echo "Use: mise run version:update <concept> <patch|minor|major>"
+  echo "Bump the version before committing."
+  echo "Skills/commands: mise run version:update <concept> <patch|minor|major>"
+  echo "Auto workflow:   mise run version:update auto <patch|minor|major>"
   exit 1
 fi
 

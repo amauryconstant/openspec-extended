@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.4.0"
+readonly SCRIPT_VERSION="0.4.1"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -595,14 +595,19 @@ run_agent() {
   local exit_code
   
   if [[ "$AI_PLATFORM" == "opencode" ]]; then
+    local prompt_file
+    prompt_file=$(mktemp)
+    echo "$prompt_content" > "$prompt_file"
+    
     if [[ -n "$MODEL" ]]; then
-      timeout --foreground "$TIMEOUT" "$AI_BINARY" run --model="$MODEL" "$prompt_content" &
+      timeout --foreground "$TIMEOUT" "$AI_BINARY" run "Execute the OpenSpec autonomous workflow" -f "$prompt_file" --model="$MODEL" &
     else
-      timeout --foreground "$TIMEOUT" "$AI_BINARY" run "$prompt_content" &
+      timeout --foreground "$TIMEOUT" "$AI_BINARY" run "Execute the OpenSpec autonomous workflow" -f "$prompt_file" &
     fi
     CHILD_PID=$!
     wait "$CHILD_PID"
     exit_code=$?
+    rm -f "$prompt_file"
   elif [[ "$AI_PLATFORM" == "claude" ]]; then
     if [[ -n "$MODEL" ]]; then
       timeout --foreground "$TIMEOUT" "$AI_BINARY" --print --model="$MODEL" "$prompt_content" &

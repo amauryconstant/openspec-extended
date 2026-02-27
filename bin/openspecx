@@ -329,18 +329,17 @@ if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
 fi
 
 # Handle agents directory (for phase-specific agent definitions with embedded workflows)
+# Always copy agents on install/update since they're definitions that may have been updated
 AGENTS_SOURCE="$RESOURCES_DIR/$TOOL/agents"
 AGENTS_TARGET="$(pwd)/$(dirname "$TARGET_DIR")/agents"
 if [[ -d "$AGENTS_SOURCE" ]]; then
-    if [[ "$COMMAND" == "update" ]] || [[ ! -d "$AGENTS_TARGET" ]]; then
-        mkdir -p "$AGENTS_TARGET"
-        AGENT_COUNT=$(find "$AGENTS_SOURCE" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
-        
-        if [[ $AGENT_COUNT -gt 0 ]]; then
-            cp -f "$AGENTS_SOURCE"/*.md "$AGENTS_TARGET/"
-            log_success "Copied $AGENT_COUNT agent definition(s) to $TOOL"
-            echo "  Target: $(basename "$(dirname "$TARGET_DIR")")/agents/"
-        fi
+    mkdir -p "$AGENTS_TARGET"
+    AGENT_COUNT=$(find "$AGENTS_SOURCE" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
+    
+    if [[ $AGENT_COUNT -gt 0 ]]; then
+        cp -f "$AGENTS_SOURCE"/*.md "$AGENTS_TARGET/"
+        log_success "Copied $AGENT_COUNT agent definition(s) to $TOOL"
+        echo "  Target: $(basename "$(dirname "$TARGET_DIR")")/agents/"
     fi
 fi
 

@@ -9,8 +9,8 @@ repos:
         files: ^(bin/openspecx|\.mise/tasks/)
 
       - id: check-version-bump
-        name: Check version bump in skills and commands
+        name: Check version bump in versioned files
         entry: mise run version:check
         language: system
-        files: ^resources/(.*/SKILL\.md|claude/commands/opsx/.*\.md|opencode/command/opsx-.*\.md)$
+        files: ^resources/(.*/SKILL\.md|claude/commands/opsx/.*\.md|opencode/commands/opsx-.*\.md|.*/scripts/openspec-auto|.*/agents/.*\.md)$
         pass_filenames: false
