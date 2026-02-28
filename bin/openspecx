@@ -157,6 +157,7 @@ show_usage() {
 }
 
 update_gitignore() {
+    local force="$1"
     local gitignore="$(pwd)/.gitignore"
     local marker_start="# BEGIN OpenSpec autonomous workflow state"
     local marker_end="# END OpenSpec autonomous workflow state"
@@ -165,7 +166,11 @@ update_gitignore() {
         touch "$gitignore"
     fi
     
-    if grep -qF "$marker_start" "$gitignore" 2>/dev/null; then
+    if [[ "$force" == "true" ]]; then
+        local content
+        content=$(sed "/^$marker_start$/,/^$marker_end$/d" "$gitignore" 2>/dev/null || cat "$gitignore")
+        echo "$content" > "$gitignore"
+    elif grep -qF "$marker_start" "$gitignore" 2>/dev/null; then
         return 0
     fi
     
@@ -408,7 +413,11 @@ fi
 
 # Update .gitignore if openspec-auto was installed
 if [[ -f "$SCRIPTS_DIR/openspec-auto" ]]; then
-    update_gitignore
+    if [[ "$COMMAND" == "update" ]]; then
+        update_gitignore "true"
+    else
+        update_gitignore "false"
+    fi
 fi
 
 # Deploy core skills if requested

@@ -2,7 +2,7 @@
 description: PHASE0 - Artifact Review
 agent: openspec-analyzer
 metadata:
-   version: "0.2.1"
+   version: "0.2.2"
 ---
 
 # PHASE0: Artifact Review
@@ -12,7 +12,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`opencode/scripts/lib/osc-ctx "$1"`
+  !`.opencode/scripts/lib/osc-ctx "$1"`
 2. Confirm `phase` is PHASE0
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)

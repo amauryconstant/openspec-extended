@@ -2,7 +2,7 @@
 description: PHASE5 - Archive Change
 agent: openspec-maintainer
 metadata:
-   version: "0.2.1"
+   version: "0.2.2"
 ---
 
 # PHASE5: Archive Change
@@ -12,7 +12,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`opencode/scripts/lib/osc-ctx "$1"`
+  !`.opencode/scripts/lib/osc-ctx "$1"`
 2. Confirm `phase` is PHASE5
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)

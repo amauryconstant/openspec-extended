@@ -2,7 +2,7 @@
 description: PHASE6 - Self-Reflection
 agent: openspec-analyzer
 metadata:
-   version: "0.2.0"
+   version: "0.2.1"
 ---
 
 # PHASE6: Self-Reflection
@@ -12,7 +12,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`opencode/scripts/lib/osc-ctx "$1"`
+  !`.opencode/scripts/lib/osc-ctx "$1"`
 2. Confirm `phase` is PHASE6
 3. Review full history via `osc-log get` to understand entire workflow
 4. Review `history.iterations_recorded` for iteration counts per phase

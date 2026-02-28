@@ -2,7 +2,7 @@
 description: PHASE2 - Verification
 agent: openspec-analyzer
 metadata:
-   version: "0.2.0"
+   version: "0.2.1"
 ---
 
 # PHASE2: Verification
@@ -12,7 +12,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`opencode/scripts/lib/osc-ctx "$1"`
+  !`.opencode/scripts/lib/osc-ctx "$1"`
 2. Confirm `phase` is PHASE2
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
