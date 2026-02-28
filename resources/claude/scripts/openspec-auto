@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.4.1"
+readonly SCRIPT_VERSION="0.4.2"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -456,6 +456,7 @@ read_state() {
 write_state() {
   local phase="$1"
   local iteration="${2:-1}"
+  local phase_complete="${3:-false}"
   
   local state_json
   state_json=$(cat <<EOF
@@ -463,6 +464,7 @@ write_state() {
   "phase": "$phase",
   "phase_name": "${PHASE_NAMES[$phase]}",
   "iteration": $iteration,
+  "phase_complete": $phase_complete,
   "total_invocations": $TOTAL_INVOCATIONS,
   "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "last_updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -473,7 +475,7 @@ EOF
   echo "$state_json" > "$CHANGE_DIR/state.json"
   
   if [[ "$VERBOSE" == true ]]; then
-    log "State updated: $phase (iteration $iteration)"
+    log "State updated: $phase (iteration $iteration, complete: $phase_complete)"
   fi
 }
 
@@ -540,6 +542,42 @@ get_phase_iteration() {
   iteration=$(jq -r '.iteration // "0"' "$state_file" 2>/dev/null)
   
   echo "$iteration"
+}
+
+check_phase_complete() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    return 1
+  fi
+  
+  if ! validate_json "$state_file"; then
+    return 1
+  fi
+  
+  local phase_complete
+  phase_complete=$(jq -r '.phase_complete // false' "$state_file" 2>/dev/null)
+  
+  if [[ "$phase_complete" == "true" ]]; then
+    return 0
+  fi
+  
+  return 1
+}
+
+clear_phase_complete() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    return
+  fi
+  
+  local updated_json
+  updated_json=$(jq '.phase_complete = false' "$state_file" 2>/dev/null)
+  
+  if [[ -n "$updated_json" ]]; then
+    echo "$updated_json" > "$state_file"
+  fi
 }
 
 is_phase_complete() {
@@ -637,22 +675,6 @@ run_agent() {
   return 0
 }
 
-check_complete_signal() {
-  if ! check_complete; then
-    return 1
-  fi
-  
-  local complete_status
-  complete_status=$(read_completion || echo "")
-  
-  if [[ "$complete_status" == "COMPLETE" ]]; then
-    log "Phase complete signaled"
-    return 0
-  fi
-  
-  return 1
-}
-
 run_phase() {
   local phase="$1"
   log "${PHASE_NAMES[$phase]}"
@@ -666,8 +688,9 @@ run_phase() {
       return 1
     fi
     
-    if check_complete_signal; then
+    if check_phase_complete; then
       log_success "$phase completed in $iteration iteration(s)"
+      clear_phase_complete
       return 0
     fi
     

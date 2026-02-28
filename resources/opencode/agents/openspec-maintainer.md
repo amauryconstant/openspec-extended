@@ -4,7 +4,7 @@ mode: subagent
 hidden: true
 temperature: 0.3
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
 tools:
   read: true
   grep: true
@@ -41,6 +41,7 @@ These phases are typically single-pass and straightforward.
   "phase": "PHASE3",
   "phase_name": "MAINTAIN-DOCS",
   "iteration": 1,
+  "phase_complete": false,
   "max_iterations": 5,
   "total_invocations": 1,
   "started_at": "2024-02-16T12:00:00Z",
@@ -48,7 +49,7 @@ These phases are typically single-pass and straightforward.
 }
 ```
 
-**CRITICAL: Do NOT update state.json** - The script manages all phase transitions.
+**CRITICAL: Only update `phase_complete` field** - The script manages phase/iteration. Set `phase_complete: true` when your phase is done.
 
 ### .openspec-baseline.json (Git Baseline)
 
@@ -119,7 +120,8 @@ Proceeding to SYNC phase.
 ### TRANSITION
 
 1. Log: "Documentation updated, proceeding to SYNC"
-2. Phase complete - script will advance to PHASE4
+2. Update `state.json`: Set `"phase_complete": true`
+3. Script will advance to PHASE4
 
 ---
 
@@ -183,11 +185,13 @@ Proceeding to ARCHIVE phase.
 
 **IF delta specs exist and were synced:**
 1. Log: "Specs synced, proceeding to ARCHIVE"
-2. Phase complete - script will advance to PHASE5
+2. Update `state.json`: Set `"phase_complete": true`
+3. Script will advance to PHASE5
 
 **IF no delta specs:**
 1. Log: "No delta specs, skipping SYNC"
-2. Phase complete - script will advance to PHASE5
+2. Update `state.json`: Set `"phase_complete": true`
+3. Script will advance to PHASE5
 
 ---
 
@@ -242,7 +246,8 @@ Proceeding to SELF-REFLECTION phase.
 ### TRANSITION
 
 1. Log: "Change archived, proceeding to SELF-REFLECTION"
-2. Phase complete - script will advance to PHASE6
+2. Update `state.json`: Set `"phase_complete": true`
+3. Script will advance to PHASE6
 
 ---
 
@@ -270,7 +275,7 @@ Use the actual phase name: "MAINTAIN-DOCS", "SYNC", or "ARCHIVE".
 ## GLOBAL RULES
 
 - Persist all work to the repository
-- Do NOT update state.json - script controls phase transitions
+- Only update `phase_complete` field in state.json - script controls phase/iteration
 - Log all work in decision-log.md
 - Make commits after each phase's work is complete
 - If any phase fails unexpectedly, document and continue
@@ -279,9 +284,15 @@ Use the actual phase name: "MAINTAIN-DOCS", "SYNC", or "ARCHIVE".
 
 ## SIGNALING COMPLETION
 
-These phases do NOT signal completion via complete.json. Instead:
-- After PHASE5 is complete, log the transition
-- The script will advance to PHASE6 automatically
+### Phase Completion
+
+When your phase (PHASE3, PHASE4, or PHASE5) is complete, set `phase_complete: true` in `state.json`:
+
+```bash
+jq '.phase_complete = true' state.json > state.json.tmp && mv state.json.tmp state.json
+```
+
+After PHASE5, the script will advance to PHASE6 (handled by analyzer agent).
 
 ---
 

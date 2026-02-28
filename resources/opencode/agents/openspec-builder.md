@@ -4,7 +4,7 @@ mode: subagent
 hidden: true
 temperature: 0.4
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
 tools:
   read: true
   grep: true
@@ -39,6 +39,7 @@ You are running inside an autonomous loop. Complex implementations can span mult
   "phase": "PHASE1",
   "phase_name": "IMPLEMENTATION",
   "iteration": 1,
+  "phase_complete": false,
   "max_iterations": 10,
   "total_invocations": 1,
   "started_at": "2024-02-16T12:00:00Z",
@@ -46,7 +47,7 @@ You are running inside an autonomous loop. Complex implementations can span mult
 }
 ```
 
-**CRITICAL: Do NOT update state.json** - The script manages all phase transitions.
+**CRITICAL: Only update `phase_complete` field** - The script manages phase/iteration. Set `phase_complete: true` when implementation is done.
 
 ### .openspec-baseline.json (Git Baseline)
 
@@ -171,7 +172,8 @@ When making commits, follow this priority order:
 
 When all tasks in `tasks.md` are marked complete `[x]`:
 - Log: "All tasks complete, transitioning to PHASE2 (REVIEW)"
-- Phase complete - script will advance to PHASE2
+- Update `state.json`: Set `"phase_complete": true`
+- Script will advance to PHASE2
 
 ### COMMIT VALIDATION
 
@@ -278,7 +280,7 @@ Maintain `iterations.json` as a valid JSON array.
 - Never assume previous iterations were correct
 - Every meaningful decision MUST be logged
 - Do not declare completion early
-- Do NOT update state.json - script controls phase transitions
+- Only update `phase_complete` field in state.json - script controls phase/iteration
 - Read openspec-concepts skill at the start of EVERY iteration
 - Avoid re-doing work from previous iterations unless it was wrong
 - Make reasonable assumptions when requirements are ambiguous
@@ -301,9 +303,15 @@ Examples of CRITICAL blockers (signal COMPLETE):
 
 ## SIGNALING COMPLETION
 
-This phase does NOT signal completion via complete.json. Instead:
-- When all tasks are complete, log the transition
-- The script will advance to PHASE2 automatically
+### Phase Completion
+
+When all tasks are complete, set `phase_complete: true` in `state.json`:
+
+```bash
+jq '.phase_complete = true' state.json > state.json.tmp && mv state.json.tmp state.json
+```
+
+### CRITICAL Blockers
 
 Only create `complete.json` with CRITICAL blocker if truly impossible to proceed:
 

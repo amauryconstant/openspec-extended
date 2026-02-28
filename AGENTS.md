@@ -258,11 +258,17 @@ EOF
 
 **State Files** (in `openspec/changes/<change>/`):
 
-- `state.json` - Current phase and iteration
-- `complete.json` - Completion status
-- `iterations.json` - Iteration history
-- `decision-log.md` - Agent decision log
-- `.openspec-baseline.json` - Baseline artifact snapshot (project root)
+| File | Purpose | Written By | Lifecycle |
+|------|---------|------------|-----------|
+| `state.json` | Phase tracking + completion signal | Script (phase/iteration), Agent (`phase_complete`) | Deleted on success |
+| `complete.json` | Workflow completion (PHASE6 only) | Agent (PHASE6 only) | Deleted after validation |
+| `iterations.json` | Iteration history | Agent | Never deleted |
+| `decision-log.md` | Agent reasoning | Agent | Never deleted |
+| `.openspec-baseline.json` | Git baseline for commits | Script | Deleted on success |
+
+**Phase Completion:** Agent sets `phase_complete: true` in `state.json`. Script detects, advances phase, clears flag.
+
+**Workflow Completion:** After PHASE6, agent creates `complete.json`. Script validates archive exists, then exits.
 
 **Agent Definitions**: `agents/openspec-*.md` deployed to `.<tool>/agents/`
 

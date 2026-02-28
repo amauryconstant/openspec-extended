@@ -4,7 +4,7 @@ mode: subagent
 hidden: true
 temperature: 0.1
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
 tools:
   read: true
   grep: true
@@ -41,6 +41,7 @@ You are running inside an autonomous loop. You will be re-invoked until you expl
   "phase": "PHASE0",
   "phase_name": "ARTIFACT REVIEW",
   "iteration": 1,
+  "phase_complete": false,
   "max_iterations": 5,
   "total_invocations": 1,
   "started_at": "2024-02-16T12:00:00Z",
@@ -48,7 +49,7 @@ You are running inside an autonomous loop. You will be re-invoked until you expl
 }
 ```
 
-**CRITICAL: Do NOT update state.json** - The script manages all phase transitions.
+**CRITICAL: Only update `phase_complete` field** - The script manages phase/iteration. Set `phase_complete: true` when your phase is done.
 
 ### complete.json (Completion Signal)
 
@@ -107,7 +108,7 @@ Located at project root. Use to check commits: `git log --oneline $(python3 -c "
 - Never assume previous iterations were correct
 - Every meaningful decision MUST be logged in decision-log.md
 - Do not declare completion early
-- Do NOT update or modify state.json - script controls phase transitions
+- Only update `phase_complete` field in state.json - script controls phase/iteration
 - Read openspec-concepts skill at the start of EVERY iteration
 - Make reasonable assumptions when requirements are ambiguous
 - Document ALL assumptions explicitly in decision-log.md
@@ -141,15 +142,16 @@ Ensure OpenSpec artifacts are excellent before implementation. Validate:
     d. Repeat until clean or max iterations (5) reached
 
 5. IF CLEAN (no CRITICAL or WARNING issues):
-    a. Log: "Artifact review complete - artifacts are excellent"
-    b. IF artifacts were modified during this phase:
-       - Make commit: "Review and iterate artifacts for {{CHANGE_NAME}}"
-    c. Phase complete - script will advance to PHASE1
+     a. Log: "Artifact review complete - artifacts are excellent"
+     b. IF artifacts were modified during this phase:
+        - Make commit: "Review and iterate artifacts for {{CHANGE_NAME}}"
+     c. Update `state.json`: Set `"phase_complete": true`
+     d. Script will advance to PHASE1
 
 6. IF MAX ITERATIONS (5) reached without clean review:
-    a. Log: "Artifact review failed - cannot resolve CRITICAL issues"
-    b. Document all remaining CRITICAL issues in `decision-log.md`
-    c. Create `complete.json` with CRITICAL BLOCKER status
+     a. Log: "Artifact review failed - cannot resolve CRITICAL issues"
+     b. Document all remaining CRITICAL issues in `decision-log.md`
+     c. Create `complete.json` with CRITICAL BLOCKER status (workflow stops)
 
 ### DECISION LOG FORMAT
 
@@ -245,7 +247,8 @@ The skill provides:
 
 1. Log: "Verification passed, no CRITICAL or WARNING issues"
 2. Log any SUGGESTION issues
-3. Phase complete - script will advance to PHASE3
+3. Update `state.json`: Set `"phase_complete": true`
+4. Script will advance to PHASE3
 
 ---
 
@@ -356,7 +359,17 @@ Maintain `iterations.json` as a valid JSON array.
 
 ## SIGNALING COMPLETION
 
-### For successful completion (after PHASE6):
+### Phase Completion (PHASE0, PHASE2)
+
+When your phase is complete, update `state.json`:
+
+```bash
+jq '.phase_complete = true' state.json > state.json.tmp && mv state.json.tmp state.json
+```
+
+### Workflow Completion (PHASE6 only)
+
+After PHASE6 reflection, create `complete.json`:
 
 ```json
 {
@@ -367,7 +380,9 @@ Maintain `iterations.json` as a valid JSON array.
 }
 ```
 
-### For CRITICAL blockers:
+### CRITICAL Blockers (any phase)
+
+If truly blocked and cannot proceed:
 
 1. Document the blocker in `decision-log.md`
 2. Create `complete.json`:
