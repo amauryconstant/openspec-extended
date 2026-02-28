@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # OpenSpec Autonomous Workflow Orchestrator
-# Version: 0.5.2
+# Version: 0.6.0
 # Usage: openspec-auto <change-name> [options]
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.5.2"
+readonly SCRIPT_VERSION="0.6.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -765,8 +765,8 @@ validate_completion() {
   validate_iterations || errors=$((errors + 1))
   validate_archive || errors=$((errors + 1))
   
-  if [[ ! -f "$CHANGE_DIR/decision-log.md" ]]; then
-    log_error "decision-log.md not found"
+  if [[ ! -f "$CHANGE_DIR/decision-log.json" ]]; then
+    log_error "decision-log.json not found"
     errors=$((errors + 1))
   fi
   
@@ -838,7 +838,7 @@ cleanup() {
     log "  $CHANGE_DIR/state.json"
     log "  $CHANGE_DIR/complete.json"
     log "  $CHANGE_DIR/iterations.json"
-    log "  $CHANGE_DIR/decision-log.md"
+    log "  $CHANGE_DIR/decision-log.json"
     log ""
     log "To resume: Run script again with same change-id"
     exit 130
@@ -851,7 +851,7 @@ cleanup() {
     log "  $CHANGE_DIR/state.json"
     log "  $CHANGE_DIR/complete.json"
     log "  $CHANGE_DIR/iterations.json"
-    log "  $CHANGE_DIR/decision-log.md"
+    log "  $CHANGE_DIR/decision-log.json"
     log ""
     log "To resume: Run script again with same change-id"
   else
@@ -1010,7 +1010,7 @@ main() {
           blocker_reason=$(jq -r '.blocker_reason // "Unknown"' "$CHANGE_DIR/complete.json" 2>/dev/null)
           
           log_warning "Completion with CRITICAL BLOCKER: $blocker_reason"
-          log "Review decision-log.md for details"
+          log "Review decision-log.json for details"
           
           if [[ "$VERBOSE" == true ]]; then
             show_progress

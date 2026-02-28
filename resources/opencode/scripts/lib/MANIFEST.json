@@ -5,7 +5,7 @@
     "osc-state": "0.1.0",
     "osc-ctx": "0.1.0",
     "osc-iterations": "0.1.0",
-    "osc-log": "0.1.0",
+    "osc-log": "0.2.0",
     "osc-git": "0.1.0"
   }
 }

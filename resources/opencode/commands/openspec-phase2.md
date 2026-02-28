@@ -2,7 +2,7 @@
 description: PHASE2 - Verification
 agent: openspec-analyzer
 metadata:
-   version: "0.1.0"
+   version: "0.2.0"
 ---
 
 # PHASE2: Verification
@@ -11,32 +11,20 @@ Change: $1
 
 ## MANDATORY START
 
-1. Read `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
-2. Read `openspec/changes/$1/state.json` to confirm phase is PHASE2
-3. Read `openspec/changes/$1/decision-log.md` (if exists) to understand previous work
-4. Read `openspec/changes/$1/iterations.json` (if exists) to understand iteration history
+1. Load context:
+  !`opencode/scripts/lib/osc-ctx "$1"`
+2. Confirm `phase` is PHASE2
+3. Review `history.iterations_recorded` for previous attempts
+4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
 
 ## MANDATORY CHECKPOINT: CLI Output Logging
 
 Before starting PHASE2:
 
 1. Run: `openspec status --change "$1" --json`
-2. Append to `openspec/changes/$1/decision-log.md`:
-   ```
-   ## CLI Output: openspec status (Iteration N)
-   ```json
-   <paste exact CLI output here>
-   ```
-   ```
-
+2. Log via `osc-log` with `cli_status` field
 3. Run: `openspec instructions apply --change "$1" --json`
-4. Append to `openspec/changes/$1/decision-log.md`:
-   ```
-   ## CLI Output: openspec instructions apply (Iteration N)
-   ```json
-   <paste exact CLI output here>
-   ```
-   ```
+4. Log via `osc-log` with `cli_instructions` field
 
 ## PURPOSE
 
@@ -46,7 +34,7 @@ Validate implementation matches artifacts - completeness, correctness, coherence
 
 1. Load and use `openspec-verify-change` skill for change "$1"
 2. Execute the skill's verification instructions exactly
-3. Append the skill's verification report to `openspec/changes/$1/decision-log.md` AS-IS
+3. Log the verification report via `osc-log` in `verification_report` field
 4. Do NOT modify the skill's verification report format
 
 The skill provides:
@@ -67,66 +55,44 @@ IF NO CRITICAL OR WARNING ISSUES (SUGGESTIONS OK):
 
 1. Log: "Verification passed, no CRITICAL or WARNING issues"
 2. Log any SUGGESTION issues for future reference
-3. Update `state.json`: Set `"phase_complete": true`
+3. Mark phase complete via `osc-state`
 4. Script will advance to PHASE3
 
 ## STATE FILE UPDATES
 
 Phase complete (verification passed):
 ```bash
-jq '.phase_complete = true' openspec/changes/$1/state.json > tmp && mv tmp openspec/changes/$1/state.json
+.opencode/scripts/lib/osc-state "$1" complete
 ```
 
-## DECISION LOG FORMAT
+## DECISION LOG
 
-Append to `openspec/changes/$1/decision-log.md`:
-
-```markdown
-## PHASE2 - VERIFICATION (Iteration N)
-
-### CLI Output
-
-## CLI Output: openspec status
-```json
-<paste exact output>
+Append entry:
+```bash
+echo '{
+  "phase": "REVIEW",
+  "iteration": N,
+  "summary": "Verification results summary",
+  "verification_result": "passed|failed",
+  "issues_found": {"critical": N, "warning": N, "suggestion": N},
+  "verification_report": "[Paste skill report here]",
+  "artifacts_modified": false,
+  "next_steps": "Proceed to PHASE3 or restart PHASE1"
+}' | .opencode/scripts/lib/osc-log "$1" append
 ```
 
-## CLI Output: openspec instructions apply
-```json
-<paste exact output>
-```
+## ITERATIONS.JSON
 
-### Verification Report
-[Paste skill's verification report AS-IS]
-
-### Issues Found
-- CRITICAL: [description] (if any)
-- WARNING: [description] (if any)
-- SUGGESTION: [description] (if any)
-
-### Action Taken
-[Fix artifacts / Proceed to PHASE3]
-
-### Session Summary
-[Summary of verification results]
-
-### Next Steps
-[Transition to PHASE3 or restart PHASE1]
-```
-
-## ITERATIONS.JSON FORMAT
-
-Append to `openspec/changes/$1/iterations.json`:
-
-```json
-{
+Append entry:
+```bash
+echo '{
   "iteration": N,
   "phase": "REVIEW",
   "verification_result": "passed|failed",
   "issues_found": {"critical": N, "warning": N, "suggestion": N},
-  "artifacts_modified": true|false,
+  "artifacts_modified": false,
   "notes": "Brief summary"
-}
+}' | .opencode/scripts/lib/osc-iterations "$1" append
 ```
 
 ## TRANSITION

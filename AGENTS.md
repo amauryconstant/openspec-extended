@@ -143,7 +143,7 @@ license: MIT
 | `state.json` | Phase tracking + completion | Deleted on success |
 | `complete.json` | Workflow completion (PHASE6) | Deleted after validation |
 | `iterations.json` | Iteration history | Never deleted |
-| `decision-log.md` | Agent reasoning | Never deleted |
+| `decision-log.json` | Agent reasoning | Never deleted |
 
 ### Manual Invocation
 

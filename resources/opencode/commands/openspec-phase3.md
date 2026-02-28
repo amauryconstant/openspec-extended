@@ -2,7 +2,7 @@
 description: PHASE3 - Maintain Documentation
 agent: openspec-maintainer
 metadata:
-   version: "0.1.0"
+   version: "0.2.0"
 ---
 
 # PHASE3: Maintain Documentation
@@ -11,10 +11,11 @@ Change: $1
 
 ## MANDATORY START
 
-1. Read `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
-2. Read `openspec/changes/$1/state.json` to confirm phase is PHASE3
-3. Read `openspec/changes/$1/decision-log.md` (if exists) to understand previous work
-4. Read `openspec/changes/$1/iterations.json` (if exists) to understand iteration history
+1. Load context:
+  !`opencode/scripts/lib/osc-ctx "$1"`
+2. Confirm `phase` is PHASE3
+3. Review `history.iterations_recorded` for previous attempts
+4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
 
 ## PURPOSE
 
@@ -40,47 +41,37 @@ Update project documentation to reflect changes made during implementation.
 
 Phase complete:
 ```bash
-jq '.phase_complete = true' openspec/changes/$1/state.json > tmp && mv tmp openspec/changes/$1/state.json
+.opencode/scripts/lib/osc-state "$1" complete
 ```
 
-## DECISION LOG FORMAT
+## DECISION LOG
 
-Append to `openspec/changes/$1/decision-log.md`:
-
-```markdown
-## PHASE3 - MAINTAIN-DOCS
-
-### Documentation Updated
-- [x] AGENTS.md: [Summary of changes]
-- [x] CLAUDE.md: [Summary of changes, if applicable]
-- [x] Other: [List any other docs updated]
-
-### Changes Made
-- [Specific change 1]
-- [Specific change 2]
-
-### Session Summary
-[What was accomplished]
-
-### Next Steps
-Proceeding to PHASE4 (SYNC).
+Append entry:
+```bash
+echo '{
+  "phase": "MAINTAIN-DOCS",
+  "iteration": N,
+  "summary": "Documentation updated successfully",
+  "docs_updated": ["AGENTS.md", "CLAUDE.md"],
+  "changes_made": ["Specific change 1", "Specific change 2"],
+  "next_steps": "Proceeding to PHASE4 (SYNC)"
+}' | .opencode/scripts/lib/osc-log "$1" append
 ```
 
-## ITERATIONS.JSON FORMAT
+## ITERATIONS.JSON
 
-Append to `openspec/changes/$1/iterations.json`:
-
-```json
-{
+Append entry:
+```bash
+echo '{
   "iteration": N,
   "phase": "MAINTAIN-DOCS",
   "docs_updated": ["AGENTS.md", "CLAUDE.md"],
   "notes": "Documentation updated successfully"
-}
+}' | .opencode/scripts/lib/osc-iterations "$1" append
 ```
 
 ## TRANSITION
 
 1. Log: "Documentation updated, proceeding to SYNC"
-2. Update `state.json`: Set `"phase_complete": true`
+2. Mark phase complete via `osc-state`
 3. Script will advance to PHASE4

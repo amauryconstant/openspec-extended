@@ -2,7 +2,7 @@
 description: PHASE6 - Self-Reflection
 agent: openspec-analyzer
 metadata:
-   version: "0.1.0"
+   version: "0.2.0"
 ---
 
 # PHASE6: Self-Reflection
@@ -11,10 +11,12 @@ Change: $1
 
 ## MANDATORY START
 
-1. Read `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
-2. Read `openspec/changes/$1/state.json` to confirm phase is PHASE6
-3. Read `openspec/changes/$1/decision-log.md` (full history) to understand the entire workflow
-4. Read `openspec/changes/$1/iterations.json` to understand iteration counts per phase
+1. Load context:
+  !`opencode/scripts/lib/osc-ctx "$1"`
+2. Confirm `phase` is PHASE6
+3. Review full history via `osc-log get` to understand entire workflow
+4. Review `history.iterations_recorded` for iteration counts per phase
+5. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
 
 ## PURPOSE
 
@@ -40,7 +42,7 @@ Answer each with 2-4 sentences minimum, including specific examples:
    - Should any CRITICAL/WARNING issues have been caught earlier?
 
 **4. What assumptions had to be made?**
-   - List all significant assumptions from decision-log.md
+   - List all significant assumptions from decision-log.json
    - Which caused issues later?
    - Which worked well?
 
@@ -66,71 +68,51 @@ Answer each with 2-4 sentences minimum, including specific examples:
 ## STATE FILE UPDATES
 
 After reflection, create `complete.json`:
-
 ```bash
-cat > openspec/changes/$1/complete.json << 'EOF'
-{
+echo '{
   "status": "COMPLETE",
   "with_blocker": false,
   "blocker_reason": null,
-  "timestamp": "[current timestamp]"
-}
-EOF
+  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+}' > openspec/changes/$1/complete.json
 ```
 
-## DECISION LOG FORMAT
+## DECISION LOG
 
-Append to `openspec/changes/$1/decision-log.md`:
-
-```markdown
-## PHASE6 - SELF-REFLECTION
-
-### Process Reflection
-
-**1. Artifact Review Process**
-[Answer with specific examples]
-
-**2. Implementation Phase**
-[Answer with specific examples]
-
-**3. Verification Performance**
-[Answer with specific examples]
-
-**4. Assumptions Made**
-[Answer with specific examples]
-
-**5. Completion Phases**
-[Answer with specific examples]
-
-**6. Commit Behavior**
-[Answer with specific examples]
-
-**7. Workflow Improvements**
-[Answer with specific examples]
-
-**8. Future Change Improvements**
-[Answer with specific examples]
-
-### Session Summary
-All phases complete. Workflow evaluation finished.
-
-### Completion
-All phases complete. Ready to signal completion.
+Append entry:
+```bash
+echo '{
+  "phase": "SELF_REFLECTION",
+  "iteration": N,
+  "summary": "All phases complete. Workflow evaluation finished.",
+  "reflections": {
+    "artifact_review": "Answer with specific examples",
+    "implementation": "Answer with specific examples",
+    "verification": "Answer with specific examples",
+    "assumptions": "Answer with specific examples",
+    "completion_phases": "Answer with specific examples",
+    "commit_behavior": "Answer with specific examples",
+    "workflow_improvements": "Answer with specific examples",
+    "future_changes": "Answer with specific examples"
+  },
+  "total_phases": 7,
+  "total_iterations": N,
+  "next_steps": "All phases complete. Ready to signal completion."
+}' | .opencode/scripts/lib/osc-log "$1" append
 ```
 
-## ITERATIONS.JSON FORMAT
+## ITERATIONS.JSON
 
-Append to `openspec/changes/$1/iterations.json`:
-
-```json
-{
+Append entry:
+```bash
+echo '{
   "iteration": N,
   "phase": "SELF_REFLECTION",
   "total_phases": 7,
   "total_iterations": N,
   "reflection_completed": true,
   "notes": "Self-reflection completed"
-}
+}' | .opencode/scripts/lib/osc-iterations "$1" append
 ```
 
 ## COMPLETION

@@ -3,7 +3,7 @@
 # Usage: osc-log <change> [get|append]
 # Input (append): JSON from stdin
 # Output: JSON
-# Writes: decision-log.md and decision-log.json
+# Writes: decision-log.json
 
 set -euo pipefail
 
@@ -20,7 +20,6 @@ fi
 
 CHANGE="$1"
 ACTION="${2:-get}"
-DECISION_MD="$CHANGE_DIR/$CHANGE/decision-log.md"
 DECISION_JSON="$CHANGE_DIR/$CHANGE/decision-log.json"
 
 # Validate change exists
@@ -69,7 +68,7 @@ case "$ACTION" in
             exit 1
         fi
         
-        # Generate timestamp and entry number
+        # Generate timestamp
         TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
         
         # Determine next entry number
@@ -79,78 +78,7 @@ case "$ACTION" in
             ENTRY_NUM=$(jq 'length + 1' "$DECISION_JSON" 2>/dev/null || echo "1")
         fi
         
-        # Extract optional fields with defaults
-        SUMMARY=$(echo "$INPUT_JSON" | jq -r '.summary // ""')
-        ISSUES=$(echo "$INPUT_JSON" | jq -r '.issues // null')
-        ARTIFACTS=$(echo "$INPUT_JSON" | jq -r '.artifacts_modified // []')
-        NEXT_STEPS=$(echo "$INPUT_JSON" | jq -r '.next_steps // ""')
-        DECISIONS=$(echo "$INPUT_JSON" | jq -r '.decisions // []')
-        ERRORS=$(echo "$INPUT_JSON" | jq -r '.errors // []')
-        
-        # Generate markdown section
-        MD_SECTION="## $PHASE (Iteration $ITERATION)\n"
-        MD_SECTION+="<!-- entry: $ENTRY_NUM | timestamp: $TIMESTAMP -->\n\n"
-        
-        # Issues section
-        if [[ "$ISSUES" != "null" ]]; then
-            CRIT=$(echo "$INPUT_JSON" | jq -r '.issues.critical // 0')
-            WARN=$(echo "$INPUT_JSON" | jq -r '.issues.warning // 0')
-            SUGG=$(echo "$INPUT_JSON" | jq -r '.issues.suggestion // 0')
-            MD_SECTION+="### Issues\n"
-            MD_SECTION+="- Critical: $CRIT\n"
-            MD_SECTION+="- Warning: $WARN\n"
-            MD_SECTION+="- Suggestion: $SUGG\n\n"
-        fi
-        
-        # Artifacts modified
-        ARTIFACT_COUNT=$(echo "$ARTIFACTS" | jq 'length')
-        if [[ $ARTIFACT_COUNT -gt 0 ]]; then
-            MD_SECTION+="### Modified Artifacts\n"
-            while IFS= read -r artifact; do
-                MD_SECTION+="- $artifact\n"
-            done < <(echo "$ARTIFACTS" | jq -r '.[]')
-            MD_SECTION+="\n"
-        fi
-        
-        # Decisions
-        DECISION_COUNT=$(echo "$DECISIONS" | jq 'length')
-        if [[ $DECISION_COUNT -gt 0 ]]; then
-            MD_SECTION+="### Decisions\n"
-            while IFS= read -r decision; do
-                MD_SECTION+="- $decision\n"
-            done < <(echo "$DECISIONS" | jq -r '.[]')
-            MD_SECTION+="\n"
-        fi
-        
-        # Summary
-        if [[ -n "$SUMMARY" ]]; then
-            MD_SECTION+="### Summary\n$SUMMARY\n\n"
-        fi
-        
-        # Next steps
-        if [[ -n "$NEXT_STEPS" ]]; then
-            MD_SECTION+="### Next Steps\n$NEXT_STEPS\n"
-        fi
-        
-        # Errors
-        ERROR_COUNT=$(echo "$ERRORS" | jq 'length')
-        if [[ $ERROR_COUNT -gt 0 ]]; then
-            MD_SECTION+="\n### Errors\n"
-            while IFS= read -r error; do
-                MD_SECTION+="- $error\n"
-            done < <(echo "$ERRORS" | jq -r '.[]')
-        fi
-        
-        MD_SECTION+="\n---\n"
-        
-        # Write to markdown file
-        if [[ ! -f "$DECISION_MD" ]]; then
-            echo "# Decision Log: $CHANGE" > "$DECISION_MD"
-            echo "" >> "$DECISION_MD"
-        fi
-        echo -e "$MD_SECTION" >> "$DECISION_MD"
-        
-        # Build JSON entry
+        # Build JSON entry with timestamp and entry number
         JSON_ENTRY=$(echo "$INPUT_JSON" | jq \
             --arg ts "$TIMESTAMP" \
             --argjson entry "$ENTRY_NUM" \

@@ -2,7 +2,7 @@
 description: PHASE0 - Artifact Review
 agent: openspec-analyzer
 metadata:
-   version: "0.1.0"
+   version: "0.2.0"
 ---
 
 # PHASE0: Artifact Review
@@ -11,10 +11,11 @@ Change: $1
 
 ## MANDATORY START
 
-1. Read `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
-2. Read `openspec/changes/$1/state.json` to confirm phase is PHASE0
-3. Read `openspec/changes/$1/decision-log.md` (if exists) to understand previous work
-4. Read `openspec/changes/$1/iterations.json` (if exists) to understand iteration history
+1. Load context:
+  !`opencode/scripts/lib/osc-ctx "$1"`
+2. Confirm `phase` is PHASE0
+3. Review `history.iterations_recorded` for previous attempts
+4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
 
 ## PURPOSE
 
@@ -35,78 +36,65 @@ Ensure OpenSpec artifacts are excellent before implementation. Validate:
 
 4. IF CRITICAL or WARNING issues found:
    a. For each issue, use `openspec-modify-artifacts` skill to fix it
-   b. Track iteration count in `iterations.json`
+   b. Track iteration via `osc-log` and `osc-iterations`
    c. After fixing all CRITICAL/WARNING issues, re-run review
    d. Repeat until clean or max iterations (5) reached
 
 5. IF CLEAN (no CRITICAL or WARNING issues):
-   a. Log: "Artifact review complete - artifacts are excellent"
+   a. Log completion via `osc-log`
    b. IF artifacts were modified during this phase:
       - Make commit: "Review and iterate artifacts for $1"
-   c. Update `state.json`: Set `"phase_complete": true`
+   c. Mark phase complete via `osc-state`
    d. Script will advance to PHASE1
 
 6. IF MAX ITERATIONS (5) reached without clean review:
-   a. Log: "Artifact review failed - cannot resolve CRITICAL issues"
-   b. Document all remaining CRITICAL issues in `decision-log.md`
-   c. Create `complete.json` with CRITICAL BLOCKER status (workflow stops)
+   a. Document all remaining CRITICAL issues via `osc-log`
+   b. Create `complete.json` with CRITICAL BLOCKER status (workflow stops)
 
 ## STATE FILE UPDATES
 
 Phase complete (clean review):
 ```bash
-jq '.phase_complete = true' openspec/changes/$1/state.json > tmp && mv tmp openspec/changes/$1/state.json
+.opencode/scripts/lib/osc-state "$1" complete
 ```
 
 Critical blocker (cannot proceed):
 ```bash
-cat > openspec/changes/$1/complete.json << 'EOF'
-{
+echo '{
   "status": "COMPLETE",
   "with_blocker": true,
   "blocker_reason": "[Describe the blocking issue]",
-  "timestamp": "[current timestamp]"
-}
-EOF
+  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+}' > openspec/changes/$1/complete.json
 ```
 
-## DECISION LOG FORMAT
+## DECISION LOG
 
-Append to `openspec/changes/$1/decision-log.md`:
-
-```markdown
-## PHASE0 - ARTIFACT REVIEW (Iteration N)
-
-### Issues Found
-- CRITICAL: [Issue description]
-  - Fix action taken: [description]
-- WARNING: [Issue description]
-  - Fix action taken: [description]
-
-### Modified Artifacts
-- [x] proposal.md: [Summary of changes]
-- [x] specs/auth.md: [Summary of changes]
-
-### Session Summary
-[Summary of this iteration]
-
-### Next Steps
-[Plan for next iteration or transition to PHASE1]
+Append entry:
+```bash
+echo '{
+  "phase": "ARTIFACT_REVIEW",
+  "iteration": N,
+  "summary": "Brief summary of this iteration",
+  "issues": {"critical": N, "warning": N, "suggestion": N},
+  "issues_fixed": {"critical": N, "warning": N, "suggestion": N},
+  "artifacts_modified": ["proposal.md", "specs/auth.md"],
+  "next_steps": "Proceed to PHASE1 or continue review"
+}' | .opencode/scripts/lib/osc-log "$1" append
 ```
 
-## ITERATIONS.JSON FORMAT
+## ITERATIONS.JSON
 
-Append to `openspec/changes/$1/iterations.json`:
-
-```json
-{
+Append entry:
+```bash
+echo '{
   "iteration": N,
   "phase": "ARTIFACT_REVIEW",
   "artifacts_reviewed": ["proposal", "specs", "design", "tasks"],
   "issues_found": {"critical": N, "warning": N, "suggestion": N},
   "issues_fixed": {"critical": N, "warning": N, "suggestion": N},
   "notes": "Brief summary"
-}
+}' | .opencode/scripts/lib/osc-iterations "$1" append
 ```
 
 ## GUARDRAILS

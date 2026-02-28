@@ -2,7 +2,7 @@
 description: PHASE1 - Implementation
 agent: openspec-builder
 metadata:
-   version: "0.1.0"
+   version: "0.2.0"
 ---
 
 # PHASE1: Implementation
@@ -11,10 +11,11 @@ Change: $1
 
 ## MANDATORY START
 
-1. Read `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
-2. Read `openspec/changes/$1/state.json` to confirm phase is PHASE1
-3. Read `openspec/changes/$1/decision-log.md` (if exists) to understand previous work
-4. Read `openspec/changes/$1/iterations.json` (if exists) to understand iteration history
+1. Load context:
+  !`opencode/scripts/lib/osc-ctx "$1"`
+2. Confirm `phase` is PHASE1
+3. Review `history.iterations_recorded` for previous attempts
+4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
 5. Read context files: `openspec/changes/$1/proposal.md`, `openspec/changes/$1/specs/`, `openspec/changes/$1/design.md`, `openspec/changes/$1/tasks.md`
 6. Determine which tasks to implement this iteration
 
@@ -23,22 +24,9 @@ Change: $1
 Before beginning implementation:
 
 1. Run: `openspec status --change "$1" --json`
-2. Append to `openspec/changes/$1/decision-log.md`:
-   ```
-   ## CLI Output: openspec status (Iteration N)
-   ```json
-   <paste exact CLI output here>
-   ```
-   ```
-
+2. Log via `osc-log` with `cli_status` field
 3. Run: `openspec instructions apply --change "$1" --json`
-4. Append to `openspec/changes/$1/decision-log.md`:
-   ```
-   ## CLI Output: openspec instructions apply (Iteration N)
-   ```json
-   <paste exact CLI output here>
-   ```
-   ```
+4. Log via `osc-log` with `cli_instructions` field
 
 ## PURPOSE
 
@@ -84,7 +72,7 @@ When making commits, follow this priority order:
    - Re-run the commit after fixing - hooks must pass
 
 5. Persistent failures: If fixes aren't possible within 3 attempts:
-   - Document the issue in decision-log.md
+   - Document the issue via `osc-log`
    - Consider if artifacts need modification
    - May need to signal COMPLETE with blocker_reason
 
@@ -93,66 +81,38 @@ When making commits, follow this priority order:
 - If git commit fails: Check staged files, verify working directory clean, retry once
 - If tests fail repeatedly (>3 attempts): Use subagent to debug, check spec clarity
 - If stuck in iteration loop (>3 iterations with no progress): Document blocker, signal COMPLETE
-- If openspec CLI commands fail: Proceed without CLI output, document in decision-log.md
+- If openspec CLI commands fail: Proceed without CLI output, document via `osc-log`
 
 ## STATE FILE UPDATES
 
 When all tasks are complete:
 ```bash
-jq '.phase_complete = true' openspec/changes/$1/state.json > tmp && mv tmp openspec/changes/$1/state.json
+.opencode/scripts/lib/osc-state "$1" complete
 ```
 
-## DECISION LOG FORMAT
+## DECISION LOG
 
-Append to `openspec/changes/$1/decision-log.md`:
-
-```markdown
-## Iteration N
-
-### Date
-YYYY-MM-DD
-
-### Phase
-IMPLEMENTATION
-
-### CLI Output (MANDATORY)
-
-## CLI Output: openspec status
-```json
-<paste exact output>
+Append entry:
+```bash
+echo '{
+  "phase": "IMPLEMENTATION",
+  "iteration": N,
+  "summary": "What was accomplished this iteration",
+  "assumptions": ["Assumption with rationale"],
+  "tasks_completed": ["1.1", "1.2"],
+  "tasks_remaining": 0,
+  "cli_status": {},
+  "cli_instructions": {},
+  "errors": [],
+  "next_steps": "Continue implementation or transition to PHASE2"
+}' | .opencode/scripts/lib/osc-log "$1" append
 ```
 
-## CLI Output: openspec instructions apply
-```json
-<paste exact output>
-```
+## ITERATIONS.JSON
 
-### Work Done
-
-#### Assumptions Made (Iteration-Level)
-- [Assumption 1]: Brief description with rationale
-  - Justification: Why this is reasonable
-  - Files affected: path/to/file:line-range
-
-#### Tasks Completed:
-- [x] Task ID: Description
-  - Decision: What you decided
-  - Why: Rationale
-  - Files affected: path/to/file:line-range
-
-### Session Summary
-[Summary of what was accomplished this iteration]
-
-### Next Steps
-[What you plan to do next iteration]
-```
-
-## ITERATIONS.JSON FORMAT
-
-Append to `openspec/changes/$1/iterations.json`:
-
-```json
-{
+Append entry:
+```bash
+echo '{
   "iteration": N,
   "phase": "IMPLEMENTATION",
   "tasks_completed": ["1.1", "1.2", "1.3"],
@@ -162,12 +122,12 @@ Append to `openspec/changes/$1/iterations.json`:
   "cli_instructions": {},
   "errors": [],
   "notes": "Brief summary"
-}
+}' | .opencode/scripts/lib/osc-iterations "$1" append
 ```
 
 ## TRANSITION
 
 When all tasks in `tasks.md` are marked complete `[x]`:
 - Log: "All tasks complete, transitioning to PHASE2 (REVIEW)"
-- Update `state.json`: Set `"phase_complete": true`
+- Mark phase complete via `osc-state`
 - Script will advance to PHASE2

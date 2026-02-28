@@ -2,7 +2,7 @@
 description: PHASE5 - Archive Change
 agent: openspec-maintainer
 metadata:
-   version: "0.1.0"
+   version: "0.2.0"
 ---
 
 # PHASE5: Archive Change
@@ -11,9 +11,11 @@ Change: $1
 
 ## MANDATORY START
 
-1. Read `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
-2. Read `openspec/changes/$1/state.json` to confirm phase is PHASE5
-3. Read `openspec/changes/$1/decision-log.md` (if exists) to understand previous work
+1. Load context:
+  !`opencode/scripts/lib/osc-ctx "$1"`
+2. Confirm `phase` is PHASE5
+3. Review `history.iterations_recorded` for previous attempts
+4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
 
 ## PURPOSE
 
@@ -46,48 +48,40 @@ Archive the completed change for historical reference.
 
 Phase complete:
 ```bash
-jq '.phase_complete = true' openspec/changes/$1/state.json > tmp && mv tmp openspec/changes/$1/state.json
+.opencode/scripts/lib/osc-state "$1" complete
 ```
 
 Note: The state.json file will be in the archived location after this phase.
 
-## DECISION LOG FORMAT
+## DECISION LOG
 
-Append to `openspec/changes/$1/decision-log.md`:
-
-```markdown
-## PHASE5 - ARCHIVE
-
-### Archive Location
-- Path: openspec/changes/archive/YYYY-MM-DD-$1/
-
-### Commit
-- Hash: <hash>
-- Message: "Archive change $1"
-
-### Session Summary
-Change successfully archived.
-
-### Next Steps
-Proceeding to PHASE6 (SELF-REFLECTION).
+Append entry:
+```bash
+echo '{
+  "phase": "ARCHIVE",
+  "iteration": N,
+  "summary": "Change successfully archived",
+  "archive_path": "openspec/changes/archive/YYYY-MM-DD-$1/",
+  "commit_hash": "<hash>",
+  "next_steps": "Proceeding to PHASE6 (SELF-REFLECTION)"
+}' | .opencode/scripts/lib/osc-log "$1" append
 ```
 
-## ITERATIONS.JSON FORMAT
+## ITERATIONS.JSON
 
-Append to `openspec/changes/$1/iterations.json`:
-
-```json
-{
+Append entry:
+```bash
+echo '{
   "iteration": N,
   "phase": "ARCHIVE",
   "archive_path": "openspec/changes/archive/YYYY-MM-DD-$1/",
   "commit_hash": "<hash>",
   "notes": "Change archived successfully"
-}
+}' | .opencode/scripts/lib/osc-iterations "$1" append
 ```
 
 ## TRANSITION
 
 1. Log: "Change archived, proceeding to SELF-REFLECTION"
-2. Update `state.json`: Set `"phase_complete": true`
+2. Mark phase complete via `osc-state`
 3. Script will advance to PHASE6

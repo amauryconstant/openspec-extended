@@ -2,7 +2,7 @@
 description: PHASE4 - Sync Specs
 agent: openspec-maintainer
 metadata:
-   version: "0.1.0"
+   version: "0.2.0"
 ---
 
 # PHASE4: Sync Specs
@@ -11,9 +11,11 @@ Change: $1
 
 ## MANDATORY START
 
-1. Read `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
-2. Read `openspec/changes/$1/state.json` to confirm phase is PHASE4
-3. Read `openspec/changes/$1/decision-log.md` (if exists) to understand previous work
+1. Load context:
+  !`opencode/scripts/lib/osc-ctx "$1"`
+2. Confirm `phase` is PHASE4
+3. Review `history.iterations_recorded` for previous attempts
+4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
 
 ## PURPOSE
 
@@ -48,59 +50,46 @@ Merge delta specs from the change to main specs.
 
 Phase complete:
 ```bash
-jq '.phase_complete = true' openspec/changes/$1/state.json > tmp && mv tmp openspec/changes/$1/state.json
+.opencode/scripts/lib/osc-state "$1" complete
 ```
 
-## DECISION LOG FORMAT
+## DECISION LOG
 
-Append to `openspec/changes/$1/decision-log.md`:
-
-```markdown
-## PHASE4 - SYNC
-
-### Delta Specs Found
-- [list of delta specs or "None"]
-
-### Sync Operations
-- ADDED: [files]
-- MODIFIED: [files]
-- REMOVED: [files]
-- RENAMED: [files]
-
-### Commit
-- Hash: <hash>
-- Message: "Sync $1 specs to main"
-
-### Session Summary
-[What was accomplished]
-
-### Next Steps
-Proceeding to PHASE5 (ARCHIVE).
+Append entry:
+```bash
+echo '{
+  "phase": "SYNC",
+  "iteration": N,
+  "summary": "Specs synced successfully",
+  "delta_specs_found": ["spec1.md", "spec2.md"],
+  "sync_operations": {"added": N, "modified": N, "removed": N, "renamed": N},
+  "commit_hash": "<hash>",
+  "next_steps": "Proceeding to PHASE5 (ARCHIVE)"
+}' | .opencode/scripts/lib/osc-log "$1" append
 ```
 
-## ITERATIONS.JSON FORMAT
+## ITERATIONS.JSON
 
-Append to `openspec/changes/$1/iterations.json`:
-
-```json
-{
+Append entry:
+```bash
+echo '{
   "iteration": N,
   "phase": "SYNC",
   "specs_synced": ["spec1.md", "spec2.md"],
   "operations": {"added": N, "modified": N, "removed": N, "renamed": N},
   "commit_hash": "<hash>",
   "notes": "Specs synced successfully"
-}
+}' | .opencode/scripts/lib/osc-iterations "$1" append
 ```
 
 ## TRANSITION
 
 IF delta specs exist and were synced:
 1. Log: "Specs synced, proceeding to ARCHIVE"
-2. Update `state.json`: Set `"phase_complete": true`
+2. Mark phase complete via `osc-state`
 3. Script will advance to PHASE5
 
 IF no delta specs:
 1. Log: "No delta specs, skipping SYNC"
-2. Update `state.json`: Set `"phase_complete": true`
+2. Mark phase complete via `osc-state`
 3. Script will advance to PHASE5

@@ -62,6 +62,5 @@ echo '{"phase":"PHASE0","iteration":1,"summary":"..."}' | osc-log $1 append
 
 ### osc-log
 
-Maintains both:
-- `decision-log.md` - Human/agent readable markdown
-- `decision-log.json` - Machine-queryable index
+Maintains:
+- `decision-log.json` - Structured decision log with entries appended via JSON input
