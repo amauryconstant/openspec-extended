@@ -2,7 +2,7 @@
 description: PHASE0 - Artifact Review
 agent: openspec-analyzer
 metadata:
-   version: "0.2.0"
+   version: "0.2.1"
 ---
 
 # PHASE0: Artifact Review
@@ -42,14 +42,23 @@ Ensure OpenSpec artifacts are excellent before implementation. Validate:
 
 5. IF CLEAN (no CRITICAL or WARNING issues):
    a. Log completion via `osc-log`
-   b. IF artifacts were modified during this phase:
-      - Make commit: "Review and iterate artifacts for $1"
-   c. Mark phase complete via `osc-state`
-   d. Script will advance to PHASE1
+   b. Mark phase complete via `osc-state`
+   c. Script will advance to PHASE1
 
 6. IF MAX ITERATIONS (5) reached without clean review:
    a. Document all remaining CRITICAL issues via `osc-log`
    b. Create `complete.json` with CRITICAL BLOCKER status (workflow stops)
+
+## MANDATORY END
+
+Before transitioning to PHASE1, IF artifacts were modified during this phase:
+
+```bash
+git add openspec/changes/$1/
+git commit -m "Review and iterate artifacts for $1"
+```
+
+Record commit hash in decision log.
 
 ## STATE FILE UPDATES
 
@@ -79,6 +88,7 @@ echo '{
   "issues": {"critical": N, "warning": N, "suggestion": N},
   "issues_fixed": {"critical": N, "warning": N, "suggestion": N},
   "artifacts_modified": ["proposal.md", "specs/auth.md"],
+  "commit_hash": "<hash or null>",
   "next_steps": "Proceed to PHASE1 or continue review"
 }' | .opencode/scripts/lib/osc-log "$1" append
 ```
@@ -93,6 +103,7 @@ echo '{
   "artifacts_reviewed": ["proposal", "specs", "design", "tasks"],
   "issues_found": {"critical": N, "warning": N, "suggestion": N},
   "issues_fixed": {"critical": N, "warning": N, "suggestion": N},
+  "commit_hash": "<hash or null>",
   "notes": "Brief summary"
 }' | .opencode/scripts/lib/osc-iterations "$1" append
 ```
@@ -101,5 +112,5 @@ echo '{
 
 - Must fix CRITICAL issues before proceeding
 - Max 5 review iterations
-- One commit at end of phase, not per fix
+- One commit at end of phase if artifacts were modified
 - Early exit if first review returns clean

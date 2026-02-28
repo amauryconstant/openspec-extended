@@ -2,7 +2,7 @@
 description: PHASE5 - Archive Change
 agent: openspec-maintainer
 metadata:
-   version: "0.2.0"
+   version: "0.2.1"
 ---
 
 # PHASE5: Archive Change
@@ -33,16 +33,20 @@ Archive the completed change for historical reference.
    - Skill will move change to: `openspec/changes/archive/YYYY-MM-DD-$1/`
    - Verify the move completed successfully
 
-4. Commit the archive:
-   ```bash
-   git add openspec/changes/archive/
-   git commit -m "Archive change $1"
-   ```
-
-5. Log archive summary:
+4. Log archive summary:
    - Archive location: <path>
-   - Commit hash: <hash>
    - Status: archived
+
+## MANDATORY END
+
+Commit the archive before transitioning:
+
+```bash
+git add openspec/changes/archive/
+git commit -m "Archive change $1"
+```
+
+Record commit hash in decision log and iterations.json.
 
 ## STATE FILE UPDATES
 

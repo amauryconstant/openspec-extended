@@ -2,7 +2,7 @@
 description: PHASE4 - Sync Specs
 agent: openspec-maintainer
 metadata:
-   version: "0.2.0"
+   version: "0.2.1"
 ---
 
 # PHASE4: Sync Specs
@@ -35,16 +35,20 @@ Merge delta specs from the change to main specs.
    - REMOVED → Delete from main
    - RENAMED → Rename in main
 
-4. Commit synced specs:
-   ```bash
-   git add openspec/specs/
-   git commit -m "Sync $1 specs to main"
-   ```
-
-5. Log sync summary:
+4. Log sync summary:
    - Specs synced: <capability-list>
    - Changes: adds/modifications/removals/renames
-   - Commit hash: <hash>
+
+## MANDATORY END
+
+IF delta specs were synced, commit before transitioning:
+
+```bash
+git add openspec/specs/
+git commit -m "Sync $1 specs to main"
+```
+
+Record commit hash in decision log and iterations.json.
 
 ## STATE FILE UPDATES
 
@@ -63,7 +67,7 @@ echo '{
   "summary": "Specs synced successfully",
   "delta_specs_found": ["spec1.md", "spec2.md"],
   "sync_operations": {"added": N, "modified": N, "removed": N, "renamed": N},
-  "commit_hash": "<hash>",
+  "commit_hash": "<hash or null>",
   "next_steps": "Proceeding to PHASE5 (ARCHIVE)"
 }' | .opencode/scripts/lib/osc-log "$1" append
 ```
@@ -77,7 +81,7 @@ echo '{
   "phase": "SYNC",
   "specs_synced": ["spec1.md", "spec2.md"],
   "operations": {"added": N, "modified": N, "removed": N, "renamed": N},
-  "commit_hash": "<hash>",
+  "commit_hash": "<hash or null>",
   "notes": "Specs synced successfully"
 }' | .opencode/scripts/lib/osc-iterations "$1" append
 ```
