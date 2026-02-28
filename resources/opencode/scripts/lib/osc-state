@@ -1,0 +1,89 @@
+#!/bin/bash
+# osc-state - Manage OpenSpec change state
+# Usage: osc-state <change> [get|set-phase|complete]
+# Output: JSON
+
+set -euo pipefail
+
+CHANGE_DIR="openspec/changes"
+
+usage() {
+    echo '{"error":"usage","message":"Usage: osc-state <change> [get|set-phase|complete]","actions":["get (default)","set-phase <PHASE>","complete"]}' >&2
+    exit 1
+}
+
+json_escape() {
+    local str="$1"
+    str="${str//\\/\\\\}"
+    str="${str//\"/\\\"}"
+    str="${str//$'\n'/\\n}"
+    str="${str//$'\r'/\\r}"
+    str="${str//$'\t'/\\t}"
+    echo "$str"
+}
+
+if [[ $# -lt 1 ]]; then
+    usage
+fi
+
+CHANGE="$1"
+ACTION="${2:-get}"
+VALUE="${3:-}"
+STATE_FILE="$CHANGE_DIR/$CHANGE/state.json"
+
+# Validate change exists
+if [[ ! -d "$CHANGE_DIR/$CHANGE" ]]; then
+    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"path\":\"$CHANGE_DIR/$CHANGE\"}" >&2
+    exit 1
+fi
+
+case "$ACTION" in
+    get)
+        if [[ ! -f "$STATE_FILE" ]]; then
+            echo "{\"error\":\"state_not_found\",\"message\":\"state.json does not exist\",\"path\":\"$STATE_FILE\"}" >&2
+            exit 1
+        fi
+        
+        PHASE=$(jq -r '.phase // "UNKNOWN"' "$STATE_FILE")
+        ITERATION=$(jq -r '.iteration // 0' "$STATE_FILE")
+        PHASE_COMPLETE=$(jq -r '.phase_complete // false' "$STATE_FILE")
+        
+        echo "{\"phase\":\"$PHASE\",\"iteration\":$ITERATION,\"phase_complete\":$PHASE_COMPLETE,\"change\":\"$CHANGE\"}"
+        ;;
+    
+    set-phase)
+        if [[ -z "$VALUE" ]]; then
+            echo '{"error":"missing_value","message":"Phase value required for set-phase action"}' >&2
+            exit 1
+        fi
+        
+        if [[ ! -f "$STATE_FILE" ]]; then
+            echo "{\"error\":\"state_not_found\",\"message\":\"state.json does not exist\",\"path\":\"$STATE_FILE\"}" >&2
+            exit 1
+        fi
+        
+        PREVIOUS_PHASE=$(jq -r '.phase // "UNKNOWN"' "$STATE_FILE")
+        
+        jq --arg phase "$VALUE" '.phase = $phase' "$STATE_FILE" > "${STATE_FILE}.tmp"
+        mv "${STATE_FILE}.tmp" "$STATE_FILE"
+        
+        echo "{\"success\":true,\"phase\":\"$VALUE\",\"previous_phase\":\"$PREVIOUS_PHASE\"}"
+        ;;
+    
+    complete)
+        if [[ ! -f "$STATE_FILE" ]]; then
+            echo "{\"error\":\"state_not_found\",\"message\":\"state.json does not exist\",\"path\":\"$STATE_FILE\"}" >&2
+            exit 1
+        fi
+        
+        jq '.phase_complete = true' "$STATE_FILE" > "${STATE_FILE}.tmp"
+        mv "${STATE_FILE}.tmp" "$STATE_FILE"
+        
+        echo "{\"success\":true,\"phase_complete\":true}"
+        ;;
+    
+    *)
+        echo "{\"error\":\"unknown_action\",\"message\":\"Unknown action: $ACTION\",\"valid_actions\":[\"get\",\"set-phase\",\"complete\"]}" >&2
+        exit 1
+        ;;
+esac

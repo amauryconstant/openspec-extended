@@ -1,0 +1,94 @@
+#!/bin/bash
+# osc-ctx - Aggregate context for OpenSpec change
+# Usage: osc-ctx <change>
+# Output: JSON
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHANGE_DIR="openspec/changes"
+
+if [[ $# -lt 1 ]]; then
+    echo '{"error":"usage","message":"Usage: osc-ctx <change>"}' >&2
+    exit 1
+fi
+
+CHANGE="$1"
+CHANGE_PATH="$CHANGE_DIR/$CHANGE"
+
+# Validate change exists
+if [[ ! -d "$CHANGE_PATH" ]]; then
+    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"path\":\"$CHANGE_PATH\"}" >&2
+    exit 1
+fi
+
+# Get state
+STATE_JSON=$("$SCRIPT_DIR/osc-state" "$CHANGE" get 2>/dev/null || echo '{"phase":"UNKNOWN","iteration":0,"phase_complete":false}')
+
+# Get git status for change
+GIT_JSON=$("$SCRIPT_DIR/osc-git" "$CHANGE" 2>/dev/null || echo '{"modified":[],"added":[],"untracked":[],"clean":true}')
+
+# Check artifacts
+check_artifact() {
+    local path="$1"
+    local type="$2"
+    
+    if [[ "$type" == "directory" ]]; then
+        if [[ -d "$path" ]]; then
+            local count=$(find "$path" -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
+            echo "{\"exists\":true,\"count\":$count}"
+        else
+            echo '{"exists":false,"count":0}'
+        fi
+    else
+        if [[ -f "$path" ]]; then
+            local size=$(stat -c%s "$path" 2>/dev/null || stat -f%z "$path" 2>/dev/null || echo "0")
+            echo "{\"exists\":true,\"size\":$size}"
+        else
+            echo '{"exists":false,"size":0}'
+        fi
+    fi
+}
+
+PROPOSAL=$(check_artifact "$CHANGE_PATH/proposal.md" "file")
+SPECS=$(check_artifact "$CHANGE_PATH/specs" "directory")
+DESIGN=$(check_artifact "$CHANGE_PATH/design.md" "file")
+TASKS=$(check_artifact "$CHANGE_PATH/tasks.md" "file")
+
+# Check history files
+DECISION_LOG_ENTRIES=0
+if [[ -f "$CHANGE_PATH/decision-log.json" ]]; then
+    DECISION_LOG_ENTRIES=$(jq 'length' "$CHANGE_PATH/decision-log.json" 2>/dev/null || echo "0")
+fi
+
+ITERATIONS_RECORDED=0
+if [[ -f "$CHANGE_PATH/iterations.json" ]]; then
+    ITERATIONS_RECORDED=$(jq 'length' "$CHANGE_PATH/iterations.json" 2>/dev/null || echo "0")
+fi
+
+# Build output JSON
+jq -n \
+    --arg change "$CHANGE" \
+    --argjson state "$STATE_JSON" \
+    --argjson git "$GIT_JSON" \
+    --argjson proposal "$PROPOSAL" \
+    --argjson specs "$SPECS" \
+    --argjson design "$DESIGN" \
+    --argjson tasks "$TASKS" \
+    --argjson decision_entries "$DECISION_LOG_ENTRIES" \
+    --argjson iterations "$ITERATIONS_RECORDED" \
+    '{
+        change: $change,
+        state: $state,
+        git: $git,
+        artifacts: {
+            proposal: $proposal,
+            specs: $specs,
+            design: $design,
+            tasks: $tasks
+        },
+        history: {
+            decision_log_entries: $decision_entries,
+            iterations_recorded: $iterations
+        }
+    }'

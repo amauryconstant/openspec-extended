@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
+# OpenSpec Autonomous Workflow Orchestrator
+# Version: 0.5.0
+# Usage: openspec-auto <change-name> [options]
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.4.2"
+readonly SCRIPT_VERSION="0.5.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -17,14 +20,14 @@ declare -A PHASE_NAMES=(
   ["PHASE6"]="SELF-REFLECTION"
 )
 
-declare -A PHASE_TEMPLATES=(
-  ["PHASE0"]="analyzer"
-  ["PHASE1"]="builder"
-  ["PHASE2"]="analyzer"
-  ["PHASE3"]="maintainer"
-  ["PHASE4"]="maintainer"
-  ["PHASE5"]="maintainer"
-  ["PHASE6"]="analyzer"
+declare -A PHASE_COMMANDS=(
+  ["PHASE0"]="openspec-phase0"
+  ["PHASE1"]="openspec-phase1"
+  ["PHASE2"]="openspec-phase2"
+  ["PHASE3"]="openspec-phase3"
+  ["PHASE4"]="openspec-phase4"
+  ["PHASE5"]="openspec-phase5"
+  ["PHASE6"]="openspec-phase6"
 )
 
 readonly REQUIRED_SKILLS=(
@@ -58,6 +61,7 @@ CHILD_PID=""
 AI_PLATFORM=""
 AI_BINARY=""
 SKILLS_DIR=""
+COMMANDS_DIR=""
 
 readonly COLOR_GREEN='\033[0;32m'
 readonly COLOR_YELLOW='\033[0;33m'
@@ -102,17 +106,12 @@ detect_platform() {
     AI_PLATFORM="opencode"
     AI_BINARY="opencode"
     SKILLS_DIR=".opencode/skills"
+    COMMANDS_DIR=".opencode/commands"
     log "Detected platform: OpenCode"
     return 0
-  elif command -v claude &> /dev/null; then
-    AI_PLATFORM="claude"
-    AI_BINARY="claude"
-    SKILLS_DIR=".claude/skills"
-    log "Detected platform: Claude Code"
-    return 0
   else
-    log_error "No supported AI platform found"
-    log_error "Install either opencode or claude"
+    log_error "OpenCode not found"
+    log_error "Install opencode: https://opencode.ai"
     exit 1
   fi
 }
@@ -321,6 +320,23 @@ validate_skills() {
   done
   
   log_success "All required skills found"
+}
+
+validate_commands() {
+  log "Validating required commands..."
+  
+  for phase in "${!PHASE_COMMANDS[@]}"; do
+    local cmd_name="${PHASE_COMMANDS[$phase]}"
+    local cmd_path="$COMMANDS_DIR/$cmd_name.md"
+    if [[ ! -f "$cmd_path" ]]; then
+      log_error "Required command not found: $cmd_name"
+      log_error "Expected at: $cmd_path"
+      log_error "Run: openspecx install opencode"
+      exit 1
+    fi
+  done
+  
+  log_success "All required commands found"
 }
 
 validate_json() {
@@ -606,56 +622,38 @@ run_agent() {
   local phase="$1"
   
   if [[ "$DRY_RUN" == true ]]; then
-    log "[DRY RUN] Would run agent for $phase"
+    log "[DRY RUN] Would run command for $phase"
     return 0
   fi
   
   TOTAL_INVOCATIONS=$((TOTAL_INVOCATIONS + 1))
   log "Agent invocation #$TOTAL_INVOCATIONS for $phase"
   
-  local agent_role="${PHASE_TEMPLATES[$phase]}"
-  local agent_file="$SCRIPT_DIR/../agents/openspec-${agent_role}.md"
-  
-  if [[ ! -f "$agent_file" ]]; then
-    log_error "Agent definition not found: $agent_file"
-    return 1
-  fi
+  local cmd_name="${PHASE_COMMANDS[$phase]}"
+  local title="OpenSpec: ${PHASE_NAMES[$phase]} - $CHANGE_ID"
   
   if [[ "$VERBOSE" == true ]]; then
-    log "Using agent: openspec-$agent_role"
+    log "Using command: /$cmd_name"
+    log "Session title: $title"
   fi
-  
-  local escaped_change_id
-  escaped_change_id=$(printf '%s\n' "$CHANGE_ID" | sed 's/[&/\]/\\&/g')
-  local prompt_content
-  prompt_content=$(sed "s/{{CHANGE_NAME}}/$escaped_change_id/g" "$agent_file")
   
   local exit_code
   
-  if [[ "$AI_PLATFORM" == "opencode" ]]; then
-    local prompt_file
-    prompt_file=$(mktemp)
-    echo "$prompt_content" > "$prompt_file"
-    
-    if [[ -n "$MODEL" ]]; then
-      timeout --foreground "$TIMEOUT" "$AI_BINARY" run "Execute the OpenSpec autonomous workflow" -f "$prompt_file" --model="$MODEL" &
-    else
-      timeout --foreground "$TIMEOUT" "$AI_BINARY" run "Execute the OpenSpec autonomous workflow" -f "$prompt_file" &
-    fi
-    CHILD_PID=$!
-    wait "$CHILD_PID"
-    exit_code=$?
-    rm -f "$prompt_file"
-  elif [[ "$AI_PLATFORM" == "claude" ]]; then
-    if [[ -n "$MODEL" ]]; then
-      timeout --foreground "$TIMEOUT" "$AI_BINARY" --print --model="$MODEL" "$prompt_content" &
-    else
-      timeout --foreground "$TIMEOUT" "$AI_BINARY" --print "$prompt_content" &
-    fi
-    CHILD_PID=$!
-    wait "$CHILD_PID"
-    exit_code=$?
+  local model_flag=""
+  if [[ -n "$MODEL" ]]; then
+    model_flag="--model=$MODEL"
   fi
+  
+  timeout --foreground "$TIMEOUT" \
+    "$AI_BINARY" run \
+    --command="/$cmd_name" \
+    "$CHANGE_ID" \
+    --title="$title" \
+    $model_flag &
+  
+  CHILD_PID=$!
+  wait "$CHILD_PID"
+  exit_code=$?
   
   CHILD_PID=""
   
@@ -949,6 +947,7 @@ main() {
     require_tool "$AI_BINARY"
     
     validate_skills
+    validate_commands
     validate_git
     validate_change_dir
     

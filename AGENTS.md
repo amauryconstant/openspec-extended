@@ -1,64 +1,36 @@
 # OpenSpec-extended - OpenCode Reference
 
-## Project Context & Philosophy
+## Project Context
 
 **Purpose**: Bridge AI coding assistants with OpenSpec - spec-driven development framework.
 
-**Core Philosophy**: Agree on WHAT to build before writing code. Artifacts live in repository, not tool-specific systems.
+**Philosophy**: Agree on WHAT to build before writing code. Artifacts live in repository, not tool-specific systems.
 
-**Project Scope**: This is a rough, minimal project. No deep infrastructure, CI, or complex install scripts needed.
+**Scope**: Minimal project - no deep infrastructure, CI, or complex install scripts.
 
-**Extension Skills** (see `openspec-core/AGENTS.md` for core workflow skills):
+**Extension Skills** (core skills in `openspec-core/AGENTS.md`):
 
-- `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
-- `openspec-review-artifact`: Reviews OpenSpec artifacts for quality, completeness, and consistency
-- `openspec-maintain-ai-docs`: Maintain AGENTS.md and CLAUDE.md documentation to keep synchronized with available skills
-- `openspec-generate-changelog`: Generate changelogs in Keep a Changelog format from archived changes
-- `openspec-review-test-compliance`: Review test coverage for OpenSpec changes, ensuring spec requirements have corresponding tests
-
-**Resource Creation**: See `research/claude-code-docs.md` for Claude Code specifics, `research/opencode-docs.md` for OpenCode.
-
----
-
-Minimal shell script utility extending OpenSpec with custom skills.
-
-**Purpose**: Install/update OpenSpec skills via `openspecx <install|update> <tool>`
-
-**Location**: `/home/amaury/Projects/OpenSpec-extended`
+| Skill | Purpose |
+|-------|---------|
+| `openspec-concepts` | Teaches AI agents about OpenSpec framework |
+| `openspec-modify-artifact` | Modifies OpenSpec artifacts with dependency tracking |
+| `openspec-review-artifact` | Reviews artifacts for quality, completeness, consistency |
+| `openspec-maintain-ai-docs` | Maintain AGENTS.md and CLAUDE.md documentation |
+| `openspec-generate-changelog` | Generate changelogs in Keep a Changelog format |
+| `openspec-review-test-compliance` | Review test coverage for OpenSpec changes |
 
 ---
 
 ## Quick Reference
 
-| Command                      | Purpose                                     |
-| ---------------------------- | ------------------------------------------- |
-| `openspecx install claude`   | Add skills, agents, scripts to `.claude/`   |
-| `openspecx install opencode` | Add skills, agents, scripts to `.opencode/` |
-| `openspecx update claude`    | Force update all resources in `.claude/`    |
-| `openspecx update opencode`  | Force update all resources in `.opencode/`  |
+| Command | Purpose |
+| ------- | ------- |
+| `openspecx install opencode` | Add skills, commands, agents, scripts to `.opencode/` |
+| `openspecx install claude` | Add skills, commands to `.claude/` |
+| `openspecx update opencode` | Force update all resources in `.opencode/` |
+| `openspecx update claude` | Force update all resources in `.claude/` |
 
----
-
-## Running / Testing
-
-**No automated tests** - manual testing only.
-
-```bash
-./bin/openspecx install claude
-./bin/openspecx install opencode
-
-# Verify skills
-ls .claude/skills/
-ls .opencode/skills/
-
-# Verify agents
-ls .claude/agents/
-ls .opencode/agents/
-
-# Verify scripts
-ls .claude/scripts/
-```
+**Verify**: `ls .opencode/{skills,agents,commands,scripts}/`
 
 ---
 
@@ -66,69 +38,31 @@ ls .claude/scripts/
 
 ### Bash Requirements
 
-**Header**: Always use `#!/bin/bash` (Bash 4.0+)
-
-**Strict Mode**: `set -euo pipefail` at top of all scripts
-
-### Variables
-
-**Constants**: `readonly UPPER_CASE`
-
-```bash
-readonly VERSION="0.1.0"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-```
-
-**Local variables**: `snake_case`
-
-```bash
-tool_name="claude"
-target_dir="$SCRIPT_DIR/../resources"
-```
-
-**Always quote**: `"$VAR"` not `$VAR`
+| Rule | Format |
+| ---- | ------ |
+| Header | `#!/bin/bash` (Bash 4.0+) |
+| Strict mode | `set -euo pipefail` at top |
+| Constants | `readonly UPPER_CASE` |
+| Variables | `snake_case`, always quoted: `"$VAR"` |
+| Functions | `snake_case()` |
+| Arrays | `UPPER_CASE` |
 
 ### Key Patterns
 
 ```bash
 # Associative arrays
-declare -A TOOL_DIRS=(["claude"]=".claude/skills" ["opencode"]=".opencode/skills")
+declare -A TOOL_DIRS=(["opencode"]=".opencode")
 
-# Logging (colors)
-readonly COLOR_GREEN='\033[0;32m' COLOR_RED='\033[0;31m' COLOR_RESET='\033[0m'
+# Logging
 log_success() { echo -e "${COLOR_GREEN}✓${COLOR_RESET} $*"; }
 log_error() { echo -e "${COLOR_RED}✗${COLOR_RESET} $*" >&2; }
-
-# Conditionals
-if [[ $# -eq 0 ]]; then log_error "Usage: ..."; exit 1; fi
-if [[ -z "${TOOL_DIRS[$TOOL]:-}" ]]; then log_error "Unknown tool: $TOOL"; exit 1; fi
-
-# Directory operations
-mkdir -p "$FULL_PATH"
-cp -r "$SOURCE_DIR"/* "$TARGET_DIR/"
-SOURCE_COUNT=$(find "$DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
 
 # Error handling: exit 1 (error), exit 0 (success), messages to >&2
 ```
 
-### Naming
-
-| Type      | Format       | Examples                       |
-| --------- | ------------ | ------------------------------ |
-| Constants | UPPER_CASE   | `VERSION`, `SCRIPT_DIR`        |
-| Variables | snake_case   | `tool_name`, `source_count`    |
-| Functions | snake_case() | `log_success()`, `log_error()` |
-| Arrays    | UPPER_CASE   | `TOOL_DIRS`                    |
-
 ### Script Structure
 
-1. Shebang + description/usage comment
-2. `set -euo pipefail`
-3. readonly constants
-4. Logging functions
-5. Argument validation
-6. Main logic
-7. Exit codes only on errors
+1. Shebang + description  2. `set -euo pipefail`  3. readonly constants  4. Logging functions  5. Argument validation  6. Main logic  7. Exit codes only on errors
 
 ---
 
@@ -136,143 +70,91 @@ SOURCE_COUNT=$(find "$DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)
 
 ```
 bin/openspecx              # Main executable
-openspec-core/             # Official OpenSpec workflow skills (read-only)
-  ├── .claude/             # Claude Code commands + skills
-  └── .opencode/           # OpenCode commands + skills
-resources/                 # Extended utility skills (maintained here)
-  ├── claude/
-  │   ├── skills/          # Claude Code extension skills
-  │   ├── agents/          # Phase-specific agent definitions (with embedded workflows)
-  │   └── scripts/
-  │       └── openspec-auto
-  └── opencode/
-      ├── skills/          # OpenCode extension skills
-      ├── agents/          # Phase-specific agent definitions (with embedded workflows)
-      └── scripts/
-          └── openspec-auto
+openspec-core/             # Official OpenSpec workflows (read-only, sync from upstream)
+resources/opencode/        # Extended resources (maintained locally)
+  ├── skills/              # Extension skills
+  ├── agents/              # Agent definitions (personality + capabilities)
+  ├── commands/            # Phase-specific commands
+  └── scripts/
+      ├── openspec-auto    # Autonomous workflow orchestrator
+      └── lib/             # Helper utilities (osc-*)
 research/                  # Platform documentation
 ```
-
-**Key Distinction**:
-
-- `openspec-core/` - Official OpenSpec workflows, sync from upstream only
-- `resources/` - Extended skills, maintained locally
 
 ---
 
 ## Adding New Skills
 
-Create `resources/<tool>/skills/<skill-name>/SKILL.md`:
+Create `resources/opencode/skills/<skill-name>/SKILL.md` with frontmatter:
 
-```bash
-mkdir -p resources/claude/skills/my-skill
-cat > resources/claude/skills/my-skill/SKILL.md << 'EOF'
+```yaml
 ---
 name: my-skill
 description: Brief description
 license: MIT
 ---
-
-# Your Skill Instructions
-EOF
 ```
 
-**Required frontmatter**: `---` delimiters, `name`, `description`, `license`
+**Naming**: 1-64 chars, lowercase with hyphens, regex `^[a-z0-9]+(-[a-z0-9]+)*$`, must match directory name.
 
-**Naming constraints** (from research/):
-
-- 1-64 chars, lowercase with hyphens only
-- Regex: `^[a-z0-9]+(-[a-z0-9]+)*$`
-- No consecutive `--`, cannot start/end with `-`
-- Must match directory name
-
-**Platform differences**: See research/claude-code-docs.md and research/opencode-docs.md for field variations
-
----
-
-## Platform-Specific Details
-
-**Claude Code Skills**: research/claude-code-docs.md:20-78
-**OpenCode Skills**: research/opencode-docs.md:75-129
-**Skill Discovery Paths**: research/opencode-docs.md:79-85
+**Platform details**: `research/opencode-docs.md`
 
 ---
 
 ## Autonomous Workflow
 
-**Purpose**: Run OpenSpec changes through a fully autonomous 7-phase implementation loop.
+**Purpose**: 7-phase autonomous implementation loop via `openspec-auto`
 
-**Script**: `openspec-auto` (deployed to `.claude/scripts/` or `.opencode/scripts/`)
+### Agents & Commands
 
-**Architecture**: Uses 3 specialized agents with embedded workflows:
+| Agent | Tools | Temp | Phases |
+| ----- | ----- | ---- | ------ |
+| `openspec-analyzer` | read, grep, glob, bash | 0.1 | PHASE0, PHASE2, PHASE6 |
+| `openspec-builder` | read, grep, glob, bash, write, edit | 0.4 | PHASE1 |
+| `openspec-maintainer` | read, grep, glob, bash, write, edit | 0.3 | PHASE3, PHASE4, PHASE5 |
 
-- **openspec-analyzer** - PHASE0 (Review), PHASE2 (Verify), PHASE6 (Reflect) - reasoning-heavy
-- **openspec-builder** - PHASE1 (Implement) - code generation
-- **openspec-maintainer** - PHASE3 (Docs), PHASE4 (Sync), PHASE5 (Archive) - fast/cheap
+| Command | Agent | Description |
+| ------- | ----- | ----------- |
+| `/openspec-phase0` | analyzer | Artifact Review |
+| `/openspec-phase1` | builder | Implementation |
+| `/openspec-phase2` | analyzer | Verification |
+| `/openspec-phase3` | maintainer | Maintain-Docs |
+| `/openspec-phase4` | maintainer | Sync |
+| `/openspec-phase5` | maintainer | Archive |
+| `/openspec-phase6` | analyzer | Self-Reflection |
 
-**Phases**:
-
-- PHASE0: Artifact Review - Validate artifacts before implementation
-- PHASE1: Implementation - Execute tasks with milestone commits
-- PHASE2: Review - Validate implementation matches artifacts
-- PHASE3: Maintain-Docs - Update project documentation
-- PHASE4: Sync - Merge delta specs to main specs
-- PHASE5: Archive - Archive completed change
-- PHASE6: Self-Reflection - Evaluate process improvements
-
-**Usage**:
+### Usage
 
 ```bash
-# Run autonomous implementation
-.claude/scripts/openspec-auto <change-name>
-
-# Or from .opencode
 .opencode/scripts/openspec-auto <change-name>
-
-# With options
-.claude/scripts/openspec-auto add-auth --max-iterations 20 --verbose
-
-# Continue from specific phase
-.claude/scripts/openspec-auto add-auth --from-phase PHASE3
-
-# Dry run
-.claude/scripts/openspec-auto add-auth --dry-run
-
-# Clean state and restart
-.claude/scripts/openspec-auto add-auth --clean --force
+.opencode/scripts/openspec-auto add-auth --max-iterations 20 --verbose
+.opencode/scripts/openspec-auto add-auth --from-phase PHASE3
+.opencode/scripts/openspec-auto add-auth --dry-run
 ```
 
-**Options**:
+### Options
 
-- `--max-iterations N` - Max iterations per phase (default: 10, -1 for unlimited)
-- `--timeout N` - Timeout per iteration in seconds (default: 1800)
-- `--model MODEL` - Model to use (default: CLI default)
-- `--verbose` - Show detailed progress
-- `--dry-run` - Show what would be done
-- `--force` - Continue without prompts
-- `--clean` - Clean existing state
-- `--from-phase PHASEX` - Resume from specific phase
-- `--no-color` - Disable colored output
-- `--list` - List available changes
-- `--version`, `-h` - Show version/help
+`--max-iterations N` `--timeout N` `--model MODEL` `--verbose` `--dry-run` `--force` `--clean` `--from-phase PHASEX` `--list` `--version`
 
-**State Files** (in `openspec/changes/<change>/`):
+### State Files (`openspec/changes/<change>/`)
 
-| File | Purpose | Written By | Lifecycle |
-|------|---------|------------|-----------|
-| `state.json` | Phase tracking + completion signal | Script (phase/iteration), Agent (`phase_complete`) | Deleted on success |
-| `complete.json` | Workflow completion (PHASE6 only) | Agent (PHASE6 only) | Deleted after validation |
-| `iterations.json` | Iteration history | Agent | Never deleted |
-| `decision-log.md` | Agent reasoning | Agent | Never deleted |
-| `.openspec-baseline.json` | Git baseline for commits | Script | Deleted on success |
+| File | Purpose | Lifecycle |
+| ---- | ------- | --------- |
+| `state.json` | Phase tracking + completion | Deleted on success |
+| `complete.json` | Workflow completion (PHASE6) | Deleted after validation |
+| `iterations.json` | Iteration history | Never deleted |
+| `decision-log.md` | Agent reasoning | Never deleted |
 
-**Phase Completion:** Agent sets `phase_complete: true` in `state.json`. Script detects, advances phase, clears flag.
+### Manual Invocation
 
-**Workflow Completion:** After PHASE6, agent creates `complete.json`. Script validates archive exists, then exits.
+```
+/openspec-phase0 my-change-name
+@openspec-analyzer  # hidden but accessible
+```
 
-**Agent Definitions**: `agents/openspec-*.md` deployed to `.<tool>/agents/`
+### Lib Scripts
 
-**Manual Invocation**: Users can also invoke agents directly via `@openspec-analyzer`, `@openspec-builder`, or `@openspec-maintainer` in OpenCode (hidden by default, but accessible).
+@docs/lib-scripts.md
 
 ---
 

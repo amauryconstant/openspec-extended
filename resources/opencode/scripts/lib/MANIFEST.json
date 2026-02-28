@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "scripts": {
+    "osc-state": "0.1.0",
+    "osc-ctx": "0.1.0",
+    "osc-iterations": "0.1.0",
+    "osc-log": "0.1.0",
+    "osc-git": "0.1.0"
+  }
+}

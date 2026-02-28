@@ -1,0 +1,174 @@
+#!/bin/bash
+# osc-log - Manage OpenSpec decision log
+# Usage: osc-log <change> [get|append]
+# Input (append): JSON from stdin
+# Output: JSON
+# Writes: decision-log.md and decision-log.json
+
+set -euo pipefail
+
+CHANGE_DIR="openspec/changes"
+
+usage() {
+    echo '{"error":"usage","message":"Usage: osc-log <change> [get|append]","actions":["get (default)","append (reads JSON from stdin)"],"required_fields":["phase","iteration"],"optional_fields":["summary","issues","artifacts_modified","next_steps","decisions","errors"]}' >&2
+    exit 1
+}
+
+if [[ $# -lt 1 ]]; then
+    usage
+fi
+
+CHANGE="$1"
+ACTION="${2:-get}"
+DECISION_MD="$CHANGE_DIR/$CHANGE/decision-log.md"
+DECISION_JSON="$CHANGE_DIR/$CHANGE/decision-log.json"
+
+# Validate change exists
+if [[ ! -d "$CHANGE_DIR/$CHANGE" ]]; then
+    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"path\":\"$CHANGE_DIR/$CHANGE\"}" >&2
+    exit 1
+fi
+
+case "$ACTION" in
+    get)
+        if [[ ! -f "$DECISION_JSON" ]]; then
+            echo "{\"count\":0,\"entries\":[]}"
+            exit 0
+        fi
+        
+        COUNT=$(jq 'length' "$DECISION_JSON" 2>/dev/null || echo "0")
+        echo "{\"count\":$COUNT,\"entries\":$(cat "$DECISION_JSON")}"
+        ;;
+    
+    append)
+        if [[ -t 0 ]]; then
+            echo '{"error":"no_input","message":"JSON input required on stdin for append action"}' >&2
+            exit 1
+        fi
+        
+        # Read JSON from stdin
+        INPUT_JSON=$(cat)
+        
+        # Validate input is valid JSON
+        if ! echo "$INPUT_JSON" | jq -e . &>/dev/null; then
+            echo '{"error":"invalid_json","message":"Input is not valid JSON"}' >&2
+            exit 1
+        fi
+        
+        # Validate required fields
+        PHASE=$(echo "$INPUT_JSON" | jq -r '.phase // empty')
+        ITERATION=$(echo "$INPUT_JSON" | jq -r '.iteration // empty')
+        
+        if [[ -z "$PHASE" ]]; then
+            echo '{"error":"missing_field","message":"phase field is required"}' >&2
+            exit 1
+        fi
+        
+        if [[ -z "$ITERATION" ]]; then
+            echo '{"error":"missing_field","message":"iteration field is required"}' >&2
+            exit 1
+        fi
+        
+        # Generate timestamp and entry number
+        TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        
+        # Determine next entry number
+        if [[ ! -f "$DECISION_JSON" ]]; then
+            ENTRY_NUM=1
+        else
+            ENTRY_NUM=$(jq 'length + 1' "$DECISION_JSON" 2>/dev/null || echo "1")
+        fi
+        
+        # Extract optional fields with defaults
+        SUMMARY=$(echo "$INPUT_JSON" | jq -r '.summary // ""')
+        ISSUES=$(echo "$INPUT_JSON" | jq -r '.issues // null')
+        ARTIFACTS=$(echo "$INPUT_JSON" | jq -r '.artifacts_modified // []')
+        NEXT_STEPS=$(echo "$INPUT_JSON" | jq -r '.next_steps // ""')
+        DECISIONS=$(echo "$INPUT_JSON" | jq -r '.decisions // []')
+        ERRORS=$(echo "$INPUT_JSON" | jq -r '.errors // []')
+        
+        # Generate markdown section
+        MD_SECTION="## $PHASE (Iteration $ITERATION)\n"
+        MD_SECTION+="<!-- entry: $ENTRY_NUM | timestamp: $TIMESTAMP -->\n\n"
+        
+        # Issues section
+        if [[ "$ISSUES" != "null" ]]; then
+            CRIT=$(echo "$INPUT_JSON" | jq -r '.issues.critical // 0')
+            WARN=$(echo "$INPUT_JSON" | jq -r '.issues.warning // 0')
+            SUGG=$(echo "$INPUT_JSON" | jq -r '.issues.suggestion // 0')
+            MD_SECTION+="### Issues\n"
+            MD_SECTION+="- Critical: $CRIT\n"
+            MD_SECTION+="- Warning: $WARN\n"
+            MD_SECTION+="- Suggestion: $SUGG\n\n"
+        fi
+        
+        # Artifacts modified
+        ARTIFACT_COUNT=$(echo "$ARTIFACTS" | jq 'length')
+        if [[ $ARTIFACT_COUNT -gt 0 ]]; then
+            MD_SECTION+="### Modified Artifacts\n"
+            while IFS= read -r artifact; do
+                MD_SECTION+="- $artifact\n"
+            done < <(echo "$ARTIFACTS" | jq -r '.[]')
+            MD_SECTION+="\n"
+        fi
+        
+        # Decisions
+        DECISION_COUNT=$(echo "$DECISIONS" | jq 'length')
+        if [[ $DECISION_COUNT -gt 0 ]]; then
+            MD_SECTION+="### Decisions\n"
+            while IFS= read -r decision; do
+                MD_SECTION+="- $decision\n"
+            done < <(echo "$DECISIONS" | jq -r '.[]')
+            MD_SECTION+="\n"
+        fi
+        
+        # Summary
+        if [[ -n "$SUMMARY" ]]; then
+            MD_SECTION+="### Summary\n$SUMMARY\n\n"
+        fi
+        
+        # Next steps
+        if [[ -n "$NEXT_STEPS" ]]; then
+            MD_SECTION+="### Next Steps\n$NEXT_STEPS\n"
+        fi
+        
+        # Errors
+        ERROR_COUNT=$(echo "$ERRORS" | jq 'length')
+        if [[ $ERROR_COUNT -gt 0 ]]; then
+            MD_SECTION+="\n### Errors\n"
+            while IFS= read -r error; do
+                MD_SECTION+="- $error\n"
+            done < <(echo "$ERRORS" | jq -r '.[]')
+        fi
+        
+        MD_SECTION+="\n---\n"
+        
+        # Write to markdown file
+        if [[ ! -f "$DECISION_MD" ]]; then
+            echo "# Decision Log: $CHANGE" > "$DECISION_MD"
+            echo "" >> "$DECISION_MD"
+        fi
+        echo -e "$MD_SECTION" >> "$DECISION_MD"
+        
+        # Build JSON entry
+        JSON_ENTRY=$(echo "$INPUT_JSON" | jq \
+            --arg ts "$TIMESTAMP" \
+            --argjson entry "$ENTRY_NUM" \
+            '. + {timestamp: $ts, entry: $entry}')
+        
+        # Write to JSON index
+        if [[ ! -f "$DECISION_JSON" ]]; then
+            echo "[$JSON_ENTRY]" > "$DECISION_JSON"
+        else
+            jq ". + [$JSON_ENTRY]" "$DECISION_JSON" > "${DECISION_JSON}.tmp"
+            mv "${DECISION_JSON}.tmp" "$DECISION_JSON"
+        fi
+        
+        echo "{\"success\":true,\"entry\":$ENTRY_NUM,\"phase\":\"$PHASE\",\"iteration\":$ITERATION,\"timestamp\":\"$TIMESTAMP\"}"
+        ;;
+    
+    *)
+        echo "{\"error\":\"unknown_action\",\"message\":\"Unknown action: $ACTION\",\"valid_actions\":[\"get\",\"append\"]}" >&2
+        exit 1
+        ;;
+esac

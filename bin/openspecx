@@ -13,8 +13,8 @@ readonly COLOR_RED='\033[0;31m'
 readonly COLOR_RESET='\033[0m'
 
 declare -A TOOL_DIRS=(
-    ["claude"]=".claude/skills"
-    ["opencode"]=".opencode/skills"
+    ["opencode"]=".opencode"
+    ["claude"]=".claude"
 )
 
 log_success() {
@@ -23,6 +23,16 @@ log_success() {
 
 log_error() {
     echo -e "${COLOR_RED}✗${COLOR_RESET} $*" >&2
+}
+
+validate_version() {
+    local version="$1"
+    local file="$2"
+    
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        log_error "Invalid version format in $file: '$version' (expected semver: X.Y.Z)"
+        exit 1
+    fi
 }
 
 get_script_version() {
@@ -45,19 +55,50 @@ inject_generated_by() {
     
     local content
     content=$(cat "$file")
+    
+    # Check if file has YAML frontmatter
+    if ! echo "$content" | head -1 | grep -q "^---$"; then
+        return
+    fi
+    
+    # Extract and validate existing version if present
+    local existing_version
+    existing_version=$(echo "$content" | grep -E "^version:" | head -1 | sed 's/version: *"\?//' | sed 's/"\?$//' || true)
+    if [[ -n "$existing_version" ]]; then
+        validate_version "$existing_version" "$file"
+    fi
+    
+    # Also check for version in metadata block (skills)
+    local metadata_version
+    metadata_version=$(echo "$content" | grep -E "^  version:" | head -1 | sed 's/  version: *"\?//' | sed 's/"\?$//' || true)
+    if [[ -n "$metadata_version" ]]; then
+        validate_version "$metadata_version" "$file"
+    fi
+    
     local new_content
     
+    # Handle files with metadata: block (skills)
     if echo "$content" | grep -q "^metadata:"; then
         if echo "$content" | grep -q "^  generatedBy:"; then
             new_content=$(echo "$content" | sed "s/^  generatedBy: \".*\"/  generatedBy: \"$version\"/")
         else
             new_content=$(echo "$content" | sed "/^metadata:/a\\  generatedBy: \"$version\"")
         fi
-    else
-        if echo "$content" | grep -q "^---"; then
-            new_content=$(echo "$content" | sed "/^---$/a\\metadata:\\n  generatedBy: \"$version\"")
+    # Handle files with direct version field (commands, agents)
+    elif echo "$content" | grep -q "^version:"; then
+        if echo "$content" | grep -q "^generatedBy:"; then
+            new_content=$(echo "$content" | sed "s/^generatedBy: \".*\"/generatedBy: \"$version\"/")
         else
-            new_content="$content"
+            # Insert generatedBy after version line
+            new_content=$(echo "$content" | sed '/^version:/a\generatedBy: "'"$version"'"')
+        fi
+    # Handle files with frontmatter but no version (fallback)
+    else
+        if echo "$content" | grep -q "^generatedBy:"; then
+            new_content=$(echo "$content" | sed "s/^generatedBy: \".*\"/generatedBy: \"$version\"/")
+        else
+            # Insert generatedBy after first --- (opening frontmatter)
+            new_content=$(echo "$content" | sed '1,/^---$/s/^---$/---\ngeneratedBy: "'"$version"'"/')
         fi
     fi
     
@@ -113,7 +154,7 @@ show_usage() {
     echo "  install <tool>  Add missing skills (skip existing)"
     echo "  update <tool>   Force update all skills (overwrite existing)"
     echo
-    echo "Available tools: claude, opencode"
+    echo "Available tools: opencode, claude"
     echo
     echo "Options:"
     echo "  --with-core     Also deploy core OpenSpec skills from openspec-core/"
@@ -220,7 +261,7 @@ fi
 
 if [[ -z "${TOOL_DIRS[$TOOL]:-}" ]]; then
     log_error "Unknown tool: $TOOL"
-    echo "  Available tools: claude, opencode"
+    echo "  Available tools: opencode, claude"
     exit 1
 fi
 
@@ -228,27 +269,27 @@ SCRIPT_VERSION=$(get_script_version)
 TARGET_DIR="${TOOL_DIRS[$TOOL]}"
 FULL_PATH="$(pwd)/$TARGET_DIR"
 
-mkdir -p "$FULL_PATH"
+mkdir -p "$FULL_PATH/skills"
 
 if [[ -d "$RESOURCES_DIR/$TOOL/skills" ]]; then
     if [[ "$COMMAND" == "update" ]]; then
-        RESULT=$(copy_and_process_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH" "$SCRIPT_VERSION" "true")
+        RESULT=$(copy_and_process_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH/skills" "$SCRIPT_VERSION" "true")
         UPDATED_COUNT="${RESULT%%:*}"
         
         if [[ $UPDATED_COUNT -gt 0 ]]; then
             log_success "Updated $UPDATED_COUNT skill(s) in $TOOL (v$SCRIPT_VERSION)"
-            echo "  Target: $TARGET_DIR"
+            echo "  Target: $TARGET_DIR/skills"
         else
             echo "No skills found in resources/$TOOL/skills/"
         fi
     else
-        RESULT=$(copy_and_process_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH" "$SCRIPT_VERSION" "false")
+        RESULT=$(copy_and_process_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH/skills" "$SCRIPT_VERSION" "false")
         INSTALLED_COUNT="${RESULT%%:*}"
         SKIPPED_COUNT="${RESULT##*:}"
         
         if [[ $INSTALLED_COUNT -gt 0 ]]; then
             log_success "Installed $INSTALLED_COUNT skill(s) to $TOOL (v$SCRIPT_VERSION)"
-            echo "  Target: $TARGET_DIR"
+            echo "  Target: $TARGET_DIR/skills"
         fi
         
         if [[ $SKIPPED_COUNT -gt 0 ]]; then
@@ -263,30 +304,28 @@ else
     echo "resources/$TOOL/skills/ directory not found"
 fi
 
-COMMANDS_DIR="$(pwd)/$(dirname "$TARGET_DIR")/commands"
+COMMANDS_DIR="$FULL_PATH/commands"
 if [[ -d "$RESOURCES_DIR/$TOOL/commands" ]]; then
     mkdir -p "$COMMANDS_DIR"
     
-    if [[ -d "$RESOURCES_DIR/$TOOL/commands/opsx" ]]; then
-        mkdir -p "$COMMANDS_DIR/opsx"
-        COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands/opsx" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
-        if [[ $COMMAND_COUNT -gt 0 ]]; then
-            cp -r "$RESOURCES_DIR/$TOOL/commands/opsx"/* "$COMMANDS_DIR/opsx/"
-            log_success "Copied $COMMAND_COUNT command(s) to $TOOL"
-            echo "  Target: commands/opsx/"
-        fi
-    else
-        COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
-        if [[ $COMMAND_COUNT -gt 0 ]]; then
-            cp -r "$RESOURCES_DIR/$TOOL/commands"/* "$COMMANDS_DIR/"
-            log_success "Copied $COMMAND_COUNT command(s) to $TOOL"
-            echo "  Target: commands/"
-        fi
+    COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
+    if [[ $COMMAND_COUNT -gt 0 ]]; then
+        cp -r "$RESOURCES_DIR/$TOOL/commands"/*.md "$COMMANDS_DIR/"
+        
+        # Inject generatedBy into each command file
+        for cmd_file in "$COMMANDS_DIR"/*.md; do
+            if [[ -f "$cmd_file" ]]; then
+                inject_generated_by "$cmd_file" "$SCRIPT_VERSION"
+            fi
+        done
+        
+        log_success "Copied $COMMAND_COUNT command(s) to $TOOL (v$SCRIPT_VERSION)"
+        echo "  Target: $TARGET_DIR/commands/"
     fi
 fi
 
 # Handle scripts
-SCRIPTS_DIR="$(pwd)/$(dirname "$TARGET_DIR")/scripts"
+SCRIPTS_DIR="$FULL_PATH/scripts"
 if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
     mkdir -p "$SCRIPTS_DIR"
     SCRIPT_COUNT=$(find "$RESOURCES_DIR/$TOOL/scripts" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
@@ -301,7 +340,7 @@ if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
                 chmod +x "$SCRIPTS_DIR/openspec-auto"
             fi
             log_success "Updated $SCRIPT_COUNT script(s) in $TOOL"
-            echo "  Target: $(basename "$SCRIPTS_DIR")/"
+            echo "  Target: $TARGET_DIR/scripts/"
         else
             NEW_SCRIPT_COUNT=0
             while IFS= read -r -d '' script_file; do
@@ -322,8 +361,28 @@ if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
             
             if [[ $NEW_SCRIPT_COUNT -gt 0 ]]; then
                 log_success "Installed $NEW_SCRIPT_COUNT script(s) to $TOOL"
-                echo "  Target: $(basename "$SCRIPTS_DIR")/"
+                echo "  Target: $TARGET_DIR/scripts/"
             fi
+        fi
+    fi
+    
+    # Handle scripts/lib subdirectory (helper utilities)
+    if [[ -d "$RESOURCES_DIR/$TOOL/scripts/lib" ]]; then
+        mkdir -p "$SCRIPTS_DIR/lib"
+        LIB_COUNT=$(find "$RESOURCES_DIR/$TOOL/scripts/lib" -mindepth 1 -maxdepth 1 -type f -name "osc-*" 2>/dev/null | wc -l)
+        
+        if [[ $LIB_COUNT -gt 0 ]]; then
+            # Copy lib scripts
+            cp -f "$RESOURCES_DIR/$TOOL/scripts/lib"/osc-* "$SCRIPTS_DIR/lib/"
+            chmod +x "$SCRIPTS_DIR/lib"/osc-*
+            
+            # Copy MANIFEST.json if exists
+            if [[ -f "$RESOURCES_DIR/$TOOL/scripts/lib/MANIFEST.json" ]]; then
+                cp -f "$RESOURCES_DIR/$TOOL/scripts/lib/MANIFEST.json" "$SCRIPTS_DIR/lib/"
+            fi
+            
+            log_success "Deployed $LIB_COUNT lib script(s) to $TOOL"
+            echo "  Target: $TARGET_DIR/scripts/lib/"
         fi
     fi
 fi
@@ -331,15 +390,23 @@ fi
 # Handle agents directory (for phase-specific agent definitions with embedded workflows)
 # Always copy agents on install/update since they're definitions that may have been updated
 AGENTS_SOURCE="$RESOURCES_DIR/$TOOL/agents"
-AGENTS_TARGET="$(pwd)/$(dirname "$TARGET_DIR")/agents"
+AGENTS_TARGET="$FULL_PATH/agents"
 if [[ -d "$AGENTS_SOURCE" ]]; then
     mkdir -p "$AGENTS_TARGET"
     AGENT_COUNT=$(find "$AGENTS_SOURCE" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
     
     if [[ $AGENT_COUNT -gt 0 ]]; then
         cp -f "$AGENTS_SOURCE"/*.md "$AGENTS_TARGET/"
-        log_success "Copied $AGENT_COUNT agent definition(s) to $TOOL"
-        echo "  Target: $(basename "$(dirname "$TARGET_DIR")")/agents/"
+        
+        # Inject generatedBy into each agent file
+        for agent_file in "$AGENTS_TARGET"/*.md; do
+            if [[ -f "$agent_file" ]]; then
+                inject_generated_by "$agent_file" "$SCRIPT_VERSION"
+            fi
+        done
+        
+        log_success "Copied $AGENT_COUNT agent definition(s) to $TOOL (v$SCRIPT_VERSION)"
+        echo "  Target: $TARGET_DIR/agents/"
     fi
 fi
 
@@ -352,3 +419,5 @@ fi
 if [[ "$WITH_CORE" == "true" ]]; then
     deploy_core "$TOOL"
 fi
+
+exit 0
