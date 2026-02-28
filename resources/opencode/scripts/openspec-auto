@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.5.0"
+readonly SCRIPT_VERSION="0.5.1"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -646,7 +646,7 @@ run_agent() {
   
   timeout --foreground "$TIMEOUT" \
     "$AI_BINARY" run \
-    --command="/$cmd_name" \
+    --command "/$cmd_name" \
     "$CHANGE_ID" \
     --title="$title" \
     $model_flag &
