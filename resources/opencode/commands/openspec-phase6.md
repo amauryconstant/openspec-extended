@@ -1,8 +1,8 @@
 ---
 description: PHASE6 - Self-Reflection
 agent: openspec-analyzer
-subtask: true
-version: "0.1.0"
+metadata:
+   version: "0.1.0"
 ---
 
 # PHASE6: Self-Reflection

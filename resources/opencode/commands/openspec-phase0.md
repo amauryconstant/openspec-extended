@@ -1,8 +1,8 @@
 ---
 description: PHASE0 - Artifact Review
 agent: openspec-analyzer
-subtask: true
-version: "0.1.0"
+metadata:
+   version: "0.1.0"
 ---
 
 # PHASE0: Artifact Review

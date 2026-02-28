@@ -1,8 +1,8 @@
 ---
 description: PHASE2 - Verification
 agent: openspec-analyzer
-subtask: true
-version: "0.1.0"
+metadata:
+   version: "0.1.0"
 ---
 
 # PHASE2: Verification

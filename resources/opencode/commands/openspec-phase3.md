@@ -1,8 +1,8 @@
 ---
 description: PHASE3 - Maintain Documentation
 agent: openspec-maintainer
-subtask: true
-version: "0.1.0"
+metadata:
+   version: "0.1.0"
 ---
 
 # PHASE3: Maintain Documentation

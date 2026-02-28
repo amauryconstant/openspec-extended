@@ -1,6 +1,5 @@
 ---
 description: Critical analyzer for OpenSpec review, verification, and reflection
-mode: subagent
 hidden: true
 temperature: 0.1
 tools:
@@ -11,7 +10,7 @@ tools:
   write: false
   edit: false
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 # OpenSpec Analyzer

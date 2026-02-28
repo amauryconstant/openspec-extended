@@ -1,8 +1,8 @@
 ---
 description: PHASE1 - Implementation
 agent: openspec-builder
-subtask: true
-version: "0.1.0"
+metadata:
+   version: "0.1.0"
 ---
 
 # PHASE1: Implementation

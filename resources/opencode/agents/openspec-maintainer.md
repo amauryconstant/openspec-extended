@@ -1,6 +1,5 @@
 ---
 description: Documentation and archival agent for OpenSpec completion phases
-mode: subagent
 hidden: true
 temperature: 0.3
 tools:
@@ -11,7 +10,7 @@ tools:
   edit: true
   bash: true
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 # OpenSpec Maintainer

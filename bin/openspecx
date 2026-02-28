@@ -29,8 +29,8 @@ validate_version() {
     local version="$1"
     local file="$2"
     
-    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        log_error "Invalid version format in $file: '$version' (expected semver: X.Y.Z)"
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+        log_error "Invalid version format in $file: '$version' (expected semver: X.Y or X.Y.Z)"
         exit 1
     fi
 }
@@ -56,53 +56,49 @@ inject_generated_by() {
     local content
     content=$(cat "$file")
     
-    # Check if file has YAML frontmatter
     if ! echo "$content" | head -1 | grep -q "^---$"; then
         return
     fi
     
-    # Extract and validate existing version if present
     local existing_version
     existing_version=$(echo "$content" | grep -E "^version:" | head -1 | sed 's/version: *"\?//' | sed 's/"\?$//' || true)
     if [[ -n "$existing_version" ]]; then
         validate_version "$existing_version" "$file"
     fi
     
-    # Also check for version in metadata block (skills)
     local metadata_version
     metadata_version=$(echo "$content" | grep -E "^  version:" | head -1 | sed 's/  version: *"\?//' | sed 's/"\?$//' || true)
     if [[ -n "$metadata_version" ]]; then
         validate_version "$metadata_version" "$file"
     fi
     
-    local new_content
+    content=$(echo "$content" | sed '/^generatedBy:/d')
     
-    # Handle files with metadata: block (skills)
     if echo "$content" | grep -q "^metadata:"; then
         if echo "$content" | grep -q "^  generatedBy:"; then
-            new_content=$(echo "$content" | sed "s/^  generatedBy: \".*\"/  generatedBy: \"$version\"/")
+            content=$(echo "$content" | sed "s/^  generatedBy: \".*\"/  generatedBy: \"$version\"/")
         else
-            new_content=$(echo "$content" | sed "/^metadata:/a\\  generatedBy: \"$version\"")
+            content=$(echo "$content" | sed "/^metadata:/a\\  generatedBy: \"$version\"")
         fi
-    # Handle files with direct version field (commands, agents)
-    elif echo "$content" | grep -q "^version:"; then
-        if echo "$content" | grep -q "^generatedBy:"; then
-            new_content=$(echo "$content" | sed "s/^generatedBy: \".*\"/generatedBy: \"$version\"/")
-        else
-            # Insert generatedBy after version line
-            new_content=$(echo "$content" | sed '/^version:/a\generatedBy: "'"$version"'"')
-        fi
-    # Handle files with frontmatter but no version (fallback)
     else
-        if echo "$content" | grep -q "^generatedBy:"; then
-            new_content=$(echo "$content" | sed "s/^generatedBy: \".*\"/generatedBy: \"$version\"/")
-        else
-            # Insert generatedBy after first --- (opening frontmatter)
-            new_content=$(echo "$content" | sed '1,/^---$/s/^---$/---\ngeneratedBy: "'"$version"'"/')
+        local frontmatter_end
+        frontmatter_end=$(echo "$content" | grep -n "^---$" | head -2 | tail -1 | cut -d: -f1)
+        if [[ -n "$frontmatter_end" ]] && [[ "$frontmatter_end" -gt 1 ]]; then
+            local insert_line=$((frontmatter_end - 1))
+            local tmp_file
+            tmp_file=$(mktemp)
+            echo "$content" | head -n "$insert_line" > "$tmp_file"
+            {
+                echo "metadata:"
+                echo "  generatedBy: \"$version\""
+            } >> "$tmp_file"
+            echo "$content" | tail -n +$((insert_line + 1)) >> "$tmp_file"
+            content=$(cat "$tmp_file")
+            rm -f "$tmp_file"
         fi
     fi
     
-    echo "$new_content" > "$file"
+    echo "$content" > "$file"
 }
 
 copy_and_process_skills() {
@@ -332,7 +328,7 @@ if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
     
     if [[ $SCRIPT_COUNT -gt 0 ]]; then
         if [[ "$COMMAND" == "update" ]]; then
-            cp -f "$RESOURCES_DIR/$TOOL/scripts"/* "$SCRIPTS_DIR/"
+            find "$RESOURCES_DIR/$TOOL/scripts" -mindepth 1 -maxdepth 1 -type f -exec cp -f {} "$SCRIPTS_DIR/" \;
             # Ensure shell scripts are executable
             find "$SCRIPTS_DIR" -type f -name "*.sh" -exec chmod +x {} \;
             # Ensure openspec-auto is executable (no .sh extension)
