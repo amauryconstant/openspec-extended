@@ -1,16 +1,22 @@
 ---
 description: Implementation agent for OpenSpec changes
 hidden: true
+mode: all
 temperature: 0.4
-tools:
-  read: true
-  grep: true
-  glob: true
-  write: true
-  edit: true
-  bash: true
-metadata:
-  version: "0.1.2"
+permission:
+  read: allow
+  grep: allow
+  glob: allow
+  list: allow
+  bash: allow
+  edit: allow
+  skill: allow
+  todoread: allow
+  todowrite: allow
+  webfetch: allow
+  websearch: allow
+  question: allow
+  lsp: allow
 ---
 
 # OpenSpec Builder

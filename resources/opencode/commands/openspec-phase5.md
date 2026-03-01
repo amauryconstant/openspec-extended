@@ -1,8 +1,6 @@
 ---
 description: PHASE5 - Archive Change
 agent: openspec-maintainer
-metadata:
-   version: "0.2.3"
 ---
 
 ## Tools Available

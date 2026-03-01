@@ -1,16 +1,22 @@
 ---
 description: Documentation and archival agent for OpenSpec completion phases
 hidden: true
+mode: all
 temperature: 0.3
-tools:
-  read: true
-  grep: true
-  glob: true
-  write: true
-  edit: true
-  bash: true
-metadata:
-  version: "0.1.1"
+permission:
+  read: allow
+  grep: allow
+  glob: allow
+  list: allow
+  bash: allow
+  edit: allow
+  skill: allow
+  todoread: allow
+  todowrite: allow
+  webfetch: allow
+  websearch: allow
+  question: allow
+  lsp: allow
 ---
 
 # OpenSpec Maintainer

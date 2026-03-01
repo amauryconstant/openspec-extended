@@ -1,16 +1,22 @@
 ---
 description: Critical analyzer for OpenSpec review, verification, and reflection
 hidden: true
+mode: all
 temperature: 0.1
-tools:
-  read: true
-  grep: true
-  glob: true
-  bash: true
-  write: false
-  edit: false
-metadata:
-  version: "0.1.2"
+permission:
+  read: allow
+  grep: allow
+  glob: allow
+  list: allow
+  bash: allow
+  edit: deny
+  skill: allow
+  todoread: allow
+  todowrite: deny
+  webfetch: allow
+  websearch: allow
+  question: allow
+  lsp: allow
 ---
 
 # OpenSpec Analyzer

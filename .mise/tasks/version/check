@@ -16,13 +16,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- \
-  'resources/**/SKILL.md' \
-  'resources/claude/commands/opsx/*.md' \
-  'resources/opencode/commands/opsx-*.md' \
-  'resources/opencode/commands/openspec-phase*.md' \
-  'resources/**/scripts/openspec-auto' \
-  'resources/**/scripts/lib/MANIFEST.json' \
-  'resources/**/agents/*.md')
+  'resources/*/skills/*/SKILL.md' \
+  'resources/*/agents/*.md' \
+  'resources/*/commands/*.md' \
+  'resources/*/commands/*/*.md' \
+  'resources/*/scripts/openspec-auto' \
+  'resources/*/scripts/lib/osc-*')
 
 if [[ -z "$STAGED_FILES" ]]; then
   write_version_state "ok" "[]"
@@ -33,6 +32,9 @@ if [[ -z "$STAGED_FILES" ]]; then
 fi
 
 declare -a FILE_PATHS=()
+declare -a RESOURCE_TYPES=()
+declare -a RESOURCE_NAMES=()
+declare -a FILE_PLATFORMS=()
 declare -a FILE_CURRENT=()
 declare -a FILE_PREVIOUS=()
 declare -a FILE_STATUS=()
@@ -40,28 +42,74 @@ declare -a FILE_ERRORS=()
 
 HAS_ERROR=0
 
-for file in $STAGED_FILES; do
-  CURRENT_CONTENT=$(git show ":$file" 2>/dev/null || echo "")
+declare -A MANIFEST_CACHE=()
+
+get_or_load_manifest() {
+  local platform="$1"
+  local which="$2"
   
-  case "$file" in
-    *.md) CURRENT_VERSION=$(get_version_yaml "$CURRENT_CONTENT") ;;
-    *.json) CURRENT_VERSION=$(get_version_json "$CURRENT_CONTENT") ;;
-    *) CURRENT_VERSION=$(get_version_bash "$CURRENT_CONTENT") ;;
+  local cache_key="$platform:$which"
+  if [[ -n "${MANIFEST_CACHE[$cache_key]:-}" ]]; then
+    echo "${MANIFEST_CACHE[$cache_key]}"
+    return
+  fi
+  
+  local manifest_file
+  case "$platform" in
+    opencode) manifest_file="$PROJECT_ROOT/resources/opencode/manifest.json" ;;
+    claude)   manifest_file="$PROJECT_ROOT/resources/claude/manifest.json" ;;
+    *) return ;;
   esac
   
-  if [[ -z "$CURRENT_VERSION" ]]; then
+  if [[ "$which" == "current" ]]; then
+    MANIFEST_CACHE[$cache_key]=$(cat "$manifest_file" 2>/dev/null || echo "{}")
+  else
+    if git show "HEAD:$manifest_file" &>/dev/null; then
+      MANIFEST_CACHE[$cache_key]=$(git show "HEAD:$manifest_file")
+    else
+      MANIFEST_CACHE[$cache_key]="{}"
+    fi
+  fi
+  
+  echo "${MANIFEST_CACHE[$cache_key]}"
+}
+
+for file in $STAGED_FILES; do
+  resource_info=$(get_resource_info_from_path "$file")
+  
+  if [[ -z "$resource_info" ]]; then
+    continue
+  fi
+  
+  platform=$(get_platform_for_path "$file")
+  if [[ -z "$platform" ]]; then
+    continue
+  fi
+  
+  IFS=':' read -r resource_type resource_name <<< "$resource_info"
+  
+  CURRENT_MANIFEST=$(get_or_load_manifest "$platform" "current")
+  current_version=$(get_resource_version "$CURRENT_MANIFEST" "$resource_type" "$resource_name")
+  
+  if [[ -z "$current_version" ]]; then
     FILE_PATHS+=("$file")
+    RESOURCE_TYPES+=("$resource_type")
+    RESOURCE_NAMES+=("$resource_name")
+    FILE_PLATFORMS+=("$platform")
     FILE_CURRENT+=("")
     FILE_PREVIOUS+=("")
     FILE_STATUS+=("error")
-    FILE_ERRORS+=("Could not extract version")
+    FILE_ERRORS+=("Resource '$resource_name' not found in $platform manifest")
     HAS_ERROR=1
     continue
   fi
   
-  if ! validate_semver "$CURRENT_VERSION" 2>/dev/null; then
+  if ! validate_semver "$current_version" 2>/dev/null; then
     FILE_PATHS+=("$file")
-    FILE_CURRENT+=("$CURRENT_VERSION")
+    RESOURCE_TYPES+=("$resource_type")
+    RESOURCE_NAMES+=("$resource_name")
+    FILE_PLATFORMS+=("$platform")
+    FILE_CURRENT+=("$current_version")
     FILE_PREVIOUS+=("")
     FILE_STATUS+=("error")
     FILE_ERRORS+=("Invalid version format")
@@ -69,34 +117,27 @@ for file in $STAGED_FILES; do
     continue
   fi
   
-  if git show "HEAD:$file" &>/dev/null; then
-    PREVIOUS_CONTENT=$(git show "HEAD:$file")
-    
-    case "$file" in
-      *.md) PREVIOUS_VERSION=$(get_version_yaml "$PREVIOUS_CONTENT") ;;
-      *.json) PREVIOUS_VERSION=$(get_version_json "$PREVIOUS_CONTENT") ;;
-      *) PREVIOUS_VERSION=$(get_version_bash "$PREVIOUS_CONTENT") ;;
-    esac
-    
-    if [[ "$CURRENT_VERSION" == "$PREVIOUS_VERSION" ]]; then
-      FILE_PATHS+=("$file")
-      FILE_CURRENT+=("$CURRENT_VERSION")
-      FILE_PREVIOUS+=("$PREVIOUS_VERSION")
-      FILE_STATUS+=("needs_bump")
-      FILE_ERRORS+=("")
-      HAS_ERROR=1
-    else
-      FILE_PATHS+=("$file")
-      FILE_CURRENT+=("$CURRENT_VERSION")
-      FILE_PREVIOUS+=("$PREVIOUS_VERSION")
-      FILE_STATUS+=("ok")
-      FILE_ERRORS+=("")
-    fi
+  PREVIOUS_MANIFEST=$(get_or_load_manifest "$platform" "previous")
+  previous_version=$(get_resource_version "$PREVIOUS_MANIFEST" "$resource_type" "$resource_name")
+  
+  if [[ -n "$previous_version" && "$current_version" == "$previous_version" ]]; then
+    FILE_PATHS+=("$file")
+    RESOURCE_TYPES+=("$resource_type")
+    RESOURCE_NAMES+=("$resource_name")
+    FILE_PLATFORMS+=("$platform")
+    FILE_CURRENT+=("$current_version")
+    FILE_PREVIOUS+=("$previous_version")
+    FILE_STATUS+=("needs_bump")
+    FILE_ERRORS+=("")
+    HAS_ERROR=1
   else
     FILE_PATHS+=("$file")
-    FILE_CURRENT+=("$CURRENT_VERSION")
-    FILE_PREVIOUS+=("")
-    FILE_STATUS+=("new")
+    RESOURCE_TYPES+=("$resource_type")
+    RESOURCE_NAMES+=("$resource_name")
+    FILE_PLATFORMS+=("$platform")
+    FILE_CURRENT+=("$current_version")
+    FILE_PREVIOUS+=("${previous_version:-}")
+    FILE_STATUS+=("ok")
     FILE_ERRORS+=("")
   fi
 done
@@ -172,7 +213,7 @@ build_files_json() {
       files_json+=","
     fi
     
-    files_json+="{\"path\":\"${FILE_PATHS[$i]}\",\"current_version\":\"${FILE_CURRENT[$i]}\",\"status\":\"${FILE_STATUS[$i]}\"}"
+    files_json+="{\"path\":\"${FILE_PATHS[$i]}\",\"platform\":\"${FILE_PLATFORMS[$i]}\",\"resource_type\":\"${RESOURCE_TYPES[$i]}\",\"resource_name\":\"${RESOURCE_NAMES[$i]}\",\"current_version\":\"${FILE_CURRENT[$i]}\",\"status\":\"${FILE_STATUS[$i]}\"}"
   done
   
   files_json+="]"
@@ -213,8 +254,8 @@ output_table() {
   echo "====================="
   echo ""
   
-  printf "%-50s  %-10s  %-15s\n" "File" "Current" "Status"
-  printf "%-50s  %-10s  %-15s\n" "$(printf '=%.0s' {1..50})" "$(printf '=%.0s' {1..10})" "$(printf '=%.0s' {1..15})"
+  printf "%-50s  %-20s  %-10s  %-15s\n" "File" "Resource" "Current" "Status"
+  printf "%-50s  %-20s  %-10s  %-15s\n" "$(printf '=%.0s' {1..50})" "$(printf '=%.0s' {1..20})" "$(printf '=%.0s' {1..10})" "$(printf '=%.0s' {1..15})"
   
   for i in "${!FILE_PATHS[@]}"; do
     local display_path="${FILE_PATHS[$i]}"
@@ -223,8 +264,9 @@ output_table() {
     fi
     
     local status_text="${FILE_STATUS[$i]}"
+    local resource_display="${RESOURCE_NAMES[$i]}"
     
-    printf "%-50s  %-10s  %-15s\n" "$display_path" "${FILE_CURRENT[$i]}" "$status_text"
+    printf "%-50s  %-20s  %-10s  %-15s\n" "$display_path" "$resource_display" "${FILE_CURRENT[$i]}" "$status_text"
   done
   
   echo ""

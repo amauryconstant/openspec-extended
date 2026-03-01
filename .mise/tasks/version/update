@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Bump version in all paired files for concepts needing updates"
+#MISE description="Bump version in manifest for resources needing updates"
 #USAGE flag "--dry-run" help="Show what would be updated without making changes"
 
 set -euo pipefail
@@ -17,78 +17,34 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-set_version_yaml() {
-  local file="$1"
-  local version="$2"
-  sed -i "s/^\(  version: *\)\".*\"/\1\"$version\"/" "$file"
+get_manifest_file_for_platform() {
+  local platform="$1"
+  case "$platform" in
+    opencode) echo "$PROJECT_ROOT/resources/opencode/manifest.json" ;;
+    claude)   echo "$PROJECT_ROOT/resources/claude/manifest.json" ;;
+    *) echo "" ;;
+  esac
 }
 
-set_version_bash() {
-  local file="$1"
-  local version="$2"
-  sed -i "s/^readonly SCRIPT_VERSION=\".*\"/readonly SCRIPT_VERSION=\"$version\"/" "$file"
-}
-
-declare -A CONCEPT_CONFIG=(
-  ["concepts"]="openspec-concepts:skill"
-  ["changelog"]="openspec-generate-changelog:skill"
-  ["maintain-docs"]="openspec-maintain-ai-docs:skill"
-  ["modify"]="openspec-modify-artifacts:skill"
-  ["review"]="openspec-review-artifacts:skill"
-  ["verify-tests"]="openspec-review-test-compliance:skill"
-  ["openspec-auto"]="openspec-auto:script"
-  ["openspec-analyzer"]="openspec-analyzer:agent"
-  ["openspec-builder"]="openspec-builder:agent"
-  ["openspec-maintainer"]="openspec-maintainer:agent"
-)
-
-get_files_for_concept() {
-  local concept="$1"
-  local config="${CONCEPT_CONFIG[$concept]:-}"
+bump_resource_version() {
+  local platform="$1"
+  local resource_type="$2"
+  local resource_name="$3"
+  local bump_type="$4"
   
-  if [[ -z "$config" ]]; then
-    return 1
-  fi
+  local manifest_file
+  manifest_file=$(get_manifest_file_for_platform "$platform")
   
-  IFS=':' read -r skill_dir file_type <<< "$config"
-  
-  if [[ "$file_type" == "skill" ]]; then
-    echo "resources/claude/skills/${skill_dir}/SKILL.md"
-    echo "resources/opencode/skills/${skill_dir}/SKILL.md"
-    echo "resources/claude/commands/opsx/${concept}.md"
-    echo "resources/opencode/commands/opsx-${concept}.md"
-  elif [[ "$file_type" == "script" ]]; then
-    echo "resources/claude/scripts/${skill_dir}"
-    echo "resources/opencode/scripts/${skill_dir}"
-  elif [[ "$file_type" == "agent" ]]; then
-    echo "resources/claude/agents/${skill_dir}.md"
-    echo "resources/opencode/agents/${skill_dir}.md"
-  fi
-}
-
-bump_concept() {
-  local concept="$1"
-  local bump_type="$2"
-  
-  if [[ -z "${CONCEPT_CONFIG[$concept]:-}" ]]; then
-    echo "Error: Unknown concept: $concept" >&2
-    return 1
-  fi
-  
-  local files
-  mapfile -t files < <(get_files_for_concept "$concept")
-  
-  local first_file="${files[0]}"
-  if [[ ! -f "$first_file" ]]; then
-    echo "Error: File not found: $first_file" >&2
+  if [[ -z "$manifest_file" || ! -f "$manifest_file" ]]; then
+    echo "Error: Manifest not found for platform '$platform'" >&2
     return 1
   fi
   
   local current_version
-  current_version=$(get_version_from_file "$first_file")
+  current_version=$(get_resource_version "$(cat "$manifest_file")" "$resource_type" "$resource_name")
   
   if [[ -z "$current_version" ]]; then
-    echo "Error: Could not extract version from $first_file" >&2
+    echo "Error: Resource '$resource_name' not found in $platform manifest" >&2
     return 1
   fi
   
@@ -99,29 +55,15 @@ bump_concept() {
   local new_version
   new_version=$(bump_version "$current_version" "$bump_type")
   
-  echo "  $concept: $current_version → $new_version"
+  echo "  [$platform] $resource_name: $current_version → $new_version"
   
   if [[ "$DRY_RUN" == "true" ]]; then
-    for file in "${files[@]}"; do
-      if [[ -f "$file" ]]; then
-        echo "    ✓ $file (dry-run)"
-      fi
-    done
+    echo "    ✓ $resource_type/$resource_name (dry-run)"
     return 0
   fi
   
-  local updated=0
-  for file in "${files[@]}"; do
-    if [[ -f "$file" ]]; then
-      if [[ "$file" == *.md ]]; then
-        set_version_yaml "$file" "$new_version"
-      else
-        set_version_bash "$file" "$new_version"
-      fi
-      echo "    ✓ $file"
-      updated=$((updated + 1))
-    fi
-  done
+  set_resource_version "$manifest_file" "$resource_type" "$resource_name" "$new_version"
+  echo "    ✓ $resource_type/$resource_name"
   
   return 0
 }
@@ -143,46 +85,49 @@ if [[ "$STATE_FILES" == "[]" ]]; then
   exit 1
 fi
 
-declare -A CONCEPT_BUMPS=()
+declare -A RESOURCE_BUMPS=()
 
 while IFS= read -r file_entry; do
   [[ -z "$file_entry" ]] && continue
   
-  path=$(echo "$file_entry" | jq -r '.path')
-  status=$(echo "$file_entry" | jq -r '.status')
+  platform=$(echo "$file_entry" | jq -r '.platform // empty')
+  resource_type=$(echo "$file_entry" | jq -r '.resource_type // empty')
+  resource_name=$(echo "$file_entry" | jq -r '.resource_name // empty')
+  status=$(echo "$file_entry" | jq -r '.status // empty')
+  
+  if [[ -z "$platform" || -z "$resource_type" || -z "$resource_name" ]]; then
+    continue
+  fi
   
   if [[ ! "$status" =~ ^needs_(patch|minor|major)$ ]]; then
     continue
   fi
   
-  concept=$(get_concept_from_path "$path")
-  if [[ -z "$concept" ]]; then
-    echo "Warning: Could not determine concept for $path" >&2
-    continue
-  fi
-  
   bump_type=$(echo "$status" | sed 's/needs_//')
   
-  existing="${CONCEPT_BUMPS[$concept]:-}"
+  resource_key="$platform:$resource_type:$resource_name"
+  existing="${RESOURCE_BUMPS[$resource_key]:-}"
+  
   if [[ -z "$existing" ]]; then
-    CONCEPT_BUMPS[$concept]="$bump_type"
+    RESOURCE_BUMPS[$resource_key]="$bump_type"
   else
-    CONCEPT_BUMPS[$concept]=$(highest_bump_type "$existing $bump_type")
+    RESOURCE_BUMPS[$resource_key]=$(highest_bump_type "$existing $bump_type")
   fi
 done < <(echo "$STATE_FILES" | jq -c '.[]')
 
-if [[ ${#CONCEPT_BUMPS[@]} -eq 0 ]]; then
-  echo "No concepts need version bumps"
+if [[ ${#RESOURCE_BUMPS[@]} -eq 0 ]]; then
+  echo "No resources need version bumps"
   exit 0
 fi
 
-echo "Executing version bumps:"
+echo "Executing version bumps in manifests:"
 echo ""
 
-for concept in "${!CONCEPT_BUMPS[@]}"; do
-  bump_type="${CONCEPT_BUMPS[$concept]}"
-  bump_concept "$concept" "$bump_type"
+for resource_key in "${!RESOURCE_BUMPS[@]}"; do
+  IFS=':' read -r platform resource_type resource_name <<< "$resource_key"
+  bump_type="${RESOURCE_BUMPS[$resource_key]}"
+  bump_resource_version "$platform" "$resource_type" "$resource_name" "$bump_type"
 done
 
 echo ""
-echo "Done. Commit the version changes."
+echo "Done. Commit the manifest changes."

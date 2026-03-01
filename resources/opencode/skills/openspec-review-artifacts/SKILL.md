@@ -3,9 +3,6 @@ name: openspec-review-artifacts
 description: Review OpenSpec artifacts for feasibility, correctness, completeness, and implementation-readiness. Use BEFORE implementation to validate the plan is sound, or during artifact creation to check quality. Part of pre-implementation workflow: review-artifacts → modify-artifacts → apply.
 license: MIT
 compatibility: Requires openspec CLI.
-metadata:
-  author: openspec-extended
-  version: "0.2.3"
 ---
 
 Review OpenSpec artifacts for feasibility, correctness, completeness, and implementation-readiness.

@@ -1,8 +1,6 @@
 ---
 description: PHASE6 - Self-Reflection
 agent: openspec-analyzer
-metadata:
-   version: "0.2.2"
 ---
 
 ## Tools Available

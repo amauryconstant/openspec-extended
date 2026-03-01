@@ -1,8 +1,6 @@
 ---
 description: PHASE4 - Sync Specs
 agent: openspec-maintainer
-metadata:
-   version: "0.2.3"
 ---
 
 ## Tools Available

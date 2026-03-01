@@ -2,9 +2,6 @@
 name: openspec-maintain-ai-docs
 description: Update CLAUDE.md after implementing an OpenSpec change. Use between sync and archive to document what was built for future Claude Code sessions.
 license: MIT
-metadata:
-  author: openspec-extended
-  version: "0.2.0"
 ---
 
 Update project documentation after implementing an OpenSpec change.

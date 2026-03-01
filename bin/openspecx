@@ -1,5 +1,5 @@
 #!/bin/bash
-# OpenSpec-extended - Simplified installer for OpenSpec skills
+# OpenSpec-extended - Installer for OpenSpec resources
 # Usage: openspecx <install|update> <tool>
 
 set -euo pipefail
@@ -10,6 +10,7 @@ readonly RESOURCES_DIR="$SCRIPT_DIR/../resources"
 
 readonly COLOR_GREEN='\033[0;32m'
 readonly COLOR_RED='\033[0;31m'
+readonly COLOR_YELLOW='\033[0;33m'
 readonly COLOR_RESET='\033[0m'
 
 declare -A TOOL_DIRS=(
@@ -25,87 +26,18 @@ log_error() {
     echo -e "${COLOR_RED}✗${COLOR_RESET} $*" >&2
 }
 
-validate_version() {
-    local version="$1"
-    local file="$2"
-    
-    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-        log_error "Invalid version format in $file: '$version' (expected semver: X.Y or X.Y.Z)"
-        exit 1
-    fi
+log_warn() {
+    echo -e "${COLOR_YELLOW}!${COLOR_RESET} $*"
 }
 
-get_script_version() {
-    local version
-    version=$(git -C "$SCRIPT_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "")
-    if [[ -n "$version" ]]; then
-        echo "$version"
-    else
-        echo "No version found"
-    fi
+get_git_tag() {
+    git -C "$SCRIPT_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.0"
 }
 
-inject_generated_by() {
-    local file="$1"
-    local version="$2"
-    
-    if [[ ! -f "$file" ]]; then
-        return
-    fi
-    
-    local content
-    content=$(cat "$file")
-    
-    if ! echo "$content" | head -1 | grep -q "^---$"; then
-        return
-    fi
-    
-    local existing_version
-    existing_version=$(echo "$content" | grep -E "^version:" | head -1 | sed 's/version: *"\?//' | sed 's/"\?$//' || true)
-    if [[ -n "$existing_version" ]]; then
-        validate_version "$existing_version" "$file"
-    fi
-    
-    local metadata_version
-    metadata_version=$(echo "$content" | grep -E "^  version:" | head -1 | sed 's/  version: *"\?//' | sed 's/"\?$//' || true)
-    if [[ -n "$metadata_version" ]]; then
-        validate_version "$metadata_version" "$file"
-    fi
-    
-    content=$(echo "$content" | sed '/^generatedBy:/d')
-    
-    if echo "$content" | grep -q "^metadata:"; then
-        if echo "$content" | grep -q "^  generatedBy:"; then
-            content=$(echo "$content" | sed "s/^  generatedBy: \".*\"/  generatedBy: \"$version\"/")
-        else
-            content=$(echo "$content" | sed "/^metadata:/a\\  generatedBy: \"$version\"")
-        fi
-    else
-        local frontmatter_end
-        frontmatter_end=$(echo "$content" | grep -n "^---$" | head -2 | tail -1 | cut -d: -f1)
-        if [[ -n "$frontmatter_end" ]] && [[ "$frontmatter_end" -gt 1 ]]; then
-            local insert_line=$((frontmatter_end - 1))
-            local tmp_file
-            tmp_file=$(mktemp)
-            echo "$content" | head -n "$insert_line" > "$tmp_file"
-            {
-                echo "metadata:"
-                echo "  generatedBy: \"$version\""
-            } >> "$tmp_file"
-            echo "$content" | tail -n +$((insert_line + 1)) >> "$tmp_file"
-            content=$(cat "$tmp_file")
-            rm -f "$tmp_file"
-        fi
-    fi
-    
-    echo "$content" > "$file"
-}
-
-copy_and_process_skills() {
+copy_skills() {
     local source_dir="$1"
     local target_dir="$2"
-    local version="$3"
-    local force="$4"
+    local force="$3"
     
     local processed_count=0
     local skipped_count=0
@@ -117,28 +49,16 @@ copy_and_process_skills() {
         
         if [[ "$force" == "true" ]]; then
             cp -r "$skill_dir" "$target_dir/"
-            
-            local skill_file="$target_skill_dir/SKILL.md"
-            if [[ -f "$skill_file" ]]; then
-                inject_generated_by "$skill_file" "$version"
-            fi
-            
             processed_count=$((processed_count + 1))
         else
             if [[ -d "$target_skill_dir" ]]; then
                 skipped_count=$((skipped_count + 1))
             else
                 cp -r "$skill_dir" "$target_dir/"
-                
-                local skill_file="$target_skill_dir/SKILL.md"
-                if [[ -f "$skill_file" ]]; then
-                    inject_generated_by "$skill_file" "$version"
-                fi
-                
                 processed_count=$((processed_count + 1))
             fi
         fi
-    done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d -print0)
+    done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
     
     echo "$processed_count:$skipped_count"
 }
@@ -147,8 +67,8 @@ show_usage() {
     log_error "Usage: openspecx <command> <tool> [--with-core]"
     echo
     echo "Commands:"
-    echo "  install <tool>  Add missing skills (skip existing)"
-    echo "  update <tool>   Force update all skills (overwrite existing)"
+    echo "  install <tool>  Add missing resources (skip existing)"
+    echo "  update <tool>   Force update all resources (overwrite existing)"
     echo
     echo "Available tools: opencode, claude"
     echo
@@ -227,6 +147,46 @@ deploy_core() {
     fi
 }
 
+validate_deployment() {
+    local target_dir="$1"
+    local manifest="$2"
+    local warnings=0
+    
+    if [[ ! -d "$target_dir" ]]; then
+        return 0
+    fi
+    
+    local resource_names
+    resource_names=$(echo "$manifest" | jq -r '.resources | to_entries[] | .value | keys[]' 2>/dev/null | sort -u || true)
+    
+    for resource_name in $resource_names; do
+        local found=false
+        
+        if [[ -d "$target_dir/skills/$resource_name" ]]; then
+            found=true
+        elif [[ -f "$target_dir/agents/$resource_name.md" ]]; then
+            found=true
+        elif [[ -f "$target_dir/commands/$resource_name.md" ]]; then
+            found=true
+        elif [[ -f "$target_dir/commands/opsx/${resource_name#opsx-}.md" ]]; then
+            found=true
+        elif [[ -f "$target_dir/scripts/$resource_name" ]]; then
+            found=true
+        elif [[ -f "$target_dir/scripts/lib/$resource_name" ]]; then
+            found=true
+        fi
+        
+        if [[ "$found" == "false" ]]; then
+            log_warn "Resource '$resource_name' in manifest but not deployed"
+            warnings=$((warnings + 1))
+        fi
+    done
+    
+    if [[ $warnings -gt 0 ]]; then
+        echo "  Validation: $warnings warning(s)"
+    fi
+}
+
 if [[ $# -lt 2 ]]; then
     show_usage
     exit 1
@@ -266,30 +226,31 @@ if [[ -z "${TOOL_DIRS[$TOOL]:-}" ]]; then
     exit 1
 fi
 
-SCRIPT_VERSION=$(get_script_version)
+GIT_VERSION=$(get_git_tag)
 TARGET_DIR="${TOOL_DIRS[$TOOL]}"
 FULL_PATH="$(pwd)/$TARGET_DIR"
+SOURCE_MANIFEST="$RESOURCES_DIR/$TOOL/manifest.json"
 
 mkdir -p "$FULL_PATH/skills"
 
 if [[ -d "$RESOURCES_DIR/$TOOL/skills" ]]; then
     if [[ "$COMMAND" == "update" ]]; then
-        RESULT=$(copy_and_process_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH/skills" "$SCRIPT_VERSION" "true")
+        RESULT=$(copy_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH/skills" "true")
         UPDATED_COUNT="${RESULT%%:*}"
         
         if [[ $UPDATED_COUNT -gt 0 ]]; then
-            log_success "Updated $UPDATED_COUNT skill(s) in $TOOL (v$SCRIPT_VERSION)"
+            log_success "Updated $UPDATED_COUNT skill(s) in $TOOL (v$GIT_VERSION)"
             echo "  Target: $TARGET_DIR/skills"
         else
             echo "No skills found in resources/$TOOL/skills/"
         fi
     else
-        RESULT=$(copy_and_process_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH/skills" "$SCRIPT_VERSION" "false")
+        RESULT=$(copy_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH/skills" "false")
         INSTALLED_COUNT="${RESULT%%:*}"
         SKIPPED_COUNT="${RESULT##*:}"
         
         if [[ $INSTALLED_COUNT -gt 0 ]]; then
-            log_success "Installed $INSTALLED_COUNT skill(s) to $TOOL (v$SCRIPT_VERSION)"
+            log_success "Installed $INSTALLED_COUNT skill(s) to $TOOL (v$GIT_VERSION)"
             echo "  Target: $TARGET_DIR/skills"
         fi
         
@@ -309,23 +270,27 @@ COMMANDS_DIR="$FULL_PATH/commands"
 if [[ -d "$RESOURCES_DIR/$TOOL/commands" ]]; then
     mkdir -p "$COMMANDS_DIR"
     
-    COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
-    if [[ $COMMAND_COUNT -gt 0 ]]; then
-        cp -r "$RESOURCES_DIR/$TOOL/commands"/*.md "$COMMANDS_DIR/"
-        
-        # Inject generatedBy into each command file
-        for cmd_file in "$COMMANDS_DIR"/*.md; do
-            if [[ -f "$cmd_file" ]]; then
-                inject_generated_by "$cmd_file" "$SCRIPT_VERSION"
-            fi
-        done
-        
-        log_success "Copied $COMMAND_COUNT command(s) to $TOOL (v$SCRIPT_VERSION)"
+    FLAT_COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
+    if [[ $FLAT_COMMAND_COUNT -gt 0 ]]; then
+        cp -f "$RESOURCES_DIR/$TOOL/commands"/*.md "$COMMANDS_DIR/"
+        log_success "Copied $FLAT_COMMAND_COUNT command(s) to $TOOL"
         echo "  Target: $TARGET_DIR/commands/"
     fi
+    
+    for subdir in "$RESOURCES_DIR/$TOOL/commands"/*/; do
+        if [[ -d "$subdir" ]]; then
+            subdir_name=$(basename "$subdir")
+            NESTED_COMMAND_COUNT=$(find "$subdir" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
+            if [[ $NESTED_COMMAND_COUNT -gt 0 ]]; then
+                mkdir -p "$COMMANDS_DIR/$subdir_name"
+                cp -f "$subdir"*.md "$COMMANDS_DIR/$subdir_name/"
+                log_success "Copied $NESTED_COMMAND_COUNT command(s) to $TOOL/$subdir_name"
+                echo "  Target: $TARGET_DIR/commands/$subdir_name/"
+            fi
+        fi
+    done
 fi
 
-# Handle scripts
 SCRIPTS_DIR="$FULL_PATH/scripts"
 if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
     mkdir -p "$SCRIPTS_DIR"
@@ -334,9 +299,7 @@ if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
     if [[ $SCRIPT_COUNT -gt 0 ]]; then
         if [[ "$COMMAND" == "update" ]]; then
             find "$RESOURCES_DIR/$TOOL/scripts" -mindepth 1 -maxdepth 1 -type f -exec cp -f {} "$SCRIPTS_DIR/" \;
-            # Ensure shell scripts are executable
             find "$SCRIPTS_DIR" -type f -name "*.sh" -exec chmod +x {} \;
-            # Ensure openspec-auto is executable (no .sh extension)
             if [[ -f "$SCRIPTS_DIR/openspec-auto" ]]; then
                 chmod +x "$SCRIPTS_DIR/openspec-auto"
             fi
@@ -348,11 +311,9 @@ if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
                 script_name=$(basename "$script_file")
                 if [[ ! -f "$SCRIPTS_DIR/$script_name" ]]; then
                     cp "$script_file" "$SCRIPTS_DIR/"
-                    # Set executable for shell scripts
                     if [[ "$script_name" == *.sh ]]; then
                         chmod +x "$SCRIPTS_DIR/$script_name"
                     fi
-                    # Set executable for openspec-auto
                     if [[ "$script_name" == "openspec-auto" ]]; then
                         chmod +x "$SCRIPTS_DIR/$script_name"
                     fi
@@ -367,20 +328,13 @@ if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
         fi
     fi
     
-    # Handle scripts/lib subdirectory (helper utilities)
     if [[ -d "$RESOURCES_DIR/$TOOL/scripts/lib" ]]; then
         mkdir -p "$SCRIPTS_DIR/lib"
         LIB_COUNT=$(find "$RESOURCES_DIR/$TOOL/scripts/lib" -mindepth 1 -maxdepth 1 -type f -name "osc-*" 2>/dev/null | wc -l)
         
         if [[ $LIB_COUNT -gt 0 ]]; then
-            # Copy lib scripts
             cp -f "$RESOURCES_DIR/$TOOL/scripts/lib"/osc-* "$SCRIPTS_DIR/lib/"
             chmod +x "$SCRIPTS_DIR/lib"/osc-*
-            
-            # Copy MANIFEST.json if exists
-            if [[ -f "$RESOURCES_DIR/$TOOL/scripts/lib/MANIFEST.json" ]]; then
-                cp -f "$RESOURCES_DIR/$TOOL/scripts/lib/MANIFEST.json" "$SCRIPTS_DIR/lib/"
-            fi
             
             log_success "Deployed $LIB_COUNT lib script(s) to $TOOL"
             echo "  Target: $TARGET_DIR/scripts/lib/"
@@ -388,8 +342,6 @@ if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
     fi
 fi
 
-# Handle agents directory (for phase-specific agent definitions with embedded workflows)
-# Always copy agents on install/update since they're definitions that may have been updated
 AGENTS_SOURCE="$RESOURCES_DIR/$TOOL/agents"
 AGENTS_TARGET="$FULL_PATH/agents"
 if [[ -d "$AGENTS_SOURCE" ]]; then
@@ -398,20 +350,19 @@ if [[ -d "$AGENTS_SOURCE" ]]; then
     
     if [[ $AGENT_COUNT -gt 0 ]]; then
         cp -f "$AGENTS_SOURCE"/*.md "$AGENTS_TARGET/"
-        
-        # Inject generatedBy into each agent file
-        for agent_file in "$AGENTS_TARGET"/*.md; do
-            if [[ -f "$agent_file" ]]; then
-                inject_generated_by "$agent_file" "$SCRIPT_VERSION"
-            fi
-        done
-        
-        log_success "Copied $AGENT_COUNT agent definition(s) to $TOOL (v$SCRIPT_VERSION)"
+        log_success "Copied $AGENT_COUNT agent definition(s) to $TOOL"
         echo "  Target: $TARGET_DIR/agents/"
     fi
 fi
 
-# Update .gitignore if openspec-auto was installed
+TARGET_MANIFEST="$FULL_PATH/manifest.json"
+if [[ -f "$SOURCE_MANIFEST" ]]; then
+    jq --arg v "$GIT_VERSION" '.version = $v' "$SOURCE_MANIFEST" > "$TARGET_MANIFEST"
+    log_success "Copied manifest to $TARGET_DIR/manifest.json (v$GIT_VERSION)"
+    
+    validate_deployment "$FULL_PATH" "$(cat "$SOURCE_MANIFEST")"
+fi
+
 if [[ -f "$SCRIPTS_DIR/openspec-auto" ]]; then
     if [[ "$COMMAND" == "update" ]]; then
         update_gitignore "true"
@@ -420,7 +371,6 @@ if [[ -f "$SCRIPTS_DIR/openspec-auto" ]]; then
     fi
 fi
 
-# Deploy core skills if requested
 if [[ "$WITH_CORE" == "true" ]]; then
     deploy_core "$TOOL"
 fi

@@ -1,9 +1,6 @@
 ---
 description: Review test coverage for OpenSpec changes to ensure spec requirements have tests
 license: MIT
-metadata:
-  author: openspec-extended
-  version: "0.2.0"
 ---
 
 Review test coverage for OpenSpec changes, ensuring spec requirements have corresponding tests.

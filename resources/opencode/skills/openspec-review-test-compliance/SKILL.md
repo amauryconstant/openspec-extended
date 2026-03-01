@@ -3,9 +3,6 @@ name: openspec-review-test-compliance
 description: Analyze spec-to-test alignment for OpenSpec changes. Use after implementation to identify test gaps, verify coverage of spec requirements, or understand test/spec alignment. Performs semantic matching between spec scenarios and test implementations.
 license: MIT
 compatibility: Requires openspec CLI.
-metadata:
-  author: openspec-extended
-  version: "0.2.0"
 ---
 
 Analyze spec-to-test alignment to identify missing test coverage for OpenSpec changes.
