@@ -1,0 +1,69 @@
+# Design: Hello Script
+
+## Overview
+
+A simple bash script that prints a greeting message with optional name customization. The script demonstrates proper bash scripting conventions used in this project.
+
+## Implementation Details
+
+### Location
+- Path: `scripts/hello.sh`
+
+### Structure
+
+```bash
+#!/usr/bin/env bash
+# Brief description of the script
+
+set -euo pipefail
+
+# Constants
+readonly SCRIPT_NAME=$(basename "$0")
+readonly DEFAULT_NAME="World"
+
+# Functions
+usage() { ... }
+main() { ... }
+
+main "$@"
+```
+
+### Interface
+
+```
+Usage: hello.sh [OPTIONS]
+
+Options:
+  --name NAME    Greet specific name (default: World)
+  --help         Show this help message
+
+Examples:
+  hello.sh                    # Output: Hello, World!
+  hello.sh --name Alice       # Output: Hello, Alice!
+```
+
+### Argument Parsing
+
+- Parse `--name NAME` to customize greeting
+- Parse `--help` to show usage
+- Ignore unknown arguments (or exit with error)
+
+### Output Format
+
+Single line output to stdout:
+```
+Hello, {NAME}!
+```
+
+### Error Handling
+
+- Exit 0 on success
+- Exit 1 on error (invalid arguments, etc.)
+- Error messages to stderr
+
+### Code Quality
+
+- Follow project bash style guide
+- Use `readonly` for constants
+- Use `local` for function variables
+- Include brief header comment

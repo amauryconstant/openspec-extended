@@ -11,6 +11,7 @@ description = "Run unit and integration tests"
 run = [
     { task="test:unit"},
     { task="test:integration"},
+    { task="test:mechanism"},
 ]
 
 [tasks."test:unit"]
@@ -20,3 +21,12 @@ run = "bats tests/unit"
 [tasks."test:integration"]
 description = "Run integration tests"
 run = "bats tests/integration"
+
+[tasks."test:mechanism"]
+description = "Run E2E mechanism tests (no AI calls)"
+run = "bats tests/e2e/mechanism.bats"
+
+[tasks."test:e2e"]
+description = "Run all E2E tests (requires E2E_CONFIRM=1)"
+run = "E2E_CONFIRM=1 bats tests/e2e"
+

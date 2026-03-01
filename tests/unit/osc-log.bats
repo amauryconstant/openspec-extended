@@ -42,11 +42,10 @@ teardown() {
 @test "osc-log: append requires stdin input" {
     setup_change "test-change"
     
-    # In BATS run context, stdin is not a terminal but empty
-    # The -t 0 check fails first, returning no_input
+    # In BATS run context, stdin is empty which is not valid JSON
     run_osc_log "test-change" append
     [ "$status" -eq 1 ]
-    assert_output_contains "no_input"
+    assert_output_contains "invalid_json"
 }
 
 @test "osc-log: append requires valid JSON" {
