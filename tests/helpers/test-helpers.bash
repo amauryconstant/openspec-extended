@@ -300,3 +300,66 @@ assert_json_array_length() {
         return 1
     fi
 }
+
+# Assert current phase equals expected
+assert_phase_equals() {
+    local change="$1"
+    local expected_phase="$2"
+    
+    local actual
+    actual=$("$LIB_DIR/osc-state" "$change" get 2>/dev/null | jq -r '.phase')
+    
+    if [[ "$actual" != "$expected_phase" ]]; then
+        echo "Expected phase to be '$expected_phase', got '$actual'"
+        return 1
+    fi
+}
+
+# Assert change is marked complete
+assert_change_complete() {
+    local change="$1"
+    
+    if [[ ! -f "openspec/changes/$change/complete.json" ]]; then
+        echo "Change '$change' is not complete (complete.json missing)"
+        return 1
+    fi
+    
+    local status
+    status=$(jq -r '.status' "openspec/changes/$change/complete.json")
+    
+    if [[ "$status" != "COMPLETE" ]]; then
+        echo "Change '$change' status is '$status', expected 'COMPLETE'"
+        return 1
+    fi
+}
+
+# Setup a complete change with all artifacts
+setup_full_change() {
+    local change="${1:-test-change}"
+    local change_dir="openspec/changes/$change"
+    
+    mkdir -p "$change_dir/specs"
+    
+    echo "# Proposal for $change" > "$change_dir/proposal.md"
+    echo "# Design for $change" > "$change_dir/design.md"
+    echo "# Tasks for $change" > "$change_dir/tasks.md"
+    echo "# Spec for $change" > "$change_dir/specs/spec.md"
+    
+    cat > "$change_dir/state.json" <<EOF
+{
+  "phase": "PHASE0",
+  "iteration": 0,
+  "phase_complete": false
+}
+EOF
+}
+
+# Run through all phases from PHASE0 to COMPLETE
+run_full_phase_cycle() {
+    local change="$1"
+    
+    for phase in PHASE0 PHASE1 PHASE2 PHASE3 PHASE4 PHASE5 PHASE6; do
+        "$LIB_DIR/osc-state" "$change" complete >/dev/null 2>&1 || true
+        "$LIB_DIR/osc-phase" "$change" advance >/dev/null 2>&1 || true
+    done
+}

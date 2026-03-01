@@ -14,3 +14,10 @@ repos:
         language: system
         files: ^resources/(.*/SKILL\.md|claude/commands/opsx/.*\.md|opencode/commands/opsx-.*\.md|.*/scripts/openspec-auto|.*/agents/.*\.md)$
         pass_filenames: false
+
+      - id: test
+        name: Test the openspec-auto script and its dependencies
+        entry: mise run test
+        language: system
+        files: ^resources/opencode/scripts/
+        pass_filenames: false

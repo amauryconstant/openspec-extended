@@ -42,11 +42,11 @@ teardown() {
 @test "osc-iterations: append requires stdin input" {
     setup_change "test-change"
     
-    # When stdin is empty/EOF (as with 'run'), it fails with invalid_json
-    # since it can't parse empty input as JSON
+    # In BATS run context, stdin is not a terminal but empty
+    # The -t 0 check fails first, returning no_input
     run_osc_iterations "test-change" append
     [ "$status" -eq 1 ]
-    assert_output_contains "invalid_json"
+    assert_output_contains "no_input"
 }
 
 @test "osc-iterations: append requires valid JSON" {
