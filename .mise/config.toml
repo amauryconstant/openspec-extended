@@ -28,5 +28,5 @@ run = "bats tests/e2e/mechanism.bats"
 
 [tasks."test:e2e"]
 description = "Run all E2E tests (requires E2E_CONFIRM=1)"
-run = "E2E_CONFIRM=1 bats tests/e2e"
+run = "E2E_CONFIRM=1 bats tests/e2e/full-workflow.bats"
 
