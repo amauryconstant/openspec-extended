@@ -15,7 +15,7 @@ teardown() {
 @test "mechanism: --version returns version string" {
     run_openspec_auto --version
     [ "$status" -eq 0 ]
-    [[ "$output" =~ ^0\.7\.1$ ]]
+    [[ "$output" =~ ^0\.7\.2$ ]]
 }
 
 @test "mechanism: --help shows usage with all options" {

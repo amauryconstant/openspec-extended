@@ -44,10 +44,11 @@ Ensure OpenSpec artifacts are excellent before implementation. Validate:
    - **SUGGESTION**: Nice to have, non-blocking
 
 4. IF CRITICAL or WARNING issues found:
-   a. For each issue, use `openspec-modify-artifacts` skill to fix it
+   **YOU MUST FIX THEM IMMEDIATELY IN THIS SAME INVOCATION - DO NOT WAIT FOR NEXT ITERATION**
+   a. For each issue, use `openspec-modify-artifacts` skill to fix it NOW
    b. Track iteration via `osc-log` and `osc-iterations`
-   c. After fixing all CRITICAL/WARNING issues, re-run review
-   d. Repeat until clean or max iterations (5) reached
+   c. After fixing all CRITICAL/WARNING issues, re-run review to verify fixes
+   d. Only report "Recommendation: Fix issues" if you are UNABLE to fix them
 
 5. IF CLEAN (no CRITICAL or WARNING issues):
    a. Log completion via `osc-log`

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # OpenSpec Autonomous Workflow Orchestrator
-# Version: 0.7.1
+# Version: 0.7.2
 # Usage: openspec-auto <change-name> [options]
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.7.1"
+readonly SCRIPT_VERSION="0.7.2"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -679,7 +679,7 @@ advance_phase() {
   local current="$1"
   
   local result
-  result=$("$SCRIPT_DIR/lib/osc-phase" "$CHANGE_ID" next 2>/dev/null)
+  result=$("$SCRIPT_DIR/lib/osc-phase" "$CHANGE_ID" advance 2>/dev/null)
   
   if [[ -n "$result" ]]; then
     echo "$result" | jq -r '.next // "COMPLETE"'
