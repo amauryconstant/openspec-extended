@@ -85,7 +85,7 @@ advance_phase() {
     local updated_json
     updated_json=$(jq \
         --arg phase "$next_phase" \
-        --argjson iteration 0 \
+        --argjson iteration 1 \
         --argjson phase_complete false \
         --arg ts "$timestamp" \
         '.phase = $phase | .iteration = $iteration | .phase_complete = $phase_complete | .last_updated = $ts' \
@@ -96,7 +96,7 @@ advance_phase() {
     local next_next
     next_next=$(get_next_phase "$next_phase")
     
-    echo "{\"phase\":\"$next_phase\",\"previous\":\"$current_phase\",\"next\":\"$next_next\",\"iteration\":0}"
+    echo "{\"phase\":\"$next_phase\",\"previous\":\"$current_phase\",\"next\":\"$next_next\",\"iteration\":1}"
 }
 
 case "$ACTION" in

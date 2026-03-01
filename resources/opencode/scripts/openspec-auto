@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # OpenSpec Autonomous Workflow Orchestrator
-# Version: 0.7.0
+# Version: 0.7.1
 # Usage: openspec-auto <change-name> [options]
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.7.0"
+readonly SCRIPT_VERSION="0.7.1"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -601,7 +601,6 @@ run_agent() {
     return 0
   fi
   
-  TOTAL_INVOCATIONS=$((TOTAL_INVOCATIONS + 1))
   log "Agent invocation #$TOTAL_INVOCATIONS for $phase"
   
   local cmd_name="${PHASE_COMMANDS[$phase]}"
@@ -655,6 +654,8 @@ run_phase() {
   local iteration=1
   
   while [[ $iteration -le $MAX_ITERATIONS ]] || [[ $MAX_ITERATIONS -eq -1 ]]; do
+    TOTAL_INVOCATIONS=$((TOTAL_INVOCATIONS + 1))
+    log "Agent invocation #$TOTAL_INVOCATIONS for $phase"
     write_state "$phase" "$iteration"
     
     if ! run_agent "$phase"; then
@@ -948,13 +949,11 @@ main() {
     if [[ "$started" == false ]] && [[ -n "$FROM_PHASE" ]]; then
       current_phase="$FROM_PHASE"
       log "Starting from phase: $current_phase - ${PHASE_NAMES[$current_phase]}"
-      write_state "$current_phase" "0"
       started=true
     elif current_phase=$(get_current_phase); then
       : 
     else
       current_phase="PHASE0"
-      write_state "PHASE0" "0"
     fi
     
     if check_complete; then
@@ -1017,7 +1016,6 @@ main() {
         
         local next_phase
         next_phase=$(advance_phase "$current_phase")
-        write_state "$next_phase" "0"
         log "Phase transition: $current_phase → $next_phase"
         current_phase="$next_phase"
         ;;
