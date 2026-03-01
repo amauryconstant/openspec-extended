@@ -1,6 +1,19 @@
 [tools]
 shellcheck = "latest"
 pre-commit = {version = "latest", postinstall = "pre-commit install"}
+bats = "latest"
 
 [hooks]
 postinstall="mise run sync-core"
+
+[tasks.test]
+description = "Run unit tests"
+run = "bats tests/unit"
+
+[tasks."test:all"]
+description = "Run all tests"
+run = "bats tests"
+
+[tasks."test:coverage"]
+description = "Run tests with coverage"
+run = "bats tests --tap | tap-coverage"
