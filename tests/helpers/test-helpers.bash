@@ -20,6 +20,11 @@ setup_test_env() {
     git config user.email "test@test.com"
     git config user.name "Test User"
     
+    # Create initial commit so git rev-parse HEAD works
+    echo "# Test repo" > README.md
+    git add README.md
+    git commit -q -m "Initial commit"
+    
     export LIB_DIR
     export FIXTURES_DIR
 }
@@ -147,4 +152,151 @@ run_osc_git() {
 # Run osc-ctx with test environment
 run_osc_ctx() {
     run "$LIB_DIR/osc-ctx" "$@"
+}
+
+# Run osc-validate with test environment
+run_osc_validate() {
+    run "$LIB_DIR/osc-validate" "$@"
+}
+
+# Run osc-phase with test environment
+run_osc_phase() {
+    run "$LIB_DIR/osc-phase" "$@"
+}
+
+# Run osc-baseline with test environment
+run_osc_baseline() {
+    run "$LIB_DIR/osc-baseline" "$@"
+}
+
+# Run osc-complete with test environment
+run_osc_complete() {
+    run "$LIB_DIR/osc-complete" "$@"
+}
+
+# Setup .opencode/skills directory with required skills
+setup_skills_dir() {
+    local skills_dir=".opencode/skills"
+    mkdir -p "$skills_dir"
+    
+    local skills=(
+        "openspec-concepts"
+        "openspec-review-artifacts"
+        "openspec-modify-artifacts"
+        "openspec-apply-change"
+        "openspec-review-test-compliance"
+        "openspec-verify-change"
+        "openspec-maintain-ai-docs"
+        "openspec-sync-specs"
+        "openspec-archive-change"
+    )
+    
+    for skill in "${skills[@]}"; do
+        mkdir -p "$skills_dir/$skill"
+        echo "# $skill" > "$skills_dir/$skill/SKILL.md"
+    done
+}
+
+# Setup .opencode/commands directory with required commands
+setup_commands_dir() {
+    local commands_dir=".opencode/commands"
+    mkdir -p "$commands_dir"
+    
+    local commands=(
+        "openspec-phase0"
+        "openspec-phase1"
+        "openspec-phase2"
+        "openspec-phase3"
+        "openspec-phase4"
+        "openspec-phase5"
+        "openspec-phase6"
+    )
+    
+    for cmd in "${commands[@]}"; do
+        echo "# $cmd" > "$commands_dir/$cmd.md"
+    done
+}
+
+# Setup archive directory with a timestamped change archive
+setup_archive() {
+    local change="$1"
+    local timestamp="${2:-2024-01-15}"
+    
+    mkdir -p "openspec/changes/archive"
+    mkdir -p "openspec/changes/archive/${timestamp}-${change}"
+}
+
+# Setup a change with complete.json
+setup_change_with_complete() {
+    local change="$1"
+    local complete_json="$2"
+    
+    setup_change "$change"
+    echo "$complete_json" > "openspec/changes/$change/complete.json"
+}
+
+# Setup a change with baseline file
+setup_baseline() {
+    local commit="${1:-abc123}"
+    local branch="${2:-main}"
+    local timestamp="${3:-2024-01-15T10:00:00Z}"
+    
+    cat > ".openspec-baseline.json" <<EOF
+{
+  "commit": "$commit",
+  "branch": "$branch",
+  "timestamp": "$timestamp"
+}
+EOF
+}
+
+# Assert output is valid JSON
+assert_valid_json() {
+    local json="$1"
+    
+    if ! echo "$json" | jq -e . &>/dev/null; then
+        echo "Expected valid JSON, got: $json"
+        return 1
+    fi
+}
+
+# Assert error has standard schema (error + message fields)
+assert_error_schema() {
+    local json="$1"
+    
+    if ! echo "$json" | jq -e '.error' &>/dev/null; then
+        echo "Error JSON missing 'error' field: $json"
+        return 1
+    fi
+    
+    if ! echo "$json" | jq -e '.message' &>/dev/null; then
+        echo "Error JSON missing 'message' field: $json"
+        return 1
+    fi
+}
+
+# Assert JSON has a specific field
+assert_json_has_field() {
+    local json="$1"
+    local field="$2"
+    
+    if ! echo "$json" | jq -e --arg f "$field" 'has($f)' &>/dev/null; then
+        echo "JSON missing field '$field': $json"
+        return 1
+    fi
+}
+
+# Assert JSON array length
+assert_json_array_length() {
+    local json="$1"
+    local field="$2"
+    local expected="$3"
+    
+    local actual
+    actual=$(echo "$json" | jq ".$field | length")
+    
+    if [[ "$actual" != "$expected" ]]; then
+        echo "Expected $field array length to be $expected, got $actual"
+        return 1
+    fi
 }

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # OpenSpec Autonomous Workflow Orchestrator
-# Version: 0.6.0
+# Version: 0.7.0
 # Usage: openspec-auto <change-name> [options]
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.6.0"
+readonly SCRIPT_VERSION="0.7.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -308,16 +308,18 @@ require_tool() {
 validate_skills() {
   log "Validating required skills..."
   
-  for skill in "${REQUIRED_SKILLS[@]}"; do
-    local skill_path="$SKILLS_DIR/$skill/SKILL.md"
-    if [[ ! -f "$skill_path" ]]; then
-      log_error "Required skill not found: $skill"
-      log_error "Expected at: $skill_path"
-      local platform_name=$(basename "$SKILLS_DIR")
-      log_error "Run: openspecx install $platform_name"
-      exit 1
-    fi
-  done
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" skills 2>/dev/null)
+  
+  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
+    log_error "Required skills validation failed"
+    echo "$result" | jq -r '.errors[]?.message' | while read -r msg; do
+      log_error "$msg"
+    done
+    local platform_name=$(basename "$SKILLS_DIR")
+    log_error "Run: openspecx install $platform_name"
+    exit 1
+  fi
   
   log_success "All required skills found"
 }
@@ -325,16 +327,17 @@ validate_skills() {
 validate_commands() {
   log "Validating required commands..."
   
-  for phase in "${!PHASE_COMMANDS[@]}"; do
-    local cmd_name="${PHASE_COMMANDS[$phase]}"
-    local cmd_path="$COMMANDS_DIR/$cmd_name.md"
-    if [[ ! -f "$cmd_path" ]]; then
-      log_error "Required command not found: $cmd_name"
-      log_error "Expected at: $cmd_path"
-      log_error "Run: openspecx install opencode"
-      exit 1
-    fi
-  done
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" commands 2>/dev/null)
+  
+  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
+    log_error "Required commands validation failed"
+    echo "$result" | jq -r '.errors[]?.message' | while read -r msg; do
+      log_error "$msg"
+    done
+    log_error "Run: openspecx install opencode"
+    exit 1
+  fi
   
   log_success "All required commands found"
 }
@@ -342,13 +345,11 @@ validate_commands() {
 validate_json() {
   local file="$1"
   
-  if [[ ! -f "$file" ]]; then
-    log_error "File not found: $file"
-    return 1
-  fi
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" json "$file" 2>/dev/null)
   
-  if ! jq empty "$file" 2>/dev/null; then
-    log_error "Invalid JSON in file: $file"
+  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
+    log_error "$(echo "$result" | jq -r '.errors[0].message // "Invalid JSON"')"
     return 1
   fi
   
@@ -358,23 +359,15 @@ validate_json() {
 validate_change_dir() {
   log "Validating change directory..."
   
-  if [[ ! -d "$CHANGE_DIR" ]]; then
-    log_error "Change directory not found: $CHANGE_DIR"
-    exit 1
-  fi
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" change-dir 2>/dev/null)
   
-  local required_files=("tasks.md" "proposal.md" "design.md")
-  for file in "${required_files[@]}"; do
-    if [[ ! -f "$CHANGE_DIR/$file" ]]; then
-      log_error "Required file not found: $file"
-      log_error "Change directory: $CHANGE_DIR"
-      log_error "The change must have: ${required_files[*]}"
-      exit 1
-    fi
-  done
-  
-  if [[ ! -d "$CHANGE_DIR/specs" ]] || [[ -z "$(find "$CHANGE_DIR/specs" -name "*.md" 2>/dev/null)" ]]; then
-    log_error "No spec files found in $CHANGE_DIR/specs/"
+  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
+    log_error "Change directory validation failed"
+    echo "$result" | jq -r '.errors[]?.message' | while read -r msg; do
+      log_error "$msg"
+    done
+    log_error "Change directory: $CHANGE_DIR"
     exit 1
   fi
   
@@ -417,21 +410,16 @@ validate_git() {
 record_baseline() {
   log "Recording baseline..."
   
-  local commit branch
-  commit=$(git rev-parse HEAD)
-  branch=$(git branch --show-current)
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-baseline" record 2>/dev/null)
   
-  local baseline_json
-  baseline_json=$(cat <<EOF
-{
-  "commit": "$commit",
-  "branch": "$branch",
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-EOF
-  )
+  if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.commit // empty' 2>/dev/null) == "" ]]; then
+    log_error "Failed to record baseline"
+    exit 1
+  fi
   
-  echo "$baseline_json" > ".openspec-baseline.json"
+  local commit
+  commit=$(echo "$result" | jq -r '.commit')
   log_success "Baseline recorded: $commit"
 }
 
@@ -496,14 +484,10 @@ EOF
 }
 
 check_complete() {
-  local complete_file="$CHANGE_DIR/complete.json"
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-complete" "$CHANGE_ID" check 2>/dev/null)
   
-  if [[ ! -f "$complete_file" ]]; then
-    return 1
-  fi
-  
-  if ! validate_json "$complete_file"; then
-    log_error "Complete file is corrupted"
+  if [[ $(echo "$result" | jq -r '.exists // false') != "true" ]]; then
     return 1
   fi
   
@@ -511,51 +495,46 @@ check_complete() {
 }
 
 read_completion() {
-  local complete_file="$CHANGE_DIR/complete.json"
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-complete" "$CHANGE_ID" get 2>/dev/null)
   
-  if ! check_complete; then
+  if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.status // empty' 2>/dev/null) == "" ]]; then
     return 1
   fi
   
   local status
-  status=$(jq -r '.status // empty' "$complete_file" 2>/dev/null)
-  
-  if [[ -z "$status" ]]; then
-    return 1
-  fi
+  status=$(echo "$result" | jq -r '.status')
   
   echo "$status"
   return 0
 }
 
 get_current_phase() {
-  local state_file="$CHANGE_DIR/state.json"
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-phase" "$CHANGE_ID" current 2>/dev/null)
   
-  if ! read_state; then
+  if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.phase // empty' 2>/dev/null) == "" ]]; then
     return 1
   fi
   
   local phase
-  phase=$(jq -r '.phase // empty' "$state_file" 2>/dev/null)
-  
-  if [[ -z "$phase" ]]; then
-    return 1
-  fi
+  phase=$(echo "$result" | jq -r '.phase')
   
   echo "$phase"
   return 0
 }
 
 get_phase_iteration() {
-  local state_file="$CHANGE_DIR/state.json"
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-phase" "$CHANGE_ID" current 2>/dev/null)
   
-  if ! read_state; then
+  if [[ -z "$result" ]]; then
     echo 0
     return
   fi
   
   local iteration
-  iteration=$(jq -r '.iteration // "0"' "$state_file" 2>/dev/null)
+  iteration=$(echo "$result" | jq -r '.iteration // 0')
   
   echo "$iteration"
 }
@@ -564,10 +543,6 @@ check_phase_complete() {
   local state_file="$CHANGE_DIR/state.json"
   
   if [[ ! -f "$state_file" ]]; then
-    return 1
-  fi
-  
-  if ! validate_json "$state_file"; then
     return 1
   fi
   
@@ -701,54 +676,47 @@ run_phase() {
 
 advance_phase() {
   local current="$1"
-  case "$current" in
-    PHASE0) echo "PHASE1" ;;
-    PHASE1) echo "PHASE2" ;;
-    PHASE2) echo "PHASE3" ;;
-    PHASE3) echo "PHASE4" ;;
-    PHASE4) echo "PHASE5" ;;
-    PHASE5) echo "PHASE6" ;;
-    PHASE6) echo "COMPLETE" ;;
-    *) echo "COMPLETE" ;;
-  esac
+  
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-phase" "$CHANGE_ID" next 2>/dev/null)
+  
+  if [[ -n "$result" ]]; then
+    echo "$result" | jq -r '.next // "COMPLETE"'
+  else
+    case "$current" in
+      PHASE0) echo "PHASE1" ;;
+      PHASE1) echo "PHASE2" ;;
+      PHASE2) echo "PHASE3" ;;
+      PHASE3) echo "PHASE4" ;;
+      PHASE4) echo "PHASE5" ;;
+      PHASE5) echo "PHASE6" ;;
+      PHASE6) echo "COMPLETE" ;;
+      *) echo "COMPLETE" ;;
+    esac
+  fi
 }
 
 validate_archive() {
-  local archives=()
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" archive 2>/dev/null)
   
-  for dir in openspec/changes/archive/*-"$CHANGE_ID"; do
-    if [[ -d "$dir" ]]; then
-      archives+=("$dir")
-    fi
-  done
-  
-  if [[ ${#archives[@]} -eq 0 ]]; then
-    log_error "Change not archived"
+  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
+    log_error "$(echo "$result" | jq -r '.errors[0].message // "Archive validation failed"')"
     return 1
   fi
   
-  if [[ ${#archives[@]} -gt 1 ]]; then
-    log_error "Multiple archives found for change: ${#archives[@]}"
-    for archive in "${archives[@]}"; do
-      log_error "  - $archive"
-    done
-    return 1
-  fi
-  
-  log_success "Archive found: ${archives[0]}"
+  local archive_path
+  archive_path=$(echo "$result" | jq -r '.archive // ""')
+  log_success "Archive found: $archive_path"
   return 0
 }
 
 validate_iterations() {
-  local iterations_json="$CHANGE_DIR/iterations.json"
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" iterations 2>/dev/null)
   
-  if [[ ! -f "$iterations_json" ]]; then
-    log_error "iterations.json not found"
-    return 1
-  fi
-  
-  if ! validate_json "$iterations_json"; then
-    log_error "iterations.json contains invalid JSON"
+  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
+    log_error "$(echo "$result" | jq -r '.errors[0].message // "Iterations validation failed"')"
     return 1
   fi
   
@@ -758,25 +726,19 @@ validate_iterations() {
 validate_completion() {
   log "Validating completion requirements..."
   
-  local errors=0
+  local result
+  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" completion 2>/dev/null)
   
-  validate_json "$CHANGE_DIR/state.json" || errors=$((errors + 1))
-  validate_json "$CHANGE_DIR/complete.json" || errors=$((errors + 1))
-  validate_iterations || errors=$((errors + 1))
-  validate_archive || errors=$((errors + 1))
-  
-  if [[ ! -f "$CHANGE_DIR/decision-log.json" ]]; then
-    log_error "decision-log.json not found"
-    errors=$((errors + 1))
-  fi
-  
-  if [[ $errors -eq 0 ]]; then
-    log_success "All validation checks passed"
-    return 0
-  else
-    log_error "Validation failed with $errors error(s)"
+  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
+    log_error "Completion validation failed"
+    echo "$result" | jq -r '.errors[]?.message' | while read -r msg; do
+      log_error "$msg"
+    done
     return 1
   fi
+  
+  log_success "All validation checks passed"
+  return 0
 }
 
 show_progress() {

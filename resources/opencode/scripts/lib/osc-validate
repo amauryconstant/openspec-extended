@@ -1,0 +1,268 @@
+#!/bin/bash
+# osc-validate - Unified validation for OpenSpec changes
+# Usage: osc-validate <change> <action> [args]
+# Output: JSON
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHANGE_DIR="openspec/changes"
+SKILLS_DIR=".opencode/skills"
+COMMANDS_DIR=".opencode/commands"
+
+declare -A PHASE_COMMANDS=(
+    ["PHASE0"]="openspec-phase0"
+    ["PHASE1"]="openspec-phase1"
+    ["PHASE2"]="openspec-phase2"
+    ["PHASE3"]="openspec-phase3"
+    ["PHASE4"]="openspec-phase4"
+    ["PHASE5"]="openspec-phase5"
+    ["PHASE6"]="openspec-phase6"
+)
+
+readonly REQUIRED_SKILLS=(
+    "openspec-concepts"
+    "openspec-review-artifacts"
+    "openspec-modify-artifacts"
+    "openspec-apply-change"
+    "openspec-review-test-compliance"
+    "openspec-verify-change"
+    "openspec-maintain-ai-docs"
+    "openspec-sync-specs"
+    "openspec-archive-change"
+)
+
+usage() {
+    echo '{"error":"usage","message":"Usage: osc-validate <change> <action>","actions":["json <file>","skills","commands","change-dir","archive","iterations","completion"]}' >&2
+    exit 1
+}
+
+json_escape() {
+    local str="$1"
+    str="${str//\\/\\\\}"
+    str="${str//\"/\\\"}"
+    str="${str//$'\n'/\\n}"
+    str="${str//$'\r'/\\r}"
+    str="${str//$'\t'/\\t}"
+    echo "$str"
+}
+
+validate_json_file() {
+    local file="$1"
+    
+    if [[ ! -f "$file" ]]; then
+        echo "{\"valid\":false,\"errors\":[{\"check\":\"json\",\"message\":\"File not found: $(json_escape "$file")\"}]}"
+        return 1
+    fi
+    
+    if ! jq empty "$file" 2>/dev/null; then
+        echo "{\"valid\":false,\"errors\":[{\"check\":\"json\",\"message\":\"Invalid JSON in file: $(json_escape "$file")\"}]}"
+        return 1
+    fi
+    
+    echo '{"valid":true}'
+    return 0
+}
+
+validate_skills() {
+    local errors=()
+    
+    for skill in "${REQUIRED_SKILLS[@]}"; do
+        local skill_path="$SKILLS_DIR/$skill/SKILL.md"
+        if [[ ! -f "$skill_path" ]]; then
+            errors+=("{\"check\":\"skills\",\"message\":\"Missing skill: $skill\"}")
+        fi
+    done
+    
+    if [[ ${#errors[@]} -gt 0 ]]; then
+        local errors_json="[$(IFS=,; echo "${errors[*]}")]"
+        echo "{\"valid\":false,\"errors\":$errors_json}"
+        return 1
+    fi
+    
+    echo '{"valid":true}'
+    return 0
+}
+
+validate_commands() {
+    local errors=()
+    
+    for phase in "${!PHASE_COMMANDS[@]}"; do
+        local cmd_name="${PHASE_COMMANDS[$phase]}"
+        local cmd_path="$COMMANDS_DIR/$cmd_name.md"
+        if [[ ! -f "$cmd_path" ]]; then
+            errors+=("{\"check\":\"commands\",\"message\":\"Missing command: $cmd_name\"}")
+        fi
+    done
+    
+    if [[ ${#errors[@]} -gt 0 ]]; then
+        local errors_json="[$(IFS=,; echo "${errors[*]}")]"
+        echo "{\"valid\":false,\"errors\":$errors_json}"
+        return 1
+    fi
+    
+    echo '{"valid":true}'
+    return 0
+}
+
+validate_change_dir() {
+    local change="$1"
+    local change_path="$CHANGE_DIR/$change"
+    local errors=()
+    
+    if [[ ! -d "$change_path" ]]; then
+        echo "{\"valid\":false,\"errors\":[{\"check\":\"change-dir\",\"message\":\"Change directory not found: $change_path\"}]}"
+        return 1
+    fi
+    
+    local required_files=("tasks.md" "proposal.md" "design.md")
+    for file in "${required_files[@]}"; do
+        if [[ ! -f "$change_path/$file" ]]; then
+            errors+=("{\"check\":\"change-dir\",\"message\":\"Missing required file: $file\"}")
+        fi
+    done
+    
+    if [[ ! -d "$change_path/specs" ]] || [[ -z "$(find "$change_path/specs" -name "*.md" 2>/dev/null)" ]]; then
+        errors+=("{\"check\":\"change-dir\",\"message\":\"No spec files found in specs/\"}")
+    fi
+    
+    if [[ ${#errors[@]} -gt 0 ]]; then
+        local errors_json="[$(IFS=,; echo "${errors[*]}")]"
+        echo "{\"valid\":false,\"errors\":$errors_json}"
+        return 1
+    fi
+    
+    echo '{"valid":true}'
+    return 0
+}
+
+validate_archive() {
+    local change="$1"
+    local archives=()
+    
+    for dir in "$CHANGE_DIR/archive"/*-"$change"; do
+        if [[ -d "$dir" ]]; then
+            archives+=("$dir")
+        fi
+    done
+    
+    if [[ ${#archives[@]} -eq 0 ]]; then
+        echo "{\"valid\":false,\"errors\":[{\"check\":\"archive\",\"message\":\"Change not archived\"}]}"
+        return 1
+    fi
+    
+    if [[ ${#archives[@]} -gt 1 ]]; then
+        echo "{\"valid\":false,\"errors\":[{\"check\":\"archive\",\"message\":\"Multiple archives found for change: ${#archives[@]}\"}]}"
+        return 1
+    fi
+    
+    echo "{\"valid\":true,\"archive\":\"${archives[0]}\"}"
+    return 0
+}
+
+validate_iterations() {
+    local change="$1"
+    local iterations_file="$CHANGE_DIR/$change/iterations.json"
+    
+    if [[ ! -f "$iterations_file" ]]; then
+        echo "{\"valid\":false,\"errors\":[{\"check\":\"iterations\",\"message\":\"iterations.json not found\"}]}"
+        return 1
+    fi
+    
+    if ! jq empty "$iterations_file" 2>/dev/null; then
+        echo "{\"valid\":false,\"errors\":[{\"check\":\"iterations\",\"message\":\"iterations.json contains invalid JSON\"}]}"
+        return 1
+    fi
+    
+    echo '{"valid":true}'
+    return 0
+}
+
+validate_completion() {
+    local change="$1"
+    local change_path="$CHANGE_DIR/$change"
+    local errors=()
+    
+    if [[ ! -f "$change_path/state.json" ]]; then
+        errors+=("{\"check\":\"completion\",\"message\":\"state.json not found\"}")
+    elif ! jq empty "$change_path/state.json" 2>/dev/null; then
+        errors+=("{\"check\":\"completion\",\"message\":\"state.json contains invalid JSON\"}")
+    fi
+    
+    if [[ ! -f "$change_path/complete.json" ]]; then
+        errors+=("{\"check\":\"completion\",\"message\":\"complete.json not found\"}")
+    elif ! jq empty "$change_path/complete.json" 2>/dev/null; then
+        errors+=("{\"check\":\"completion\",\"message\":\"complete.json contains invalid JSON\"}")
+    fi
+    
+    if [[ ! -f "$change_path/iterations.json" ]]; then
+        errors+=("{\"check\":\"completion\",\"message\":\"iterations.json not found\"}")
+    elif ! jq empty "$change_path/iterations.json" 2>/dev/null; then
+        errors+=("{\"check\":\"completion\",\"message\":\"iterations.json contains invalid JSON\"}")
+    fi
+    
+    if [[ ! -f "$change_path/decision-log.json" ]]; then
+        errors+=("{\"check\":\"completion\",\"message\":\"decision-log.json not found\"}")
+    fi
+    
+    local archive_result
+    archive_result=$(validate_archive "$change" 2>/dev/null) || {
+        errors+=("{\"check\":\"completion\",\"message\":\"Archive validation failed\"}")
+    }
+    
+    if [[ ${#errors[@]} -gt 0 ]]; then
+        local errors_json="[$(IFS=,; echo "${errors[*]}")]"
+        echo "{\"valid\":false,\"errors\":$errors_json}"
+        return 1
+    fi
+    
+    echo '{"valid":true}'
+    return 0
+}
+
+if [[ $# -lt 2 ]]; then
+    usage
+fi
+
+CHANGE="$1"
+ACTION="$2"
+VALUE="${3:-}"
+
+case "$ACTION" in
+    json)
+        if [[ -z "$VALUE" ]]; then
+            echo '{"error":"missing_value","message":"File path required for json action"}' >&2
+            exit 1
+        fi
+        validate_json_file "$VALUE"
+        ;;
+    
+    skills)
+        validate_skills
+        ;;
+    
+    commands)
+        validate_commands
+        ;;
+    
+    change-dir)
+        validate_change_dir "$CHANGE"
+        ;;
+    
+    archive)
+        validate_archive "$CHANGE"
+        ;;
+    
+    iterations)
+        validate_iterations "$CHANGE"
+        ;;
+    
+    completion)
+        validate_completion "$CHANGE"
+        ;;
+    
+    *)
+        echo "{\"error\":\"unknown_action\",\"message\":\"Unknown action: $ACTION\",\"valid_actions\":[\"json\",\"skills\",\"commands\",\"change-dir\",\"archive\",\"iterations\",\"completion\"]}" >&2
+        exit 1
+        ;;
+esac

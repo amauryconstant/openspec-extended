@@ -1,0 +1,131 @@
+#!/bin/bash
+# osc-phase - Phase management for OpenSpec changes
+# Usage: osc-phase <change> <action>
+# Output: JSON
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHANGE_DIR="openspec/changes"
+
+usage() {
+    echo '{"error":"usage","message":"Usage: osc-phase <change> <action>","actions":["current","next","advance"]}' >&2
+    exit 1
+}
+
+if [[ $# -lt 2 ]]; then
+    usage
+fi
+
+CHANGE="$1"
+ACTION="$2"
+STATE_FILE="$CHANGE_DIR/$CHANGE/state.json"
+
+if [[ ! -d "$CHANGE_DIR/$CHANGE" ]]; then
+    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"path\":\"$CHANGE_DIR/$CHANGE\"}" >&2
+    exit 1
+fi
+
+get_next_phase() {
+    local current="$1"
+    case "$current" in
+        PHASE0) echo "PHASE1" ;;
+        PHASE1) echo "PHASE2" ;;
+        PHASE2) echo "PHASE3" ;;
+        PHASE3) echo "PHASE4" ;;
+        PHASE4) echo "PHASE5" ;;
+        PHASE5) echo "PHASE6" ;;
+        PHASE6) echo "COMPLETE" ;;
+        *) echo "COMPLETE" ;;
+    esac
+}
+
+get_current_phase() {
+    if [[ ! -f "$STATE_FILE" ]]; then
+        echo '{"error":"state_not_found","message":"state.json does not exist"}' >&2
+        return 1
+    fi
+    
+    local phase iteration
+    phase=$(jq -r '.phase // empty' "$STATE_FILE" 2>/dev/null)
+    iteration=$(jq -r '.iteration // 0' "$STATE_FILE" 2>/dev/null)
+    
+    if [[ -z "$phase" ]]; then
+        echo '{"error":"invalid_state","message":"state.json missing phase field"}' >&2
+        return 1
+    fi
+    
+    local next
+    next=$(get_next_phase "$phase")
+    
+    echo "{\"phase\":\"$phase\",\"next\":\"$next\",\"iteration\":$iteration}"
+}
+
+advance_phase() {
+    if [[ ! -f "$STATE_FILE" ]]; then
+        echo '{"error":"state_not_found","message":"state.json does not exist"}' >&2
+        return 1
+    fi
+    
+    local current_phase iteration
+    current_phase=$(jq -r '.phase // empty' "$STATE_FILE" 2>/dev/null)
+    iteration=$(jq -r '.iteration // 0' "$STATE_FILE" 2>/dev/null)
+    
+    if [[ -z "$current_phase" ]]; then
+        echo '{"error":"invalid_state","message":"state.json missing phase field"}' >&2
+        return 1
+    fi
+    
+    local next_phase
+    next_phase=$(get_next_phase "$current_phase")
+    
+    local timestamp
+    timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    
+    local updated_json
+    updated_json=$(jq \
+        --arg phase "$next_phase" \
+        --argjson iteration 0 \
+        --argjson phase_complete false \
+        --arg ts "$timestamp" \
+        '.phase = $phase | .iteration = $iteration | .phase_complete = $phase_complete | .last_updated = $ts' \
+        "$STATE_FILE")
+    
+    echo "$updated_json" > "$STATE_FILE"
+    
+    local next_next
+    next_next=$(get_next_phase "$next_phase")
+    
+    echo "{\"phase\":\"$next_phase\",\"previous\":\"$current_phase\",\"next\":\"$next_next\",\"iteration\":0}"
+}
+
+case "$ACTION" in
+    current)
+        get_current_phase
+        ;;
+    
+    next)
+        if [[ ! -f "$STATE_FILE" ]]; then
+            echo '{"error":"state_not_found","message":"state.json does not exist"}' >&2
+            exit 1
+        fi
+        
+        current=$(jq -r '.phase // empty' "$STATE_FILE" 2>/dev/null)
+        if [[ -z "$current" ]]; then
+            echo '{"error":"invalid_state","message":"state.json missing phase field"}' >&2
+            exit 1
+        fi
+        
+        next=$(get_next_phase "$current")
+        echo "{\"next\":\"$next\"}"
+        ;;
+    
+    advance)
+        advance_phase
+        ;;
+    
+    *)
+        echo "{\"error\":\"unknown_action\",\"message\":\"Unknown action: $ACTION\",\"valid_actions\":[\"current\",\"next\",\"advance\"]}" >&2
+        exit 1
+        ;;
+esac
