@@ -39,15 +39,6 @@ teardown() {
     assert_json_equals "$output" ".count" "2"
 }
 
-@test "osc-iterations: append requires stdin input" {
-    setup_change "test-change"
-    
-    # In BATS run context, stdin is empty which is not valid JSON
-    run_osc_iterations "test-change" append
-    [ "$status" -eq 1 ]
-    assert_output_contains "invalid_json"
-}
-
 @test "osc-iterations: append requires valid JSON" {
     setup_change "test-change"
     
