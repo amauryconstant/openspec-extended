@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # OpenSpec Autonomous Workflow Orchestrator
-# Version: 0.7.3
+# Version: 0.7.4
 # Usage: openspec-auto <change-name> [options]
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.7.3"
+readonly SCRIPT_VERSION="0.7.4"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
@@ -28,6 +28,16 @@ declare -A PHASE_COMMANDS=(
   ["PHASE4"]="openspec-phase4"
   ["PHASE5"]="openspec-phase5"
   ["PHASE6"]="openspec-phase6"
+)
+
+declare -A PHASE_AGENTS=(
+  ["PHASE0"]="openspec-analyzer"
+  ["PHASE1"]="openspec-builder"
+  ["PHASE2"]="openspec-analyzer"
+  ["PHASE3"]="openspec-maintainer"
+  ["PHASE4"]="openspec-maintainer"
+  ["PHASE5"]="openspec-maintainer"
+  ["PHASE6"]="openspec-analyzer"
 )
 
 readonly REQUIRED_SKILLS=(
@@ -604,10 +614,12 @@ run_agent() {
   log "Agent invocation #$TOTAL_INVOCATIONS for $phase"
   
   local cmd_name="${PHASE_COMMANDS[$phase]}"
+  local agent_name="${PHASE_AGENTS[$phase]}"
   local title="OpenSpec: ${PHASE_NAMES[$phase]} - $CHANGE_ID"
   
   if [[ "$VERBOSE" == true ]]; then
     log "Using command: /$cmd_name"
+    log "Using agent: $agent_name"
     log "Session title: $title"
   fi
   
@@ -621,6 +633,7 @@ run_agent() {
   timeout --foreground "$TIMEOUT" \
     "$AI_BINARY" run \
     --command "$cmd_name" \
+    --agent "$agent_name" \
     "$CHANGE_ID" \
     --title="$title" \
     $model_flag &
