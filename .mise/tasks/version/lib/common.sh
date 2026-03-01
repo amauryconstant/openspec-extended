@@ -21,16 +21,21 @@ get_version_bash() {
   echo "$content" | grep "^readonly SCRIPT_VERSION=" | head -1 | sed 's/^readonly SCRIPT_VERSION="\([^"]*\)"/\1/' || echo ""
 }
 
+get_version_json() {
+  local content="$1"
+  echo "$content" | jq -r '.version // empty' 2>/dev/null || echo ""
+}
+
 get_version_from_file() {
   local file="$1"
   local content
   content=$(cat "$file" 2>/dev/null) || return 1
   
-  if [[ "$file" == *.md ]]; then
-    get_version_yaml "$content"
-  else
-    get_version_bash "$content"
-  fi
+  case "$file" in
+    *.md) get_version_yaml "$content" ;;
+    *.json) get_version_json "$content" ;;
+    *) get_version_bash "$content" ;;
+  esac
 }
 
 bump_version() {

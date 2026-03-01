@@ -12,12 +12,12 @@ repos:
         name: Check version bump in versioned files
         entry: mise run version:check
         language: system
-        files: ^resources/(.*/SKILL\.md|claude/commands/opsx/.*\.md|opencode/commands/opsx-.*\.md|.*/scripts/openspec-auto|.*/agents/.*\.md)$
+        files: ^resources/(.*/SKILL\.md|claude/commands/opsx/.*\.md|opencode/commands/(opsx-.*|openspec-phase.*)\.md|.*/scripts/openspec-auto|.*/scripts/lib/MANIFEST\.json|.*/agents/.*\.md)$
         pass_filenames: false
 
       - id: test
         name: Test the openspec-auto script and its dependencies
         entry: mise run test
         language: system
-        files: ^resources/opencode/scripts/
+        files: ^resources/opencode/scripts/$
         pass_filenames: false

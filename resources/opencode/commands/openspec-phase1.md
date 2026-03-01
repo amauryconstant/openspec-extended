@@ -2,7 +2,7 @@
 description: PHASE1 - Implementation
 agent: openspec-builder
 metadata:
-   version: "0.3.1"
+   version: "0.3.2"
 ---
 
 ## Tools Available

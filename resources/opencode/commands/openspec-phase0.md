@@ -2,7 +2,7 @@
 description: PHASE0 - Artifact Review
 agent: openspec-analyzer
 metadata:
-   version: "0.2.2"
+   version: "0.2.4"
 ---
 
 ## Tools Available

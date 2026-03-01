@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # OpenSpec Autonomous Workflow Orchestrator
-# Version: 0.7.2
+# Version: 0.7.3
 # Usage: openspec-auto <change-name> [options]
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.7.2"
+readonly SCRIPT_VERSION="0.7.3"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10

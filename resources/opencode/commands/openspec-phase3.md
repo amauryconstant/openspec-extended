@@ -2,7 +2,7 @@
 description: PHASE3 - Maintain Documentation
 agent: openspec-maintainer
 metadata:
-   version: "0.2.1"
+   version: "0.2.2"
 ---
 
 ## Tools Available
