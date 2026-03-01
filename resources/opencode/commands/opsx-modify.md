@@ -3,8 +3,15 @@ description: Modify artifacts in OpenSpec changes with dependency tracking
 license: MIT
 metadata:
   author: openspec-extended
-  version: "0.2.0"
+  version: "0.2.1"
 ---
+
+## Tools Available
+
+| Tool | Type | Usage |
+|------|------|-------|
+| `openspec` | Upstream CLI | `openspec <command> [options]` - npm package |
+| `osc-ctx` | Local script | `.opencode/scripts/lib/osc-ctx <change>` - load change context |
 
 Modify existing artifacts in an OpenSpec change, automatically tracking and updating dependent artifacts.
 
@@ -35,10 +42,10 @@ Optionally specify `[change-name] [artifact-id]` after `/opsx-modify`. If omitte
    Announce: "Using change: <name>" and how to override.
 
 2. **Check change status**
-   ```bash
-   openspec status --change "<name>" --json
-   ```
-   Parse JSON for: schemaName, artifacts with status (done/ready/blocked).
+    ```bash
+    .opencode/scripts/lib/osc-ctx "<name>"
+    ```
+    Parse JSON for: state (phase, iteration), artifacts with existence info.
 
 3. **Select artifact to modify**
 
@@ -49,13 +56,13 @@ Optionally specify `[change-name] [artifact-id]` after `/opsx-modify`. If omitte
 
    Present in schema order showing: ID, status, dependencies, unlocks.
 
-4. **Get modification context**
-   ```bash
-   openspec instructions <artifact-id> --change "<name>" --json
-   ```
-   Extract: rules, context, template, dependencies, unlocks, outputPath.
+4. **Read current artifact**
 
-   **Read the current artifact file** from outputPath.
+    Read the artifact file from `openspec/changes/<name>/`:
+    - `proposal.md` - Change proposal
+    - `specs/` - Specification files
+    - `design.md` - Design decisions
+    - `tasks.md` - Task list
 
 5. **Determine modification mode**
 

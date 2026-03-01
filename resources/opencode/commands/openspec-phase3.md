@@ -5,6 +5,15 @@ metadata:
    version: "0.2.1"
 ---
 
+## Tools Available
+
+| Tool | Usage |
+|------|-------|
+| `osc-ctx` | `.opencode/scripts/lib/osc-ctx <change>` - load change context |
+| `osc-state` | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
+| `osc-log` | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
+| `osc-iterations` | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
+
 # PHASE3: Maintain Documentation
 
 Change: $1

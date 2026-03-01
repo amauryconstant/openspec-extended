@@ -5,6 +5,16 @@ metadata:
    version: "0.3.1"
 ---
 
+## Tools Available
+
+| Tool | Type | Usage |
+|------|------|-------|
+| `openspec` | Upstream CLI | `openspec <command> [options]` - npm package |
+| `osc-ctx` | Local script | `.opencode/scripts/lib/osc-ctx <change>` - load change context |
+| `osc-state` | Local script | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
+| `osc-log` | Local script | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
+| `osc-iterations` | Local script | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
+
 # PHASE1: Implementation
 
 Change: $1
