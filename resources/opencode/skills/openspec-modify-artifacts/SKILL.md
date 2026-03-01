@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires openspec CLI.
 metadata:
   author: openspec-extended
-   version: "0.2.2"
+  version: "0.2.3"
 ---
 
 Modify an existing artifact in an OpenSpec change with dependency-aware updates.
