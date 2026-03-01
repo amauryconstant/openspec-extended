@@ -113,13 +113,13 @@ teardown() {
     assert_json_equals "$output" ".phase" "PHASE1"
     assert_json_equals "$output" ".previous" "PHASE0"
     assert_json_equals "$output" ".next" "PHASE2"
-    assert_json_equals "$output" ".iteration" "0"
+    assert_json_equals "$output" ".iteration" "1"
     
     local updated_phase updated_iteration
     updated_phase=$(jq -r '.phase' "openspec/changes/test-change/state.json")
     updated_iteration=$(jq -r '.iteration' "openspec/changes/test-change/state.json")
     [ "$updated_phase" == "PHASE1" ]
-    [ "$updated_iteration" == "0" ]
+    [ "$updated_iteration" == "1" ]
 }
 
 @test "osc-phase: advance returns previous/next info" {

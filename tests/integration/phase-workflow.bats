@@ -25,7 +25,7 @@ teardown() {
     run_osc_state "test-change" get
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE1"
-    assert_json_equals "$output" ".iteration" "0"
+    assert_json_equals "$output" ".iteration" "1"
     assert_json_false "$output" ".phase_complete"
 }
 
@@ -67,7 +67,7 @@ teardown() {
     phase=$(jq -r '.phase' "$state_file")
     iteration=$(jq -r '.iteration' "$state_file")
     [ "$phase" == "PHASE1" ]
-    [ "$iteration" == "0" ]
+    [ "$iteration" == "1" ]
     
     run_osc_phase "test-change" advance
     [ "$status" -eq 0 ]
@@ -123,15 +123,15 @@ teardown() {
     assert_json_equals "$output" ".next" "COMPLETE"
 }
 
-@test "phase-workflow: advance resets iteration to 0" {
+@test "phase-workflow: advance resets iteration to 1" {
     setup_change_with_state "test-change" '{"phase":"PHASE1","iteration":5,"phase_complete":true}'
     
     run_osc_phase "test-change" advance
     [ "$status" -eq 0 ]
-    assert_json_equals "$output" ".iteration" "0"
+    assert_json_equals "$output" ".iteration" "1"
     
     run_osc_state "test-change" get
-    assert_json_equals "$output" ".iteration" "0"
+    assert_json_equals "$output" ".iteration" "1"
 }
 
 @test "phase-workflow: advance sets phase_complete to false" {
