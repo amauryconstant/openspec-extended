@@ -6,6 +6,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/osc-common"
+
 CHANGE_DIR="openspec/changes"
 
 usage() {
@@ -71,16 +74,13 @@ case "$ACTION" in
         # Add timestamp if not present
         INPUT_JSON=$(echo "$INPUT_JSON" | jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.timestamp //= $ts')
         
-        # Initialize or append
-        if [[ ! -f "$ITERATIONS_FILE" ]]; then
-            echo "[$INPUT_JSON]" > "$ITERATIONS_FILE"
-        else
-            # Append to existing array
-            jq ". + [$INPUT_JSON]" "$ITERATIONS_FILE" > "${ITERATIONS_FILE}.tmp"
-            mv "${ITERATIONS_FILE}.tmp" "$ITERATIONS_FILE"
+        # Append to iterations file using osc_json_append
+        if ! osc_json_append "$ITERATIONS_FILE" "$INPUT_JSON"; then
+            echo '{"error":"jq_failed","message":"Failed to append to iterations"}' >&2
+            exit 1
         fi
         
-        TOTAL=$(jq 'length' "$ITERATIONS_FILE")
+        TOTAL=$(osc_json_length "$ITERATIONS_FILE")
         
         echo "{\"success\":true,\"iteration\":$ITER_NUM,\"total_count\":$TOTAL}"
         ;;

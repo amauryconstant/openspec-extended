@@ -85,22 +85,44 @@ echo '{
 
 ## DECISION LOG
 
-Append entry:
+Write reflections to file, then log:
+
 ```bash
+# Write reflections (full markdown allowed)
+cat > "openspec/changes/$1/reflections.md" << 'EOF'
+# Self-Reflection: $1
+
+## 1. How well did the artifact review process work?
+[Answer with specific examples - 2-4 sentences]
+
+## 2. How effective was the implementation phase?
+[Answer with specific examples - 2-4 sentences]
+
+## 3. How did verification perform?
+[Answer with specific examples - 2-4 sentences]
+
+## 4. What assumptions had to be made?
+[Answer with specific examples - 2-4 sentences]
+
+## 5. How did completion phases work?
+[Answer with specific examples - 2-4 sentences]
+
+## 6. How was commit behavior?
+[Answer with specific examples - 2-4 sentences]
+
+## 7. What would improve the workflow?
+[Answer with specific examples - 2-4 sentences]
+
+## 8. What would improve for future changes?
+[Answer with specific examples - 2-4 sentences]
+EOF
+
+# Log with path reference (not inline content)
 echo '{
   "phase": "SELF_REFLECTION",
   "iteration": N,
   "summary": "All phases complete. Workflow evaluation finished.",
-  "reflections": {
-    "artifact_review": "Answer with specific examples",
-    "implementation": "Answer with specific examples",
-    "verification": "Answer with specific examples",
-    "assumptions": "Answer with specific examples",
-    "completion_phases": "Answer with specific examples",
-    "commit_behavior": "Answer with specific examples",
-    "workflow_improvements": "Answer with specific examples",
-    "future_changes": "Answer with specific examples"
-  },
+  "reflections_path": "openspec/changes/$1/reflections.md",
   "total_phases": 7,
   "total_iterations": N,
   "next_steps": "All phases complete. Ready to signal completion."

@@ -75,15 +75,44 @@ Phase complete (verification passed):
 
 ## DECISION LOG
 
-Append entry:
+Write verification report to file, then log:
+
 ```bash
+# Write verification report (full markdown allowed)
+cat > "openspec/changes/$1/verification-report.md" << 'EOF'
+## Verification Report: $1
+
+### Summary
+| Dimension    | Status                        |
+|--------------|-------------------------------|
+| Completeness | X/X tasks, X/X reqs covered   |
+| Correctness  | X/X reqs implemented          |
+| Coherence    | Design followed               |
+
+### CRITICAL Issues (Must fix before archive)
+None.
+
+### WARNING Issues (Should fix)
+None.
+
+### SUGGESTION Issues (Nice to fix)
+None.
+
+### Detailed Findings
+[Full verification details here]
+
+### Final Assessment
+[PASS/FAIL with reasoning]
+EOF
+
+# Log with path reference (not inline content)
 echo '{
   "phase": "REVIEW",
   "iteration": N,
   "summary": "Verification results summary",
   "verification_result": "passed|failed",
   "issues_found": {"critical": N, "warning": N, "suggestion": N},
-  "verification_report": "[Paste skill report here]",
+  "verification_report_path": "openspec/changes/$1/verification-report.md",
   "artifacts_modified": false,
   "next_steps": "Proceed to PHASE3 or restart PHASE1"
 }' | .opencode/scripts/lib/osc-log "$1" append

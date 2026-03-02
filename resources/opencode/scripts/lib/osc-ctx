@@ -6,6 +6,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/osc-common"
+
 CHANGE_DIR="openspec/changes"
 
 if [[ $# -lt 1 ]]; then
@@ -55,16 +57,9 @@ SPECS=$(check_artifact "$CHANGE_PATH/specs" "directory")
 DESIGN=$(check_artifact "$CHANGE_PATH/design.md" "file")
 TASKS=$(check_artifact "$CHANGE_PATH/tasks.md" "file")
 
-# Check history files
-DECISION_LOG_ENTRIES=0
-if [[ -f "$CHANGE_PATH/decision-log.json" ]]; then
-    DECISION_LOG_ENTRIES=$(jq 'length' "$CHANGE_PATH/decision-log.json" 2>/dev/null || echo "0")
-fi
-
-ITERATIONS_RECORDED=0
-if [[ -f "$CHANGE_PATH/iterations.json" ]]; then
-    ITERATIONS_RECORDED=$(jq 'length' "$CHANGE_PATH/iterations.json" 2>/dev/null || echo "0")
-fi
+# Check history files using osc_json_length
+DECISION_LOG_ENTRIES=$(osc_json_length "$CHANGE_PATH/decision-log.json")
+ITERATIONS_RECORDED=$(osc_json_length "$CHANGE_PATH/iterations.json")
 
 # Build output JSON
 jq -n \

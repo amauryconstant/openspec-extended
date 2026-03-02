@@ -36,7 +36,15 @@ Archive the completed change for historical reference.
    - Check artifact completion in `openspec/changes/$1/tasks.md`
    - Verify delta spec sync state (if applicable)
 
-3. Execute archive:
+3. Verify files to archive:
+   - state.json (workflow state)
+   - iterations.json (iteration history)
+   - decision-log.json (decision log)
+   - verification-report.md (from PHASE2, if exists)
+   - reflections.md (from PHASE6, if exists)
+   - test-compliance-report.md (from PHASE1, if exists)
+
+4. Execute archive:
    - Skill will move change to: `openspec/changes/archive/YYYY-MM-DD-$1/`
    - Verify the move completed successfully
 

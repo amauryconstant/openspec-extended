@@ -5,6 +5,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/osc-common"
+
 CHANGE_DIR="openspec/changes"
 
 usage() {
@@ -64,8 +67,10 @@ case "$ACTION" in
         
         PREVIOUS_PHASE=$(jq -r '.phase // "UNKNOWN"' "$STATE_FILE")
         
-        jq --arg phase "$VALUE" '.phase = $phase' "$STATE_FILE" > "${STATE_FILE}.tmp"
-        mv "${STATE_FILE}.tmp" "$STATE_FILE"
+        if ! osc_json_update "$STATE_FILE" '.phase = $phase' --arg phase "$VALUE"; then
+            echo '{"error":"jq_failed","message":"Failed to update phase"}' >&2
+            exit 1
+        fi
         
         echo "{\"success\":true,\"phase\":\"$VALUE\",\"previous_phase\":\"$PREVIOUS_PHASE\"}"
         ;;
@@ -76,10 +81,12 @@ case "$ACTION" in
             exit 1
         fi
         
-        jq '.phase_complete = true' "$STATE_FILE" > "${STATE_FILE}.tmp"
-        mv "${STATE_FILE}.tmp" "$STATE_FILE"
+        if ! osc_json_update "$STATE_FILE" '.phase_complete = true'; then
+            echo '{"error":"jq_failed","message":"Failed to mark complete"}' >&2
+            exit 1
+        fi
         
-        echo "{\"success\":true,\"phase_complete\":true}"
+        echo '{"success":true,"phase_complete":true}'
         ;;
     
     *)

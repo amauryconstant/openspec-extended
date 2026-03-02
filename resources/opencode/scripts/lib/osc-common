@@ -1,0 +1,74 @@
+#!/bin/bash
+# osc-common - Shared functions for OpenSpec lib scripts
+# Usage: source this file from other osc-* scripts
+#
+# Functions provided:
+#   osc_json_length  - Safely get JSON array length
+#   osc_json_update  - Safely update JSON file with jq
+#   osc_json_append  - Safely append entry to JSON array file
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+osc_json_length() {
+    local file="$1"
+    
+    if [[ ! -f "$file" ]]; then
+        echo "0"
+        return 0
+    fi
+    
+    # Check if file contains a valid JSON array
+    if ! jq -e 'type == "array"' "$file" &>/dev/null; then
+        echo "0"
+        return 0
+    fi
+    
+    local result
+    result=$(jq 'length' "$file" 2>/dev/null || echo "0")
+    
+    if ! [[ "$result" =~ ^[0-9]+$ ]]; then
+        echo "0"
+        return 0
+    fi
+    
+    echo "$result"
+}
+
+osc_json_update() {
+    local file="$1"
+    local jq_filter="$2"
+    shift 2
+    
+    local tmp_file="${file}.tmp"
+    
+    if ! jq "$@" "$jq_filter" "$file" > "$tmp_file" 2>/dev/null; then
+        rm -f "$tmp_file"
+        return 1
+    fi
+    
+    mv "$tmp_file" "$file"
+    return 0
+}
+
+osc_json_append() {
+    local file="$1"
+    local entry="$2"
+    local tmp_file="${file}.tmp"
+    
+    if [[ ! -f "$file" ]]; then
+        if ! echo "[$entry]" > "$file" 2>/dev/null; then
+            return 1
+        fi
+        return 0
+    fi
+    
+    if ! jq ". + [$entry]" "$file" > "$tmp_file" 2>/dev/null; then
+        rm -f "$tmp_file"
+        return 1
+    fi
+    
+    mv "$tmp_file" "$file"
+    return 0
+}

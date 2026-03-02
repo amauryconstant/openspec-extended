@@ -7,6 +7,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/osc-common"
+
 CHANGE_DIR="openspec/changes"
 
 usage() {
@@ -71,12 +74,9 @@ case "$ACTION" in
         # Generate timestamp
         TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
         
-        # Determine next entry number
-        if [[ ! -f "$DECISION_JSON" ]]; then
-            ENTRY_NUM=1
-        else
-            ENTRY_NUM=$(jq 'length + 1' "$DECISION_JSON" 2>/dev/null || echo "1")
-        fi
+        # Determine next entry number using osc_json_length
+        ENTRY_NUM=$(osc_json_length "$DECISION_JSON")
+        ENTRY_NUM=$((ENTRY_NUM + 1))
         
         # Build JSON entry with timestamp and entry number
         JSON_ENTRY=$(echo "$INPUT_JSON" | jq \
@@ -84,12 +84,10 @@ case "$ACTION" in
             --argjson entry "$ENTRY_NUM" \
             '. + {timestamp: $ts, entry: $entry}')
         
-        # Write to JSON index
-        if [[ ! -f "$DECISION_JSON" ]]; then
-            echo "[$JSON_ENTRY]" > "$DECISION_JSON"
-        else
-            jq ". + [$JSON_ENTRY]" "$DECISION_JSON" > "${DECISION_JSON}.tmp"
-            mv "${DECISION_JSON}.tmp" "$DECISION_JSON"
+        # Append to decision log using osc_json_append
+        if ! osc_json_append "$DECISION_JSON" "$JSON_ENTRY"; then
+            echo '{"error":"jq_failed","message":"Failed to append to decision log"}' >&2
+            exit 1
         fi
         
         echo "{\"success\":true,\"entry\":$ENTRY_NUM,\"phase\":\"$PHASE\",\"iteration\":$ITERATION,\"timestamp\":\"$TIMESTAMP\"}"
