@@ -19,5 +19,5 @@ repos:
         name: Test the openspec-auto script and its dependencies
         entry: mise run test
         language: system
-        files: ^resources/opencode/scripts/$
+        files: ^(resources/opencode/scripts/|tests/)
         pass_filenames: false

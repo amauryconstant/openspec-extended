@@ -82,8 +82,13 @@ osc_find_change_dir() {
         return 0
     fi
     
+    local archive_dir="openspec/changes/archive"
+    if [[ ! -d "$archive_dir" ]]; then
+        return 1
+    fi
+    
     local archive_match
-    archive_match=$(find openspec/changes/archive -maxdepth 1 -type d -name "*-$change" 2>/dev/null | head -1)
+    archive_match=$(find "$archive_dir" -maxdepth 1 -type d -name "*-$change" 2>/dev/null | head -1)
     
     if [[ -n "$archive_match" ]]; then
         echo "$archive_match"

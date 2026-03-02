@@ -24,8 +24,7 @@ fi
 CHANGE="$1"
 ACTION="${2:-get}"
 
-CHANGE_DIR=$(osc_find_change_dir "$CHANGE")
-if [[ $? -ne 0 ]]; then
+if ! CHANGE_DIR=$(osc_find_change_dir "$CHANGE"); then
     echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"change\":\"$CHANGE\"}" >&2
     exit 1
 fi

@@ -181,3 +181,42 @@ teardown() {
     last=$(jq -r '.[4].num' "$TEST_DIR/seq.json")
     [ "$last" == "5" ]
 }
+
+@test "osc_find_change_dir: returns primary path for active change" {
+    mkdir -p "$TEST_DIR/openspec/changes/test-change"
+    
+    run osc_find_change_dir "test-change"
+    [ "$status" -eq 0 ]
+    [ "$output" == "openspec/changes/test-change" ]
+}
+
+@test "osc_find_change_dir: returns archive path for archived change" {
+    mkdir -p "$TEST_DIR/openspec/changes/archive/2024-01-15-test-change"
+    
+    run osc_find_change_dir "test-change"
+    [ "$status" -eq 0 ]
+    [ "$output" == "openspec/changes/archive/2024-01-15-test-change" ]
+}
+
+@test "osc_find_change_dir: returns 1 for nonexistent change" {
+    run osc_find_change_dir "nonexistent"
+    [ "$status" -eq 1 ]
+    [ -z "$output" ]
+}
+
+@test "osc_find_change_dir: handles missing archive directory" {
+    mkdir -p "$TEST_DIR/openspec/changes"
+    
+    run osc_find_change_dir "nonexistent"
+    [ "$status" -eq 1 ]
+    [ -z "$output" ]
+}
+
+@test "osc_find_change_dir: prefers active over archive" {
+    mkdir -p "$TEST_DIR/openspec/changes/test-change"
+    mkdir -p "$TEST_DIR/openspec/changes/archive/2024-01-15-test-change"
+    
+    run osc_find_change_dir "test-change"
+    [ "$status" -eq 0 ]
+    [ "$output" == "openspec/changes/test-change" ]
+}

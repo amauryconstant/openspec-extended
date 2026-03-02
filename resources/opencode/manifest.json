@@ -78,19 +78,19 @@
     },
     "lib": {
       "osc-common": {
-        "version": "0.1.0"
+        "version": "0.1.1"
       },
       "osc-state": {
-        "version": "0.3.0"
+        "version": "0.3.1"
       },
       "osc-ctx": {
         "version": "0.2.0"
       },
       "osc-iterations": {
-        "version": "0.2.1"
+        "version": "0.2.2"
       },
       "osc-log": {
-        "version": "0.3.1"
+        "version": "0.3.2"
       },
       "osc-git": {
         "version": "0.1.0"
