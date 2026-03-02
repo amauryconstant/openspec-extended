@@ -3,46 +3,110 @@
   "version": "",
   "resources": {
     "skills": {
-      "openspec-concepts": { "version": "0.3.1" },
-      "openspec-generate-changelog": { "version": "0.2.0" },
-      "openspec-maintain-ai-docs": { "version": "0.2.0" },
-      "openspec-modify-artifacts": { "version": "0.2.3" },
-      "openspec-review-artifacts": { "version": "0.2.3" },
-      "openspec-review-test-compliance": { "version": "0.2.0" }
+      "openspec-concepts": {
+        "version": "0.3.1"
+      },
+      "openspec-generate-changelog": {
+        "version": "0.2.0"
+      },
+      "openspec-maintain-ai-docs": {
+        "version": "0.2.0"
+      },
+      "openspec-modify-artifacts": {
+        "version": "0.2.3"
+      },
+      "openspec-review-artifacts": {
+        "version": "0.2.3"
+      },
+      "openspec-review-test-compliance": {
+        "version": "0.2.0"
+      }
     },
     "agents": {
-      "openspec-analyzer": { "version": "0.1.3" },
-      "openspec-builder": { "version": "0.1.3" },
-      "openspec-maintainer": { "version": "0.1.2" }
+      "openspec-analyzer": {
+        "version": "0.1.4"
+      },
+      "openspec-builder": {
+        "version": "0.1.4"
+      },
+      "openspec-maintainer": {
+        "version": "0.1.3"
+      }
     },
     "commands": {
-      "openspec-phase0": { "version": "0.2.5" },
-      "openspec-phase1": { "version": "0.2.5" },
-      "openspec-phase2": { "version": "0.2.6" },
-      "openspec-phase3": { "version": "0.2.5" },
-      "openspec-phase4": { "version": "0.2.5" },
-      "openspec-phase5": { "version": "0.2.6" },
-      "openspec-phase6": { "version": "0.2.6" },
-      "opsx-review": { "version": "0.1.1" },
-      "opsx-modify": { "version": "0.1.1" },
-      "opsx-verify-tests": { "version": "0.1.1" },
-      "opsx-changelog": { "version": "0.1.1" },
-      "opsx-maintain-docs": { "version": "0.1.1" }
+      "openspec-phase0": {
+        "version": "0.2.5"
+      },
+      "openspec-phase1": {
+        "version": "0.2.5"
+      },
+      "openspec-phase2": {
+        "version": "0.2.6"
+      },
+      "openspec-phase3": {
+        "version": "0.2.5"
+      },
+      "openspec-phase4": {
+        "version": "0.2.5"
+      },
+      "openspec-phase5": {
+        "version": "0.2.6"
+      },
+      "openspec-phase6": {
+        "version": "0.2.6"
+      },
+      "opsx-review": {
+        "version": "0.1.1"
+      },
+      "opsx-modify": {
+        "version": "0.1.1"
+      },
+      "opsx-verify-tests": {
+        "version": "0.1.1"
+      },
+      "opsx-changelog": {
+        "version": "0.1.1"
+      },
+      "opsx-maintain-docs": {
+        "version": "0.1.1"
+      }
     },
     "scripts": {
-      "openspec-auto": { "version": "0.7.5" }
+      "openspec-auto": {
+        "version": "0.7.5"
+      }
     },
     "lib": {
-      "osc-common": { "version": "0.1.0" },
-      "osc-state": { "version": "0.2.0" },
-      "osc-ctx": { "version": "0.2.0" },
-      "osc-iterations": { "version": "0.2.0" },
-      "osc-log": { "version": "0.3.0" },
-      "osc-git": { "version": "0.1.0" },
-      "osc-baseline": { "version": "0.1.0" },
-      "osc-complete": { "version": "0.1.0" },
-      "osc-phase": { "version": "0.1.2" },
-      "osc-validate": { "version": "0.1.0" }
+      "osc-common": {
+        "version": "0.1.0"
+      },
+      "osc-state": {
+        "version": "0.2.0"
+      },
+      "osc-ctx": {
+        "version": "0.2.0"
+      },
+      "osc-iterations": {
+        "version": "0.2.0"
+      },
+      "osc-log": {
+        "version": "0.3.0"
+      },
+      "osc-git": {
+        "version": "0.1.0"
+      },
+      "osc-baseline": {
+        "version": "0.1.0"
+      },
+      "osc-complete": {
+        "version": "0.1.0"
+      },
+      "osc-phase": {
+        "version": "0.1.2"
+      },
+      "osc-validate": {
+        "version": "0.1.0"
+      }
     }
   }
 }

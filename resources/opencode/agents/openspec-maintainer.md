@@ -15,7 +15,7 @@ permission:
   todowrite: allow
   webfetch: allow
   websearch: allow
-  question: allow
+  question: deny
   lsp: allow
 ---
 
