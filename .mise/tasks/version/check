@@ -54,18 +54,18 @@ get_or_load_manifest() {
     return
   fi
   
-  local manifest_file
+  local manifest_file manifest_path
   case "$platform" in
-    opencode) manifest_file="$PROJECT_ROOT/resources/opencode/manifest.json" ;;
-    claude)   manifest_file="$PROJECT_ROOT/resources/claude/manifest.json" ;;
+    opencode) manifest_file="$PROJECT_ROOT/resources/opencode/manifest.json"; manifest_path="resources/opencode/manifest.json" ;;
+    claude)   manifest_file="$PROJECT_ROOT/resources/claude/manifest.json"; manifest_path="resources/claude/manifest.json" ;;
     *) return ;;
   esac
   
   if [[ "$which" == "current" ]]; then
     MANIFEST_CACHE[$cache_key]=$(cat "$manifest_file" 2>/dev/null || echo "{}")
   else
-    if git show "HEAD:$manifest_file" &>/dev/null; then
-      MANIFEST_CACHE[$cache_key]=$(git show "HEAD:$manifest_file")
+    if git show "HEAD:$manifest_path" &>/dev/null; then
+      MANIFEST_CACHE[$cache_key]=$(git show "HEAD:$manifest_path")
     else
       MANIFEST_CACHE[$cache_key]="{}"
     fi
