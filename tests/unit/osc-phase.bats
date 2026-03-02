@@ -45,12 +45,15 @@ teardown() {
     assert_json_equals "$output" ".iteration" "2"
 }
 
-@test "osc-phase: current fails without state.json" {
+@test "osc-phase: current creates initial state when missing" {
     setup_change "test-change"
     
     run_osc_phase "test-change" current
-    [ "$status" -eq 1 ]
-    assert_output_contains "state_not_found"
+    [ "$status" -eq 0 ]
+    assert_json_equals "$output" ".phase" "PHASE0"
+    assert_json_equals "$output" ".iteration" "1"
+    
+    [ -f "openspec/changes/test-change/state.json" ]
 }
 
 @test "osc-phase: current fails with missing phase field" {
@@ -87,12 +90,14 @@ teardown() {
     assert_json_equals "$output" ".next" "COMPLETE"
 }
 
-@test "osc-phase: next fails without state.json" {
+@test "osc-phase: next creates initial state when missing" {
     setup_change "test-change"
     
     run_osc_phase "test-change" next
-    [ "$status" -eq 1 ]
-    assert_output_contains "state_not_found"
+    [ "$status" -eq 0 ]
+    assert_json_equals "$output" ".next" "PHASE1"
+    
+    [ -f "openspec/changes/test-change/state.json" ]
 }
 
 @test "osc-phase: next returns PHASE3 from PHASE2" {
@@ -132,12 +137,15 @@ teardown() {
     assert_json_equals "$output" ".next" "PHASE5"
 }
 
-@test "osc-phase: advance fails without state.json" {
+@test "osc-phase: advance creates initial state when missing" {
     setup_change "test-change"
     
     run_osc_phase "test-change" advance
-    [ "$status" -eq 1 ]
-    assert_output_contains "state_not_found"
+    [ "$status" -eq 0 ]
+    assert_json_equals "$output" ".phase" "PHASE1"
+    assert_json_equals "$output" ".previous" "PHASE0"
+    
+    [ -f "openspec/changes/test-change/state.json" ]
 }
 
 @test "osc-phase: advance from PHASE6 goes to COMPLETE" {

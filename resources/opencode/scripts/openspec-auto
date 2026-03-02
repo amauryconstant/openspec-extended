@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # OpenSpec Autonomous Workflow Orchestrator
-# Version: 0.7.4
+# Version is read from manifest.json at runtime
 # Usage: openspec-auto <change-name> [options]
 
 set -euo pipefail
 
-readonly SCRIPT_VERSION="0.7.4"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_VERSION=$(jq -r '.resources.scripts["openspec-auto"].version // "unknown"' \
+  "$SCRIPT_DIR/../manifest.json" 2>/dev/null || echo "unknown")
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
 
@@ -315,17 +316,54 @@ require_tool() {
   log_success "Tool found: $tool"
 }
 
+run_lib_script() {
+  local script="$1"
+  shift
+  local args=("$@")
+  
+  local stderr_file
+  stderr_file=$(mktemp)
+  
+  local result
+  result=$("$SCRIPT_DIR/lib/$script" "${args[@]}" 2>"$stderr_file")
+  local exit_code=$?
+  
+  if [[ $exit_code -ne 0 ]]; then
+    if [[ -s "$stderr_file" ]]; then
+      log_error "Script $script failed:"
+      cat "$stderr_file" >&2
+    fi
+    rm -f "$stderr_file"
+    echo ""
+    return 1
+  fi
+  
+  rm -f "$stderr_file"
+  echo "$result"
+  return 0
+}
+
+is_valid_json_result() {
+  local result="$1"
+  [[ -n "$result" ]] && [[ $(echo "$result" | jq -r '.valid' 2>/dev/null) == "true" ]]
+}
+
+print_validation_errors() {
+  local result="$1"
+  echo "$result" | jq -r '.errors[]?.message' 2>/dev/null | while read -r msg; do
+    [[ -n "$msg" ]] && log_error "$msg"
+  done
+}
+
 validate_skills() {
   log "Validating required skills..."
   
   local result
-  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" skills 2>/dev/null)
+  result=$(run_lib_script "osc-validate" "$CHANGE_ID" skills)
   
-  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
+  if ! is_valid_json_result "$result"; then
     log_error "Required skills validation failed"
-    echo "$result" | jq -r '.errors[]?.message' | while read -r msg; do
-      log_error "$msg"
-    done
+    print_validation_errors "$result"
     local platform_name=$(basename "$SKILLS_DIR")
     log_error "Run: openspecx install $platform_name"
     exit 1
@@ -338,13 +376,11 @@ validate_commands() {
   log "Validating required commands..."
   
   local result
-  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" commands 2>/dev/null)
+  result=$(run_lib_script "osc-validate" "$CHANGE_ID" commands)
   
-  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
+  if ! is_valid_json_result "$result"; then
     log_error "Required commands validation failed"
-    echo "$result" | jq -r '.errors[]?.message' | while read -r msg; do
-      log_error "$msg"
-    done
+    print_validation_errors "$result"
     log_error "Run: openspecx install opencode"
     exit 1
   fi
@@ -356,10 +392,10 @@ validate_json() {
   local file="$1"
   
   local result
-  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" json "$file" 2>/dev/null)
+  result=$(run_lib_script "osc-validate" "$CHANGE_ID" json "$file")
   
-  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
-    log_error "$(echo "$result" | jq -r '.errors[0].message // "Invalid JSON"')"
+  if ! is_valid_json_result "$result"; then
+    log_error "$(echo "$result" | jq -r '.errors[0].message // "Invalid JSON"' 2>/dev/null)"
     return 1
   fi
   
@@ -370,13 +406,11 @@ validate_change_dir() {
   log "Validating change directory..."
   
   local result
-  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" change-dir 2>/dev/null)
+  result=$(run_lib_script "osc-validate" "$CHANGE_ID" change-dir)
   
-  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
+  if ! is_valid_json_result "$result"; then
     log_error "Change directory validation failed"
-    echo "$result" | jq -r '.errors[]?.message' | while read -r msg; do
-      log_error "$msg"
-    done
+    print_validation_errors "$result"
     log_error "Change directory: $CHANGE_DIR"
     exit 1
   fi
@@ -421,7 +455,7 @@ record_baseline() {
   log "Recording baseline..."
   
   local result
-  result=$("$SCRIPT_DIR/lib/osc-baseline" record 2>/dev/null)
+  result=$(run_lib_script "osc-baseline" record)
   
   if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.commit // empty' 2>/dev/null) == "" ]]; then
     log_error "Failed to record baseline"
@@ -495,9 +529,9 @@ EOF
 
 check_complete() {
   local result
-  result=$("$SCRIPT_DIR/lib/osc-complete" "$CHANGE_ID" check 2>/dev/null)
+  result=$(run_lib_script "osc-complete" "$CHANGE_ID" check)
   
-  if [[ $(echo "$result" | jq -r '.exists // false') != "true" ]]; then
+  if [[ $(echo "$result" | jq -r '.exists // false' 2>/dev/null) != "true" ]]; then
     return 1
   fi
   
@@ -506,7 +540,7 @@ check_complete() {
 
 read_completion() {
   local result
-  result=$("$SCRIPT_DIR/lib/osc-complete" "$CHANGE_ID" get 2>/dev/null)
+  result=$(run_lib_script "osc-complete" "$CHANGE_ID" get)
   
   if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.status // empty' 2>/dev/null) == "" ]]; then
     return 1
@@ -521,7 +555,7 @@ read_completion() {
 
 get_current_phase() {
   local result
-  result=$("$SCRIPT_DIR/lib/osc-phase" "$CHANGE_ID" current 2>/dev/null)
+  result=$(run_lib_script "osc-phase" "$CHANGE_ID" current)
   
   if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.phase // empty' 2>/dev/null) == "" ]]; then
     return 1
@@ -536,7 +570,7 @@ get_current_phase() {
 
 get_phase_iteration() {
   local result
-  result=$("$SCRIPT_DIR/lib/osc-phase" "$CHANGE_ID" current 2>/dev/null)
+  result=$(run_lib_script "osc-phase" "$CHANGE_ID" current)
   
   if [[ -z "$result" ]]; then
     echo 0
@@ -692,7 +726,7 @@ advance_phase() {
   local current="$1"
   
   local result
-  result=$("$SCRIPT_DIR/lib/osc-phase" "$CHANGE_ID" advance 2>/dev/null)
+  result=$(run_lib_script "osc-phase" "$CHANGE_ID" advance)
   
   if [[ -n "$result" ]]; then
     echo "$result" | jq -r '.phase // "COMPLETE"'
@@ -712,10 +746,10 @@ advance_phase() {
 
 validate_archive() {
   local result
-  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" archive 2>/dev/null)
+  result=$(run_lib_script "osc-validate" "$CHANGE_ID" archive)
   
-  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
-    log_error "$(echo "$result" | jq -r '.errors[0].message // "Archive validation failed"')"
+  if ! is_valid_json_result "$result"; then
+    log_error "$(echo "$result" | jq -r '.errors[0].message // "Archive validation failed"' 2>/dev/null)"
     return 1
   fi
   
@@ -727,10 +761,10 @@ validate_archive() {
 
 validate_iterations() {
   local result
-  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" iterations 2>/dev/null)
+  result=$(run_lib_script "osc-validate" "$CHANGE_ID" iterations)
   
-  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
-    log_error "$(echo "$result" | jq -r '.errors[0].message // "Iterations validation failed"')"
+  if ! is_valid_json_result "$result"; then
+    log_error "$(echo "$result" | jq -r '.errors[0].message // "Iterations validation failed"' 2>/dev/null)"
     return 1
   fi
   
@@ -741,13 +775,11 @@ validate_completion() {
   log "Validating completion requirements..."
   
   local result
-  result=$("$SCRIPT_DIR/lib/osc-validate" "$CHANGE_ID" completion 2>/dev/null)
+  result=$(run_lib_script "osc-validate" "$CHANGE_ID" completion)
   
-  if [[ $(echo "$result" | jq -r '.valid') != "true" ]]; then
+  if ! is_valid_json_result "$result"; then
     log_error "Completion validation failed"
-    echo "$result" | jq -r '.errors[]?.message' | while read -r msg; do
-      log_error "$msg"
-    done
+    print_validation_errors "$result"
     return 1
   fi
   
@@ -969,53 +1001,27 @@ main() {
       current_phase="PHASE0"
     fi
     
+    # Check for blocker signal from any phase
     if check_complete; then
-      local complete_status
-      complete_status=$(read_completion || echo "")
+      local with_blocker
+      with_blocker=$(jq -r '.with_blocker // "false"' "$CHANGE_DIR/complete.json" 2>/dev/null)
       
-      if [[ "$complete_status" == "COMPLETE" ]]; then
-        log "Completion signal received"
+      if [[ "$with_blocker" == "true" ]]; then
+        local blocker_reason
+        blocker_reason=$(jq -r '.blocker_reason // "Unknown"' "$CHANGE_DIR/complete.json" 2>/dev/null)
         
-        local with_blocker
-        with_blocker=$(jq -r '.with_blocker // "false"' "$CHANGE_DIR/complete.json" 2>/dev/null)
+        log ""
+        log "================================"
+        log_error "CRITICAL BLOCKER DETECTED"
+        log "================================"
+        log_warning "Blocker: $blocker_reason"
+        log "Review decision-log.json for details"
         
-        if [[ "$with_blocker" == "true" ]]; then
-          local blocker_reason
-          blocker_reason=$(jq -r '.blocker_reason // "Unknown"' "$CHANGE_DIR/complete.json" 2>/dev/null)
-          
-          log_warning "Completion with CRITICAL BLOCKER: $blocker_reason"
-          log "Review decision-log.json for details"
-          
-          if [[ "$VERBOSE" == true ]]; then
-            show_progress
-          fi
-          
-          exit 1
+        if [[ "$VERBOSE" == true ]]; then
+          show_progress
         fi
         
-        if validate_completion; then
-          log ""
-          log "================================"
-          log_success "Implementation completed successfully!"
-          log "================================"
-          
-          rm "$CHANGE_DIR/state.json"
-          rm "$CHANGE_DIR/complete.json"
-          rm ".openspec-baseline.json"
-          
-          log "State files cleaned up"
-          
-          if [[ "$VERBOSE" == true ]]; then
-            show_progress
-          fi
-          
-          exit 0
-        else
-          log ""
-          log_error "Validation failed - completion criteria not met"
-          log "State files preserved for investigation"
-          exit 1
-        fi
+        exit 1
       fi
     fi
     
@@ -1030,6 +1036,40 @@ main() {
         local next_phase
         next_phase=$(advance_phase "$current_phase")
         log "Phase transition: $current_phase → $next_phase"
+        
+        # After PHASE6 completes, validate archive and exit
+        if [[ "$current_phase" == "PHASE6" ]] && [[ "$next_phase" == "COMPLETE" ]]; then
+          if validate_archive; then
+            log ""
+            log "================================"
+            log_success "Implementation completed successfully!"
+            log "================================"
+            
+            if [[ -f "$CHANGE_DIR/state.json" ]]; then
+              rm "$CHANGE_DIR/state.json" || log_warning "Failed to remove state.json"
+            fi
+            if [[ -f "$CHANGE_DIR/complete.json" ]]; then
+              rm "$CHANGE_DIR/complete.json" || log_warning "Failed to remove complete.json"
+            fi
+            if [[ -f ".openspec-baseline.json" ]]; then
+              rm ".openspec-baseline.json" || log_warning "Failed to remove .openspec-baseline.json"
+            fi
+            
+            log "State files cleaned up"
+            
+            if [[ "$VERBOSE" == true ]]; then
+              show_progress
+            fi
+            
+            exit 0
+          else
+            log ""
+            log_error "Archive validation failed"
+            log "State files preserved for investigation"
+            exit 1
+          fi
+        fi
+        
         current_phase="$next_phase"
         ;;
       COMPLETE)

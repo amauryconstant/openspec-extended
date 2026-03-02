@@ -144,6 +144,8 @@ get_resource_info_from_path() {
       resource_type="commands"; resource_name="opsx-maintain-docs" ;;
     *"/scripts/openspec-auto")
       resource_type="scripts"; resource_name="openspec-auto" ;;
+    *"/scripts/lib/osc-common"*)
+      resource_type="lib"; resource_name="osc-common" ;;
     *"/scripts/lib/osc-state"*)
       resource_type="lib"; resource_name="osc-state" ;;
     *"/scripts/lib/osc-ctx"*)

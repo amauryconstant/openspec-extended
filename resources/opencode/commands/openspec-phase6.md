@@ -11,6 +11,7 @@ agent: openspec-maintainer
 | `osc-state` | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
 | `osc-log` | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
 | `osc-iterations` | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
+| `osc-complete` | `.opencode/scripts/lib/osc-complete <change> <action>` - signal blocker status |
 
 # PHASE6: Archive Change
 
@@ -108,3 +109,23 @@ After PHASE6 archive:
 2. All state files (state.json, complete.json, iterations.json, decision-log.json) are archived
 3. The script will detect completion and exit
 4. State files will be cleaned up by the script
+
+## BLOCKER HANDLING
+
+If you encounter an unrecoverable issue that prevents progress:
+
+```bash
+echo '{
+  "status": "COMPLETE",
+  "with_blocker": true,
+  "blocker_reason": "[Describe the specific blocking issue]",
+  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+}' > openspec/changes/$1/complete.json
+```
+
+The orchestrator will detect this and halt the workflow.
+
+**When to use:**
+- Archive operation fails and cannot be retried
+- File permissions prevent moving change to archive
+- Critical files missing from change directory

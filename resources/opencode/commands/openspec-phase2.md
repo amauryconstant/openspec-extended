@@ -12,6 +12,7 @@ agent: openspec-analyzer
 | `osc-state` | Local script | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
 | `osc-log` | Local script | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
 | `osc-iterations` | Local script | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
+| `osc-complete` | Local script | `.opencode/scripts/lib/osc-complete <change> <action>` - signal blocker status |
 
 # PHASE2: Verification
 

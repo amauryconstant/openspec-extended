@@ -11,6 +11,7 @@ agent: openspec-maintainer
 | `osc-state` | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
 | `osc-log` | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
 | `osc-iterations` | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
+| `osc-complete` | `.opencode/scripts/lib/osc-complete <change> <action>` - signal blocker status |
 
 # PHASE3: Maintain Documentation
 
@@ -54,6 +55,25 @@ git commit -m "Update documentation for $1"
 ```
 
 Record commit hash in decision log and iterations.json.
+
+## BLOCKER HANDLING
+
+If you encounter an unrecoverable issue that prevents progress:
+
+```bash
+echo '{
+  "status": "COMPLETE",
+  "with_blocker": true,
+  "blocker_reason": "[Describe the specific blocking issue]",
+  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+}' > openspec/changes/$1/complete.json
+```
+
+The orchestrator will detect this and halt the workflow.
+
+**When to use:**
+- Documentation conflicts that cannot be resolved
+- AGENTS.md/CLAUDE.md structure fundamentally incompatible with changes
 
 ## STATE FILE UPDATES
 

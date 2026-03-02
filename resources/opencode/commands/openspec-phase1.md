@@ -12,6 +12,7 @@ agent: openspec-builder
 | `osc-state` | Local script | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
 | `osc-log` | Local script | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
 | `osc-iterations` | Local script | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
+| `osc-complete` | Local script | `.opencode/scripts/lib/osc-complete <change> <action>` - signal blocker status |
 
 # PHASE1: Implementation
 
@@ -94,6 +95,27 @@ After implementation complete:
 - If tests fail repeatedly (>3 attempts): Use subagent to debug, check spec clarity
 - If stuck in iteration loop (>3 iterations with no progress): Document blocker, signal COMPLETE
 - If openspec CLI commands fail: Proceed without CLI output, document via `osc-log`
+
+## BLOCKER HANDLING
+
+If you encounter an unrecoverable issue that prevents progress:
+
+```bash
+echo '{
+  "status": "COMPLETE",
+  "with_blocker": true,
+  "blocker_reason": "[Describe the specific blocking issue]",
+  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+}' > openspec/changes/$1/complete.json
+```
+
+The orchestrator will detect this and halt the workflow.
+
+**When to use:**
+- Pre-commit hook failures that cannot be resolved after 3 attempts
+- Implementation fundamentally blocked by unclear or contradictory specs
+- External dependencies unavailable or broken
+- Task cannot be completed due to missing information
 
 ## STATE FILE UPDATES
 

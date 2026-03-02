@@ -10,6 +10,7 @@ agent: openspec-analyzer
 | `osc-ctx` | `.opencode/scripts/lib/osc-ctx <change>` - load change context |
 | `osc-log` | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
 | `osc-iterations` | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
+| `osc-complete` | `.opencode/scripts/lib/osc-complete <change> <action>` - signal blocker status |
 
 # PHASE5: Self-Reflection
 
@@ -71,18 +72,6 @@ Answer each with 2-4 sentences minimum, including specific examples:
    - Missing checkpoints?
    - Better progress tracking?
 
-## STATE FILE UPDATES
-
-After reflection, create `complete.json`:
-```bash
-echo '{
-  "status": "COMPLETE",
-  "with_blocker": false,
-  "blocker_reason": null,
-  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-}' > openspec/changes/$1/complete.json
-```
-
 ## DECISION LOG
 
 Write reflections to file, then log:
@@ -121,12 +110,12 @@ EOF
 echo '{
   "phase": "SELF_REFLECTION",
   "iteration": N,
-  "summary": "All phases complete. Workflow evaluation finished.",
+  "summary": "Self-reflection completed. Workflow evaluation finished.",
   "reflections_path": "openspec/changes/$1/reflections.md",
   "total_phases": 7,
   "total_iterations": N,
   "commit_hash": "<hash or null>",
-  "next_steps": "All phases complete. Ready to signal completion."
+  "next_steps": "Self-reflection complete. Proceeding to PHASE6 (ARCHIVE)."
 }' | .opencode/scripts/lib/osc-log "$1" append
 ```
 
@@ -147,14 +136,33 @@ echo '{
 
 ## MANDATORY END
 
-Commit reflections and completion status:
+Commit reflections:
 
 ```bash
-git add openspec/changes/$1/reflections.md openspec/changes/$1/complete.json
-git commit -m "Complete workflow for $1"
+git add openspec/changes/$1/reflections.md
+git commit -m "Complete self-reflection for $1"
 ```
 
 Record commit hash in decision log and iterations.json.
+
+## BLOCKER HANDLING
+
+If you encounter an unrecoverable issue that prevents progress:
+
+```bash
+echo '{
+  "status": "COMPLETE",
+  "with_blocker": true,
+  "blocker_reason": "[Describe the specific blocking issue]",
+  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+}' > openspec/changes/$1/complete.json
+```
+
+The orchestrator will detect this and halt the workflow.
+
+**When to use:**
+- Reflection reveals a critical issue that requires human intervention
+- Workflow cannot proceed to archive due to unresolved problems
 
 ## TRANSITION
 

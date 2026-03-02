@@ -11,6 +11,7 @@ agent: openspec-analyzer
 | `osc-state` | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
 | `osc-log` | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
 | `osc-iterations` | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
+| `osc-complete` | `.opencode/scripts/lib/osc-complete <change> <action>` - signal blocker status |
 
 # PHASE0: Artifact Review
 
