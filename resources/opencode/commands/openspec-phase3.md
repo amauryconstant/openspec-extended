@@ -44,6 +44,17 @@ Update project documentation to reflect changes made during implementation.
    - Progressive disclosure (summary first, details later)
    - Target <300 lines per file
 
+## MANDATORY END
+
+IF documentation was updated during this phase:
+
+```bash
+git add AGENTS.md CLAUDE.md
+git commit -m "Update documentation for $1"
+```
+
+Record commit hash in decision log and iterations.json.
+
 ## STATE FILE UPDATES
 
 Phase complete:
@@ -61,6 +72,7 @@ echo '{
   "summary": "Documentation updated successfully",
   "docs_updated": ["AGENTS.md", "CLAUDE.md"],
   "changes_made": ["Specific change 1", "Specific change 2"],
+  "commit_hash": "<hash or null>",
   "next_steps": "Proceeding to PHASE4 (SYNC)"
 }' | .opencode/scripts/lib/osc-log "$1" append
 ```
@@ -73,6 +85,7 @@ echo '{
   "iteration": N,
   "phase": "MAINTAIN-DOCS",
   "docs_updated": ["AGENTS.md", "CLAUDE.md"],
+  "commit_hash": "<hash or null>",
   "notes": "Documentation updated successfully"
 }' | .opencode/scripts/lib/osc-iterations "$1" append
 ```

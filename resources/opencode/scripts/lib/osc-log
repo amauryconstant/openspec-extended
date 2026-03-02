@@ -23,13 +23,14 @@ fi
 
 CHANGE="$1"
 ACTION="${2:-get}"
-DECISION_JSON="$CHANGE_DIR/$CHANGE/decision-log.json"
 
-# Validate change exists
-if [[ ! -d "$CHANGE_DIR/$CHANGE" ]]; then
-    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"path\":\"$CHANGE_DIR/$CHANGE\"}" >&2
+CHANGE_DIR=$(osc_find_change_dir "$CHANGE")
+if [[ $? -ne 0 ]]; then
+    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"change\":\"$CHANGE\"}" >&2
     exit 1
 fi
+
+DECISION_JSON="$CHANGE_DIR/decision-log.json"
 
 case "$ACTION" in
     get)

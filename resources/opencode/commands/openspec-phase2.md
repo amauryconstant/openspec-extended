@@ -66,6 +66,17 @@ IF NO CRITICAL OR WARNING ISSUES (SUGGESTIONS OK):
 3. Mark phase complete via `osc-state`
 4. Script will advance to PHASE3
 
+## MANDATORY END
+
+IF artifacts were modified during this phase (CRITICAL/WARNING fixes):
+
+```bash
+git add openspec/changes/$1/
+git commit -m "Fix artifacts after verification for $1"
+```
+
+Record commit hash in decision log and iterations.json.
+
 ## STATE FILE UPDATES
 
 Phase complete (verification passed):
@@ -114,6 +125,7 @@ echo '{
   "issues_found": {"critical": N, "warning": N, "suggestion": N},
   "verification_report_path": "openspec/changes/$1/verification-report.md",
   "artifacts_modified": false,
+  "commit_hash": "<hash or null>",
   "next_steps": "Proceed to PHASE3 or restart PHASE1"
 }' | .opencode/scripts/lib/osc-log "$1" append
 ```
@@ -128,6 +140,7 @@ echo '{
   "verification_result": "passed|failed",
   "issues_found": {"critical": N, "warning": N, "suggestion": N},
   "artifacts_modified": false,
+  "commit_hash": "<hash or null>",
   "notes": "Brief summary"
 }' | .opencode/scripts/lib/osc-iterations "$1" append
 ```

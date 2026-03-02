@@ -1,6 +1,6 @@
 ---
-description: PHASE6 - Self-Reflection
-agent: openspec-analyzer
+description: PHASE6 - Archive Change
+agent: openspec-maintainer
 ---
 
 ## Tools Available
@@ -8,10 +8,11 @@ agent: openspec-analyzer
 | Tool | Usage |
 |------|-------|
 | `osc-ctx` | `.opencode/scripts/lib/osc-ctx <change>` - load change context |
+| `osc-state` | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
 | `osc-log` | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
 | `osc-iterations` | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
 
-# PHASE6: Self-Reflection
+# PHASE6: Archive Change
 
 Change: $1
 
@@ -20,112 +21,70 @@ Change: $1
 1. Load context:
   !`.opencode/scripts/lib/osc-ctx "$1"`
 2. Confirm `phase` is PHASE6
-3. Review full history via `osc-log get` to understand entire workflow
-4. Review `history.iterations_recorded` for iteration counts per phase
-5. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
+3. Review `history.iterations_recorded` for previous attempts
+4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
 
 ## PURPOSE
 
-Critically evaluate the autonomous development process and identify improvements.
+Archive the completed change for historical reference.
 
-## REFLECTION QUESTIONS
+## PROCESS
 
-Answer each with 2-4 sentences minimum, including specific examples:
+1. Load skill: Use `openspec-archive-change` skill
 
-**1. How well did the artifact review process work?**
-   - Were CRITICAL issues identified accurately?
-   - Did the iteration limit (5) constrain fixing important issues?
-   - Should any issues have been raised earlier or later?
+2. Verify completion status:
+   - Check artifact completion in `openspec/changes/$1/tasks.md`
+   - Verify delta spec sync state (if applicable)
 
-**2. How effective was the implementation phase?**
-   - Were tasks clear and achievable?
-   - Did milestone commits make sense?
-   - Was test compliance review useful?
+3. Verify files to archive:
+   - state.json (workflow state)
+   - iterations.json (iteration history)
+   - decision-log.json (decision log)
+   - verification-report.md (from PHASE2, if exists)
+   - reflections.md (from PHASE5, if exists)
+   - test-compliance-report.md (from PHASE1, if exists)
 
-**3. How did verification perform?**
-   - Did it catch important issues?
-   - Were issues actionable?
-   - Should any CRITICAL/WARNING issues have been caught earlier?
+4. Execute archive:
+   - Skill will move change to: `openspec/changes/archive/YYYY-MM-DD-$1/`
+   - Verify the move completed successfully
 
-**4. What assumptions had to be made?**
-   - List all significant assumptions from decision-log.json
-   - Which caused issues later?
-   - Which worked well?
+5. Log archive summary:
+   - Archive location: <path>
+   - Status: archived
 
-**5. How did completion phases work?**
-   - Were phase transitions smooth?
-   - Did MAINTAIN-DOCS provide value?
-   - Did SYNC complete successfully?
+## MANDATORY END
 
-**6. How was commit behavior?**
-   - Were milestone commits made appropriately?
-   - Did commit timing make sense?
+Commit the archive:
 
-**7. What would improve the workflow?**
-   - Missing skills or tools?
-   - Process bottlenecks?
-   - Documentation improvements?
+```bash
+git add openspec/changes/archive/
+git commit -m "Archive change $1"
+```
 
-**8. What would improve for future changes?**
-   - Artifact quality improvements?
-   - Missing checkpoints?
-   - Better progress tracking?
+Record commit hash in decision log and iterations.json.
+
+Note: After archiving, the change directory moves to archive/. The osc-* functions automatically detect this and will continue to work.
 
 ## STATE FILE UPDATES
 
-After reflection, create `complete.json`:
+Phase complete:
 ```bash
-echo '{
-  "status": "COMPLETE",
-  "with_blocker": false,
-  "blocker_reason": null,
-  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-}' > openspec/changes/$1/complete.json
+.opencode/scripts/lib/osc-state "$1" complete
 ```
+
+Note: The state.json file will be in the archived location after this phase. The osc-* functions will automatically find it.
 
 ## DECISION LOG
 
-Write reflections to file, then log:
-
+Append entry:
 ```bash
-# Write reflections (full markdown allowed)
-cat > "openspec/changes/$1/reflections.md" << 'EOF'
-# Self-Reflection: $1
-
-## 1. How well did the artifact review process work?
-[Answer with specific examples - 2-4 sentences]
-
-## 2. How effective was the implementation phase?
-[Answer with specific examples - 2-4 sentences]
-
-## 3. How did verification perform?
-[Answer with specific examples - 2-4 sentences]
-
-## 4. What assumptions had to be made?
-[Answer with specific examples - 2-4 sentences]
-
-## 5. How did completion phases work?
-[Answer with specific examples - 2-4 sentences]
-
-## 6. How was commit behavior?
-[Answer with specific examples - 2-4 sentences]
-
-## 7. What would improve the workflow?
-[Answer with specific examples - 2-4 sentences]
-
-## 8. What would improve for future changes?
-[Answer with specific examples - 2-4 sentences]
-EOF
-
-# Log with path reference (not inline content)
 echo '{
-  "phase": "SELF_REFLECTION",
+  "phase": "ARCHIVE",
   "iteration": N,
-  "summary": "All phases complete. Workflow evaluation finished.",
-  "reflections_path": "openspec/changes/$1/reflections.md",
-  "total_phases": 7,
-  "total_iterations": N,
-  "next_steps": "All phases complete. Ready to signal completion."
+  "summary": "Change successfully archived",
+  "archive_path": "openspec/changes/archive/YYYY-MM-DD-$1/",
+  "commit_hash": "<hash>",
+  "next_steps": "Archive complete. Workflow finished."
 }' | .opencode/scripts/lib/osc-log "$1" append
 ```
 
@@ -135,17 +94,17 @@ Append entry:
 ```bash
 echo '{
   "iteration": N,
-  "phase": "SELF_REFLECTION",
-  "total_phases": 7,
-  "total_iterations": N,
-  "reflection_completed": true,
-  "notes": "Self-reflection completed"
+  "phase": "ARCHIVE",
+  "archive_path": "openspec/changes/archive/YYYY-MM-DD-$1/",
+  "commit_hash": "<hash>",
+  "notes": "Change archived successfully"
 }' | .opencode/scripts/lib/osc-iterations "$1" append
 ```
 
 ## COMPLETION
 
-After PHASE6 reflection:
-1. Create `complete.json` with status "COMPLETE"
-2. The script will validate and exit
-3. State files will be cleaned up by the script
+After PHASE6 archive:
+1. The change is now in `openspec/changes/archive/YYYY-MM-DD-$1/`
+2. All state files (state.json, complete.json, iterations.json, decision-log.json) are archived
+3. The script will detect completion and exit
+4. State files will be cleaned up by the script

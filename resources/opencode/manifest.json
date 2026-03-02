@@ -41,19 +41,19 @@
         "version": "0.2.5"
       },
       "openspec-phase2": {
-        "version": "0.2.6"
+        "version": "0.2.7"
       },
       "openspec-phase3": {
-        "version": "0.2.5"
+        "version": "0.2.6"
       },
       "openspec-phase4": {
         "version": "0.2.5"
       },
       "openspec-phase5": {
-        "version": "0.2.6"
+        "version": "0.2.7"
       },
       "openspec-phase6": {
-        "version": "0.2.6"
+        "version": "0.2.7"
       },
       "opsx-review": {
         "version": "0.1.1"
@@ -73,7 +73,7 @@
     },
     "scripts": {
       "openspec-auto": {
-        "version": "0.7.5"
+        "version": "1.0.0"
       }
     },
     "lib": {
@@ -81,16 +81,16 @@
         "version": "0.1.0"
       },
       "osc-state": {
-        "version": "0.2.0"
+        "version": "0.3.0"
       },
       "osc-ctx": {
         "version": "0.2.0"
       },
       "osc-iterations": {
-        "version": "0.2.0"
+        "version": "0.2.1"
       },
       "osc-log": {
-        "version": "0.3.0"
+        "version": "0.3.1"
       },
       "osc-git": {
         "version": "0.1.0"

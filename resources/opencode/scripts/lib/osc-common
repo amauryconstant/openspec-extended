@@ -72,3 +72,23 @@ osc_json_append() {
     mv "$tmp_file" "$file"
     return 0
 }
+
+osc_find_change_dir() {
+    local change="$1"
+    local primary="openspec/changes/$change"
+    
+    if [[ -d "$primary" ]]; then
+        echo "$primary"
+        return 0
+    fi
+    
+    local archive_match
+    archive_match=$(find openspec/changes/archive -maxdepth 1 -type d -name "*-$change" 2>/dev/null | head -1)
+    
+    if [[ -n "$archive_match" ]]; then
+        echo "$archive_match"
+        return 0
+    fi
+    
+    return 1
+}

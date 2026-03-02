@@ -102,6 +102,9 @@ update_gitignore() {
         echo "openspec/changes/*/complete.json"
         echo "openspec/changes/*/iterations.json"
         echo "openspec/changes/*/decision-log.json"
+        echo "openspec/changes/*/verification-report.md"
+        echo "openspec/changes/*/reflections.md"
+        echo "openspec/changes/*/test-compliance-report.md"
         echo "$marker_end"
     } >> "$gitignore"
     

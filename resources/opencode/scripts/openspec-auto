@@ -16,8 +16,8 @@ declare -A PHASE_NAMES=(
   ["PHASE2"]="REVIEW"
   ["PHASE3"]="MAINTAIN-DOCS"
   ["PHASE4"]="SYNC"
-  ["PHASE5"]="ARCHIVE"
-  ["PHASE6"]="SELF-REFLECTION"
+  ["PHASE5"]="SELF-REFLECTION"
+  ["PHASE6"]="ARCHIVE"
 )
 
 declare -A PHASE_COMMANDS=(
@@ -36,8 +36,8 @@ declare -A PHASE_AGENTS=(
   ["PHASE2"]="openspec-analyzer"
   ["PHASE3"]="openspec-maintainer"
   ["PHASE4"]="openspec-maintainer"
-  ["PHASE5"]="openspec-maintainer"
-  ["PHASE6"]="openspec-analyzer"
+  ["PHASE5"]="openspec-analyzer"
+  ["PHASE6"]="openspec-maintainer"
 )
 
 readonly REQUIRED_SKILLS=(
@@ -695,7 +695,7 @@ advance_phase() {
   result=$("$SCRIPT_DIR/lib/osc-phase" "$CHANGE_ID" advance 2>/dev/null)
   
   if [[ -n "$result" ]]; then
-    echo "$result" | jq -r '.next // "COMPLETE"'
+    echo "$result" | jq -r '.phase // "COMPLETE"'
   else
     case "$current" in
       PHASE0) echo "PHASE1" ;;

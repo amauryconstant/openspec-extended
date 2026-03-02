@@ -109,9 +109,9 @@ license: MIT
 
 | Agent | Tools | Temp | Phases |
 | ----- | ----- | ---- | ------ |
-| `openspec-analyzer` | read, grep, glob, bash | 0.1 | PHASE0, PHASE2, PHASE6 |
+| `openspec-analyzer` | read, grep, glob, bash | 0.1 | PHASE0, PHASE2, PHASE5 |
 | `openspec-builder` | read, grep, glob, bash, write, edit | 0.4 | PHASE1 |
-| `openspec-maintainer` | read, grep, glob, bash, write, edit | 0.3 | PHASE3, PHASE4, PHASE5 |
+| `openspec-maintainer` | read, grep, glob, bash, write, edit | 0.3 | PHASE3, PHASE4, PHASE6 |
 
 | Command | Agent | Description |
 | ------- | ----- | ----------- |
@@ -120,8 +120,8 @@ license: MIT
 | `/openspec-phase2` | analyzer | Verification |
 | `/openspec-phase3` | maintainer | Maintain-Docs |
 | `/openspec-phase4` | maintainer | Sync |
-| `/openspec-phase5` | maintainer | Archive |
-| `/openspec-phase6` | analyzer | Self-Reflection |
+| `/openspec-phase5` | analyzer | Self-Reflection |
+| `/openspec-phase6` | maintainer | Archive |
 
 ### Usage
 
@@ -141,9 +141,11 @@ license: MIT
 | File | Purpose | Lifecycle |
 | ---- | ------- | --------- |
 | `state.json` | Phase tracking + completion | Deleted on success |
-| `complete.json` | Workflow completion (PHASE6) | Deleted after validation |
-| `iterations.json` | Iteration history | Never deleted |
-| `decision-log.json` | Agent reasoning | Never deleted |
+| `complete.json` | Workflow completion (PHASE5) | Deleted after validation |
+| `iterations.json` | Iteration history | Archived (never deleted) |
+| `decision-log.json` | Agent reasoning | Archived (never deleted) |
+
+Note: After PHASE6 (Archive), files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`. The `osc-*` lib scripts automatically detect archived locations.
 
 ### Manual Invocation
 
