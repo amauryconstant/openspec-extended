@@ -5,7 +5,7 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="openspecx"
-readonly SCRIPT_VERSION="0.9.2"
+readonly SCRIPT_VERSION="0.10.2"
 
 # Resolve symlink to get actual script location
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
