@@ -178,4 +178,4 @@ When all tasks in `tasks.md` are marked complete `[x]`:
 - Mark phase complete via `osc-state`
 - Script will advance to PHASE2
 
-Note: AGENTS.md updates will occur in PHASE3 (MAINTAIN-DOCS), not here. Even if tasks.md contains AGENTS.md tasks, they should be deferred to PHASE3.
+Note: AGENTS.md updates will occur in PHASE3 (MAINTAIN DOCS), not here. Even if tasks.md contains AGENTS.md tasks, they should be deferred to PHASE3.

@@ -6,6 +6,7 @@
 set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/osc-common"
 readonly SCRIPT_VERSION=$(jq -r '.resources.scripts["openspec-auto"].version // "unknown"' \
   "$SCRIPT_DIR/../manifest.json" 2>/dev/null || echo "unknown")
 readonly DEFAULT_TIMEOUT=1800
@@ -15,7 +16,7 @@ declare -A PHASE_NAMES=(
   ["PHASE0"]="ARTIFACT REVIEW"
   ["PHASE1"]="IMPLEMENTATION"
   ["PHASE2"]="REVIEW"
-  ["PHASE3"]="MAINTAIN-DOCS"
+  ["PHASE3"]="MAINTAIN DOCS"
   ["PHASE4"]="SYNC"
   ["PHASE5"]="SELF-REFLECTION"
   ["PHASE6"]="ARCHIVE"
@@ -505,6 +506,20 @@ write_state() {
   local phase="$1"
   local iteration="${2:-1}"
   local phase_complete="${3:-false}"
+  local is_new_iteration="${4:-true}"
+  
+  local phase_iterations="{}"
+  
+  if [[ -f "$CHANGE_DIR/state.json" ]]; then
+    phase_iterations=$(jq -c '.phase_iterations // {}' "$CHANGE_DIR/state.json" 2>/dev/null || echo "{}")
+  fi
+  
+  if [[ "$is_new_iteration" == "true" ]]; then
+    local current_count
+    current_count=$(echo "$phase_iterations" | jq -r ".\"$phase\" // 0")
+    local new_count=$((current_count + 1))
+    phase_iterations=$(echo "$phase_iterations" | jq -c --arg phase "$phase" --argjson count "$new_count" '.[$phase] = $count')
+  fi
   
   local state_json
   state_json=$(cat <<EOF
@@ -514,6 +529,7 @@ write_state() {
   "iteration": $iteration,
   "phase_complete": $phase_complete,
   "total_invocations": $TOTAL_INVOCATIONS,
+  "phase_iterations": $phase_iterations,
   "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "last_updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
@@ -709,6 +725,10 @@ run_phase() {
       return 1
     fi
     
+    if [[ "$phase" == "PHASE6" ]]; then
+      update_change_dir_if_archived
+    fi
+    
     if check_phase_complete; then
       log_success "$phase completed in $iteration iteration(s)"
       clear_phase_complete
@@ -775,6 +795,25 @@ validate_archive() {
   return 0
 }
 
+update_change_dir_if_archived() {
+  if [[ -d "$CHANGE_DIR" ]]; then
+    return 0
+  fi
+  
+  local new_dir
+  new_dir=$(osc_find_change_dir "$CHANGE_ID") || return 1
+  
+  if [[ -n "$new_dir" ]] && [[ -d "$new_dir" ]]; then
+    CHANGE_DIR="$new_dir"
+    if [[ "$VERBOSE" == true ]]; then
+      log "CHANGE_DIR updated to: $CHANGE_DIR"
+    fi
+    return 0
+  fi
+  
+  return 1
+}
+
 validate_iterations() {
   local result
   result=$(run_lib_script "osc-validate" "$CHANGE_ID" iterations)
@@ -830,16 +869,24 @@ show_progress() {
   local seconds=$((elapsed % 60))
   echo "Elapsed time: ${minutes}m ${seconds}s"
   
-  if [[ -f "$CHANGE_DIR/iterations.json" ]]; then
+  if [[ -f "$CHANGE_DIR/state.json" ]]; then
     echo ""
     echo "Iterations by phase:"
-    echo "  PHASE0 (ARTIFACT REVIEW): $(jq 'map(select(.phase == "ARTIFACT_REVIEW")) | length' "$CHANGE_DIR/iterations.json")"
-    echo "  PHASE1 (IMPLEMENTATION): $(jq 'map(select(.phase == "IMPLEMENTATION")) | length' "$CHANGE_DIR/iterations.json")"
-    echo "  PHASE2 (REVIEW): $(jq 'map(select(.phase == "REVIEW")) | length' "$CHANGE_DIR/iterations.json")"
-    echo "  PHASE3 (MAINTAIN-DOCS): $(jq 'map(select(.phase == "MAINTAIN-DOCS")) | length' "$CHANGE_DIR/iterations.json")"
-    echo "  PHASE4 (SYNC): $(jq 'map(select(.phase == "SYNC")) | length' "$CHANGE_DIR/iterations.json")"
-    echo "  PHASE5 (SELF-REFLECTION): $(jq 'map(select(.phase == "SELF_REFLECTION")) | length' "$CHANGE_DIR/iterations.json")"
-    echo "  PHASE6 (ARCHIVE): $(jq 'map(select(.phase == "ARCHIVE")) | length' "$CHANGE_DIR/iterations.json")"
+    local p0 p1 p2 p3 p4 p5 p6
+    p0=$(jq -r '.phase_iterations.PHASE0 // 0' "$CHANGE_DIR/state.json")
+    p1=$(jq -r '.phase_iterations.PHASE1 // 0' "$CHANGE_DIR/state.json")
+    p2=$(jq -r '.phase_iterations.PHASE2 // 0' "$CHANGE_DIR/state.json")
+    p3=$(jq -r '.phase_iterations.PHASE3 // 0' "$CHANGE_DIR/state.json")
+    p4=$(jq -r '.phase_iterations.PHASE4 // 0' "$CHANGE_DIR/state.json")
+    p5=$(jq -r '.phase_iterations.PHASE5 // 0' "$CHANGE_DIR/state.json")
+    p6=$(jq -r '.phase_iterations.PHASE6 // 0' "$CHANGE_DIR/state.json")
+    echo "  PHASE0 (ARTIFACT REVIEW): $p0"
+    echo "  PHASE1 (IMPLEMENTATION): $p1"
+    echo "  PHASE2 (REVIEW): $p2"
+    echo "  PHASE3 (MAINTAIN DOCS): $p3"
+    echo "  PHASE4 (SYNC): $p4"
+    echo "  PHASE5 (SELF-REFLECTION): $p5"
+    echo "  PHASE6 (ARCHIVE): $p6"
   fi
   
   echo "================================"
@@ -935,6 +982,12 @@ main() {
     echo ""
     echo "Run '$0 --list' to see available changes"
     exit 1
+  fi
+  
+  if [[ "$CHANGE_DIR" == *"/archive/"* ]] && [[ ! -f "$CHANGE_DIR/state.json" ]]; then
+    log_success "Change '$CHANGE_ID' is already archived and complete"
+    log "Archive location: $CHANGE_DIR"
+    exit 0
   fi
   
   START_TIME=$(date +%s)

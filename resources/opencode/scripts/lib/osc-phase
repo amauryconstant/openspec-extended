@@ -41,25 +41,11 @@ get_next_phase() {
     esac
 }
 
-get_phase_name() {
-    local phase="$1"
-    case "$phase" in
-        PHASE0) echo "ARTIFACT REVIEW" ;;
-        PHASE1) echo "IMPLEMENTATION" ;;
-        PHASE2) echo "REVIEW" ;;
-        PHASE3) echo "MAINTAIN-DOCS" ;;
-        PHASE4) echo "SYNC" ;;
-        PHASE5) echo "SELF-REFLECTION" ;;
-        PHASE6) echo "ARCHIVE" ;;
-        *) echo "UNKNOWN" ;;
-    esac
-}
-
 create_initial_state() {
     local timestamp
     timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     local phase_name
-    phase_name=$(get_phase_name "PHASE0")
+    phase_name=$(osc_get_phase_display_name "PHASE0")
     
     cat > "$STATE_FILE" <<EOF
 {
@@ -67,6 +53,7 @@ create_initial_state() {
   "phase_name": "$phase_name",
   "iteration": 1,
   "phase_complete": false,
+  "phase_iterations": {},
   "started_at": "$timestamp",
   "last_updated": "$timestamp"
 }
@@ -116,7 +103,7 @@ advance_phase() {
     local updated_json
     updated_json=$(jq \
         --arg phase "$next_phase" \
-        --arg phase_name "$(get_phase_name "$next_phase")" \
+        --arg phase_name "$(osc_get_phase_display_name "$next_phase")" \
         --argjson iteration 1 \
         --argjson phase_complete false \
         --arg ts "$timestamp" \

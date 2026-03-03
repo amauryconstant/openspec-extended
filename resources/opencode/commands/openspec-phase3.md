@@ -119,7 +119,7 @@ Phase complete:
 Append entry:
 ```bash
 echo '{
-  "phase": "MAINTAIN-DOCS",
+  "phase": "MAINTAIN_DOCS",
   "iteration": N,
   "summary": "Documentation updated successfully",
   "docs_updated": ["AGENTS.md", "CLAUDE.md"],
@@ -135,7 +135,7 @@ Append entry:
 ```bash
 echo '{
   "iteration": N,
-  "phase": "MAINTAIN-DOCS",
+  "phase": "MAINTAIN_DOCS",
   "docs_updated": ["AGENTS.md", "CLAUDE.md"],
   "commit_hash": "<hash or null>",
   "notes": "Documentation updated successfully"

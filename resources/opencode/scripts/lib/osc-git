@@ -5,7 +5,8 @@
 
 set -euo pipefail
 
-CHANGE_DIR="openspec/changes"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/osc-common"
 
 json_array() {
     local items=("$@")
@@ -77,9 +78,9 @@ if [[ -z "$CHANGE" ]]; then
     
     echo "{\"modified\":${#MODIFIED[@]},\"added\":${#ADDED[@]},\"untracked\":${#UNTRACKED[@]},\"clean\":$CLEAN,\"branch\":\"$BRANCH\",\"files\":{\"modified\":$MODIFIED_JSON,\"added\":$ADDED_JSON,\"untracked\":$UNTRACKED_JSON}}"
 else
-    # Validate change exists
-    if [[ ! -d "$CHANGE_DIR/$CHANGE" ]]; then
-        echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"path\":\"$CHANGE_DIR/$CHANGE\"}" >&2
+    # Validate change exists (supports archive)
+    if ! CHANGE_DIR=$(osc_find_change_dir "$CHANGE"); then
+        echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"change\":\"$CHANGE\"}" >&2
         exit 1
     fi
     
@@ -88,13 +89,11 @@ else
     ADDED=()
     UNTRACKED=()
     
-    CHANGE_PATH="$CHANGE_DIR/$CHANGE/"
-    
     while IFS= read -r line; do
         status="${line:0:2}"
         file="${line:3}"
         
-        if [[ "$file" == "$CHANGE_PATH"* || "$file" == "$CHANGE_DIR/$CHANGE" ]]; then
+        if [[ "$file" == "$CHANGE_DIR/"* || "$file" == "$CHANGE_DIR" ]]; then
             if [[ "$status" == "??" ]]; then
                 UNTRACKED+=("$file")
             elif [[ "$status" =~ [M] ]]; then

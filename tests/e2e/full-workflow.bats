@@ -17,73 +17,21 @@ teardown() {
     teardown_e2e_repo
 }
 
-@test "full-workflow: complete workflow produces hello.sh artifact" {
+@test "complete workflow with archive validation" {
     local change="add-hello-script"
+    local change_dir="openspec/changes/$change"
 
     run_openspec_auto_streaming "$change" --force --verbose --max-iterations 3 --timeout 600
     [ "$status" -eq 0 ]
 
+    # 1. Verify artifact was created and works
     assert_file_exists "scripts/hello.sh"
-
     [[ -x "scripts/hello.sh" ]]
-
     run ./scripts/hello.sh
     [ "$status" -eq 0 ]
     [[ "$output" == *"Hello"* ]]
-}
-
-@test "full-workflow: state files cleaned on success" {
-    local change="add-hello-script"
-    local change_dir="openspec/changes/$change"
-
-    run_openspec_auto_streaming "$change" --force --verbose --max-iterations 3 --timeout 600
-    [ "$status" -eq 0 ]
-
-    assert_file_not_exists "$change_dir/state.json"
-    assert_file_not_exists "$change_dir/complete.json"
-    assert_file_not_exists ".openspec-baseline.json"
-}
-
-@test "full-workflow: iterations.json populated with all phases" {
-    local change="add-hello-script"
-    local change_dir="openspec/changes/$change"
-
-    run_openspec_auto_streaming "$change" --force --verbose --max-iterations 3 --timeout 600
-    [ "$status" -eq 0 ]
-
-    assert_file_exists "$change_dir/iterations.json"
-
-    local count
-    count=$(jq '. | length' "$change_dir/iterations.json")
-    [[ "$count" -ge 7 ]]
-}
-
-@test "full-workflow: decision-log.json records agent reasoning" {
-    local change="add-hello-script"
-    local change_dir="openspec/changes/$change"
-
-    run_openspec_auto_streaming "$change" --force --verbose --max-iterations 3 --timeout 600
-    [ "$status" -eq 0 ]
-
-    assert_file_exists "$change_dir/decision-log.json"
-
-    local has_entries
-    has_entries=$(jq '. | length > 0' "$change_dir/decision-log.json")
-    [[ "$has_entries" == "true" ]]
-}
-
-@test "full-workflow: complete lifecycle with archive validation" {
-    local change="add-hello-script"
-    local change_dir="openspec/changes/$change"
-
-    run_openspec_auto_streaming "$change" --force --verbose --max-iterations 3 --timeout 600
-    [ "$status" -eq 0 ]
-
-    # 1. Verify artifact was created
-    assert_file_exists "scripts/hello.sh"
-    [[ -x "scripts/hello.sh" ]]
     
-    # 2. Verify change is archived (not in active)
+    # 2. Verify change is archived (not in active directory)
     [ ! -d "$change_dir" ]
     
     # 3. Find archive directory
@@ -100,7 +48,7 @@ teardown() {
     [ -f "$archive_dir/iterations.json" ]
     [ -f "$archive_dir/decision-log.json" ]
     
-    # 5. Verify state files cleaned (not in archive)
+    # 5. Verify state files cleaned (not in archive or project root)
     [ ! -f "$archive_dir/state.json" ]
     [ ! -f "$archive_dir/complete.json" ]
     [ ! -f ".openspec-baseline.json" ]
@@ -119,19 +67,9 @@ teardown() {
     local phase0_count
     phase0_count=$(jq '[.[] | select(.phase == "ARTIFACT_REVIEW")] | length' "$archive_dir/iterations.json")
     [[ "$phase0_count" -eq 1 ]]
-}
-
-@test "full-workflow: AGENTS.md updates in single PHASE3 commit" {
-    local change="add-hello-script"
-
-    run_openspec_auto_streaming "$change" --force --verbose --max-iterations 3 --timeout 600
-    [ "$status" -eq 0 ]
     
-    # Count commits that touch AGENTS.md files
+    # 9. Verify AGENTS.md updates in single PHASE3 commit
     local agents_commits
     agents_commits=$(git log --oneline --all -- '*/AGENTS.md' 'AGENTS.md' 2>/dev/null | wc -l)
-    
-    # Should have at most 1 commit touching AGENTS.md (the PHASE3 commit)
-    # Note: This may be 0 if the project doesn't have AGENTS.md
     [[ "$agents_commits" -le 1 ]]
 }

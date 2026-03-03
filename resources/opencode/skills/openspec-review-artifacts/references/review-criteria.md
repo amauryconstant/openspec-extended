@@ -215,7 +215,8 @@ Comprehensive review criteria for each OpenSpec artifact type.
 #### Checkbox Format
 - Each task MUST be: `- [ ] X.Y Task description`
 - Space after bracket: `[ ]` not `[]`
-- Period after X.Y: `- [ ] 1.1 ` not `- [ ] 1.1`
+- Number formatting with period: `- [ ] 1.1 ` not `- [ ] 1-1`
+- Space after X.Y: `- [ ] 1.1 ` not `- [ ] 1.1`
 - **CRITICAL**: Non-checkbox format breaks apply phase tracking
 
 ### Quality Checks
@@ -241,7 +242,12 @@ Comprehensive review criteria for each OpenSpec artifact type.
 - Impact: Parsing fails, checkboxes not recognized
 
 ❌ Missing period after number
-- Bad: `- [ ] 1.1 Create component`
+- Bad: `- [ ] 1-1 Create component`
+- Good: `- [ ] 1.1 Create component`
+- Impact: Formatting inconsistency
+
+❌ Missing space after number
+- Bad: `- [ ] 1.1Create component`
 - Good: `- [ ] 1.1 Create component`
 - Impact: Formatting inconsistency
 

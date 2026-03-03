@@ -177,5 +177,5 @@ echo '{
 
 ## TRANSITION
 
-- Verification passed → PHASE3 (MAINTAIN-DOCS)
+- Verification passed → PHASE3 (MAINTAIN DOCS)
 - Verification failed (artifacts modified) → PHASE1 (IMPLEMENTATION) restart

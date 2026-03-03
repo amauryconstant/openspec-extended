@@ -5,7 +5,8 @@
 
 set -euo pipefail
 
-CHANGE_DIR="openspec/changes"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/osc-common"
 
 usage() {
     echo '{"error":"usage","message":"Usage: osc-complete <change> <action>","actions":["check","get","set [status] [with_blocker] [blocker_reason]"]}' >&2
@@ -31,12 +32,13 @@ ACTION="$2"
 VALUE1="${3:-COMPLETE}"
 VALUE2="${4:-false}"
 VALUE3="${5:-}"
-COMPLETE_FILE="$CHANGE_DIR/$CHANGE/complete.json"
 
-if [[ ! -d "$CHANGE_DIR/$CHANGE" ]]; then
-    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"path\":\"$CHANGE_DIR/$CHANGE\"}" >&2
+if ! CHANGE_DIR=$(osc_find_change_dir "$CHANGE"); then
+    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"change\":\"$CHANGE\"}" >&2
     exit 1
 fi
+
+COMPLETE_FILE="$CHANGE_DIR/complete.json"
 
 check_complete() {
     if [[ ! -f "$COMPLETE_FILE" ]]; then

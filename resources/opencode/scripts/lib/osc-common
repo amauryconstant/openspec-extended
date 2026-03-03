@@ -6,10 +6,43 @@
 #   osc_json_length  - Safely get JSON array length
 #   osc_json_update  - Safely update JSON file with jq
 #   osc_json_append  - Safely append entry to JSON array file
+#   osc_find_change_dir - Find change directory (primary or archived)
+#   osc_get_phase_name - Get canonical phase name for iterations.json
+#   osc_get_phase_display_name - Get display name for UI/logging
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+osc_get_phase_name() {
+    local phase="$1"
+    case "$phase" in
+        PHASE0) echo "ARTIFACT_REVIEW" ;;
+        PHASE1) echo "IMPLEMENTATION" ;;
+        PHASE2) echo "REVIEW" ;;
+        PHASE3) echo "MAINTAIN_DOCS" ;;
+        PHASE4) echo "SYNC" ;;
+        PHASE5) echo "SELF_REFLECTION" ;;
+        PHASE6) echo "ARCHIVE" ;;
+        *) echo "UNKNOWN" ;;
+    esac
+}
+
+osc_get_phase_display_name() {
+    local phase="$1"
+    case "$phase" in
+        PHASE0) echo "ARTIFACT REVIEW" ;;
+        PHASE1) echo "IMPLEMENTATION" ;;
+        PHASE2) echo "REVIEW" ;;
+        PHASE3) echo "MAINTAIN DOCS" ;;
+        PHASE4) echo "SYNC" ;;
+        PHASE5) echo "SELF-REFLECTION" ;;
+        PHASE6) echo "ARCHIVE" ;;
+        *) echo "UNKNOWN" ;;
+    esac
+}
 
 osc_json_length() {
     local file="$1"

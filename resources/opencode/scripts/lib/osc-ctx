@@ -8,19 +8,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/osc-common"
 
-CHANGE_DIR="openspec/changes"
-
 if [[ $# -lt 1 ]]; then
     echo '{"error":"usage","message":"Usage: osc-ctx <change>"}' >&2
     exit 1
 fi
 
 CHANGE="$1"
-CHANGE_PATH="$CHANGE_DIR/$CHANGE"
 
-# Validate change exists
-if [[ ! -d "$CHANGE_PATH" ]]; then
-    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"path\":\"$CHANGE_PATH\"}" >&2
+if ! CHANGE_DIR=$(osc_find_change_dir "$CHANGE"); then
+    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"change\":\"$CHANGE\"}" >&2
     exit 1
 fi
 
@@ -52,14 +48,13 @@ check_artifact() {
     fi
 }
 
-PROPOSAL=$(check_artifact "$CHANGE_PATH/proposal.md" "file")
-SPECS=$(check_artifact "$CHANGE_PATH/specs" "directory")
-DESIGN=$(check_artifact "$CHANGE_PATH/design.md" "file")
-TASKS=$(check_artifact "$CHANGE_PATH/tasks.md" "file")
+PROPOSAL=$(check_artifact "$CHANGE_DIR/proposal.md" "file")
+SPECS=$(check_artifact "$CHANGE_DIR/specs" "directory")
+DESIGN=$(check_artifact "$CHANGE_DIR/design.md" "file")
+TASKS=$(check_artifact "$CHANGE_DIR/tasks.md" "file")
 
-# Check history files using osc_json_length
-DECISION_LOG_ENTRIES=$(osc_json_length "$CHANGE_PATH/decision-log.json")
-ITERATIONS_RECORDED=$(osc_json_length "$CHANGE_PATH/iterations.json")
+DECISION_LOG_ENTRIES=$(osc_json_length "$CHANGE_DIR/decision-log.json")
+ITERATIONS_RECORDED=$(osc_json_length "$CHANGE_DIR/iterations.json")
 
 # Build output JSON
 jq -n \

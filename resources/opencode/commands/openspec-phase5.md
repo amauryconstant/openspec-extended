@@ -55,7 +55,7 @@ Answer each with 2-4 sentences minimum, including specific examples:
 
 **5. How did completion phases work?**
    - Were phase transitions smooth?
-   - Did MAINTAIN-DOCS provide value?
+   - Did MAINTAIN DOCS provide value?
    - Did SYNC complete successfully?
 
 **6. How was commit behavior?**
