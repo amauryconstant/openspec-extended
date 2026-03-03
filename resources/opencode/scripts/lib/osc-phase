@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # osc-phase - Phase management for OpenSpec changes
 # Usage: osc-phase <change> <action>
 # Output: JSON

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # osc-state - Manage OpenSpec change state
 # Usage: osc-state <change> [get|set-phase|complete]
 # Output: JSON

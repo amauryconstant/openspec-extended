@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # OpenSpec-extended - Installer for OpenSpec resources
 # Usage: openspecx <install|update> <tool>
 
@@ -13,10 +13,13 @@ readonly COLOR_RED='\033[0;31m'
 readonly COLOR_YELLOW='\033[0;33m'
 readonly COLOR_RESET='\033[0m'
 
-declare -A TOOL_DIRS=(
-    ["opencode"]=".opencode"
-    ["claude"]=".claude"
-)
+get_tool_dir() {
+    case "$1" in
+        opencode) echo ".opencode" ;;
+        claude)   echo ".claude" ;;
+        *)        return 1 ;;
+    esac
+}
 
 log_success() {
     echo -e "${COLOR_GREEN}✓${COLOR_RESET} $*"
@@ -223,14 +226,17 @@ if [[ "$COMMAND" != "install" && "$COMMAND" != "update" ]]; then
     exit 1
 fi
 
-if [[ -z "${TOOL_DIRS[$TOOL]:-}" ]]; then
-    log_error "Unknown tool: $TOOL"
-    echo "  Available tools: opencode, claude"
-    exit 1
-fi
+_target_dir=$(get_tool_dir "$TOOL")
+case $? in
+    0) TARGET_DIR="$_target_dir" ;;
+    *) 
+        log_error "Unknown tool: $TOOL"
+        echo "  Available tools: opencode, claude"
+        exit 1
+        ;;
+esac
 
 GIT_VERSION=$(get_git_tag)
-TARGET_DIR="${TOOL_DIRS[$TOOL]}"
 FULL_PATH="$(pwd)/$TARGET_DIR"
 SOURCE_MANIFEST="$RESOURCES_DIR/$TOOL/manifest.json"
 

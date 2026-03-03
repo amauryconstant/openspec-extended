@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # osc-baseline - Baseline tracking for OpenSpec changes
 # Usage: osc-baseline <action>
 # Output: JSON

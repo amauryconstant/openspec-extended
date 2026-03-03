@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # osc-common - Shared functions for OpenSpec lib scripts
 # Usage: source this file from other osc-* scripts
 #

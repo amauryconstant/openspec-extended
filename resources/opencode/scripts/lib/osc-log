@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # osc-log - Manage OpenSpec decision log
 # Usage: osc-log <change> [get|append]
 # Input (append): JSON from stdin

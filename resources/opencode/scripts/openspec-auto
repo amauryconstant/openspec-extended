@@ -12,35 +12,44 @@ readonly SCRIPT_VERSION=$(jq -r '.resources.scripts["openspec-auto"].version // 
 readonly DEFAULT_TIMEOUT=1800
 readonly DEFAULT_MAX_ITERATIONS=10
 
-declare -A PHASE_NAMES=(
-  ["PHASE0"]="ARTIFACT REVIEW"
-  ["PHASE1"]="IMPLEMENTATION"
-  ["PHASE2"]="REVIEW"
-  ["PHASE3"]="MAINTAIN DOCS"
-  ["PHASE4"]="SYNC"
-  ["PHASE5"]="SELF-REFLECTION"
-  ["PHASE6"]="ARCHIVE"
-)
+get_phase_name() {
+  case "$1" in
+    PHASE0) echo "ARTIFACT REVIEW" ;;
+    PHASE1) echo "IMPLEMENTATION" ;;
+    PHASE2) echo "REVIEW" ;;
+    PHASE3) echo "MAINTAIN DOCS" ;;
+    PHASE4) echo "SYNC" ;;
+    PHASE5) echo "SELF-REFLECTION" ;;
+    PHASE6) echo "ARCHIVE" ;;
+    *)      echo "UNKNOWN" ;;
+  esac
+}
 
-declare -A PHASE_COMMANDS=(
-  ["PHASE0"]="openspec-phase0"
-  ["PHASE1"]="openspec-phase1"
-  ["PHASE2"]="openspec-phase2"
-  ["PHASE3"]="openspec-phase3"
-  ["PHASE4"]="openspec-phase4"
-  ["PHASE5"]="openspec-phase5"
-  ["PHASE6"]="openspec-phase6"
-)
+get_phase_command() {
+  case "$1" in
+    PHASE0) echo "openspec-phase0" ;;
+    PHASE1) echo "openspec-phase1" ;;
+    PHASE2) echo "openspec-phase2" ;;
+    PHASE3) echo "openspec-phase3" ;;
+    PHASE4) echo "openspec-phase4" ;;
+    PHASE5) echo "openspec-phase5" ;;
+    PHASE6) echo "openspec-phase6" ;;
+    *)      echo "" ;;
+  esac
+}
 
-declare -A PHASE_AGENTS=(
-  ["PHASE0"]="openspec-analyzer"
-  ["PHASE1"]="openspec-builder"
-  ["PHASE2"]="openspec-analyzer"
-  ["PHASE3"]="openspec-maintainer"
-  ["PHASE4"]="openspec-maintainer"
-  ["PHASE5"]="openspec-analyzer"
-  ["PHASE6"]="openspec-maintainer"
-)
+get_phase_agent() {
+  case "$1" in
+    PHASE0) echo "openspec-analyzer" ;;
+    PHASE1) echo "openspec-builder" ;;
+    PHASE2) echo "openspec-analyzer" ;;
+    PHASE3) echo "openspec-maintainer" ;;
+    PHASE4) echo "openspec-maintainer" ;;
+    PHASE5) echo "openspec-analyzer" ;;
+    PHASE6) echo "openspec-maintainer" ;;
+    *)      echo "" ;;
+  esac
+}
 
 readonly REQUIRED_SKILLS=(
   "openspec-concepts"
@@ -525,7 +534,7 @@ write_state() {
   state_json=$(cat <<EOF
 {
   "phase": "$phase",
-  "phase_name": "${PHASE_NAMES[$phase]}",
+  "phase_name": "$(get_phase_name "$phase")",
   "iteration": $iteration,
   "phase_complete": $phase_complete,
   "total_invocations": $TOTAL_INVOCATIONS,
@@ -663,9 +672,9 @@ run_agent() {
   
   log "Agent invocation #$TOTAL_INVOCATIONS for $phase"
   
-  local cmd_name="${PHASE_COMMANDS[$phase]}"
-  local agent_name="${PHASE_AGENTS[$phase]}"
-  local title="OpenSpec: $CHANGE_ID - ${PHASE_NAMES[$phase]}"
+  local cmd_name=$(get_phase_command "$phase")
+  local agent_name=$(get_phase_agent "$phase")
+  local title="OpenSpec: $CHANGE_ID - $(get_phase_name "$phase")"
   
   if [[ "$VERBOSE" == true ]]; then
     log "Using command: /$cmd_name"
@@ -712,7 +721,7 @@ run_agent() {
 
 run_phase() {
   local phase="$1"
-  log "${PHASE_NAMES[$phase]}"
+  log "$(get_phase_name "$phase")"
   
   local iteration=1
   
@@ -852,7 +861,7 @@ show_progress() {
   
   local current_phase
   if current_phase=$(get_current_phase); then
-    echo "Current phase: $current_phase - ${PHASE_NAMES[$current_phase]}"
+    echo "Current phase: $current_phase - $(get_phase_name "$current_phase")"
     local iteration
     iteration=$(get_phase_iteration)
     echo "Phase iteration: $iteration"
@@ -1037,7 +1046,7 @@ main() {
     local current_phase
     current_phase=$(get_current_phase)
     
-    log "Resuming from phase: $current_phase - ${PHASE_NAMES[$current_phase]}"
+    log "Resuming from phase: $current_phase - $(get_phase_name "$current_phase")"
     
     if [[ "$FORCE" == false ]] && [[ -t 0 ]]; then
       echo ""
@@ -1062,7 +1071,7 @@ main() {
   while true; do
     if [[ "$started" == false ]] && [[ -n "$FROM_PHASE" ]]; then
       current_phase="$FROM_PHASE"
-      log "Starting from phase: $current_phase - ${PHASE_NAMES[$current_phase]}"
+      log "Starting from phase: $current_phase - $(get_phase_name "$current_phase")"
       started=true
     elif current_phase=$(get_current_phase); then
       : 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # osc-iterations - Manage OpenSpec iteration history
 # Usage: osc-iterations <change> [get|append]
 # Input (append): JSON from stdin

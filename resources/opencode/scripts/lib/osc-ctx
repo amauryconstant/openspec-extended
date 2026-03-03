@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # osc-ctx - Aggregate context for OpenSpec change
 # Usage: osc-ctx <change>
 # Output: JSON

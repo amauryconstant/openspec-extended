@@ -73,39 +73,39 @@
     },
     "scripts": {
       "openspec-auto": {
-        "version": "1.0.3"
+        "version": "1.0.4"
       }
     },
     "lib": {
       "osc-common": {
-        "version": "0.1.2"
+        "version": "0.1.3"
       },
       "osc-state": {
-        "version": "0.3.1"
-      },
-      "osc-ctx": {
-        "version": "0.2.1"
-      },
-      "osc-iterations": {
-        "version": "0.2.2"
-      },
-      "osc-log": {
         "version": "0.3.2"
       },
+      "osc-ctx": {
+        "version": "0.2.2"
+      },
+      "osc-iterations": {
+        "version": "0.2.3"
+      },
+      "osc-log": {
+        "version": "0.3.3"
+      },
       "osc-git": {
-        "version": "0.1.1"
+        "version": "0.1.2"
       },
       "osc-baseline": {
-        "version": "0.1.0"
+        "version": "0.1.1"
       },
       "osc-complete": {
-        "version": "0.1.1"
+        "version": "0.1.2"
       },
       "osc-phase": {
-        "version": "0.1.5"
+        "version": "0.1.6"
       },
       "osc-validate": {
-        "version": "0.1.1"
+        "version": "0.1.2"
       }
     }
   }

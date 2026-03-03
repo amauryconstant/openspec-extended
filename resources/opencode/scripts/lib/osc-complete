@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # osc-complete - Completion status for OpenSpec changes
 # Usage: osc-complete <change> <action> [args]
 # Output: JSON
