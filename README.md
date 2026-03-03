@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Bash](https://img.shields.io/badge/Bash-3.2+-green.svg?style=flat-square)](https://www.gnu.org/software/bash/)
-[![Version](https://img.shields.io/badge/version-v0.9.0-orange.svg?style=flat-square)](https://github.com/Fission-AI/OpenSpec-extended)
+[![Version](https://img.shields.io/badge/version-v0.9.2-orange.svg?style=flat-square)](https://github.com/amauryconstant/openspec-extended)
 
 An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) that adds autonomous implementation capabilities and utility skills for AI coding assistants.
 
@@ -31,25 +31,25 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 ### Quick Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Fission-AI/OpenSpec-extended/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
 ```
 
 ### Specific Version
 
 ```bash
-VERSION=v0.9.0 curl -sSL https://raw.githubusercontent.com/Fission-AI/OpenSpec-extended/main/install.sh | bash
+VERSION=v0.9.2 curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
 ```
 
 ### System-wide Install
 
 ```bash
-PREFIX=/usr/local curl -sSL https://raw.githubusercontent.com/Fission-AI/OpenSpec-extended/main/install.sh | bash
+PREFIX=/usr/local curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
 ```
 
 ### From Source (Development)
 
 ```bash
-git clone https://github.com/Fission-AI/OpenSpec-extended.git
+git clone https://github.com/amauryconstant/openspec-extended.git
 cd OpenSpec-extended
 export PATH="$PWD/bin:$PATH"
 ```
@@ -58,7 +58,7 @@ export PATH="$PWD/bin:$PATH"
 
 ```bash
 openspecx --version
-# openspecx 0.9.0
+# openspecx 0.9.2
 ```
 
 ## Setup in Your Project

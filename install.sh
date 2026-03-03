@@ -3,9 +3,9 @@
 # Usage: curl -sSL https://raw.githubusercontent.com/<org>/OpenSpec-extended/main/install.sh | bash
 #
 # Options (via environment variables):
-#   VERSION=v0.9.0    - Install specific version (default: latest)
+#   VERSION=v0.9.2    - Install specific version (default: latest)
 #   PREFIX=/usr/local - Install prefix (default: ~/.local)
-#   REPO=org/repo     - GitHub repository (default: Fission-AI/OpenSpec-extended)
+#   REPO=org/repo     - GitHub repository (default: amauryconstant/openspec-extended)
 #
 # Options (via arguments):
 #   --uninstall       - Remove installation
@@ -14,7 +14,7 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="openspecx"
-readonly SCRIPT_VERSION="0.1.1"
+readonly SCRIPT_VERSION="0.1.2"
 
 # Configurable via environment
 PREFIX="${PREFIX:-$HOME/.local}"
@@ -61,9 +61,9 @@ Usage:
   ./install.sh [options]
 
 Environment Variables:
-  VERSION=v0.9.0    Install specific version (default: latest)
+  VERSION=v0.9.2    Install specific version (default: latest)
   PREFIX=/usr/local Install prefix (default: ~/.local)
-  REPO=org/repo     GitHub repository (default: Fission-AI/OpenSpec-extended)
+  REPO=org/repo     GitHub repository (default: amauryconstant/openspec-extended)
 
 Options:
   --version         Show version
@@ -75,7 +75,7 @@ Examples:
   curl -sSL https://.../install.sh | bash
 
   # Install specific version
-  VERSION=v0.9.0 curl -sSL https://.../install.sh | bash
+  VERSION=v0.9.2 curl -sSL https://.../install.sh | bash
 
   # System-wide install
   PREFIX=/usr/local curl -sSL https://.../install.sh | bash
