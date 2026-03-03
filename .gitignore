@@ -1,3 +1,4 @@
 openspec-core/*
 !openspec-core/AGENTS.md
+openspec/
 .mise/version-state.json
