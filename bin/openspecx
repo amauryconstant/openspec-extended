@@ -5,7 +5,7 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="openspecx"
-readonly SCRIPT_VERSION="0.9.1"
+readonly SCRIPT_VERSION="0.9.2"
 
 # Resolve symlink to get actual script location
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
@@ -302,8 +302,11 @@ if [[ "$COMMAND" != "install" && "$COMMAND" != "update" ]]; then
     exit 1
 fi
 
+set +e
 _target_dir=$(get_tool_dir "$TOOL")
-case $? in
+_tool_rc=$?
+set -e
+case $_tool_rc in
     0) TARGET_DIR="$_target_dir" ;;
     *) 
         log_error "Unknown tool: $TOOL"
