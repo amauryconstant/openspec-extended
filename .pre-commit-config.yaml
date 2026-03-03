@@ -12,7 +12,7 @@ repos:
         name: Check version bump in versioned files
         entry: mise run version:check
         language: system
-        files: ^resources/(.*/SKILL\.md|claude/commands/opsx/.*\.md|opencode/commands/(opsx-.*|openspec-phase.*)\.md|.*/scripts/openspec-auto|.*/scripts/lib/(MANIFEST\.json|osc-.*)|.*/agents/.*\.md)$
+        files: ^(resources/(opencode|claude)/(skills/.*/(SKILL\.md|references/.*\.md)|agents/.*\.md|commands/.*\.md|scripts/(openspec-auto|lib/osc-.*))|install\.sh|bin/openspecx)$
         pass_filenames: false
 
       - id: test
