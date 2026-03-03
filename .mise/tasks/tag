@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
-#MISE description="Create and push git tag for release"
+#MISE description="Update version in README, commit, and push git tag for release"
 #USAGE arg "<bump>" help="Version bump type" {
 #USAGE   choices "patch" "minor" "major"
 #USAGE }
+#USAGE flag "--dry-run" help="Show what would change without modifying"
+#USAGE flag "--no-commit" help="Update README but don't commit or tag"
 
 set -euo pipefail
 
 BUMP_TYPE="${usage_bump?}"
+DRY_RUN="${usage_dry_run:-false}"
+NO_COMMIT="${usage_no_commit:-false}"
+
+PROJECT_ROOT="${MISE_PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || ".")}"
 
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
   echo "Error: Not in a git repository"
@@ -45,6 +51,8 @@ else
   NEW_TAG="v${NEW_VERSION}"
 fi
 
+NEW_VERSION=${NEW_TAG#v}
+
 echo "Current tag: ${LATEST_TAG:-none}"
 echo "Bumping $BUMP_TYPE version"
 echo "New tag: $NEW_TAG"
@@ -55,7 +63,51 @@ if git tag -l "$NEW_TAG" | grep -q "$NEW_TAG"; then
   exit 1
 fi
 
+if [[ "$DRY_RUN" == "true" ]]; then
+  echo "[DRY-RUN] Would update version to $NEW_VERSION in:"
+  echo "  - README.md (badge + examples)"
+  echo ""
+  echo "[DRY-RUN] Would commit with message: Release version $NEW_VERSION"
+  echo "[DRY-RUN] Would create and push tag: $NEW_TAG"
+  exit 0
+fi
+
+update_version_in_readme() {
+  local version="$1"
+
+  if [[ -f "$PROJECT_ROOT/README.md" ]]; then
+    sed -i "s/version-v[0-9]*\.[0-9]*\.[0-9]*/version-v$version/g" "$PROJECT_ROOT/README.md"
+    sed -i "s/openspecx [0-9]*\.[0-9]*\.[0-9]*/openspecx $version/g" "$PROJECT_ROOT/README.md"
+    sed -i "s/VERSION=v[0-9]*\.[0-9]*\.[0-9]*/VERSION=v$version/g" "$PROJECT_ROOT/README.md"
+    echo "  ✓ README.md"
+  fi
+}
+
+echo "Updating version in README.md:"
+update_version_in_readme "$NEW_VERSION"
+echo ""
+
+if ! git diff --quiet; then
+  if [[ "$NO_COMMIT" == "true" ]]; then
+    echo "Files updated. Skipping commit and tag (--no-commit)"
+    git status --short
+    exit 0
+  fi
+
+  git add -A
+  git commit -m "Release version $NEW_VERSION"
+  echo "✓ Committed changes"
+else
+  echo "No files changed"
+fi
+
+if [[ "$NO_COMMIT" == "true" ]]; then
+  echo "Skipping tag creation (--no-commit)"
+  exit 0
+fi
+
 git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
 git push origin "$NEW_TAG"
 
+echo ""
 echo "✓ Tag $NEW_TAG created and pushed"
