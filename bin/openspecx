@@ -5,9 +5,16 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="openspecx"
-readonly SCRIPT_VERSION="0.9.0"
+readonly SCRIPT_VERSION="0.9.1"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve symlink to get actual script location
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
+while [[ -L "$SCRIPT_SOURCE" ]]; do
+    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+    SCRIPT_SOURCE="$(readlink "$SCRIPT_SOURCE")"
+    [[ "$SCRIPT_SOURCE" != /* ]] && SCRIPT_SOURCE="$SCRIPT_DIR/$SCRIPT_SOURCE"
+done
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
 readonly SCRIPT_DIR
 
 RESOURCES_DIR=""

@@ -14,12 +14,12 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="openspecx"
-readonly SCRIPT_VERSION="0.1.0"
+readonly SCRIPT_VERSION="0.1.1"
 
 # Configurable via environment
 PREFIX="${PREFIX:-$HOME/.local}"
 VERSION="${VERSION:-latest}"
-REPO="${REPO:-Fission-AI/OpenSpec-extended}"
+REPO="${REPO:-amauryconstant/openspec-extended}"
 
 # Derived paths
 INSTALL_DIR=""
@@ -157,6 +157,9 @@ install() {
         version=$(get_latest_version)
     fi
     
+    # Strip 'v' prefix if present (normalize to X.Y.Z format)
+    version="${version#v}"
+    
     log_info "Installing OpenSpec-extended ${version} to $PREFIX"
     
     # Create directories
@@ -179,7 +182,7 @@ install() {
     
     # Find extracted directory (GitHub tarballs include a prefix)
     local extracted_dir
-    extracted_dir=$(find "$temp_dir" -maxdepth 1 -type d -name "OpenSpec-extended*" | head -1)
+    extracted_dir=$(find "$temp_dir" -maxdepth 1 -type d ! -path "$temp_dir" | head -1)
     
     if [[ -z "$extracted_dir" ]]; then
         log_error "Could not find extracted directory"
@@ -209,7 +212,7 @@ install() {
     rm -rf "$temp_dir"
     
     # Verify
-    if ! "$BIN_DIR/$SCRIPT_NAME" --help &>/dev/null; then
+    if [[ ! -x "$BIN_DIR/$SCRIPT_NAME" ]]; then
         log_error "Installation verification failed"
         exit 1
     fi
