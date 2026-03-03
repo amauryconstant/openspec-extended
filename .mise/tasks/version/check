@@ -24,14 +24,6 @@ STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- \
   'resources/*/scripts/openspec-auto' \
   'resources/*/scripts/lib/osc-*')
 
-if [[ -z "$STAGED_FILES" ]]; then
-  write_version_state "ok" "[]"
-  if [[ "$OUTPUT_FORMAT" == "json" ]]; then
-    echo '{"status":"ok","files":[]}'
-  fi
-  exit 0
-fi
-
 declare -a FILE_PATHS=()
 declare -a RESOURCE_TYPES=()
 declare -a RESOURCE_NAMES=()
