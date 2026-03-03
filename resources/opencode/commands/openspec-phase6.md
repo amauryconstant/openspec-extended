@@ -44,6 +44,7 @@ Archive the completed change for historical reference.
    - verification-report.md (from PHASE2, if exists)
    - reflections.md (from PHASE5, if exists)
    - test-compliance-report.md (from PHASE1, if exists)
+   - suggestions.md (from any phase, if exists)
 
 4. Execute archive:
    - Skill will move change to: `openspec/changes/archive/YYYY-MM-DD-$1/`

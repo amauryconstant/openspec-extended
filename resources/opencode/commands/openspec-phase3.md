@@ -27,7 +27,25 @@ Change: $1
 
 ## PURPOSE
 
-Update project documentation to reflect changes made during implementation.
+Update AGENTS.md and CLAUDE.md files to reflect ALL changes made during implementation. If there is an available skill for that process, load it first.
+
+**Scope - What to update:**
+- Root AGENTS.md with new commands, patterns, or conventions
+- Package-level AGENTS.md files (e.g., `internal/library/AGENTS.md`)
+- CLAUDE.md if project supports both platforms
+- Any other AI context documentation
+
+**What to include:**
+- New packages and their purpose
+- New CLI commands and usage
+- New architectural patterns
+- Updated command references
+- New capabilities added to the codebase
+
+**NOT in scope:**
+- Inline code comments (done in PHASE1)
+- README files (done in PHASE1)
+- Test files (done in PHASE1)
 
 ## PROCESS
 
@@ -44,6 +62,20 @@ Update project documentation to reflect changes made during implementation.
    - Be specific (concrete commands, not vague descriptions)
    - Progressive disclosure (summary first, details later)
    - Target <300 lines per file
+
+## AGENTS.md TASKS FROM TASKS.MD
+
+If tasks.md contains AGENTS.md documentation tasks (e.g., "12.1 Update cmd/AGENTS.md"):
+
+1. These tasks were intentionally deferred from PHASE1
+2. Complete them now as part of this phase
+3. Mark them complete in tasks.md after updating
+4. Include in the single PHASE3 commit
+
+This consolidation ensures:
+- Single documentation commit for review
+- Accurate representation of final codebase state
+- No duplicate documentation work
 
 ## MANDATORY END
 

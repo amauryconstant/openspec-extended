@@ -226,6 +226,21 @@ setup_archive() {
     mkdir -p "openspec/changes/archive/${timestamp}-${change}"
 }
 
+# Setup an archived change with complete state
+setup_archived_change_with_state() {
+    local change="$1"
+    local timestamp="$2"
+    local state_json="$3"
+    
+    local archive_dir="openspec/changes/archive/${timestamp}-${change}"
+    mkdir -p "$archive_dir/specs"
+    echo "# Proposal" > "$archive_dir/proposal.md"
+    echo "# Design" > "$archive_dir/design.md"
+    echo "# Tasks" > "$archive_dir/tasks.md"
+    echo "# Spec" > "$archive_dir/specs/spec.md"
+    echo "$state_json" > "$archive_dir/state.json"
+}
+
 # Setup a change with complete.json
 setup_change_with_complete() {
     local change="$1"

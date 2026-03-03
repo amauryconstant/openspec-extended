@@ -649,7 +649,7 @@ run_agent() {
   
   local cmd_name="${PHASE_COMMANDS[$phase]}"
   local agent_name="${PHASE_AGENTS[$phase]}"
-  local title="OpenSpec: ${PHASE_NAMES[$phase]} - $CHANGE_ID"
+  local title="OpenSpec: $CHANGE_ID - ${PHASE_NAMES[$phase]}"
   
   if [[ "$VERBOSE" == true ]]; then
     log "Using command: /$cmd_name"
@@ -744,6 +744,22 @@ advance_phase() {
   fi
 }
 
+cleanup_state_files() {
+  local state_dir="$CHANGE_DIR"
+  
+  if [[ -f "$state_dir/state.json" ]]; then
+    rm "$state_dir/state.json" || log_warning "Failed to remove state.json"
+  fi
+  if [[ -f "$state_dir/complete.json" ]]; then
+    rm "$state_dir/complete.json" || log_warning "Failed to remove complete.json"
+  fi
+  if [[ -f ".openspec-baseline.json" ]]; then
+    rm ".openspec-baseline.json" || log_warning "Failed to remove .openspec-baseline.json"
+  fi
+  
+  log "State files cleaned up"
+}
+
 validate_archive() {
   local result
   result=$(run_lib_script "osc-validate" "$CHANGE_ID" archive)
@@ -822,8 +838,8 @@ show_progress() {
     echo "  PHASE2 (REVIEW): $(jq 'map(select(.phase == "REVIEW")) | length' "$CHANGE_DIR/iterations.json")"
     echo "  PHASE3 (MAINTAIN-DOCS): $(jq 'map(select(.phase == "MAINTAIN-DOCS")) | length' "$CHANGE_DIR/iterations.json")"
     echo "  PHASE4 (SYNC): $(jq 'map(select(.phase == "SYNC")) | length' "$CHANGE_DIR/iterations.json")"
-    echo "  PHASE5 (ARCHIVE): $(jq 'map(select(.phase == "ARCHIVE")) | length' "$CHANGE_DIR/iterations.json")"
-    echo "  PHASE6 (SELF-REFLECTION): $(jq 'map(select(.phase == "SELF-REFLECTION")) | length' "$CHANGE_DIR/iterations.json")"
+    echo "  PHASE5 (SELF-REFLECTION): $(jq 'map(select(.phase == "SELF_REFLECTION")) | length' "$CHANGE_DIR/iterations.json")"
+    echo "  PHASE6 (ARCHIVE): $(jq 'map(select(.phase == "ARCHIVE")) | length' "$CHANGE_DIR/iterations.json")"
   fi
   
   echo "================================"
@@ -1026,7 +1042,7 @@ main() {
     fi
     
     case "$current_phase" in
-      PHASE0|PHASE1|PHASE2|PHASE3|PHASE4|PHASE5|PHASE6)
+      PHASE0|PHASE1|PHASE2|PHASE3|PHASE4|PHASE5)
         if ! run_phase "$current_phase"; then
           log_error "$current_phase failed"
           exit 1
@@ -1037,44 +1053,42 @@ main() {
         next_phase=$(advance_phase "$current_phase")
         log "Phase transition: $current_phase → $next_phase"
         
-        # After PHASE6 completes, validate archive and exit
-        if [[ "$current_phase" == "PHASE6" ]] && [[ "$next_phase" == "COMPLETE" ]]; then
-          if validate_archive; then
-            log ""
-            log "================================"
-            log_success "Implementation completed successfully!"
-            log "================================"
-            
-            if [[ -f "$CHANGE_DIR/state.json" ]]; then
-              rm "$CHANGE_DIR/state.json" || log_warning "Failed to remove state.json"
-            fi
-            if [[ -f "$CHANGE_DIR/complete.json" ]]; then
-              rm "$CHANGE_DIR/complete.json" || log_warning "Failed to remove complete.json"
-            fi
-            if [[ -f ".openspec-baseline.json" ]]; then
-              rm ".openspec-baseline.json" || log_warning "Failed to remove .openspec-baseline.json"
-            fi
-            
-            log "State files cleaned up"
-            
-            if [[ "$VERBOSE" == true ]]; then
-              show_progress
-            fi
-            
-            exit 0
-          else
-            log ""
-            log_error "Archive validation failed"
-            log "State files preserved for investigation"
-            exit 1
-          fi
-        fi
-        
         current_phase="$next_phase"
         ;;
+      
+      PHASE6)
+        if ! run_phase "$current_phase"; then
+          log_error "$current_phase failed"
+          exit 1
+        fi
+        show_progress
+        
+        # PHASE6 is terminal - validate archive and exit without calling advance_phase
+        if validate_archive; then
+          log ""
+          log "================================"
+          log_success "Implementation completed successfully!"
+          log "================================"
+          
+          cleanup_state_files
+          
+          if [[ "$VERBOSE" == true ]]; then
+            show_progress
+          fi
+          
+          exit 0
+        else
+          log ""
+          log_error "Archive validation failed"
+          log "State files preserved for investigation"
+          exit 1
+        fi
+        ;;
+      
       COMPLETE)
         log "All phases complete, validating..."
         ;;
+      
       *)
         log_error "Unknown phase: $current_phase"
         exit 1

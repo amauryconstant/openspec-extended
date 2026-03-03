@@ -6,7 +6,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CHANGE_DIR="openspec/changes"
+source "$SCRIPT_DIR/osc-common"
 
 usage() {
     echo '{"error":"usage","message":"Usage: osc-phase <change> <action>","actions":["current","next","advance"]}' >&2
@@ -19,12 +19,13 @@ fi
 
 CHANGE="$1"
 ACTION="$2"
-STATE_FILE="$CHANGE_DIR/$CHANGE/state.json"
 
-if [[ ! -d "$CHANGE_DIR/$CHANGE" ]]; then
-    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"path\":\"$CHANGE_DIR/$CHANGE\"}" >&2
+if ! CHANGE_DIR=$(osc_find_change_dir "$CHANGE"); then
+    echo "{\"error\":\"change_not_found\",\"message\":\"Change directory does not exist\",\"change\":\"$CHANGE\"}" >&2
     exit 1
 fi
+
+STATE_FILE="$CHANGE_DIR/state.json"
 
 get_next_phase() {
     local current="$1"

@@ -67,6 +67,35 @@ IF NO CRITICAL OR WARNING ISSUES (SUGGESTIONS OK):
 3. Mark phase complete via `osc-state`
 4. Script will advance to PHASE3
 
+## SUGGESTION TRACKING
+
+IF SUGGESTION issues found (even if verification passed):
+
+1. Create or append to suggestions.md:
+
+```bash
+cat >> "openspec/changes/$1/suggestions.md" <<EOF
+
+## $(date -u +%Y-%m-%d) - PHASE2 Verification
+
+- [ ] **[cosmetic]** Brief description
+  - Location: file:line
+  - Impact: Low
+  - Notes: Optional context
+
+EOF
+```
+
+2. Categories:
+   - `[cosmetic]` - Typos, minor grammar, formatting
+   - `[performance]` - Optimization opportunities
+   - `[future]` - Future enhancement ideas
+   - `[docs]` - Documentation improvements
+
+3. Each suggestion is a checkbox for future follow-up
+
+4. This file will be archived with the change for future reference
+
 ## MANDATORY END
 
 IF artifacts were modified during this phase (CRITICAL/WARNING fixes):

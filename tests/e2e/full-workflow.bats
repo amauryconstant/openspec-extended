@@ -71,3 +71,67 @@ teardown() {
     has_entries=$(jq '. | length > 0' "$change_dir/decision-log.json")
     [[ "$has_entries" == "true" ]]
 }
+
+@test "full-workflow: complete lifecycle with archive validation" {
+    local change="add-hello-script"
+    local change_dir="openspec/changes/$change"
+
+    run_openspec_auto_streaming "$change" --force --verbose --max-iterations 3 --timeout 600
+    [ "$status" -eq 0 ]
+
+    # 1. Verify artifact was created
+    assert_file_exists "scripts/hello.sh"
+    [[ -x "scripts/hello.sh" ]]
+    
+    # 2. Verify change is archived (not in active)
+    [ ! -d "$change_dir" ]
+    
+    # 3. Find archive directory
+    local archive_dir
+    archive_dir=$(find openspec/changes/archive -name "*-$change" -type d 2>/dev/null | head -1)
+    [ -n "$archive_dir" ]
+    [ -d "$archive_dir" ]
+    
+    # 4. Verify all required files in archive
+    [ -f "$archive_dir/proposal.md" ]
+    [ -f "$archive_dir/design.md" ]
+    [ -f "$archive_dir/tasks.md" ]
+    [ -d "$archive_dir/specs" ]
+    [ -f "$archive_dir/iterations.json" ]
+    [ -f "$archive_dir/decision-log.json" ]
+    
+    # 5. Verify state files cleaned (not in archive)
+    [ ! -f "$archive_dir/state.json" ]
+    [ ! -f "$archive_dir/complete.json" ]
+    [ ! -f ".openspec-baseline.json" ]
+    
+    # 6. Verify iterations.json has all 7 phases
+    local phase_count
+    phase_count=$(jq '. | length' "$archive_dir/iterations.json")
+    [[ "$phase_count" -ge 7 ]]
+    
+    # 7. Verify decision-log.json has entries
+    local log_count
+    log_count=$(jq '. | length' "$archive_dir/decision-log.json")
+    [[ "$log_count" -ge 7 ]]
+    
+    # 8. Verify no PHASE0 restart happened (only 1 ARTIFACT_REVIEW iteration)
+    local phase0_count
+    phase0_count=$(jq '[.[] | select(.phase == "ARTIFACT_REVIEW")] | length' "$archive_dir/iterations.json")
+    [[ "$phase0_count" -eq 1 ]]
+}
+
+@test "full-workflow: AGENTS.md updates in single PHASE3 commit" {
+    local change="add-hello-script"
+
+    run_openspec_auto_streaming "$change" --force --verbose --max-iterations 3 --timeout 600
+    [ "$status" -eq 0 ]
+    
+    # Count commits that touch AGENTS.md files
+    local agents_commits
+    agents_commits=$(git log --oneline --all -- '*/AGENTS.md' 'AGENTS.md' 2>/dev/null | wc -l)
+    
+    # Should have at most 1 commit touching AGENTS.md (the PHASE3 commit)
+    # Note: This may be 0 if the project doesn't have AGENTS.md
+    [[ "$agents_commits" -le 1 ]]
+}

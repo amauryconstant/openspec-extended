@@ -164,3 +164,78 @@ teardown() {
     assert_json_equals "$output" ".phase" "COMPLETE"
     assert_json_equals "$output" ".previous" "PHASE6"
 }
+
+@test "phase-workflow: PHASE6 advance does not restart to PHASE0" {
+    # Remove the active change created by setup() so we can test archive behavior
+    rm -rf "openspec/changes/test-change"
+    
+    # Setup archived change (simulates post-PHASE6 state)
+    setup_archived_change_with_state "test-change" "2024-01-15" '{"phase":"PHASE6","iteration":1,"phase_complete":true}'
+    echo '[]' > "openspec/changes/archive/2024-01-15-test-change/iterations.json"
+    echo '[]' > "openspec/changes/archive/2024-01-15-test-change/decision-log.json"
+    
+    # Advance from PHASE6 should go to COMPLETE
+    run_osc_phase "test-change" advance
+    [ "$status" -eq 0 ]
+    assert_json_equals "$output" ".phase" "COMPLETE"
+    
+    # Verify NO new state file created in active changes directory
+    [ ! -f "openspec/changes/test-change/state.json" ]
+    
+    # Verify archived state was updated to COMPLETE
+    local archived_phase
+    archived_phase=$(jq -r '.phase' "openspec/changes/archive/2024-01-15-test-change/state.json")
+    [ "$archived_phase" == "COMPLETE" ]
+}
+
+@test "phase-workflow: full cycle from PHASE0 to COMPLETE with archive" {
+    setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":1,"phase_complete":true}'
+    
+    # Advance through all phases
+    for expected_phase in PHASE1 PHASE2 PHASE3 PHASE4 PHASE5 PHASE6 COMPLETE; do
+        run_osc_phase "test-change" advance
+        [ "$status" -eq 0 ]
+        assert_json_equals "$output" ".phase" "$expected_phase"
+        
+        # Mark complete for next advance (except COMPLETE)
+        if [[ "$expected_phase" != "COMPLETE" ]]; then
+            run_osc_state "test-change" complete
+            [ "$status" -eq 0 ]
+        fi
+    done
+    
+    # Final state should be COMPLETE
+    run_osc_state "test-change" get
+    assert_json_equals "$output" ".phase" "COMPLETE"
+}
+
+@test "phase-workflow: suggestions.md is tracked and archived" {
+    setup_change_with_state "test-change" '{"phase":"PHASE2","iteration":1}'
+    
+    # Simulate PHASE2 creating suggestions.md
+    cat > "openspec/changes/test-change/suggestions.md" <<EOF
+# Suggestions for test-change
+
+## 2024-01-15 - PHASE2 Verification
+
+- [ ] **[cosmetic]** Fix typo in error message
+  - Location: lib/error.go:42
+  - Impact: Low
+
+- [ ] **[future]** Add caching for better performance
+  - Location: lib/resolver.go
+  - Impact: Medium
+EOF
+    
+    # Archive the change
+    mkdir -p "openspec/changes/archive"
+    mv "openspec/changes/test-change" "openspec/changes/archive/2024-01-15-test-change"
+    
+    # Verify suggestions.md is in archive
+    [ -f "openspec/changes/archive/2024-01-15-test-change/suggestions.md" ]
+    
+    # Verify content preserved
+    local suggestion_count
+    suggestion_count=$(grep -c "^\- \[ \]" "openspec/changes/archive/2024-01-15-test-change/suggestions.md")
+    [ "$suggestion_count" -eq 2 ]
+}

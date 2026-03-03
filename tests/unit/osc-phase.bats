@@ -157,3 +157,48 @@ teardown() {
     assert_json_equals "$output" ".previous" "PHASE6"
     assert_json_equals "$output" ".next" "COMPLETE"
 }
+
+# === Archive-aware tests ===
+
+@test "osc-phase: current works with archived change" {
+    setup_archive "test-change" "2024-01-15"
+    mkdir -p "openspec/changes/archive/2024-01-15-test-change/specs"
+    echo '{"phase":"PHASE3","iteration":2}' > "openspec/changes/archive/2024-01-15-test-change/state.json"
+    
+    run_osc_phase "test-change" current
+    [ "$status" -eq 0 ]
+    assert_json_equals "$output" ".phase" "PHASE3"
+}
+
+@test "osc-phase: advance works with archived change" {
+    setup_archive "test-change" "2024-01-15"
+    mkdir -p "openspec/changes/archive/2024-01-15-test-change/specs"
+    echo '{"phase":"PHASE5","iteration":1,"phase_complete":true}' > "openspec/changes/archive/2024-01-15-test-change/state.json"
+    
+    run_osc_phase "test-change" advance
+    [ "$status" -eq 0 ]
+    assert_json_equals "$output" ".phase" "PHASE6"
+    
+    # Verify state file updated in archive location
+    local archived_phase
+    archived_phase=$(jq -r '.phase' "openspec/changes/archive/2024-01-15-test-change/state.json")
+    [ "$archived_phase" == "PHASE6" ]
+}
+
+@test "osc-phase: prefers active change over archive" {
+    setup_change_with_state "test-change" '{"phase":"PHASE1","iteration":1}'
+    setup_archive "test-change" "2024-01-15"
+    mkdir -p "openspec/changes/archive/2024-01-15-test-change/specs"
+    echo '{"phase":"PHASE5","iteration":1}' > "openspec/changes/archive/2024-01-15-test-change/state.json"
+    
+    run_osc_phase "test-change" current
+    [ "$status" -eq 0 ]
+    # Should return PHASE1 from active, not PHASE5 from archive
+    assert_json_equals "$output" ".phase" "PHASE1"
+}
+
+@test "osc-phase: returns error when change not in active or archive" {
+    run_osc_phase "nonexistent" current
+    [ "$status" -eq 1 ]
+    assert_output_contains "change_not_found"
+}

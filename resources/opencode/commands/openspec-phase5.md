@@ -68,6 +68,9 @@ Answer each with 2-4 sentences minimum, including specific examples:
    - Documentation improvements?
 
 **8. What would improve for future changes?**
+   - Review suggestions.md for any quick wins
+   - Were any suggestions actually blockers in disguise?
+   - Should any suggestions become new OpenSpec changes?
    - Artifact quality improvements?
    - Missing checkpoints?
    - Better progress tracking?

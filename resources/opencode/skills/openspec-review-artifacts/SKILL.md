@@ -192,6 +192,8 @@ This skill is part of the **pre-implementation** review cycle:
 - [ ] Show retry countdown UI
 ```
 
+**Note**: AGENTS.md documentation updates should NOT be tracked in tasks.md. They are handled by a separate documentation maintenance workflow.
+
 ---
 
 ## Output

@@ -81,6 +81,16 @@ Per the skill workflow:
 - Consider if artifacts need modification
 - May need to signal COMPLETE with blocker_reason
 
+**Documentation scope for PHASE1:**
+- ✅ Inline code comments
+- ✅ README updates for new features
+- ✅ Package-level doc.go files
+- ✅ CLI help text and usage strings
+- ❌ AGENTS.md files → Deferred to PHASE3
+
+**Why AGENTS.md is deferred:**
+AGENTS.md files document the codebase structure for future AI sessions. They should be updated AFTER all implementation is complete to ensure accurate representation of the final state. PHASE3 handles this.
+
 ### 4. Validate Test Coverage
 
 After implementation complete:
@@ -167,3 +177,5 @@ When all tasks in `tasks.md` are marked complete `[x]`:
 - Log: "All tasks complete, transitioning to PHASE2 (REVIEW)"
 - Mark phase complete via `osc-state`
 - Script will advance to PHASE2
+
+Note: AGENTS.md updates will occur in PHASE3 (MAINTAIN-DOCS), not here. Even if tasks.md contains AGENTS.md tasks, they should be deferred to PHASE3.
