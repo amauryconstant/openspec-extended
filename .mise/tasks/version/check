@@ -175,14 +175,15 @@ for file in $SCRIPT_FILES; do
   fi
   
   previous_version=$(get_script_version_from_git "$file")
+  file_existed_in_git=$(git show "HEAD:$file" &>/dev/null && echo "true" || echo "false")
   
-  if [[ -n "$previous_version" && "$current_version" == "$previous_version" ]]; then
+  if [[ "$file_existed_in_git" == "true" && ( -z "$previous_version" || "$current_version" == "$previous_version" ) ]]; then
     FILE_PATHS+=("$file")
     RESOURCE_TYPES+=("scripts")
     RESOURCE_NAMES+=("$(basename "$file")")
     FILE_PLATFORMS+=("root")
     FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("$previous_version")
+    FILE_PREVIOUS+=("${previous_version:-}")
     FILE_STATUS+=("needs_bump")
     FILE_ERRORS+=("")
     HAS_ERROR=1
