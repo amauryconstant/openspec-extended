@@ -199,3 +199,24 @@ get_state_status() {
 get_state_files() {
   read_version_state | jq -c '.files // []'
 }
+
+get_script_version_from_file() {
+  local file="$1"
+  grep -m1 '^readonly SCRIPT_VERSION=' "$file" 2>/dev/null | sed 's/.*"\([^"]*\)".*/\1/' || echo ""
+}
+
+get_script_version_from_git() {
+  local path="$1"
+  git show "HEAD:$path" 2>/dev/null | grep -m1 '^readonly SCRIPT_VERSION=' | sed 's/.*"\([^"]*\)".*/\1/' || echo ""
+}
+
+bump_script_version_in_file() {
+  local file="$1"
+  local new_version="$2"
+  sed -i "s/^readonly SCRIPT_VERSION=\"[^\"]*\"/readonly SCRIPT_VERSION=\"$new_version\"/" "$file"
+}
+
+is_tracked_script() {
+  local path="$1"
+  [[ "$path" == "install.sh" || "$path" == "bin/openspecx" ]]
+}

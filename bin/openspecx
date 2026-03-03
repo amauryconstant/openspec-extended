@@ -1,12 +1,45 @@
 #!/usr/bin/env bash
 # OpenSpec-extended - Installer for OpenSpec resources
-# Usage: openspecx <install|update> <tool>
+# Usage: openspecx <install|update> <tool> [--with-core]
 
 set -euo pipefail
 
+readonly SCRIPT_NAME="openspecx"
+readonly SCRIPT_VERSION="0.9.0"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
-readonly RESOURCES_DIR="$SCRIPT_DIR/../resources"
+
+RESOURCES_DIR=""
+
+resolve_install_dirs() {
+    local install_base=""
+    
+    # Check for installed location (XDG-compliant)
+    local xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+    if [[ -d "$xdg_data_home/openspecx/resources" ]]; then
+        install_base="$xdg_data_home/openspecx"
+    elif [[ -d "$HOME/.local/share/openspecx/resources" ]]; then
+        install_base="$HOME/.local/share/openspecx"
+    fi
+    
+    # Check for development location (relative to script)
+    if [[ -d "$SCRIPT_DIR/../resources" ]]; then
+        RESOURCES_DIR="$(cd "$SCRIPT_DIR/../resources" && pwd)"
+        return 0
+    fi
+    
+    # Use installed location
+    if [[ -n "$install_base" ]]; then
+        RESOURCES_DIR="$install_base/resources"
+        return 0
+    fi
+    
+    log_error "Cannot find resources directory"
+    log_error "  Checked: $SCRIPT_DIR/../resources"
+    log_error "  Checked: $xdg_data_home/openspecx/resources"
+    exit 1
+}
 
 readonly COLOR_GREEN='\033[0;32m'
 readonly COLOR_RED='\033[0;31m'
@@ -25,6 +58,10 @@ log_success() {
     echo -e "${COLOR_GREEN}✓${COLOR_RESET} $*"
 }
 
+log_info() {
+    echo -e "→ $*"
+}
+
 log_error() {
     echo -e "${COLOR_RED}✗${COLOR_RESET} $*" >&2
 }
@@ -34,7 +71,41 @@ log_warn() {
 }
 
 get_git_tag() {
-    git -C "$SCRIPT_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.0"
+    git -C "$SCRIPT_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' && return
+    echo "$SCRIPT_VERSION"
+}
+
+show_version() {
+    echo "$SCRIPT_NAME $SCRIPT_VERSION"
+}
+
+show_help() {
+    cat << EOF
+$SCRIPT_NAME - Installer for OpenSpec resources
+
+Usage:
+  $SCRIPT_NAME <command> <tool> [options]
+  $SCRIPT_NAME --version
+  $SCRIPT_NAME --help
+
+Commands:
+  install <tool>  Add missing resources (skip existing)
+  update <tool>   Force update all resources (overwrite existing)
+
+Available tools:
+  opencode        Install to .opencode/ directory
+  claude          Install to .claude/ directory
+
+Options:
+  --with-core     Also deploy core OpenSpec skills from openspec-core/
+  --version       Show version
+  --help          Show this help message
+
+Examples:
+  $SCRIPT_NAME install opencode
+  $SCRIPT_NAME install opencode --with-core
+  $SCRIPT_NAME update claude
+EOF
 }
 
 copy_skills() {
@@ -67,7 +138,7 @@ copy_skills() {
 }
 
 show_usage() {
-    log_error "Usage: openspecx <command> <tool> [--with-core]"
+    log_error "Usage: $SCRIPT_NAME <command> <tool> [--with-core]"
     echo
     echo "Commands:"
     echo "  install <tool>  Add missing resources (skip existing)"
@@ -75,8 +146,7 @@ show_usage() {
     echo
     echo "Available tools: opencode, claude"
     echo
-    echo "Options:"
-    echo "  --with-core     Also deploy core OpenSpec skills from openspec-core/"
+    echo "Run '$SCRIPT_NAME --help' for more information."
 }
 
 update_gitignore() {
@@ -116,40 +186,22 @@ update_gitignore() {
 
 deploy_core() {
     local tool="$1"
-    local core_dir="$SCRIPT_DIR/../openspec-core/.$tool"
-    local target_base="$(pwd)/.$tool"
     
-    if [[ ! -d "$core_dir" ]]; then
-        echo "  Core directory not found: openspec-core/.$tool"
+    if ! command -v openspec &>/dev/null; then
+        log_error "openspec CLI not found. Install it first:"
+        echo "  npm install -g @fission-ai/openspec"
         return 1
     fi
     
-    local core_count=0
+    log_info "Delegating to openspec CLI for core resources..."
     
-    if [[ -d "$core_dir/skills" ]]; then
-        mkdir -p "$target_base/skills"
-        for skill_dir in "$core_dir/skills"/*; do
-            if [[ -d "$skill_dir" ]]; then
-                local skill_name=$(basename "$skill_dir")
-                cp -r "$skill_dir" "$target_base/skills/"
-                core_count=$((core_count + 1))
-            fi
-        done
-    fi
-    
-    if [[ -d "$core_dir/commands" ]]; then
-        mkdir -p "$target_base/commands"
-        if [[ -d "$core_dir/commands/opsx" ]]; then
-            mkdir -p "$target_base/commands/opsx"
-            cp -r "$core_dir/commands/opsx"/* "$target_base/commands/opsx/" 2>/dev/null || true
-        else
-            cp -r "$core_dir/commands"/* "$target_base/commands/" 2>/dev/null || true
-        fi
-        core_count=$((core_count + 1))
-    fi
-    
-    if [[ $core_count -gt 0 ]]; then
-        log_success "Deployed core skills/commands to $tool"
+    local output
+    if output=$(openspec init --tools "$tool" --force 2>&1); then
+        log_success "Core resources installed via openspec"
+    else
+        log_error "openspec init failed"
+        echo "$output" >&2
+        return 1
     fi
 }
 
@@ -193,10 +245,27 @@ validate_deployment() {
     fi
 }
 
+if [[ $# -eq 0 ]]; then
+    show_usage
+    exit 1
+fi
+
+if [[ "$1" == "--version" ]] || [[ "$1" == "-V" ]]; then
+    show_version
+    exit 0
+fi
+
+if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+    show_help
+    exit 0
+fi
+
 if [[ $# -lt 2 ]]; then
     show_usage
     exit 1
 fi
+
+resolve_install_dirs
 
 COMMAND="$1"
 TOOL="$2"

@@ -1,120 +1,195 @@
 # OpenSpec-extended
 
-A minimal extension system for [OpenSpec](https://github.com/Fission-AI/OpenSpec) that installs additional skills and commands for AI coding assistants.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Bash](https://img.shields.io/badge/Bash-3.2+-green.svg?style=flat-square)](https://www.gnu.org/software/bash/)
+[![Version](https://img.shields.io/badge/version-v0.9.0-orange.svg?style=flat-square)](https://github.com/Fission-AI/OpenSpec-extended)
 
-## Overview
+An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) that adds autonomous implementation capabilities and utility skills for AI coding assistants.
 
-OpenSpec-extended is a simple shell script utility to install custom AI skills for:
+## Why use this?
 
-- **Claude Code** (`.claude/skills/`)
-- **OpenCode** (`.opencode/skills/`)
+| Feature | OpenSpec Core | OpenSpec-extended |
+|---------|---------------|-------------------|
+| Manual change workflows | ✓ 11 commands | ✓ (via `--with-core`) |
+| Autonomous implementation | ✗ | ✓ 7-phase loop |
+| Specialized agents | ✗ | ✓ 3 agents |
+| Utility skills | ✗ | ✓ 6 skills |
+
+**Key additions:**
+
+- **Autonomous workflow** — Run end-to-end implementation without manual intervention
+- **Specialized agents** — Analyzer (0.1 temp), Builder (0.4 temp), Maintainer (0.3 temp)
+- **Utility skills** — Concepts, modify artifacts, review artifacts, changelogs, test compliance, AI docs
+
+## Requirements
+
+- [OpenSpec](https://github.com/Fission-AI/OpenSpec) v1.2.0+ (recommended)
+- Bash 3.2 or higher
 
 ## Installation
 
+### Quick Install
+
 ```bash
-# Clone repository
-git clone <repo-url>
+curl -sSL https://raw.githubusercontent.com/Fission-AI/OpenSpec-extended/main/install.sh | bash
+```
+
+### Specific Version
+
+```bash
+VERSION=v0.9.0 curl -sSL https://raw.githubusercontent.com/Fission-AI/OpenSpec-extended/main/install.sh | bash
+```
+
+### System-wide Install
+
+```bash
+PREFIX=/usr/local curl -sSL https://raw.githubusercontent.com/Fission-AI/OpenSpec-extended/main/install.sh | bash
+```
+
+### From Source (Development)
+
+```bash
+git clone https://github.com/Fission-AI/OpenSpec-extended.git
 cd OpenSpec-extended
+export PATH="$PWD/bin:$PATH"
+```
 
-# Run installation script
-./install.sh
+### Verify
 
-# Add to PATH if needed
-export PATH="$HOME/.local/bin:$PATH"
+```bash
+openspecx --version
+# openspecx 0.9.0
+```
+
+## Setup in Your Project
+
+```bash
+cd your-project
+
+# Install extension resources
+openspecx install opencode
+
+# Include core OpenSpec workflows (11 commands)
+openspecx install opencode --with-core
+```
+
+### Verify Installation
+
+```bash
+ls .opencode/{skills,agents,commands,scripts}/
 ```
 
 ## Usage
 
+### Installing Resources
+
+| Command | Description |
+|---------|-------------|
+| `openspecx install opencode` | Add missing resources (skip existing) |
+| `openspecx install claude` | Same for Claude Code |
+| `openspecx install opencode --with-core` | Include 11 core OpenSpec workflows |
+| `openspecx update opencode` | Force update all (overwrite existing) |
+
+### Extension Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `openspec-concepts` | Teaches AI agents about OpenSpec framework |
+| `openspec-modify-artifacts` | Modifies artifacts with dependency tracking |
+| `openspec-review-artifacts` | Reviews artifacts for quality and completeness |
+| `openspec-generate-changelog` | Generate changelogs (Keep a Changelog format) |
+| `openspec-review-test-compliance` | Review test coverage for OpenSpec changes |
+| `openspec-maintain-ai-docs` | Maintain AGENTS.md and CLAUDE.md |
+
+### Specialized Agents
+
+| Agent | Purpose | Tools | Temp |
+|-------|---------|-------|------|
+| `openspec-analyzer` | Review, verify, reflect | read, grep, glob, bash | 0.1 |
+| `openspec-builder` | Implementation | read, grep, glob, bash, write, edit | 0.4 |
+| `openspec-maintainer` | Docs, sync, archive | read, grep, glob, bash, write, edit | 0.3 |
+
+## Autonomous Workflow
+
+7-phase loop for end-to-end implementation via `openspec-auto`.
+
+### Commands
+
+| Command | Phase | Description |
+|---------|-------|-------------|
+| `/openspec-phase0` | Review | Analyze existing artifacts |
+| `/openspec-phase1` | Build | Implement tasks |
+| `/openspec-phase2` | Verify | Verify implementation |
+| `/openspec-phase3` | Docs | Update documentation |
+| `/openspec-phase4` | Sync | Sync with upstream |
+| `/openspec-phase5` | Reflect | Self-assessment |
+| `/openspec-phase6` | Archive | Archive completed change |
+
+### Usage
+
 ```bash
-# Install skills to Claude Code (add missing only)
-openspecx install claude
-
-# Install skills to OpenCode (add missing only)
-openspecx install opencode
-
-# Force update all skills (overwrite existing)
-openspecx update claude
-openspecx update opencode
-```
-
-## Autonomous Implementation
-
-OpenSpec-extended includes an autonomous workflow for end-to-end OpenSpec changes:
-
-```bash
-# Install autonomous harness
-openspecx install
-
 # Run autonomous implementation
-.claude/scripts/openspec-auto <change-name>
+.opencode/scripts/openspec-auto <change-name>
 
-# Or with options
-.claude/scripts/openspec-auto add-auth --verbose --max-iterations 20
+# With options
+.opencode/scripts/openspec-auto add-auth --max-iterations 20 --verbose
+.opencode/scripts/openspec-auto add-auth --from-phase PHASE3
+.opencode/scripts/openspec-auto add-auth --dry-run
 ```
 
-See [AGENTS.md](AGENTS.md#autonomous-workflow) for full documentation.
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--max-iterations N` | Maximum number of iterations |
+| `--timeout N` | Timeout in seconds |
+| `--model MODEL` | Specify model to use |
+| `--verbose` | Enable verbose output |
+| `--dry-run` | Show what would happen |
+| `--force` | Force operation |
+| `--clean` | Clean state before starting |
+| `--from-phase PHASEX` | Start from specific phase |
+| `--list` | List available phases |
+| `--version` | Show version |
+
+### State Files
+
+Located in `openspec/changes/<change>/`:
+
+| File | Purpose | Lifecycle |
+|------|---------|-----------|
+| `state.json` | Phase tracking | Deleted on success |
+| `complete.json` | Completion marker | Deleted after validation |
+| `iterations.json` | Iteration history | Archived |
+| `decision-log.json` | Agent reasoning | Archived |
+
+After PHASE6 (Archive), files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`.
 
 ## Project Structure
 
 ```
 OpenSpec-extended/
-├── bin/
-│   └── openspecx              # Main executable
-├── resources/                    # Skills and commands to distribute
-│   ├── skills/                # Custom skills
-│   │   ├── openspec-modify-artifact/
-│   │   └── example-skill/
-│   └── commands/              # Custom commands (optional)
+├── bin/openspecx           # CLI installer
 ├── install.sh              # Installation script
-├── README.md
-└── LICENSE
+├── openspec-core/          # Core workflows (synced from upstream)
+├── resources/
+│   ├── opencode/           # OpenCode resources
+│   │   ├── skills/         # 6 extension skills
+│   │   ├── agents/         # 3 agent definitions
+│   │   ├── commands/       # Phase commands + opsx-* utilities
+│   │   └── scripts/        # openspec-auto + lib/
+│   └── claude/             # Claude Code resources (same structure)
+└── research/               # Platform documentation
 ```
 
-## Adding Skills
+## Contributing
 
-To add new skills, create a directory in `resources/skills/` with a `SKILL.md` file:
-
-```bash
-mkdir -p resources/skills/my-custom-skill
-cat > resources/skills/my-custom-skill/SKILL.md << 'EOF'
----
-name: openspec-my-custom-skill
-description: Brief description of what this skill does
-license: MIT
----
-
-# Your Skill Instructions
-EOF
-```
-
-Then run:
-```bash
-openspecx install claude  # or opencode
-```
-
-## Skills Format
-
-Skills must follow the Agent Skills specification:
-
-- **YAML Frontmatter**: Enclosed in `---` delimiters
-- **Required Fields**:
-  - `name`: Unique skill identifier
-  - `description`: Brief description
-  - `license`: License identifier
-- **Optional Fields**:
-  - `metadata`: Additional info (author, version, category, etc.)
-
-## Requirements
-
-- Bash 4.0 or higher
-- Linux, macOS, or Windows with WSL
+1. Fork the repository
+2. Create a feature branch
+3. Make changes (follow code style in AGENTS.md)
+4. Run `mise run test` before submitting
+5. Open a pull request
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) file
-
-## See Also
-
-- [OpenSpec](https://github.com/Fission-AI/OpenSpec)
-- [OpenSpec Documentation](https://github.com/Fission-AI/OpenSpec/blob/main/README.md)
-- [Agent Skills Format](https://docs.anthropic.com/en/docs/build-with-claude/skills)

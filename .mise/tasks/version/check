@@ -143,11 +143,71 @@ for file in $STAGED_FILES; do
   fi
 done
 
+SCRIPT_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- 'install.sh' 'bin/openspecx')
+
+for file in $SCRIPT_FILES; do
+  current_version=$(get_script_version_from_file "$PROJECT_ROOT/$file")
+  
+  if [[ -z "$current_version" ]]; then
+    FILE_PATHS+=("$file")
+    RESOURCE_TYPES+=("scripts")
+    RESOURCE_NAMES+=("$(basename "$file")")
+    FILE_PLATFORMS+=("root")
+    FILE_CURRENT+=("")
+    FILE_PREVIOUS+=("")
+    FILE_STATUS+=("error")
+    FILE_ERRORS+=("SCRIPT_VERSION not found in $file")
+    HAS_ERROR=1
+    continue
+  fi
+  
+  if ! validate_semver "$current_version" 2>/dev/null; then
+    FILE_PATHS+=("$file")
+    RESOURCE_TYPES+=("scripts")
+    RESOURCE_NAMES+=("$(basename "$file")")
+    FILE_PLATFORMS+=("root")
+    FILE_CURRENT+=("$current_version")
+    FILE_PREVIOUS+=("")
+    FILE_STATUS+=("error")
+    FILE_ERRORS+=("Invalid version format")
+    HAS_ERROR=1
+    continue
+  fi
+  
+  previous_version=$(get_script_version_from_git "$file")
+  
+  if [[ -n "$previous_version" && "$current_version" == "$previous_version" ]]; then
+    FILE_PATHS+=("$file")
+    RESOURCE_TYPES+=("scripts")
+    RESOURCE_NAMES+=("$(basename "$file")")
+    FILE_PLATFORMS+=("root")
+    FILE_CURRENT+=("$current_version")
+    FILE_PREVIOUS+=("$previous_version")
+    FILE_STATUS+=("needs_bump")
+    FILE_ERRORS+=("")
+    HAS_ERROR=1
+  else
+    FILE_PATHS+=("$file")
+    RESOURCE_TYPES+=("scripts")
+    RESOURCE_NAMES+=("$(basename "$file")")
+    FILE_PLATFORMS+=("root")
+    FILE_CURRENT+=("$current_version")
+    FILE_PREVIOUS+=("${previous_version:-}")
+    FILE_STATUS+=("ok")
+    FILE_ERRORS+=("")
+  fi
+done
+
 LOW_CONFIDENCE_INDICES=""
 
 for i in "${!FILE_PATHS[@]}"; do
   if [[ "${FILE_STATUS[$i]}" == "needs_bump" ]]; then
-    DETECT_RESULT=$("$SCRIPT_DIR/lib/detect-bump" "${FILE_PATHS[$i]}" 2>/dev/null || echo "patch:ambiguous:low")
+    detect_script="$SCRIPT_DIR/lib/detect-bump"
+    if [[ "${FILE_PLATFORMS[$i]}" == "root" ]]; then
+      detect_script="$SCRIPT_DIR/lib/detect-bump-script.sh"
+    fi
+    
+    DETECT_RESULT=$("$detect_script" "${FILE_PATHS[$i]}" 2>/dev/null || echo "patch:ambiguous:low")
     
     BUMP_TYPE=$(echo "$DETECT_RESULT" | cut -d: -f1)
     CONFIDENCE=$(echo "$DETECT_RESULT" | cut -d: -f3)

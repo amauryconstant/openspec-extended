@@ -99,6 +99,10 @@ while IFS= read -r file_entry; do
     continue
   fi
   
+  if [[ "$platform" == "root" && "$resource_type" == "scripts" ]]; then
+    continue
+  fi
+  
   if [[ ! "$status" =~ ^needs_(patch|minor|major)$ ]]; then
     continue
   fi
@@ -115,19 +119,85 @@ while IFS= read -r file_entry; do
   fi
 done < <(echo "$STATE_FILES" | jq -c '.[]')
 
-if [[ ${#RESOURCE_BUMPS[@]} -eq 0 ]]; then
-  echo "No resources need version bumps"
+declare -A SCRIPT_BUMPS=()
+
+while IFS= read -r file_entry; do
+  [[ -z "$file_entry" ]] && continue
+  
+  platform=$(echo "$file_entry" | jq -r '.platform // empty')
+  resource_type=$(echo "$file_entry" | jq -r '.resource_type // empty')
+  resource_name=$(echo "$file_entry" | jq -r '.resource_name // empty')
+  status=$(echo "$file_entry" | jq -r '.status // empty')
+  
+  if [[ "$platform" != "root" || "$resource_type" != "scripts" ]]; then
+    continue
+  fi
+  
+  if [[ ! "$status" =~ ^needs_(patch|minor|major)$ ]]; then
+    continue
+  fi
+  
+  bump_type=$(echo "$status" | sed 's/needs_//')
+  SCRIPT_BUMPS[$resource_name]="$bump_type"
+done < <(echo "$STATE_FILES" | jq -c '.[]')
+
+if [[ ${#RESOURCE_BUMPS[@]} -eq 0 && ${#SCRIPT_BUMPS[@]} -eq 0 ]]; then
+  echo "No version bumps required"
   exit 0
 fi
 
-echo "Executing version bumps in manifests:"
-echo ""
+if [[ ${#RESOURCE_BUMPS[@]} -gt 0 ]]; then
+  echo "Executing version bumps in manifests:"
+  echo ""
 
-for resource_key in "${!RESOURCE_BUMPS[@]}"; do
-  IFS=':' read -r platform resource_type resource_name <<< "$resource_key"
-  bump_type="${RESOURCE_BUMPS[$resource_key]}"
-  bump_resource_version "$platform" "$resource_type" "$resource_name" "$bump_type"
-done
+  for resource_key in "${!RESOURCE_BUMPS[@]}"; do
+    IFS=':' read -r platform resource_type resource_name <<< "$resource_key"
+    bump_type="${RESOURCE_BUMPS[$resource_key]}"
+    bump_resource_version "$platform" "$resource_type" "$resource_name" "$bump_type"
+  done
+  
+  echo ""
+fi
 
-echo ""
-echo "Done. Commit the manifest changes."
+if [[ ${#SCRIPT_BUMPS[@]} -gt 0 ]]; then
+  echo "Executing version bumps in scripts:"
+  echo ""
+  
+  for script_name in "${!SCRIPT_BUMPS[@]}"; do
+    bump_type="${SCRIPT_BUMPS[$script_name]}"
+    
+    script_file=""
+    case "$script_name" in
+      install.sh)  script_file="$PROJECT_ROOT/install.sh" ;;
+      openspecx)   script_file="$PROJECT_ROOT/bin/openspecx" ;;
+      *) continue ;;
+    esac
+    
+    if [[ ! -f "$script_file" ]]; then
+      echo "  Warning: Script not found: $script_file" >&2
+      continue
+    fi
+    
+    current_version=$(get_script_version_from_file "$script_file")
+    
+    if [[ -z "$current_version" ]]; then
+      echo "  Error: SCRIPT_VERSION not found in $script_file" >&2
+      continue
+    fi
+    
+    new_version=$(bump_version "$current_version" "$bump_type")
+    
+    echo "  [root] $script_name: $current_version → $new_version"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+      echo "    ✓ scripts/$script_name (dry-run)"
+    else
+      bump_script_version_in_file "$script_file" "$new_version"
+      echo "    ✓ scripts/$script_name"
+    fi
+  done
+  
+  echo ""
+fi
+
+echo "Done. Commit the changes."

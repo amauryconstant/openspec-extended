@@ -378,3 +378,128 @@ run_full_phase_cycle() {
         "$LIB_DIR/osc-phase" "$change" advance >/dev/null 2>&1 || true
     done
 }
+
+# ============================================
+# Install test helpers
+# ============================================
+
+OPENCODEX_BIN="$PROJECT_ROOT/bin/openspecx"
+INSTALL_SCRIPT="$PROJECT_ROOT/install.sh"
+FIXTURES_INSTALL="$FIXTURES_DIR/install"
+
+# Setup a fake installed openspecx location
+setup_installed_openspecx() {
+    local prefix="${1:-$TEST_DIR/.local}"
+    local install_dir="$prefix/share/openspecx"
+    
+    mkdir -p "$install_dir/resources/opencode/skills"
+    mkdir -p "$install_dir/resources/opencode/agents"
+    mkdir -p "$install_dir/resources/opencode/commands"
+    mkdir -p "$install_dir/resources/opencode/scripts/lib"
+    mkdir -p "$install_dir/openspec-core/.opencode/skills"
+    mkdir -p "$install_dir/openspec-core/.opencode/commands"
+    mkdir -p "$install_dir/bin"
+    mkdir -p "$prefix/bin"
+    
+    # Copy minimal resources
+    cp -r "$PROJECT_ROOT/resources/opencode/skills"/* "$install_dir/resources/opencode/skills/" 2>/dev/null || true
+    cp -r "$PROJECT_ROOT/resources/opencode/agents"/* "$install_dir/resources/opencode/agents/" 2>/dev/null || true
+    cp -r "$PROJECT_ROOT/resources/opencode/commands"/* "$install_dir/resources/opencode/commands/" 2>/dev/null || true
+    cp -r "$PROJECT_ROOT/resources/opencode/scripts"/* "$install_dir/resources/opencode/scripts/" 2>/dev/null || true
+    
+    # Copy openspecx binary
+    cp "$OPENCODEX_BIN" "$install_dir/bin/openspecx"
+    chmod +x "$install_dir/bin/openspecx"
+    
+    # Create symlink
+    ln -sf "$install_dir/bin/openspecx" "$prefix/bin/openspecx"
+    
+    echo "$prefix"
+}
+
+# Create a minimal test tarball for install.sh tests
+create_test_tarball() {
+    local output="$1"
+    local temp_dir
+    temp_dir=$(mktemp -d)
+    
+    local pkg_dir="$temp_dir/OpenSpec-extended-test"
+    mkdir -p "$pkg_dir/bin"
+    mkdir -p "$pkg_dir/resources/opencode/skills/test-skill"
+    mkdir -p "$pkg_dir/resources/opencode/agents"
+    mkdir -p "$pkg_dir/resources/opencode/commands"
+    mkdir -p "$pkg_dir/resources/opencode/scripts"
+    mkdir -p "$pkg_dir/openspec-core/.opencode/skills"
+    
+    # Minimal openspecx
+    cat > "$pkg_dir/bin/openspecx" << 'EOF'
+#!/usr/bin/env bash
+echo "openspecx test"
+EOF
+    chmod +x "$pkg_dir/bin/openspecx"
+    
+    # Minimal skill
+    echo "# Test Skill" > "$pkg_dir/resources/opencode/skills/test-skill/SKILL.md"
+    
+    # Minimal manifest
+    echo '{"version":"0.0.0-test"}' > "$pkg_dir/resources/opencode/manifest.json"
+    
+    # Create tarball
+    tar -czf "$output" -C "$temp_dir" "OpenSpec-extended-test"
+    
+    rm -rf "$temp_dir"
+}
+
+# Run openspecx with test environment
+run_openspecx() {
+    run "$OPENCODEX_BIN" "$@"
+}
+
+# Assert directory exists
+assert_dir_exists() {
+    local path="$1"
+    
+    if [[ ! -d "$path" ]]; then
+        echo "Expected directory to exist: $path"
+        return 1
+    fi
+}
+
+# Assert file exists
+assert_file_exists() {
+    local path="$1"
+    
+    if [[ ! -f "$path" ]]; then
+        echo "Expected file to exist: $path"
+        return 1
+    fi
+}
+
+# Assert file is executable
+assert_executable() {
+    local path="$1"
+    
+    if [[ ! -x "$path" ]]; then
+        echo "Expected file to be executable: $path"
+        return 1
+    fi
+}
+
+# Assert symlink points to target
+assert_symlink_to() {
+    local link="$1"
+    local target="$2"
+    
+    if [[ ! -L "$link" ]]; then
+        echo "Expected symlink: $link"
+        return 1
+    fi
+    
+    local resolved
+    resolved=$(readlink -f "$link")
+    
+    if [[ "$resolved" != *"$target"* ]]; then
+        echo "Expected symlink $link to point to $target, got $resolved"
+        return 1
+    fi
+}
