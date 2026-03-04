@@ -66,6 +66,7 @@ fi
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "[DRY-RUN] Would update version to $NEW_VERSION in:"
   echo "  - README.md (badge + examples)"
+  echo "  - resources/opencode/manifest.json"
   echo ""
   echo "[DRY-RUN] Would commit with message: Release version $NEW_VERSION"
   echo "[DRY-RUN] Would create and push tag: $NEW_TAG"
@@ -83,8 +84,25 @@ update_version_in_readme() {
   fi
 }
 
+update_version_in_manifest() {
+  local version="$1"
+  local manifest="$PROJECT_ROOT/resources/opencode/manifest.json"
+
+  if [[ -f "$manifest" ]]; then
+    if ! command -v jq &>/dev/null; then
+      echo "Error: jq is required to update manifest.json" >&2
+      exit 1
+    fi
+    jq --arg v "$version" '.version = $v' "$manifest" > "${manifest}.tmp" && mv "${manifest}.tmp" "$manifest"
+    echo "  ✓ manifest.json"
+  fi
+}
+
 echo "Updating version in README.md:"
 update_version_in_readme "$NEW_VERSION"
+echo ""
+echo "Updating version in manifest.json:"
+update_version_in_manifest "$NEW_VERSION"
 echo ""
 
 if ! git diff --quiet; then
