@@ -17,6 +17,8 @@ permission:
   websearch: allow
   question: deny
   lsp: allow
+  external_directory:
+    "/tmp": allow
 ---
 
 # OpenSpec Builder
