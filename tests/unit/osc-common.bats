@@ -220,3 +220,61 @@ teardown() {
     [ "$status" -eq 0 ]
     [ "$output" == "openspec/changes/test-change" ]
 }
+
+# ==============================================================================
+# capture_optional helper tests
+# ==============================================================================
+
+@test "capture_optional: captures successful output" {
+    local result
+    capture_optional result echo "test value"
+    [ "$result" == "test value" ]
+}
+
+@test "capture_optional: returns empty on command failure" {
+    local result="initial"
+    capture_optional result false
+    [ "$result" == "" ]
+}
+
+@test "capture_optional: suppresses stderr" {
+    local result
+    capture_optional result sh -c 'echo "error message" >&2; exit 1'
+    [ "$result" == "" ]
+}
+
+@test "capture_optional: captures stdout even with stderr" {
+    local result
+    capture_optional result sh -c 'echo "error" >&2; echo "success"'
+    [ "$result" == "success" ]
+}
+
+@test "capture_optional: handles empty output" {
+    local result="unchanged"
+    capture_optional result true
+    [ "$result" == "" ]
+}
+
+@test "capture_optional: works with commands that produce JSON" {
+    local result
+    capture_optional result echo '{"phase":"PHASE1","iteration":1}'
+    [ "$result" == '{"phase":"PHASE1","iteration":1}' ]
+}
+
+@test "capture_optional: handles commands with arguments" {
+    local result
+    capture_optional result printf "%s %s" "hello" "world"
+    [ "$result" == "hello world" ]
+}
+
+@test "capture_optional: does not fail script with set -e" {
+    # This is the key test - ensures capture_optional won't cause script exit
+    (
+        set -e
+        local result=""
+        capture_optional result false
+        # If we reach here, the helper works correctly with set -e
+        exit 0
+    )
+    [ "$?" -eq 0 ]
+}

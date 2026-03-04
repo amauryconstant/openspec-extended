@@ -239,3 +239,104 @@ EOF
     suggestion_count=$(grep -c "^\- \[ \]" "openspec/changes/archive/2024-01-15-test-change/suggestions.md")
     [ "$suggestion_count" -eq 2 ]
 }
+
+# ==============================================================================
+# Phase transition integration tests - covers bug scenario from germinator
+# ==============================================================================
+
+@test "phase-transition: full cycle without explicit transitions (bug regression test)" {
+    # Simulate the exact scenario that failed in production
+    # PHASE0 completed with 3 iterations, no explicit transition set
+    setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":3,"phase_complete":true}'
+    
+    # Normal advance should work (this was the bug - script exited on missing transition)
+    run_osc_phase "test-change" advance
+    [ "$status" -eq 0 ]
+    assert_json_equals "$output" ".phase" "PHASE1"
+    
+    # Verify state is correct
+    run_osc_state "test-change" get
+    assert_json_equals "$output" ".phase" "PHASE1"
+    assert_json_equals "$output" ".iteration" "1"
+    assert_json_false "$output" ".phase_complete"
+}
+
+@test "phase-transition: explicit transition overrides normal advance" {
+    setup_change_with_state "test-change" '{"phase":"PHASE2","iteration":1,"phase_complete":true,"transition":{"target":"PHASE1","reason":"implementation_incorrect"}}'
+    
+    # The explicit transition should be detectable
+    local target
+    target=$(jq -r '.transition.target // empty' "openspec/changes/test-change/state.json")
+    [ "$target" == "PHASE1" ]
+    
+    # After handling transition, clear it
+    run_osc_state "test-change" clear-transition
+    [ "$status" -eq 0 ]
+    
+    # Normal advance should now work (to PHASE3)
+    run_osc_phase "test-change" advance
+    assert_json_equals "$output" ".phase" "PHASE3"
+}
+
+@test "phase-transition: transition with details preserves context" {
+    setup_change_with_state "test-change" '{"phase":"PHASE2","iteration":1,"phase_complete":true,"transition":{"target":"PHASE1","reason":"artifacts_modified","details":"Spec requirement 3.2 updated"}}'
+    
+    local reason details
+    reason=$(jq -r '.transition.reason // "unknown"' "openspec/changes/test-change/state.json")
+    details=$(jq -r '.transition.details // ""' "openspec/changes/test-change/state.json")
+    
+    [ "$reason" == "artifacts_modified" ]
+    [ "$details" == "Spec requirement 3.2 updated" ]
+}
+
+@test "phase-transition: multiple phase advances without transitions" {
+    # Test the complete cycle that would occur in normal operation
+    setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":1,"phase_complete":true}'
+    
+    # Advance through PHASE0 -> PHASE1 -> PHASE2 without explicit transitions
+    run_osc_phase "test-change" advance
+    assert_json_equals "$output" ".phase" "PHASE1"
+    
+    run_osc_state "test-change" complete
+    [ "$status" -eq 0 ]
+    
+    run_osc_phase "test-change" advance
+    assert_json_equals "$output" ".phase" "PHASE2"
+    
+    run_osc_state "test-change" get
+    assert_json_equals "$output" ".phase" "PHASE2"
+    assert_json_false "$output" ".phase_complete"
+}
+
+@test "phase-transition: backward transition from PHASE2 to PHASE1" {
+    # Simulate implementation_incorrect scenario
+    setup_change_with_state "test-change" '{"phase":"PHASE2","iteration":1,"phase_complete":true,"transition":{"target":"PHASE1","reason":"implementation_incorrect"}}'
+    
+    # Verify transition target is set correctly
+    local target reason
+    target=$(jq -r '.transition.target // empty' "openspec/changes/test-change/state.json")
+    reason=$(jq -r '.transition.reason // "unknown"' "openspec/changes/test-change/state.json")
+    
+    [ "$target" == "PHASE1" ]
+    [ "$reason" == "implementation_incorrect" ]
+    
+    # After clearing transition, manual phase change should work
+    run_osc_state "test-change" clear-transition
+    run_osc_state "test-change" set-phase "PHASE1"
+    [ "$status" -eq 0 ]
+    
+    run_osc_state "test-change" get
+    assert_json_equals "$output" ".phase" "PHASE1"
+}
+
+@test "phase-transition: artifacts_modified triggers re-implementation" {
+    # Simulate artifacts_modified scenario (specs changed during review)
+    setup_change_with_state "test-change" '{"phase":"PHASE2","iteration":1,"phase_complete":true,"transition":{"target":"PHASE1","reason":"artifacts_modified","details":"ValidationPipeline spec updated"}}'
+    
+    local reason details
+    reason=$(jq -r '.transition.reason // "unknown"' "openspec/changes/test-change/state.json")
+    details=$(jq -r '.transition.details // ""' "openspec/changes/test-change/state.json")
+    
+    [ "$reason" == "artifacts_modified" ]
+    [ "$details" == "ValidationPipeline spec updated" ]
+}

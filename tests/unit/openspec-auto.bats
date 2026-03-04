@@ -171,3 +171,120 @@ EOF
     [ "$phase3_display" == "MAINTAIN DOCS" ]
     [ "$phase5_display" == "SELF-REFLECTION" ]
 }
+
+# ==============================================================================
+# Phase transition tests - covers the bug scenario from germinator
+# ==============================================================================
+
+@test "phase-transition: normal advance when no explicit transition" {
+    setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":3,"phase_complete":true}'
+    
+    # Simulate the check_transition function behavior
+    # When no transition is set, jq returns empty and we should proceed normally
+    local transition_target=""
+    if transition_target=$(jq -r '.transition.target // empty' "openspec/changes/test-change/state.json" 2>/dev/null) && [[ -n "$transition_target" ]]; then
+        # Should NOT reach here - no transition set
+        return 1
+    fi
+    
+    # Verify state file allows normal operations
+    # (The actual phase advance is tested in integration tests)
+    local phase
+    phase=$(jq -r '.phase' "openspec/changes/test-change/state.json")
+    [ "$phase" == "PHASE0" ]
+    
+    # Verify phase_complete is true (ready for advance)
+    local complete
+    complete=$(jq -r '.phase_complete' "openspec/changes/test-change/state.json")
+    [ "$complete" == "true" ]
+}
+
+@test "phase-transition: explicit transition when set" {
+    setup_change_with_state "test-change" '{"phase":"PHASE2","iteration":1,"phase_complete":true,"transition":{"target":"PHASE1","reason":"implementation_incorrect"}}'
+    
+    # Simulate check_transition finding a target
+    local transition_target=""
+    transition_target=$(jq -r '.transition.target // empty' "openspec/changes/test-change/state.json" 2>/dev/null)
+    [ "$transition_target" == "PHASE1" ]
+    
+    # Verify transition reason available
+    local reason
+    reason=$(jq -r '.transition.reason // "unknown"' "openspec/changes/test-change/state.json")
+    [ "$reason" == "implementation_incorrect" ]
+}
+
+@test "phase-transition: set -e does not exit on missing transition (bug fix)" {
+    setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":3,"phase_complete":true}'
+    
+    # This simulates the exact pattern that caused the bug
+    # With the fix, this should NOT fail even with set -e
+    (
+        set -e
+        local transition_target=""
+        if transition_target=$(jq -r '.transition.target // empty' "openspec/changes/test-change/state.json" 2>/dev/null) && [[ -n "$transition_target" ]]; then
+            # Should not reach here
+            exit 99
+        fi
+        # If we reach here, the fix works
+        exit 0
+    )
+    [ "$?" -eq 0 ]
+}
+
+@test "phase-transition: handles missing state.json gracefully" {
+    setup_change "test-change"
+    # No state.json created
+    
+    # check_transition should return empty, not crash
+    local transition_target=""
+    if [[ -f "openspec/changes/test-change/state.json" ]]; then
+        transition_target=$(jq -r '.transition.target // empty' "openspec/changes/test-change/state.json" 2>/dev/null)
+    fi
+    
+    [ -z "$transition_target" ]
+}
+
+@test "phase-transition: conditional pattern captures transition value correctly" {
+    setup_change_with_state "test-change" '{"phase":"PHASE2","iteration":1,"phase_complete":true,"transition":{"target":"PHASE0","reason":"artifacts_modified","details":"Spec requirement updated"}}'
+    
+    # Test the conditional pattern used in the fix
+    local transition_target=""
+    if transition_target=$(jq -r '.transition.target // empty' "openspec/changes/test-change/state.json" 2>/dev/null) && [[ -n "$transition_target" ]]; then
+        [ "$transition_target" == "PHASE0" ]
+    else
+        # Should not reach here - transition IS set
+        return 1
+    fi
+}
+
+@test "phase-transition: all valid transition reasons are accepted" {
+    setup_change_with_state "test-change" '{"phase":"PHASE2","iteration":1,"phase_complete":true}'
+    
+    # Test all valid transition reasons
+    local reasons=("implementation_incorrect" "artifacts_modified" "retry_requested")
+    
+    for reason in "${reasons[@]}"; do
+        cat > "openspec/changes/test-change/state.json" <<EOF
+{"phase":"PHASE2","iteration":1,"phase_complete":true,"transition":{"target":"PHASE1","reason":"$reason"}}
+EOF
+        
+        local found_reason
+        found_reason=$(jq -r '.transition.reason // "unknown"' "openspec/changes/test-change/state.json")
+        [ "$found_reason" == "$reason" ]
+    done
+}
+
+@test "phase-transition: transition details are optional" {
+    # Test with details
+    setup_change_with_state "test-change" '{"phase":"PHASE2","iteration":1,"phase_complete":true,"transition":{"target":"PHASE1","reason":"implementation_incorrect","details":"ValidationPipeline missing early exit"}}'
+    
+    local details
+    details=$(jq -r '.transition.details // ""' "openspec/changes/test-change/state.json")
+    [ "$details" == "ValidationPipeline missing early exit" ]
+    
+    # Test without details
+    setup_change_with_state "test-change" '{"phase":"PHASE2","iteration":1,"phase_complete":true,"transition":{"target":"PHASE1","reason":"implementation_incorrect"}}'
+    
+    details=$(jq -r '.transition.details // ""' "openspec/changes/test-change/state.json")
+    [ "$details" == "" ]
+}

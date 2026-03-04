@@ -5,6 +5,25 @@
 
 set -euo pipefail
 
+# ==============================================================================
+# FUNCTION RETURN CONVENTIONS
+# ==============================================================================
+#
+# check_* functions: Return 0/1 as boolean (use in conditionals)
+#   - check_phase_complete: Returns 0 if complete, 1 if not
+#   - check_transition: Returns 0 + echoes target if set, 1 if not set
+#   - check_complete: Returns 0 if complete.json exists, 1 if not
+#
+# get_* functions: Always succeed (return 0), echo default on error
+#   - get_current_phase: Returns phase from state.json
+#   - get_phase_iteration: Returns iteration count (0 if error)
+#   - get_transition_reason: Returns reason or "unknown"
+#   - get_transition_details: Returns details or ""
+#
+# IMPORTANT: When using check_* functions for their output value,
+# use conditional pattern: if value=$(check_func) && [[ -n "$value" ]]; then
+# ==============================================================================
+
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/osc-common"
 readonly SCRIPT_VERSION=$(jq -r '.resources.scripts["openspec-auto"].version // "unknown"' \
@@ -1159,11 +1178,10 @@ main() {
         fi
         show_progress
         
-        local next_phase
-        local transition_target
-        transition_target=$(check_transition)
-        
-        if [[ -n "$transition_target" ]]; then
+        # Check for explicit transition signal using conditional pattern
+        # (check_transition returns 1 when no transition, which would exit with set -e)
+        local transition_target=""
+        if transition_target=$(check_transition) && [[ -n "$transition_target" ]]; then
           local transition_reason
           local transition_details
           transition_reason=$(get_transition_reason)
@@ -1179,6 +1197,7 @@ main() {
           clear_phase_complete
           current_phase="$transition_target"
         else
+          local next_phase
           next_phase=$(advance_phase "$current_phase")
           log "Phase transition: $current_phase → $next_phase"
           current_phase="$next_phase"

@@ -130,3 +130,17 @@ osc_find_change_dir() {
     
     return 1
 }
+
+# Capture command output, always return 0 (for optional values)
+# Use this when you need the output of a command that might fail,
+# but failure is a valid case (not an error).
+#
+# Usage: capture_optional result_var command [args...]
+# Example: capture_optional target check_transition
+#
+# The result variable will be set to the command's stdout (or empty on failure)
+capture_optional() {
+    local -n _capture_ref=$1
+    shift
+    _capture_ref=$("$@" 2>/dev/null) || true
+}
