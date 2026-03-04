@@ -1,7 +1,19 @@
 #!/usr/bin/env bash
 # osc-state - Manage OpenSpec change state
-# Usage: osc-state <change> [get|set-phase|complete]
+# Usage: osc-state <change> <action> [args]
 # Output: JSON
+#
+# Actions:
+#   get                              - Get current state
+#   set-phase <PHASE>                - Set current phase
+#   complete                         - Mark phase complete (normal advance)
+#   transition <PHASE> <reason> [details] - Set explicit transition target
+#   clear-transition                 - Clear transition field
+#
+# Transition reasons:
+#   implementation_incorrect - Artifacts correct, code needs fixing
+#   artifacts_modified       - Specs/design updated, re-implement needed
+#   retry_requested          - Same phase, different approach
 
 set -euo pipefail
 
@@ -11,7 +23,9 @@ source "$SCRIPT_DIR/osc-common"
 CHANGE_DIR="openspec/changes"
 
 usage() {
-    echo '{"error":"usage","message":"Usage: osc-state <change> [get|set-phase|complete]","actions":["get (default)","set-phase <PHASE>","complete"]}' >&2
+    cat >&2 << 'EOF'
+{"error":"usage","message":"Usage: osc-state <change> <action> [args]","actions":["get","set-phase <PHASE>","complete","transition <PHASE> <reason> [details]","clear-transition"],"transition_reasons":["implementation_incorrect","artifacts_modified","retry_requested"]}
+EOF
     exit 1
 }
 
@@ -89,8 +103,80 @@ case "$ACTION" in
         echo '{"success":true,"phase_complete":true}'
         ;;
     
+    transition)
+        TARGET_PHASE="$VALUE"
+        REASON="${4:-}"
+        DETAILS="${5:-}"
+        
+        if [[ -z "$TARGET_PHASE" ]]; then
+            echo '{"error":"missing_target","message":"Target phase required for transition action"}' >&2
+            exit 1
+        fi
+        
+        if [[ -z "$REASON" ]]; then
+            echo '{"error":"missing_reason","message":"Reason required for transition action"}' >&2
+            exit 1
+        fi
+        
+        if [[ ! "$TARGET_PHASE" =~ ^PHASE[0-6]$ ]]; then
+            echo "{\"error\":\"invalid_target\",\"message\":\"Invalid target phase: $TARGET_PHASE\",\"valid\":[\"PHASE0\",\"PHASE1\",\"PHASE2\",\"PHASE3\",\"PHASE4\",\"PHASE5\",\"PHASE6\"]}" >&2
+            exit 1
+        fi
+        
+        VALID_REASONS=("implementation_incorrect" "artifacts_modified" "retry_requested")
+        REASON_VALID=false
+        for r in "${VALID_REASONS[@]}"; do
+            if [[ "$REASON" == "$r" ]]; then
+                REASON_VALID=true
+                break
+            fi
+        done
+        
+        if [[ "$REASON_VALID" == false ]]; then
+            echo "{\"error\":\"invalid_reason\",\"message\":\"Invalid reason: $REASON\",\"valid\":[\"implementation_incorrect\",\"artifacts_modified\",\"retry_requested\"]}" >&2
+            exit 1
+        fi
+        
+        if [[ ! -f "$STATE_FILE" ]]; then
+            echo "{\"error\":\"state_not_found\",\"message\":\"state.json does not exist\",\"path\":\"$STATE_FILE\"}" >&2
+            exit 1
+        fi
+        
+        TRANSITION_JSON=""
+        if [[ -n "$DETAILS" ]]; then
+            TRANSITION_JSON="{\"target\":\"$TARGET_PHASE\",\"reason\":\"$REASON\",\"details\":\"$(json_escape "$DETAILS")\"}"
+        else
+            TRANSITION_JSON="{\"target\":\"$TARGET_PHASE\",\"reason\":\"$REASON\"}"
+        fi
+        
+        if ! osc_json_update "$STATE_FILE" '.phase_complete = true | .transition = '"$TRANSITION_JSON"; then
+            echo '{"error":"jq_failed","message":"Failed to set transition"}' >&2
+            exit 1
+        fi
+        
+        if [[ -n "$DETAILS" ]]; then
+            echo "{\"success\":true,\"transition\":{\"target\":\"$TARGET_PHASE\",\"reason\":\"$REASON\",\"details\":\"$(json_escape "$DETAILS")\"}}"
+        else
+            echo "{\"success\":true,\"transition\":{\"target\":\"$TARGET_PHASE\",\"reason\":\"$REASON\"}}"
+        fi
+        ;;
+    
+    clear-transition)
+        if [[ ! -f "$STATE_FILE" ]]; then
+            echo "{\"error\":\"state_not_found\",\"message\":\"state.json does not exist\",\"path\":\"$STATE_FILE\"}" >&2
+            exit 1
+        fi
+        
+        if ! osc_json_update "$STATE_FILE" 'del(.transition)'; then
+            echo '{"error":"jq_failed","message":"Failed to clear transition"}' >&2
+            exit 1
+        fi
+        
+        echo '{"success":true,"transition_cleared":true}'
+        ;;
+    
     *)
-        echo "{\"error\":\"unknown_action\",\"message\":\"Unknown action: $ACTION\",\"valid_actions\":[\"get\",\"set-phase\",\"complete\"]}" >&2
+        echo "{\"error\":\"unknown_action\",\"message\":\"Unknown action: $ACTION\",\"valid_actions\":[\"get\",\"set-phase\",\"complete\",\"transition\",\"clear-transition\"]}" >&2
         exit 1
         ;;
 esac

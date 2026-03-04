@@ -652,6 +652,50 @@ clear_phase_complete() {
   fi
 }
 
+check_transition() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    return 1
+  fi
+  
+  local transition_target
+  transition_target=$(jq -r '.transition.target // empty' "$state_file" 2>/dev/null)
+  
+  if [[ -n "$transition_target" ]]; then
+    echo "$transition_target"
+    return 0
+  fi
+  
+  return 1
+}
+
+get_transition_reason() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    echo "unknown"
+    return
+  fi
+  
+  jq -r '.transition.reason // "unknown"' "$state_file" 2>/dev/null
+}
+
+get_transition_details() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    echo ""
+    return
+  fi
+  
+  jq -r '.transition.details // ""' "$state_file" 2>/dev/null
+}
+
+clear_transition() {
+  run_lib_script "osc-state" "$CHANGE_ID" clear-transition >/dev/null 2>&1 || true
+}
+
 is_phase_complete() {
   local phase="$1"
   local state_file="$CHANGE_DIR/state.json"
@@ -750,7 +794,14 @@ run_phase() {
       update_change_dir_if_archived
     fi
     
-    if check_phase_complete; then
+    # PHASE6 completion is detected by archive existence, not state.json
+    # (PHASE6 deletes transient files before archiving)
+    if [[ "$phase" == "PHASE6" ]]; then
+      if validate_archive >/dev/null 2>&1; then
+        log_success "$phase completed in $iteration iteration(s)"
+        return 0
+      fi
+    elif check_phase_complete; then
       log_success "$phase completed in $iteration iteration(s)"
       clear_phase_complete
       return 0
@@ -785,21 +836,6 @@ advance_phase() {
   fi
 }
 
-cleanup_state_files() {
-  local state_dir="$CHANGE_DIR"
-  
-  if [[ -f "$state_dir/state.json" ]]; then
-    rm "$state_dir/state.json" || log_warning "Failed to remove state.json"
-  fi
-  if [[ -f "$state_dir/complete.json" ]]; then
-    rm "$state_dir/complete.json" || log_warning "Failed to remove complete.json"
-  fi
-  if [[ -f ".openspec-baseline.json" ]]; then
-    rm ".openspec-baseline.json" || log_warning "Failed to remove .openspec-baseline.json"
-  fi
-  
-  log "State files cleaned up"
-}
 
 validate_archive() {
   local result
@@ -1124,10 +1160,29 @@ main() {
         show_progress
         
         local next_phase
-        next_phase=$(advance_phase "$current_phase")
-        log "Phase transition: $current_phase → $next_phase"
+        local transition_target
+        transition_target=$(check_transition)
         
-        current_phase="$next_phase"
+        if [[ -n "$transition_target" ]]; then
+          local transition_reason
+          local transition_details
+          transition_reason=$(get_transition_reason)
+          transition_details=$(get_transition_details)
+          
+          log "Explicit transition: $current_phase → $transition_target"
+          log "Reason: $transition_reason"
+          if [[ -n "$transition_details" ]]; then
+            log "Details: $transition_details"
+          fi
+          
+          clear_transition
+          clear_phase_complete
+          current_phase="$transition_target"
+        else
+          next_phase=$(advance_phase "$current_phase")
+          log "Phase transition: $current_phase → $next_phase"
+          current_phase="$next_phase"
+        fi
         ;;
       
       PHASE6)
@@ -1138,13 +1193,13 @@ main() {
         show_progress
         
         # PHASE6 is terminal - validate archive and exit without calling advance_phase
+        # Note: cleanup_state_files() is NOT called because PHASE6 already cleaned
+        # transient files before archiving (state.json, complete.json, baseline)
         if validate_archive; then
           log ""
           log "================================"
           log_success "Implementation completed successfully!"
           log "================================"
-          
-          cleanup_state_files
           
           exit 0
         else

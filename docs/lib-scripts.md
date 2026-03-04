@@ -6,7 +6,7 @@ Helper scripts in `.opencode/scripts/lib/` for reliable agent operations. All ou
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `osc-state` | State file CRUD | `osc-state <change> [get\|set-phase\|complete]` |
+| `osc-state` | State file CRUD + transitions | `osc-state <change> <action>` |
 | `osc-ctx` | Aggregate context | `osc-ctx <change>` |
 | `osc-iterations` | Iteration history | `osc-iterations <change> [get\|append]` |
 | `osc-log` | Decision logging | `osc-log <change> [get\|append]` |
@@ -28,6 +28,9 @@ Helper scripts in `.opencode/scripts/lib/` for reliable agent operations. All ou
 # Mark phase complete
 osc-state $1 complete
 
+# Signal transition to fix implementation
+osc-state $1 transition PHASE1 implementation_incorrect "ValidationPipeline missing early exit"
+
 # Log iteration
 echo '{"iteration":2,"phase":"IMPLEMENTATION",...}' | osc-iterations $1 append
 
@@ -35,12 +38,34 @@ echo '{"iteration":2,"phase":"IMPLEMENTATION",...}' | osc-iterations $1 append
 echo '{"phase":"PHASE0","iteration":1,"summary":"..."}' | osc-log $1 append
 ```
 
+### osc-state Actions
+
+| Action | Description |
+|--------|-------------|
+| `get` | Get current state |
+| `set-phase <PHASE>` | Set current phase |
+| `complete` | Mark phase complete (normal advance) |
+| `transition <PHASE> <reason> [details]` | Set explicit transition target |
+| `clear-transition` | Clear transition field |
+
+**Transition reasons:**
+- `implementation_incorrect` - Artifacts correct, code needs fixing
+- `artifacts_modified` - Specs/design updated, re-implement needed
+- `retry_requested` - Same phase, different approach
+
+
 ## Output Examples
 
 ### osc-state
 
 ```json
 {"phase":"PHASE1","iteration":2,"phase_complete":false,"change":"add-auth"}
+```
+
+### osc-state transition
+
+```json
+{"success":true,"transition":{"target":"PHASE1","reason":"implementation_incorrect"}}
 ```
 
 ### osc-ctx

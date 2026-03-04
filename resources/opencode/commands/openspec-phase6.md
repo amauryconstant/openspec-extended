@@ -42,7 +42,19 @@ Archive the completed change for historical reference.
 
 Complete ALL of these steps in order, without stopping:
 
-### Step 1: Execute Archive
+### Step 1: Clean Transient Files
+
+Before archiving, remove transient state files that should not be preserved:
+
+```bash
+rm -f openspec/changes/$1/state.json
+rm -f openspec/changes/$1/complete.json
+rm -f .openspec-baseline.json
+```
+
+These files are runtime artifacts that should not be archived.
+
+### Step 2: Execute Archive
 
 1. Load skill: Use `openspec-archive-change` skill
 
@@ -51,7 +63,6 @@ Complete ALL of these steps in order, without stopping:
    - Verify delta spec sync state (if applicable)
 
 3. Verify files to archive:
-   - state.json (workflow state)
    - iterations.json (iteration history)
    - decision-log.json (decision log)
    - verification-report.md (from PHASE2, if exists)
@@ -63,7 +74,7 @@ Complete ALL of these steps in order, without stopping:
    - Skill will move change to: `openspec/changes/archive/YYYY-MM-DD-$1/`
    - Verify the move completed successfully
 
-### Step 2: Commit Archive
+### Step 3: Commit Archive
 
 Commit the archive to git:
 
@@ -75,16 +86,6 @@ git commit -m "Archive change $1"
 Capture the commit hash for logging.
 
 Note: After archiving, the change directory moves to archive/. The osc-* functions automatically detect this and will continue to work.
-
-### Step 3: Mark Phase Complete
-
-Mark this phase as complete in the state file:
-
-```bash
-.opencode/scripts/lib/osc-state "$1" complete
-```
-
-Note: The state.json file will be in the archived location after this phase. The osc-* functions will automatically find it.
 
 ### Step 4: Update Decision Log
 
@@ -119,9 +120,9 @@ echo '{
 
 Before finishing this invocation, verify ALL items are complete:
 
+- [ ] Transient files deleted (state.json, complete.json, .openspec-baseline.json)
 - [ ] Archive directory created at `openspec/changes/archive/YYYY-MM-DD-$1/`
 - [ ] Git commit created with hash recorded in logs
-- [ ] `osc-state "$1" complete` executed successfully
 - [ ] Decision log entry appended with commit hash
 - [ ] Iterations log entry appended with commit hash
 
@@ -131,9 +132,10 @@ Before finishing this invocation, verify ALL items are complete:
 
 After PHASE6 archive:
 1. The change is now in `openspec/changes/archive/YYYY-MM-DD-$1/`
-2. All state files (state.json, complete.json, iterations.json, decision-log.json) are archived
-3. The script will detect completion and exit
-4. State files will be cleaned up by the script
+2. Transient files (state.json, complete.json, baseline) were deleted before archiving
+3. Historical files (iterations.json, decision-log.json) are preserved in archive
+4. The orchestrator detects completion by archive directory existence
+5. No cleanup needed after this phase (already clean)
 
 ## BLOCKER HANDLING
 

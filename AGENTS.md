@@ -140,12 +140,12 @@ license: MIT
 
 | File | Purpose | Lifecycle |
 | ---- | ------- | --------- |
-| `state.json` | Phase tracking + completion | Deleted on success |
-| `complete.json` | Workflow completion (PHASE5) | Deleted after validation |
+| `state.json` | Phase tracking + transitions | Deleted before archive commit |
+| `complete.json` | Workflow completion (PHASE5) | Deleted before archive commit |
 | `iterations.json` | Iteration history | Archived (never deleted) |
 | `decision-log.json` | Agent reasoning | Archived (never deleted) |
 
-Note: After PHASE6 (Archive), files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`. The `osc-*` lib scripts automatically detect archived locations.
+Note: After PHASE6 (Archive), historical files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`. Transient files (state.json, complete.json, baseline) are deleted before the archive commit, leaving a clean git history. The `osc-*` lib scripts automatically detect archived locations.
 
 ### Manual Invocation
 

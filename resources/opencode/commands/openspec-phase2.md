@@ -55,16 +55,40 @@ The skill provides:
 
 IF CRITICAL OR WARNING ISSUES FOUND:
 
+First, determine the root cause:
+
+**Case A: Artifacts are wrong (specs/design unclear or incomplete)**
 1. Use `openspec-modify-artifacts` skill to fix artifacts
-2. Log: "Artifacts modified, restarting implementation"
-3. Next iteration will resume at PHASE1
-4. DO NOT continue to PHASE3
+2. Commit the artifact changes
+3. Signal transition back to PHASE1:
+   ```bash
+   .opencode/scripts/lib/osc-state "$1" transition PHASE1 artifacts_modified "Brief description of what was fixed"
+   ```
+4. Log: "Artifacts modified, transitioning to PHASE1 for re-implementation"
+
+**Case B: Artifacts are correct, implementation is wrong**
+1. DO NOT modify artifacts
+2. Signal transition back to PHASE1:
+   ```bash
+   .opencode/scripts/lib/osc-state "$1" transition PHASE1 implementation_incorrect "Brief description of what needs fixing"
+   ```
+3. Log: "Implementation incorrect, transitioning to PHASE1 for fixes"
+
+**Case C: Same phase needs retry with different approach**
+1. Signal retry:
+   ```bash
+   .opencode/scripts/lib/osc-state "$1" transition PHASE2 retry_requested "Brief description of alternative approach"
+   ```
+2. Log: "Requesting retry with different approach"
 
 IF NO CRITICAL OR WARNING ISSUES (SUGGESTIONS OK):
 
 1. Log: "Verification passed, no CRITICAL or WARNING issues"
 2. Log any SUGGESTION issues for future reference
-3. Mark phase complete via `osc-state`
+3. Mark phase complete via `osc-state`:
+   ```bash
+   .opencode/scripts/lib/osc-state "$1" complete
+   ```
 4. Script will advance to PHASE3
 
 ## SUGGESTION TRACKING
@@ -177,5 +201,11 @@ echo '{
 
 ## TRANSITION
 
-- Verification passed → PHASE3 (MAINTAIN DOCS)
-- Verification failed (artifacts modified) → PHASE1 (IMPLEMENTATION) restart
+Use `osc-state transition` for explicit phase control:
+
+| Scenario | Command | Reason |
+|----------|---------|--------|
+| Artifacts fixed | `osc-state "$1" transition PHASE1 artifacts_modified "..."` | Specs/design updated, re-implement |
+| Implementation wrong | `osc-state "$1" transition PHASE1 implementation_incorrect "..."` | Artifacts correct, code needs fix |
+| Retry with new approach | `osc-state "$1" transition PHASE2 retry_requested "..."` | Try different solution |
+| Verification passed | `osc-state "$1" complete` | Normal advance to PHASE3 |
