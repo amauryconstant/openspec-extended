@@ -10,7 +10,7 @@ source "$SCRIPT_DIR/lib/osc-common"
 readonly SCRIPT_VERSION=$(jq -r '.resources.scripts["openspec-auto"].version // "unknown"' \
   "$SCRIPT_DIR/../manifest.json" 2>/dev/null || echo "unknown")
 readonly DEFAULT_TIMEOUT=1800
-readonly DEFAULT_MAX_ITERATIONS=10
+readonly DEFAULT_MAX_PHASE_ITERATIONS=10
 
 get_phase_name() {
   case "$1" in
@@ -66,7 +66,7 @@ readonly REQUIRED_SKILLS=(
 MODEL=""
 CHANGE_ID=""
 CHANGE_DIR=""
-MAX_ITERATIONS=$DEFAULT_MAX_ITERATIONS
+MAX_PHASE_ITERATIONS=$DEFAULT_MAX_PHASE_ITERATIONS
 TIMEOUT=$DEFAULT_TIMEOUT
 VERBOSE=false
 DRY_RUN=false
@@ -145,7 +145,7 @@ Arguments:
   change-id        OpenSpec change ID (e.g., reverse-transformation)
 
   Options:
-  --max-iterations N  Maximum number of iterations (default: 10, -1 for unlimited)
+  --max-phase-iterations N  Max retries per phase before failing (default: 10, -1 for unlimited)
   --timeout N        Timeout per iteration in seconds (default: 1800)
   --model MODEL      Model to use for AI assistant (optional, uses CLI default if not set)
   --verbose          Show detailed progress information
@@ -160,7 +160,7 @@ Arguments:
 
 Examples:
   $0 reverse-transformation
-  $0 reverse-transformation --max-iterations 20
+  $0 reverse-transformation --max-phase-iterations 20
   $0 reverse-transformation --from-phase PHASE3 --verbose
   $0 reverse-transformation --clean --force
   $0 --list
@@ -185,6 +185,18 @@ parse_args() {
         list_changes
         exit 0
         ;;
+      --max-phase-iterations)
+        if [[ ! "$2" =~ ^-?[0-9]+$ ]]; then
+          log_error "Invalid max-phase-iterations value: $2 (must be integer or -1 for unlimited)"
+          usage --error
+        fi
+        if [[ "$2" -lt -1 ]] || [[ "$2" -eq 0 ]]; then
+          log_error "Invalid max-phase-iterations value: $2 (must be -1, 1, or greater)"
+          usage --error
+        fi
+        MAX_PHASE_ITERATIONS="$2"
+        shift 2
+        ;;
       --max-iterations)
         if [[ ! "$2" =~ ^-?[0-9]+$ ]]; then
           log_error "Invalid max-iterations value: $2 (must be integer or -1 for unlimited)"
@@ -194,7 +206,7 @@ parse_args() {
           log_error "Invalid max-iterations value: $2 (must be -1, 1, or greater)"
           usage --error
         fi
-        MAX_ITERATIONS="$2"
+        MAX_PHASE_ITERATIONS="$2"
         shift 2
         ;;
       --timeout)
@@ -725,7 +737,7 @@ run_phase() {
   
   local iteration=1
   
-  while [[ $iteration -le $MAX_ITERATIONS ]] || [[ $MAX_ITERATIONS -eq -1 ]]; do
+  while [[ $iteration -le $MAX_PHASE_ITERATIONS ]] || [[ $MAX_PHASE_ITERATIONS -eq -1 ]]; do
     TOTAL_INVOCATIONS=$((TOTAL_INVOCATIONS + 1))
     log "Agent invocation #$TOTAL_INVOCATIONS for $phase"
     write_state "$phase" "$iteration"
@@ -747,7 +759,7 @@ run_phase() {
     iteration=$((iteration + 1))
   done
   
-  log_warning "$phase reached max iterations ($MAX_ITERATIONS)"
+  log_warning "$phase reached max phase iterations ($MAX_PHASE_ITERATIONS)"
   return 1
 }
 
@@ -1010,7 +1022,7 @@ main() {
   if [[ -n "$MODEL" ]]; then
     echo "Model: $MODEL"
   fi
-  echo "Max iterations: $MAX_ITERATIONS"
+  echo "Max phase iterations: $MAX_PHASE_ITERATIONS"
   echo "Timeout: $TIMEOUT seconds"
   echo "================================"
   echo ""
@@ -1133,10 +1145,6 @@ main() {
           log "================================"
           
           cleanup_state_files
-          
-          if [[ "$VERBOSE" == true ]]; then
-            show_progress
-          fi
           
           exit 0
         else

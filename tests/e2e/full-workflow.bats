@@ -21,7 +21,7 @@ teardown() {
     local change="add-hello-script"
     local change_dir="openspec/changes/$change"
 
-    run_openspec_auto_streaming "$change" --force --verbose --max-iterations 3 --timeout 600
+    run_openspec_auto_streaming "$change" --force --verbose --max-phase-iterations 3 --timeout 600
     [ "$status" -eq 0 ]
 
     # 1. Verify artifact was created and works

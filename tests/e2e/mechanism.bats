@@ -22,7 +22,7 @@ teardown() {
     run_openspec_auto --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]]
-    [[ "$output" == *"--max-iterations"* ]]
+    [[ "$output" == *"--max-phase-iterations"* ]]
     [[ "$output" == *"--timeout"* ]]
     [[ "$output" == *"--model"* ]]
     [[ "$output" == *"--verbose"* ]]
@@ -47,7 +47,7 @@ teardown() {
 @test "mechanism: --dry-run shows phases without execution" {
     setup_minimal_change "dry-test"
 
-    run_openspec_auto dry-test --dry-run --max-iterations 1
+    run_openspec_auto dry-test --dry-run --max-phase-iterations 1
     [[ "$output" == *"[DRY RUN]"* ]]
     [[ "$output" == *"Would run command"* ]]
 }

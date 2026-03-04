@@ -127,14 +127,14 @@ license: MIT
 
 ```bash
 .opencode/scripts/openspec-auto <change-name>
-.opencode/scripts/openspec-auto add-auth --max-iterations 20 --verbose
+.opencode/scripts/openspec-auto add-auth --max-phase-iterations 20 --verbose
 .opencode/scripts/openspec-auto add-auth --from-phase PHASE3
 .opencode/scripts/openspec-auto add-auth --dry-run
 ```
 
 ### Options
 
-`--max-iterations N` `--timeout N` `--model MODEL` `--verbose` `--dry-run` `--force` `--clean` `--from-phase PHASEX` `--list` `--version`
+`--max-phase-iterations N` `--timeout N` `--model MODEL` `--verbose` `--dry-run` `--force` `--clean` `--from-phase PHASEX` `--list` `--version`
 
 ### State Files (`openspec/changes/<change>/`)
 

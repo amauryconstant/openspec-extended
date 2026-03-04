@@ -132,7 +132,7 @@ ls .opencode/{skills,agents,commands,scripts}/
 .opencode/scripts/openspec-auto <change-name>
 
 # With options
-.opencode/scripts/openspec-auto add-auth --max-iterations 20 --verbose
+.opencode/scripts/openspec-auto add-auth --max-phase-iterations 20 --verbose
 .opencode/scripts/openspec-auto add-auth --from-phase PHASE3
 .opencode/scripts/openspec-auto add-auth --dry-run
 ```
@@ -141,7 +141,7 @@ ls .opencode/{skills,agents,commands,scripts}/
 
 | Option | Description |
 |--------|-------------|
-| `--max-iterations N` | Maximum number of iterations |
+| `--max-phase-iterations N` | Max retries per phase before failing (default: 10, -1 for unlimited) |
 | `--timeout N` | Timeout in seconds |
 | `--model MODEL` | Specify model to use |
 | `--verbose` | Enable verbose output |
