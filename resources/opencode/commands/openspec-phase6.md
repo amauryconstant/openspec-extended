@@ -74,47 +74,47 @@ These files are runtime artifacts that should not be archived.
    - Skill will move change to: `openspec/changes/archive/YYYY-MM-DD-$1/`
    - Verify the move completed successfully
 
-### Step 3: Commit Archive
+### Step 3: Update Decision Log
 
-Commit the archive to git:
+Append entry to decision log BEFORE committing:
+
+```bash
+echo '{
+  "phase": "ARCHIVE",
+  "iteration": N,
+  "summary": "Change successfully archived",
+  "archive_path": "openspec/changes/archive/YYYY-MM-DD-$1/",
+  "next_steps": "Archive complete. Workflow finished."
+}' | .opencode/scripts/lib/osc-log "$1" append
+```
+
+Note: Commit hash is captured in git history, not duplicated in logs.
+
+### Step 4: Update Iterations Log
+
+Append entry to iterations.json BEFORE committing:
+
+```bash
+echo '{
+  "iteration": N,
+  "phase": "ARCHIVE",
+  "archive_path": "openspec/changes/archive/YYYY-MM-DD-$1/",
+  "notes": "Change archived and committed successfully"
+}' | .opencode/scripts/lib/osc-iterations "$1" append
+```
+
+Note: Commit hash is captured in git history, not duplicated in logs.
+
+### Step 5: Commit Archive
+
+Commit all archived files and log updates in a single commit:
 
 ```bash
 git add openspec/changes/archive/
 git commit -m "Archive change $1"
 ```
 
-Capture the commit hash for logging.
-
 Note: After archiving, the change directory moves to archive/. The osc-* functions automatically detect this and will continue to work.
-
-### Step 4: Update Decision Log
-
-Append entry to decision log:
-
-```bash
-echo '{
-  "phase": "ARCHIVE",
-  "iteration": N,
-  "summary": "Change successfully archived with git commit",
-  "archive_path": "openspec/changes/archive/YYYY-MM-DD-$1/",
-  "commit_hash": "<hash>",
-  "next_steps": "Archive complete. Workflow finished."
-}' | .opencode/scripts/lib/osc-log "$1" append
-```
-
-### Step 5: Update Iterations Log
-
-Append entry to iterations.json:
-
-```bash
-echo '{
-  "iteration": N,
-  "phase": "ARCHIVE",
-  "archive_path": "openspec/changes/archive/YYYY-MM-DD-$1/",
-  "commit_hash": "<hash>",
-  "notes": "Change archived and committed successfully"
-}' | .opencode/scripts/lib/osc-iterations "$1" append
-```
 
 ## VERIFICATION CHECKLIST
 
@@ -122,9 +122,9 @@ Before finishing this invocation, verify ALL items are complete:
 
 - [ ] Transient files deleted (state.json, complete.json, .openspec-baseline.json)
 - [ ] Archive directory created at `openspec/changes/archive/YYYY-MM-DD-$1/`
-- [ ] Git commit created with hash recorded in logs
-- [ ] Decision log entry appended with commit hash
-- [ ] Iterations log entry appended with commit hash
+- [ ] Decision log entry appended with archive path
+- [ ] Iterations log entry appended with archive path
+- [ ] Git commit created (includes all log updates in archive)
 
 **If ANY step is missing, the phase is incomplete and must be finished before stopping.**
 

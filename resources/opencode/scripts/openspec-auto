@@ -833,7 +833,6 @@ run_phase() {
   
   while [[ $iteration -le $MAX_PHASE_ITERATIONS ]] || [[ $MAX_PHASE_ITERATIONS -eq -1 ]]; do
     TOTAL_INVOCATIONS=$((TOTAL_INVOCATIONS + 1))
-    log "Agent invocation #$TOTAL_INVOCATIONS for $phase"
     write_state "$phase" "$iteration"
     
     if ! run_agent "$phase"; then
@@ -1282,7 +1281,10 @@ main() {
           log_error "$current_phase failed"
           exit 1
         fi
-        show_progress
+        # Note: Don't call show_progress here because:
+        # 1. state.json was deleted before archiving
+        # 2. CHANGE_DIR now points to archive (no active state)
+        # 3. get_current_phase would try to create new state.json in archive
         
         # PHASE6 is terminal - validate archive and exit without calling advance_phase
         # Note: cleanup_state_files() is NOT called because PHASE6 already cleaned

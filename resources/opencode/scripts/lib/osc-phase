@@ -61,6 +61,12 @@ EOF
 }
 
 get_current_phase() {
+    # Don't create state for archived changes (they have no state.json by design)
+    if [[ "$CHANGE_DIR" == *"/archive/"* ]] && [[ ! -f "$STATE_FILE" ]]; then
+        echo '{"error":"archived","message":"Change is archived, no active state"}' >&2
+        return 1
+    fi
+    
     if [[ ! -f "$STATE_FILE" ]]; then
         create_initial_state
     fi

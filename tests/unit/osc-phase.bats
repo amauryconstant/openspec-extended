@@ -202,3 +202,15 @@ teardown() {
     [ "$status" -eq 1 ]
     assert_output_contains "change_not_found"
 }
+
+@test "osc-phase: archived change without state.json returns error (not create new state)" {
+    setup_archive "test-change" "2024-01-15"
+    mkdir -p "openspec/changes/archive/2024-01-15-test-change/specs"
+    # Note: NO state.json created - this is the PHASE6 archive scenario
+    
+    run_osc_phase "test-change" current
+    [ "$status" -eq 1 ]
+    assert_output_contains "archived"
+    # Verify no state.json was created
+    [ ! -f "openspec/changes/archive/2024-01-15-test-change/state.json" ]
+}
