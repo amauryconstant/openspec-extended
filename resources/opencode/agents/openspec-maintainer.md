@@ -18,7 +18,7 @@ permission:
   question: deny
   lsp: allow
   external_directory:
-    "/tmp": allow
+    "/tmp/*": allow
 ---
 
 # OpenSpec Maintainer
