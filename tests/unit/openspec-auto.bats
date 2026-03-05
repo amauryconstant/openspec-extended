@@ -6,12 +6,6 @@ load '../helpers/test-helpers'
 setup() {
     setup_test_env
     setup_change "test-change"
-    
-    PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-    LIB_DIR="$PROJECT_ROOT/resources/opencode/scripts/lib"
-    
-    # Source functions from openspec-auto (extract just the functions we need)
-    # We can't source the whole file as it has a main() that runs
 }
 
 teardown() {
@@ -287,4 +281,100 @@ EOF
     
     details=$(jq -r '.transition.details // ""' "openspec/changes/test-change/state.json")
     [ "$details" == "" ]
+}
+
+# ==============================================================================
+# Logging behavior tests - log_verbose() and show_progress()
+# ==============================================================================
+
+@test "logging: non-verbose mode hides [VERBOSE] on terminal" {
+    setup_change "test-change"
+    setup_skills_dir
+    setup_commands_dir
+    
+    run "$PROJECT_ROOT/resources/opencode/scripts/openspec-auto" test-change --dry-run 2>&1
+    
+    [[ "$output" != *"[VERBOSE]"* ]]
+}
+
+@test "logging: verbose mode shows [VERBOSE] on terminal" {
+    setup_change "test-change"
+    setup_skills_dir
+    setup_commands_dir
+    
+    run "$PROJECT_ROOT/resources/opencode/scripts/openspec-auto" test-change --dry-run -v 2>&1
+    
+    [[ "$output" == *"[VERBOSE]"* ]]
+    [[ "$output" == *"Tool found:"* ]]
+}
+
+@test "logging: log file contains [VERBOSE] without -v flag" {
+    setup_change "test-change"
+    setup_skills_dir
+    setup_commands_dir
+    
+    local log_file="$TEST_DIR/test.log"
+    
+    run "$PROJECT_ROOT/resources/opencode/scripts/openspec-auto" test-change --dry-run -l "$log_file" 2>&1
+    
+    [ -f "$log_file" ]
+    run grep -F "[VERBOSE]" "$log_file"
+    [ "$status" -eq 0 ]
+    
+    run grep -F "Tool found:" "$log_file"
+    [ "$status" -eq 0 ]
+}
+
+@test "logging: log file has no ANSI color codes" {
+    setup_change "test-change"
+    setup_skills_dir
+    setup_commands_dir
+    
+    local log_file="$TEST_DIR/test.log"
+    
+    run "$PROJECT_ROOT/resources/opencode/scripts/openspec-auto" test-change --dry-run -l "$log_file" 2>&1
+    
+    run grep -E $'\x1b\[[0-9;]*m' "$log_file"
+    [ "$status" -ne 0 ]
+}
+
+@test "logging: banner is logged to file" {
+    setup_change "test-change"
+    setup_skills_dir
+    setup_commands_dir
+    
+    local log_file="$TEST_DIR/test.log"
+    
+    run "$PROJECT_ROOT/resources/opencode/scripts/openspec-auto" test-change --dry-run -l "$log_file" 2>&1
+    
+    run grep -F "OpenSpec Autonomous Implementation" "$log_file"
+    [ "$status" -eq 0 ]
+    
+    run grep -F "Version:" "$log_file"
+    [ "$status" -eq 0 ]
+    
+    run grep -F "Change ID:" "$log_file"
+    [ "$status" -eq 0 ]
+}
+
+@test "logging: verbose messages in both terminal and log with -v flag" {
+    setup_change "test-change"
+    setup_skills_dir
+    setup_commands_dir
+    
+    local log_file="$TEST_DIR/test.log"
+    
+    run "$PROJECT_ROOT/resources/opencode/scripts/openspec-auto" test-change --dry-run -v -l "$log_file" 2>&1
+    
+    # Terminal should have [VERBOSE]
+    [[ "$output" == *"[VERBOSE]"* ]]
+    
+    # Log file should also have [VERBOSE] (via tee)
+    run grep -F "[VERBOSE]" "$log_file"
+    [ "$status" -eq 0 ]
+    
+    # Should not have duplicates (log_verbose should write via stdout when verbose)
+    local verbose_count
+    verbose_count=$(grep -c "Tool found: git" "$log_file")
+    [ "$verbose_count" -eq 1 ]
 }

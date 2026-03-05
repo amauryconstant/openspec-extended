@@ -150,12 +150,28 @@ log_error() {
   fi
 }
 
+log_verbose() {
+  local msg="$(_timestamp) [VERBOSE] $*"
+  
+  if [[ "$VERBOSE" == true ]]; then
+    # When verbose, write to stdout (goes through tee to log file with colors stripped)
+    if [[ "$NO_COLOR" == true ]]; then
+      echo "$msg"
+    else
+      echo -e "${COLOR_BLUE}$msg${COLOR_RESET}"
+    fi
+  elif [[ -n "$LOG_FILE" ]]; then
+    # When not verbose but logging enabled, write directly to log file
+    echo "$msg" >> "$LOG_FILE"
+  fi
+}
+
 detect_platform() {
   if command -v opencode &> /dev/null; then
     AI_PLATFORM="opencode"
     SKILLS_DIR=".opencode/skills"
     COMMANDS_DIR=".opencode/commands"
-    log "Detected platform: OpenCode"
+    log_verbose "Detected platform: OpenCode"
     return 0
   else
     log_error "OpenCode not found"
@@ -374,7 +390,7 @@ require_tool() {
     log_error "Please install $tool or ensure it's in PATH"
     exit 1
   fi
-  log_success "Tool found: $tool"
+  log_verbose "Tool found: $tool"
 }
 
 run_lib_script() {
@@ -430,7 +446,7 @@ validate_skills() {
     exit 1
   fi
   
-  log_success "All required skills found"
+  log_verbose "All required skills found"
 }
 
 validate_commands() {
@@ -446,7 +462,7 @@ validate_commands() {
     exit 1
   fi
   
-  log_success "All required commands found"
+  log_verbose "All required commands found"
 }
 
 validate_json() {
@@ -476,7 +492,7 @@ validate_change_dir() {
     exit 1
   fi
   
-  log_success "Change directory validated"
+  log_verbose "Change directory validated"
 }
 
 validate_git() {
@@ -509,7 +525,7 @@ validate_git() {
     fi
   fi
   
-  log_success "Git repository is ready"
+  log_verbose "Git repository is ready"
 }
 
 record_baseline() {
@@ -525,7 +541,7 @@ record_baseline() {
   
   local commit
   commit=$(echo "$result" | jq -r '.commit')
-  log_success "Baseline recorded: $commit"
+  log_verbose "Baseline recorded: $commit"
 }
 
 read_state() {
@@ -597,10 +613,7 @@ EOF
   )
   
   echo "$state_json" > "$CHANGE_DIR/state.json"
-  
-  if [[ "$VERBOSE" == true ]]; then
-    log "State updated: $phase (iteration $iteration, complete: $phase_complete)"
-  fi
+  log_verbose "State updated: $phase (iteration $iteration, complete: $phase_complete)"
 }
 
 check_complete() {
@@ -771,11 +784,9 @@ run_agent() {
   local agent_name=$(get_phase_agent "$phase")
   local title="OpenSpec: $CHANGE_ID - $(get_phase_name "$phase")"
   
-  if [[ "$VERBOSE" == true ]]; then
-    log "Using command: /$cmd_name"
-    log "Using agent: $agent_name"
-    log "Session title: $title"
-  fi
+  log_verbose "Using command: /$cmd_name"
+  log_verbose "Using agent: $agent_name"
+  log_verbose "Session title: $title"
   
   local exit_code
   
@@ -901,9 +912,7 @@ update_change_dir_if_archived() {
   
   if [[ -n "$new_dir" ]] && [[ -d "$new_dir" ]]; then
     CHANGE_DIR="$new_dir"
-    if [[ "$VERBOSE" == true ]]; then
-      log "CHANGE_DIR updated to: $CHANGE_DIR"
-    fi
+    log_verbose "CHANGE_DIR updated to: $CHANGE_DIR"
     return 0
   fi
   
@@ -939,57 +948,65 @@ validate_completion() {
 }
 
 show_progress() {
-  echo "================================"
-  echo "Progress Summary"
-  echo "================================"
-  echo "Change ID: $CHANGE_ID"
-  echo "Change directory: $CHANGE_DIR"
-  echo ""
-  
-  local current_phase
-  if current_phase=$(get_current_phase); then
-    echo "Current phase: $current_phase - $(get_phase_name "$current_phase")"
-    local iteration
-    iteration=$(get_phase_iteration)
-    echo "Phase iteration: $iteration"
-  else
-    echo "Current phase: Not started"
-  fi
-  
-  echo ""
-  echo "Total invocations: $TOTAL_INVOCATIONS"
-  
-  local elapsed
-  elapsed=$(($(date +%s) - START_TIME))
-  local minutes=$((elapsed / 60))
-  local seconds=$((elapsed % 60))
-  echo "Elapsed time: ${minutes}m ${seconds}s"
-  
-  if [[ -n "$LOG_FILE" ]]; then
-    echo "Log file: $LOG_FILE"
-  fi
-  
-  if [[ -f "$CHANGE_DIR/state.json" ]]; then
+  {
+    echo "================================"
+    echo "Progress Summary"
+    echo "================================"
+    echo "Change ID: $CHANGE_ID"
+    echo "Change directory: $CHANGE_DIR"
     echo ""
-    echo "Iterations by phase:"
-    local p0 p1 p2 p3 p4 p5 p6
-    p0=$(jq -r '.phase_iterations.PHASE0 // 0' "$CHANGE_DIR/state.json")
-    p1=$(jq -r '.phase_iterations.PHASE1 // 0' "$CHANGE_DIR/state.json")
-    p2=$(jq -r '.phase_iterations.PHASE2 // 0' "$CHANGE_DIR/state.json")
-    p3=$(jq -r '.phase_iterations.PHASE3 // 0' "$CHANGE_DIR/state.json")
-    p4=$(jq -r '.phase_iterations.PHASE4 // 0' "$CHANGE_DIR/state.json")
-    p5=$(jq -r '.phase_iterations.PHASE5 // 0' "$CHANGE_DIR/state.json")
-    p6=$(jq -r '.phase_iterations.PHASE6 // 0' "$CHANGE_DIR/state.json")
-    echo "  PHASE0 (ARTIFACT REVIEW): $p0"
-    echo "  PHASE1 (IMPLEMENTATION): $p1"
-    echo "  PHASE2 (REVIEW): $p2"
-    echo "  PHASE3 (MAINTAIN DOCS): $p3"
-    echo "  PHASE4 (SYNC): $p4"
-    echo "  PHASE5 (SELF-REFLECTION): $p5"
-    echo "  PHASE6 (ARCHIVE): $p6"
-  fi
-  
-  echo "================================"
+    
+    local current_phase
+    if current_phase=$(get_current_phase); then
+      echo "Current phase: $current_phase - $(get_phase_name "$current_phase")"
+      local iteration
+      iteration=$(get_phase_iteration)
+      echo "Phase iteration: $iteration"
+    else
+      echo "Current phase: Not started"
+    fi
+    
+    echo ""
+    echo "Total invocations: $TOTAL_INVOCATIONS"
+    
+    local elapsed
+    elapsed=$(($(date +%s) - START_TIME))
+    local minutes=$((elapsed / 60))
+    local seconds=$((elapsed % 60))
+    echo "Elapsed time: ${minutes}m ${seconds}s"
+    
+    if [[ -n "$LOG_FILE" ]]; then
+      echo "Log file: $LOG_FILE"
+    fi
+    
+    if [[ -f "$CHANGE_DIR/state.json" ]]; then
+      echo ""
+      echo "Iterations by phase:"
+      local p0 p1 p2 p3 p4 p5 p6
+      p0=$(jq -r '.phase_iterations.PHASE0 // 0' "$CHANGE_DIR/state.json")
+      p1=$(jq -r '.phase_iterations.PHASE1 // 0' "$CHANGE_DIR/state.json")
+      p2=$(jq -r '.phase_iterations.PHASE2 // 0' "$CHANGE_DIR/state.json")
+      p3=$(jq -r '.phase_iterations.PHASE3 // 0' "$CHANGE_DIR/state.json")
+      p4=$(jq -r '.phase_iterations.PHASE4 // 0' "$CHANGE_DIR/state.json")
+      p5=$(jq -r '.phase_iterations.PHASE5 // 0' "$CHANGE_DIR/state.json")
+      p6=$(jq -r '.phase_iterations.PHASE6 // 0' "$CHANGE_DIR/state.json")
+      echo "  PHASE0 (ARTIFACT REVIEW): $p0"
+      echo "  PHASE1 (IMPLEMENTATION): $p1"
+      echo "  PHASE2 (REVIEW): $p2"
+      echo "  PHASE3 (MAINTAIN DOCS): $p3"
+      echo "  PHASE4 (SYNC): $p4"
+      echo "  PHASE5 (SELF-REFLECTION): $p5"
+      echo "  PHASE6 (ARCHIVE): $p6"
+    fi
+    
+    echo "================================"
+  } | {
+    if [[ -n "$LOG_FILE" ]]; then
+      tee -a "$LOG_FILE" | { [[ "$VERBOSE" == true ]] && cat || cat >/dev/null; }
+    else
+      { [[ "$VERBOSE" == true ]] && cat || cat >/dev/null; }
+    fi
+  }
 }
 
 cleanup() {
@@ -1050,7 +1067,7 @@ handle_interrupt() {
 find_change_dir() {
   if [[ -d "openspec/changes/$CHANGE_ID" ]]; then
     CHANGE_DIR="openspec/changes/$CHANGE_ID"
-    log "Found change at: $CHANGE_DIR"
+    log_verbose "Found change at: $CHANGE_DIR"
     return 0
   fi
   
@@ -1060,7 +1077,7 @@ find_change_dir() {
     
     if [[ -n "$cli_path" ]]; then
       CHANGE_DIR="$cli_path"
-      log "Found change via CLI lookup at: $CHANGE_DIR"
+      log_verbose "Found change via CLI lookup at: $CHANGE_DIR"
       return 0
     fi
   fi
@@ -1091,8 +1108,9 @@ setup_logging() {
       return 1
     fi
     
-    exec > >(tee -a "$LOG_FILE") 2>&1
-    log_success "Logging to: $LOG_FILE"
+    # Redirect stdout to both terminal (with colors) and log file (without colors)
+    exec > >(tee >(sed 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE")) 2>&1
+    log_verbose "Logging to: $LOG_FILE"
   fi
 }
 
@@ -1122,30 +1140,31 @@ main() {
   
   START_TIME=$(date +%s)
   
-  echo "================================"
-  echo "OpenSpec Autonomous Implementation"
-  echo "================================"
-  echo "Version: $SCRIPT_VERSION"
-  echo "Change ID: $CHANGE_ID"
-  echo "Change directory: $CHANGE_DIR"
+  log ""
+  log "================================"
+  log "OpenSpec Autonomous Implementation"
+  log "================================"
+  log "Version: $SCRIPT_VERSION"
+  log "Change ID: $CHANGE_ID"
+  log "Change directory: $CHANGE_DIR"
   if [[ -n "$MODEL" ]]; then
-    echo "Model: $MODEL"
+    log "Model: $MODEL"
   fi
-  echo "Max phase iterations: $MAX_PHASE_ITERATIONS"
-  echo "Timeout: $TIMEOUT seconds"
+  log "Max phase iterations: $MAX_PHASE_ITERATIONS"
+  log "Timeout: $TIMEOUT seconds"
   if [[ -n "$LOG_FILE" ]]; then
-    echo "Log file: $LOG_FILE"
+    log "Log file: $LOG_FILE"
   fi
-  echo "================================"
-  echo ""
+  log "================================"
+  log ""
   
   if [[ "$CLEAN" == true ]]; then
-    log "Cleaning up state files for fresh start..."
+    log_verbose "Cleaning up state files for fresh start..."
     rm -f "$CHANGE_DIR/state.json" 2>/dev/null || true
     rm -f "$CHANGE_DIR/complete.json" 2>/dev/null || true
     rm -f "$CHANGE_DIR/iterations.json" 2>/dev/null || true
     rm -f ".openspec-baseline.json" 2>/dev/null || true
-    log_success "State files cleaned, starting fresh"
+    log_verbose "State files cleaned, starting fresh"
   fi
   
   if [[ -z "$FROM_PHASE" ]]; then
@@ -1218,10 +1237,7 @@ main() {
         log "================================"
         log_warning "Blocker: $blocker_reason"
         log "Review decision-log.json for details"
-        
-        if [[ "$VERBOSE" == true ]]; then
-          show_progress
-        fi
+        show_progress
         
         exit 1
       fi
@@ -1245,9 +1261,9 @@ main() {
           transition_details=$(get_transition_details)
           
           log "Explicit transition: $current_phase → $transition_target"
-          log "Reason: $transition_reason"
+          log_verbose "Reason: $transition_reason"
           if [[ -n "$transition_details" ]]; then
-            log "Details: $transition_details"
+            log_verbose "Details: $transition_details"
           fi
           
           clear_transition

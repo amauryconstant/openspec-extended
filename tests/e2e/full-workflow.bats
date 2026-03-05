@@ -20,6 +20,7 @@ teardown() {
 @test "complete workflow with archive validation" {
     local change="add-hello-script"
     local change_dir="openspec/changes/$change"
+    local log_file="$change_dir/openspec-auto.log"
 
     run_openspec_auto_streaming "$change" --force --verbose --max-phase-iterations 3 --timeout 600
     [ "$status" -eq 0 ]
@@ -72,4 +73,26 @@ teardown() {
     local agents_commits
     agents_commits=$(git log --oneline --all -- '*/AGENTS.md' 'AGENTS.md' 2>/dev/null | wc -l)
     [[ "$agents_commits" -le 1 ]]
+    
+    # 10. Verify logging behavior
+    # Find log file in archive (it moves there during PHASE6)
+    local archived_log="$archive_dir/openspec-auto.log"
+    if [[ -f "$archived_log" ]]; then
+        # Log file should contain [VERBOSE] messages
+        assert_file_contains "$archived_log" "[VERBOSE]"
+        assert_file_contains "$archived_log" "Tool found:"
+        
+        # Log file should contain banner
+        assert_file_contains "$archived_log" "OpenSpec Autonomous Implementation"
+        
+        # Log file should NOT contain ANSI color codes
+        run grep -E $'\x1b\[[0-9;]*m' "$archived_log"
+        [ "$status" -ne 0 ]
+        
+        # Log file should contain Progress Summary
+        assert_file_contains "$archived_log" "Progress Summary"
+    fi
+    
+    # 11. Verify terminal output had [VERBOSE] with -v flag
+    [[ "$output" == *"[VERBOSE]"* ]]
 }
