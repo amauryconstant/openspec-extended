@@ -97,6 +97,8 @@ FROM_PHASE=""
 NO_COLOR=false
 INTERRUPTED=false
 CHILD_PID=""
+LOG_FILE=""
+LOG_ENABLED=false
 
 AI_PLATFORM=""
 AI_BINARY=""
@@ -109,35 +111,43 @@ readonly COLOR_RED='\033[0;31m'
 readonly COLOR_BLUE='\033[0;34m'
 readonly COLOR_RESET='\033[0m'
 
+_timestamp() {
+  date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
 log() {
+  local msg="$(_timestamp) [INFO] $*"
   if [[ "$NO_COLOR" == true ]]; then
-    echo "[INFO] $*"
+    echo "$msg"
   else
-    echo -e "${COLOR_BLUE}[INFO]${COLOR_RESET} $*"
+    echo -e "${COLOR_BLUE}$msg${COLOR_RESET}"
   fi
 }
 
 log_success() {
+  local msg="$(_timestamp) [OK] $*"
   if [[ "$NO_COLOR" == true ]]; then
-    echo "[OK] $*"
+    echo "$msg"
   else
-    echo -e "${COLOR_GREEN}[OK]${COLOR_RESET} $*"
+    echo -e "${COLOR_GREEN}$msg${COLOR_RESET}"
   fi
 }
 
 log_warning() {
+  local msg="$(_timestamp) [WARN] $*"
   if [[ "$NO_COLOR" == true ]]; then
-    echo "[WARN] $*" >&2
+    echo "$msg" >&2
   else
-    echo -e "${COLOR_YELLOW}[WARN]${COLOR_RESET} $*" >&2
+    echo -e "${COLOR_YELLOW}$msg${COLOR_RESET}" >&2
   fi
 }
 
 log_error() {
+  local msg="$(_timestamp) [ERROR] $*"
   if [[ "$NO_COLOR" == true ]]; then
-    echo "[ERROR] $*" >&2
+    echo "$msg" >&2
   else
-    echo -e "${COLOR_RED}[ERROR]${COLOR_RESET} $*" >&2
+    echo -e "${COLOR_RED}$msg${COLOR_RESET}" >&2
   fi
 }
 
@@ -163,25 +173,28 @@ Usage: $0 <change-id> [OPTIONS]
 Arguments:
   change-id        OpenSpec change ID (e.g., reverse-transformation)
 
-  Options:
-  --max-phase-iterations N  Max retries per phase before failing (default: 10, -1 for unlimited)
-  --timeout N        Timeout per iteration in seconds (default: 1800)
-  --model MODEL      Model to use for AI assistant (optional, uses CLI default if not set)
-  --verbose          Show detailed progress information
-  --dry-run          Show what would be done without executing
-  --force            Continue without prompts (for CI/CD)
-  --clean            Clean up state files for fresh start
-  --from-phase PHASEX Resume from specific phase (skips pre-flight validation)
-  --no-color         Disable colored output
-  --version          Show version and exit
-  --help, -h         Show this help message
-  --list             List available changes and exit
+Options:
+  -t, --timeout N          Timeout per iteration in seconds (default: 1800)
+  -m, --model MODEL        Model to use for AI assistant (optional)
+  -l, --log-file [PATH]    Log output to file (default: openspec/changes/<change>/openspec-auto.log)
+  -v, --verbose            Show detailed progress information
+  -d, --dry-run            Show what would be done without executing
+  -f, --force              Continue without prompts (for CI/CD)
+  -c, --clean              Clean up state files for fresh start
+  -n, --no-color           Disable colored output
+  -V, --version            Show version and exit
+  -h, --help               Show this help message
+      --list               List available changes and exit
+      --max-phase-iterations N  Max retries per phase (default: 10, -1 for unlimited)
+      --from-phase PHASEX  Resume from specific phase (skips pre-flight validation)
 
 Examples:
   $0 reverse-transformation
-  $0 reverse-transformation --max-phase-iterations 20
-  $0 reverse-transformation --from-phase PHASE3 --verbose
-  $0 reverse-transformation --clean --force
+  $0 reverse-transformation -l
+  $0 reverse-transformation -l /tmp/rt.log -v
+  $0 reverse-transformation -t 3600 -m claude-3-opus
+  $0 reverse-transformation --from-phase PHASE3 -v
+  $0 reverse-transformation -c -f
   $0 --list
 
 Version: $SCRIPT_VERSION
@@ -228,7 +241,7 @@ parse_args() {
         MAX_PHASE_ITERATIONS="$2"
         shift 2
         ;;
-      --timeout)
+      --timeout|-t)
         if [[ ! "$2" =~ ^[0-9]+$ ]]; then
           log_error "Invalid timeout value: $2 (must be positive integer in seconds)"
           usage --error
@@ -244,23 +257,32 @@ parse_args() {
         TIMEOUT="$2"
         shift 2
         ;;
-      --model)
+      --model|-m)
         MODEL="$2"
         shift 2
         ;;
-      --verbose)
+      --log-file|-l)
+        if [[ -n "${2:-}" ]] && [[ ! "$2" =~ ^- ]]; then
+          LOG_FILE="$2"
+          shift 2
+        else
+          LOG_ENABLED=true
+          shift
+        fi
+        ;;
+      --verbose|-v)
         VERBOSE=true
         shift
         ;;
-      --dry-run)
+      --dry-run|-d)
         DRY_RUN=true
         shift
         ;;
-      --force)
+      --force|-f)
         FORCE=true
         shift
         ;;
-      --clean)
+      --clean|-c)
         CLEAN=true
         shift
         ;;
@@ -268,7 +290,7 @@ parse_args() {
         FROM_PHASE="$2"
         shift 2
         ;;
-      --no-color)
+      --no-color|-n)
         NO_COLOR=true
         COLOR_GREEN=''
         COLOR_YELLOW=''
@@ -277,7 +299,7 @@ parse_args() {
         COLOR_RESET=''
         shift
         ;;
-      --version)
+      --version|-V)
         echo "$SCRIPT_VERSION"
         exit 0
         ;;
@@ -945,6 +967,10 @@ show_progress() {
   local seconds=$((elapsed % 60))
   echo "Elapsed time: ${minutes}m ${seconds}s"
   
+  if [[ -n "$LOG_FILE" ]]; then
+    echo "Log file: $LOG_FILE"
+  fi
+  
   if [[ -f "$CHANGE_DIR/state.json" ]]; then
     echo ""
     echo "Iterations by phase:"
@@ -1044,6 +1070,34 @@ find_change_dir() {
   return 1
 }
 
+setup_logging() {
+  if [[ "$LOG_ENABLED" == true ]] && [[ -z "$LOG_FILE" ]]; then
+    LOG_FILE="$CHANGE_DIR/openspec-auto.log"
+  fi
+  
+  if [[ -n "$LOG_FILE" ]]; then
+    local log_dir
+    log_dir=$(dirname "$LOG_FILE")
+    
+    if [[ "$log_dir" != "." ]] && [[ ! -d "$log_dir" ]]; then
+      mkdir -p "$log_dir" || {
+        log_warning "Failed to create log directory: $log_dir"
+        LOG_FILE=""
+        return 1
+      }
+    fi
+    
+    if ! touch "$LOG_FILE" 2>/dev/null; then
+      log_warning "Failed to create log file: $LOG_FILE (permission denied?)"
+      LOG_FILE=""
+      return 1
+    fi
+    
+    exec > >(tee -a "$LOG_FILE") 2>&1
+    log_success "Logging to: $LOG_FILE"
+  fi
+}
+
 main() {
   parse_args "$@"
   
@@ -1066,6 +1120,8 @@ main() {
     exit 0
   fi
   
+  setup_logging
+  
   START_TIME=$(date +%s)
   
   echo "================================"
@@ -1079,6 +1135,9 @@ main() {
   fi
   echo "Max phase iterations: $MAX_PHASE_ITERATIONS"
   echo "Timeout: $TIMEOUT seconds"
+  if [[ -n "$LOG_FILE" ]]; then
+    echo "Log file: $LOG_FILE"
+  fi
   echo "================================"
   echo ""
   
