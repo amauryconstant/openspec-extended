@@ -101,7 +101,6 @@ LOG_FILE=""
 LOG_ENABLED=false
 
 AI_PLATFORM=""
-AI_BINARY=""
 SKILLS_DIR=""
 COMMANDS_DIR=""
 
@@ -154,7 +153,6 @@ log_error() {
 detect_platform() {
   if command -v opencode &> /dev/null; then
     AI_PLATFORM="opencode"
-    AI_BINARY="opencode"
     SKILLS_DIR=".opencode/skills"
     COMMANDS_DIR=".opencode/commands"
     log "Detected platform: OpenCode"
@@ -787,7 +785,7 @@ run_agent() {
   fi
   
   timeout --foreground "$TIMEOUT" \
-    "$AI_BINARY" run \
+    opencode run \
     --command "$cmd_name" \
     --agent "$agent_name" \
     "$CHANGE_ID" \
@@ -1156,7 +1154,7 @@ main() {
     require_tool "openspec"
     
     detect_platform
-    require_tool "$AI_BINARY"
+    require_tool "opencode"
     
     validate_skills
     validate_commands
