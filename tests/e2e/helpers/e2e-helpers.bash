@@ -69,6 +69,9 @@ run_streaming() {
     "$@" 2>&1 | tee "$tmp_file" >&$output_fd
     local exit_code=${PIPESTATUS[0]}
 
+    # Wait for tee to finish writing (prevents race condition with buffered output)
+    wait 2>/dev/null || true
+
     output=$(cat "$tmp_file")
     status=$exit_code
     lines=()
