@@ -16,12 +16,30 @@ The `osc` tool is the primary CLI for OpenSpec change management. It replaces mu
 osc <domain> <action> [args]
 
 Domains:
+  ctx         Aggregate context for a change
+  git         Git status for change directory
   state       Phase and iteration state management
   iterations  Iteration history tracking
   log         Decision log management
   complete    Completion status tracking
   validate    Validation utilities
 ```
+
+### Ctx Domain
+
+```
+osc ctx get <change>
+```
+
+Returns aggregated context: state, git status, artifacts, history.
+
+### Git Domain
+
+```
+osc git get <change>
+```
+
+Returns git status for the change directory.
 
 ### State Domain
 
@@ -125,7 +143,7 @@ Or with errors:
 ```markdown
 ## Context
 
-!`osc-ctx $1`
+!`osc ctx get $1`
 ```
 
 ### Agent execution during phase
@@ -152,6 +170,8 @@ These scripts are still available but deprecated. Use `osc` instead.
 
 | Script | Replaced By | Usage |
 |--------|-------------|-------|
+| `osc-ctx` | `osc ctx` | `osc-ctx <change>` |
+| `osc-git` | `osc git` | `osc-git [change]` |
 | `osc-state` | `osc state` | `osc-state <change> <action>` |
 | `osc-iterations` | `osc iterations` | `osc-iterations <change> [get\|append]` |
 | `osc-log` | `osc log` | `osc-log <change> [get\|append]` |
@@ -162,13 +182,11 @@ These scripts are still available but deprecated. Use `osc` instead.
 
 | Script | Purpose | Usage |
 |--------|---------|-------|
-| `osc-ctx` | Aggregate context | `osc-ctx <change>` |
-| `osc-git` | Git status | `osc-git [change]` |
 | `osc-baseline` | Baseline tracking | `osc-baseline <action>` |
 | `osc-phase` | Phase advancement | `osc-phase <change> <action>` |
 | `osc-common` | Shared functions | (sourced by other scripts) |
 
-### osc-ctx Output
+### osc ctx get Output
 
 ```json
 {

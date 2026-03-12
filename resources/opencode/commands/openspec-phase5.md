@@ -7,10 +7,8 @@ agent: openspec-analyzer
 
 | Tool | Usage |
 |------|-------|
-| `osc-ctx` | `.opencode/scripts/lib/osc-ctx <change>` - load change context |
-| `osc-log` | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
-| `osc-iterations` | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
-| `osc-complete` | `.opencode/scripts/lib/osc-complete <change> <action>` - signal blocker status |
+| `osc` | `.opencode/scripts/lib/osc <domain> <action> [args]` - unified OpenSpec tool |
+| Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE5: Self-Reflection
 
@@ -19,9 +17,9 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`.opencode/scripts/lib/osc-ctx "$1"`
+  !`.opencode/scripts/lib/osc ctx get "$1"`
 2. Confirm `phase` is PHASE5
-3. Review full history via `osc-log get` to understand entire workflow
+3. Review full history via `osc log get "$1"` to understand entire workflow
 4. Review `history.iterations_recorded` for iteration counts per phase
 5. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
 
@@ -110,31 +108,25 @@ cat > "openspec/changes/$1/reflections.md" << 'EOF'
 EOF
 
 # Log with path reference (not inline content)
-echo '{
-  "phase": "SELF_REFLECTION",
-  "iteration": N,
-  "summary": "Self-reflection completed. Workflow evaluation finished.",
-  "reflections_path": "openspec/changes/$1/reflections.md",
-  "total_phases": 7,
-  "total_iterations": N,
-  "commit_hash": "<hash or null>",
-  "next_steps": "Self-reflection complete. Proceeding to PHASE6 (ARCHIVE)."
-}' | .opencode/scripts/lib/osc-log "$1" append
+.opencode/scripts/lib/osc log append "$1" \
+  --phase SELF_REFLECTION \
+  --iteration N \
+  --summary "Self-reflection completed. Workflow evaluation finished." \
+  --commit-hash "<hash or null>" \
+  --next-steps "Self-reflection complete. Proceeding to PHASE6 (ARCHIVE)." \
+  --extra '{"reflections_path":"openspec/changes/$1/reflections.md","total_phases":7,"total_iterations":N}'
 ```
 
 ## ITERATIONS.JSON
 
 Append entry:
 ```bash
-echo '{
-  "iteration": N,
-  "phase": "SELF_REFLECTION",
-  "total_phases": 7,
-  "total_iterations": N,
-  "reflection_completed": true,
-  "commit_hash": "<hash or null>",
-  "notes": "Self-reflection completed"
-}' | .opencode/scripts/lib/osc-iterations "$1" append
+.opencode/scripts/lib/osc iterations append "$1" \
+  --phase SELF_REFLECTION \
+  --iteration N \
+  --commit-hash "<hash or null>" \
+  --notes "Self-reflection completed" \
+  --extra '{"total_phases":7,"total_iterations":N,"reflection_completed":true}'
 ```
 
 ## MANDATORY END
@@ -153,12 +145,7 @@ Record commit hash in decision log and iterations.json.
 If you encounter an unrecoverable issue that prevents progress:
 
 ```bash
-echo '{
-  "status": "COMPLETE",
-  "with_blocker": true,
-  "blocker_reason": "[Describe the specific blocking issue]",
-  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-}' > openspec/changes/$1/complete.json
+.opencode/scripts/lib/osc complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
 ```
 
 The orchestrator will detect this and halt the workflow.
@@ -170,5 +157,5 @@ The orchestrator will detect this and halt the workflow.
 ## TRANSITION
 
 1. Log: "Self-reflection complete, proceeding to ARCHIVE"
-2. Mark phase complete via `osc-state`
+2. Mark phase complete via `osc state`
 3. Script will advance to PHASE6 (ARCHIVE)

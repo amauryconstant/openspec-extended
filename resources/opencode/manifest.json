@@ -24,10 +24,10 @@
     },
     "agents": {
       "openspec-analyzer": {
-        "version": "0.2.1"
+        "version": "0.2.2"
       },
       "openspec-builder": {
-        "version": "0.2.1"
+        "version": "0.2.2"
       },
       "openspec-maintainer": {
         "version": "0.2.1"
@@ -35,31 +35,31 @@
     },
     "commands": {
       "openspec-phase0": {
-        "version": "0.2.6"
+        "version": "0.2.7"
       },
       "openspec-phase1": {
-        "version": "0.2.8"
-      },
-      "openspec-phase2": {
-        "version": "0.2.11"
-      },
-      "openspec-phase3": {
         "version": "0.2.9"
       },
-      "openspec-phase4": {
-        "version": "0.2.6"
-      },
-      "openspec-phase5": {
-        "version": "0.2.10"
-      },
-      "openspec-phase6": {
+      "openspec-phase2": {
         "version": "0.2.12"
       },
+      "openspec-phase3": {
+        "version": "0.2.10"
+      },
+      "openspec-phase4": {
+        "version": "0.2.7"
+      },
+      "openspec-phase5": {
+        "version": "0.2.11"
+      },
+      "openspec-phase6": {
+        "version": "0.2.13"
+      },
       "opsx-review": {
-        "version": "0.1.1"
+        "version": "0.1.2"
       },
       "opsx-modify": {
-        "version": "0.1.1"
+        "version": "0.1.2"
       },
       "opsx-verify-tests": {
         "version": "0.1.1"
@@ -108,7 +108,7 @@
         "version": "0.1.2"
       },
       "osc": {
-        "version": "0.1.0"
+        "version": "0.2.0"
       }
     }
   }

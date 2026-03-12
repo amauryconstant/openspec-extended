@@ -7,11 +7,8 @@ agent: openspec-maintainer
 
 | Tool | Usage |
 |------|-------|
-| `osc-ctx` | `.opencode/scripts/lib/osc-ctx <change>` - load change context |
-| `osc-state` | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
-| `osc-log` | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
-| `osc-iterations` | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
-| `osc-complete` | `.opencode/scripts/lib/osc-complete <change> <action>` - signal blocker status |
+| `osc` | `.opencode/scripts/lib/osc <domain> <action> [args]` - unified OpenSpec tool |
+| Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE6: Archive Change
 
@@ -29,7 +26,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-   !`.opencode/scripts/lib/osc-ctx "$1"`
+   !`.opencode/scripts/lib/osc ctx get "$1"`
 2. Confirm `phase` is PHASE6
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
@@ -79,13 +76,12 @@ These files are runtime artifacts that should not be archived.
 Append entry to decision log BEFORE committing:
 
 ```bash
-echo '{
-  "phase": "ARCHIVE",
-  "iteration": N,
-  "summary": "Change successfully archived",
-  "archive_path": "openspec/changes/archive/YYYY-MM-DD-$1/",
-  "next_steps": "Archive complete. Workflow finished."
-}' | .opencode/scripts/lib/osc-log "$1" append
+.opencode/scripts/lib/osc log append "$1" \
+  --phase ARCHIVE \
+  --iteration N \
+  --summary "Change successfully archived" \
+  --next-steps "Archive complete. Workflow finished." \
+  --extra '{"archive_path":"openspec/changes/archive/YYYY-MM-DD-$1/"}'
 ```
 
 Note: Commit hash is captured in git history, not duplicated in logs.
@@ -95,12 +91,11 @@ Note: Commit hash is captured in git history, not duplicated in logs.
 Append entry to iterations.json BEFORE committing:
 
 ```bash
-echo '{
-  "iteration": N,
-  "phase": "ARCHIVE",
-  "archive_path": "openspec/changes/archive/YYYY-MM-DD-$1/",
-  "notes": "Change archived and committed successfully"
-}' | .opencode/scripts/lib/osc-iterations "$1" append
+.opencode/scripts/lib/osc iterations append "$1" \
+  --phase ARCHIVE \
+  --iteration N \
+  --notes "Change archived and committed successfully" \
+  --extra '{"archive_path":"openspec/changes/archive/YYYY-MM-DD-$1/"}'
 ```
 
 Note: Commit hash is captured in git history, not duplicated in logs.
@@ -142,12 +137,7 @@ After PHASE6 archive:
 If you encounter an unrecoverable issue that prevents progress:
 
 ```bash
-echo '{
-  "status": "COMPLETE",
-  "with_blocker": true,
-  "blocker_reason": "[Describe the specific blocking issue]",
-  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-}' > openspec/changes/$1/complete.json
+.opencode/scripts/lib/osc complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
 ```
 
 The orchestrator will detect this and halt the workflow.

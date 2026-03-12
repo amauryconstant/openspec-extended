@@ -2,7 +2,7 @@
 """
 Unit tests for the osc (OpenSpec Change management) tool.
 
-Tests all 5 domains: state, iterations, log, complete, validate
+Tests all 7 domains: ctx, git, state, iterations, log, complete, validate
 """
 
 import json
@@ -578,6 +578,9 @@ class TestIterationsAppend:
             artifacts_modified = None
             decisions = None
             errors = None
+            notes = None
+            commit_hash = None
+            extra = None
 
         osc.cmd_iterations_append(Args())
         captured = capsys.readouterr()
@@ -607,6 +610,9 @@ class TestIterationsAppend:
             artifacts_modified = None
             decisions = None
             errors = None
+            notes = None
+            commit_hash = None
+            extra = None
 
         osc.cmd_iterations_append(Args())
         iterations = json.loads((change_dir / "iterations.json").read_text())
@@ -628,6 +634,9 @@ class TestIterationsAppend:
             artifacts_modified = None
             decisions = None
             errors = None
+            notes = None
+            commit_hash = None
+            extra = None
 
         # Mock stdin properly
         mock_stdin = io.StringIO(stdin_data)
@@ -660,6 +669,9 @@ class TestIterationsAppend:
             artifacts_modified = None
             decisions = None
             errors = None
+            notes = None
+            commit_hash = None
+            extra = None
 
         with pytest.raises(SystemExit):
             osc.cmd_iterations_append(Args())
@@ -681,6 +693,9 @@ class TestIterationsAppend:
             artifacts_modified = None
             decisions = None
             errors = None
+            notes = None
+            commit_hash = None
+            extra = None
 
         with pytest.raises(SystemExit):
             osc.cmd_iterations_append(Args())
@@ -744,6 +759,8 @@ class TestLogAppend:
             next_steps = None
             decisions = None
             errors = None
+            commit_hash = None
+            extra = None
 
         osc.cmd_log_append(Args())
         captured = capsys.readouterr()
@@ -774,6 +791,8 @@ class TestLogAppend:
             next_steps = None
             decisions = None
             errors = None
+            commit_hash = None
+            extra = None
 
         # Mock stdin properly
         mock_stdin = io.StringIO(stdin_data)
@@ -808,6 +827,8 @@ class TestLogAppend:
             next_steps = None
             decisions = None
             errors = None
+            commit_hash = None
+            extra = None
 
         osc.cmd_log_append(Args())
         captured = capsys.readouterr()
@@ -993,6 +1014,158 @@ class TestCompleteSet:
         captured = capsys.readouterr()
         result = json.loads(captured.out)
         assert result["status"] == "COMPLETE"
+
+
+# =============================================================================
+# Test Ctx Domain
+# =============================================================================
+
+
+class TestCtxGet:
+    """Tests for ctx get command."""
+
+    def test_ctx_get_basic(self, change_dir, monkeypatch, capsys):
+        """Test getting basic context."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+        (change_dir / "state.json").write_text(
+            '{"phase": "PHASE1", "iteration": 2, "phase_complete": false}'
+        )
+
+        class Args:
+            change = "test-change"
+
+        osc.cmd_ctx_get(Args())
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert result["change"] == "test-change"
+        assert result["state"]["phase"] == "PHASE1"
+        assert result["state"]["iteration"] == 2
+        assert "artifacts" in result
+        assert "history" in result
+
+    def test_ctx_get_with_artifacts(self, change_dir_with_specs, monkeypatch, capsys):
+        """Test getting context with artifacts."""
+        monkeypatch.chdir(change_dir_with_specs.parent.parent.parent)
+        (change_dir_with_specs / "state.json").write_text(
+            '{"phase": "PHASE0", "iteration": 1, "phase_complete": false}'
+        )
+
+        class Args:
+            change = "test-change"
+
+        osc.cmd_ctx_get(Args())
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert result["artifacts"]["proposal"]["exists"] == True
+        assert result["artifacts"]["specs"]["exists"] == True
+        assert result["artifacts"]["specs"]["count"] == 1
+        assert result["artifacts"]["design"]["exists"] == True
+        assert result["artifacts"]["tasks"]["exists"] == True
+
+    def test_ctx_get_with_history(self, change_dir, monkeypatch, capsys):
+        """Test getting context with decision log and iterations."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+        (change_dir / "state.json").write_text(
+            '{"phase": "PHASE1", "iteration": 1, "phase_complete": false}'
+        )
+        (change_dir / "decision-log.json").write_text(
+            '[{"phase": "PHASE0", "iteration": 1}]'
+        )
+        (change_dir / "iterations.json").write_text(
+            '[{"iteration": 1, "phase": "PHASE0"}]'
+        )
+
+        class Args:
+            change = "test-change"
+
+        osc.cmd_ctx_get(Args())
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert result["history"]["decision_log_entries"] == 1
+        assert result["history"]["iterations_recorded"] == 1
+
+    def test_ctx_get_no_state(self, change_dir, monkeypatch, capsys):
+        """Test getting context when no state.json exists."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+
+        class Args:
+            change = "test-change"
+
+        osc.cmd_ctx_get(Args())
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert result["state"]["phase"] == "UNKNOWN"
+        assert result["state"]["iteration"] == 0
+        assert result["state"]["phase_complete"] == False
+
+    def test_ctx_get_missing_artifacts(self, change_dir, monkeypatch, capsys):
+        """Test getting context when artifacts don't exist."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+
+        class Args:
+            change = "test-change"
+
+        osc.cmd_ctx_get(Args())
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert result["artifacts"]["proposal"]["exists"] == False
+        assert result["artifacts"]["specs"]["exists"] == False
+        assert result["artifacts"]["design"]["exists"] == False
+        assert result["artifacts"]["tasks"]["exists"] == False
+
+
+# =============================================================================
+# Test Git Domain
+# =============================================================================
+
+
+class TestGitGet:
+    """Tests for git get command."""
+
+    def test_git_get_clean(self, change_dir, monkeypatch, capsys):
+        """Test getting git status when clean."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+
+        class Args:
+            change = "test-change"
+
+        osc.cmd_git_get(Args())
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert "modified" in result
+        assert "added" in result
+        assert "untracked" in result
+        assert "clean" in result
+
+    def test_git_get_with_modified(self, change_dir, monkeypatch, capsys):
+        """Test getting git status with modified files."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+        (change_dir / "test.txt").write_text("content")
+
+        class Args:
+            change = "test-change"
+
+        osc.cmd_git_get(Args())
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert isinstance(result["modified"], list)
+        assert isinstance(result["added"], list)
+        assert isinstance(result["untracked"], list)
+
+    def test_git_get_archived_change(self, tmp_path, monkeypatch, capsys):
+        """Test getting git status for archived change."""
+        archive_path = tmp_path / "openspec/changes/archive/2024-01-15-test-change"
+        archive_path.mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+
+        class Args:
+            change = "test-change"
+
+        osc.cmd_git_get(Args())
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert "modified" in result
+        assert "clean" in result
 
 
 # =============================================================================
@@ -1392,6 +1565,24 @@ class TestArgumentParser:
         )
         assert args.status == "BLOCKED"
         assert args.blocker_reason == "Waiting for approval"
+
+    def test_parser_ctx_get(self):
+        """Test parsing ctx get command."""
+        parser = osc.create_parser()
+        args = parser.parse_args(["ctx", "get", "test-change"])
+        assert args.domain == "ctx"
+        assert args.action == "get"
+        assert args.change == "test-change"
+        assert hasattr(args, "func")
+
+    def test_parser_git_get(self):
+        """Test parsing git get command."""
+        parser = osc.create_parser()
+        args = parser.parse_args(["git", "get", "test-change"])
+        assert args.domain == "git"
+        assert args.action == "get"
+        assert args.change == "test-change"
+        assert hasattr(args, "func")
 
 
 # =============================================================================

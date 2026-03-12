@@ -7,11 +7,8 @@ agent: openspec-maintainer
 
 | Tool | Usage |
 |------|-------|
-| `osc-ctx` | `.opencode/scripts/lib/osc-ctx <change>` - load change context |
-| `osc-state` | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
-| `osc-log` | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
-| `osc-iterations` | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
-| `osc-complete` | `.opencode/scripts/lib/osc-complete <change> <action>` - signal blocker status |
+| `osc` | `.opencode/scripts/lib/osc <domain> <action> [args]` - unified OpenSpec tool |
+| Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE3: Maintain Documentation
 
@@ -20,7 +17,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`.opencode/scripts/lib/osc-ctx "$1"`
+  !`.opencode/scripts/lib/osc ctx get "$1"`
 2. Confirm `phase` is PHASE3
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
@@ -93,12 +90,7 @@ Record commit hash in decision log and iterations.json.
 If you encounter an unrecoverable issue that prevents progress:
 
 ```bash
-echo '{
-  "status": "COMPLETE",
-  "with_blocker": true,
-  "blocker_reason": "[Describe the specific blocking issue]",
-  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-}' > openspec/changes/$1/complete.json
+.opencode/scripts/lib/osc complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
 ```
 
 The orchestrator will detect this and halt the workflow.
@@ -111,39 +103,36 @@ The orchestrator will detect this and halt the workflow.
 
 Phase complete:
 ```bash
-.opencode/scripts/lib/osc-state "$1" complete
+.opencode/scripts/lib/osc state complete "$1"
 ```
 
 ## DECISION LOG
 
 Append entry:
 ```bash
-echo '{
-  "phase": "MAINTAIN_DOCS",
-  "iteration": N,
-  "summary": "Documentation updated successfully",
-  "docs_updated": ["AGENTS.md", "CLAUDE.md"],
-  "changes_made": ["Specific change 1", "Specific change 2"],
-  "commit_hash": "<hash or null>",
-  "next_steps": "Proceeding to PHASE4 (SYNC)"
-}' | .opencode/scripts/lib/osc-log "$1" append
+.opencode/scripts/lib/osc log append "$1" \
+  --phase MAINTAIN_DOCS \
+  --iteration N \
+  --summary "Documentation updated successfully" \
+  --commit-hash "<hash or null>" \
+  --next-steps "Proceeding to PHASE4 (SYNC)" \
+  --extra '{"docs_updated":["AGENTS.md","CLAUDE.md"],"changes_made":["Specific change 1","Specific change 2"]}'
 ```
 
 ## ITERATIONS.JSON
 
 Append entry:
 ```bash
-echo '{
-  "iteration": N,
-  "phase": "MAINTAIN_DOCS",
-  "docs_updated": ["AGENTS.md", "CLAUDE.md"],
-  "commit_hash": "<hash or null>",
-  "notes": "Documentation updated successfully"
-}' | .opencode/scripts/lib/osc-iterations "$1" append
+.opencode/scripts/lib/osc iterations append "$1" \
+  --phase MAINTAIN_DOCS \
+  --iteration N \
+  --commit-hash "<hash or null>" \
+  --notes "Documentation updated successfully" \
+  --extra '{"docs_updated":["AGENTS.md","CLAUDE.md"]}'
 ```
 
 ## TRANSITION
 
 1. Log: "Documentation updated, proceeding to SYNC"
-2. Mark phase complete via `osc-state`
+2. Mark phase complete via `osc state`
 3. Script will advance to PHASE4

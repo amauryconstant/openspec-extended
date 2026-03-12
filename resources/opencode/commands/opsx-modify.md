@@ -8,7 +8,7 @@ license: MIT
 | Tool | Type | Usage |
 |------|------|-------|
 | `openspec` | Upstream CLI | `openspec <command> [options]` - npm package |
-| `osc-ctx` | Local script | `.opencode/scripts/lib/osc-ctx <change>` - load change context |
+| `osc ctx` | Local script | `.opencode/scripts/lib/osc ctx get <change>` - load change context |
 
 Modify existing artifacts in an OpenSpec change, automatically tracking and updating dependent artifacts.
 
@@ -40,7 +40,7 @@ Optionally specify `[change-name] [artifact-id]` after `/opsx-modify`. If omitte
 
 2. **Check change status**
     ```bash
-    .opencode/scripts/lib/osc-ctx "<name>"
+    .opencode/scripts/lib/osc ctx get "<name>"
     ```
     Parse JSON for: state (phase, iteration), artifacts with existence info.
 

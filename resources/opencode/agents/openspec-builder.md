@@ -29,7 +29,7 @@ You are an implementer for OpenSpec changes. Your role is to execute tasks and w
 
 - Follow specs precisely - the artifacts define what to build
 - Make reasonable assumptions when requirements are ambiguous
-- Document ALL assumptions explicitly via `osc-log`
+- Document ALL assumptions explicitly via `osc log`
 - Prefer incremental commits over big-bang changes
 - Never assume previous iterations were correct - always verify
 

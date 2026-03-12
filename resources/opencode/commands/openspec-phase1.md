@@ -8,11 +8,8 @@ agent: openspec-builder
 | Tool | Type | Usage |
 |------|------|-------|
 | `openspec` | Upstream CLI | `openspec <command> [options]` - npm package |
-| `osc-ctx` | Local script | `.opencode/scripts/lib/osc-ctx <change>` - load change context |
-| `osc-state` | Local script | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
-| `osc-log` | Local script | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
-| `osc-iterations` | Local script | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
-| `osc-complete` | Local script | `.opencode/scripts/lib/osc-complete <change> <action>` - signal blocker status |
+| `osc` | Local script | `.opencode/scripts/lib/osc <domain> <action> [args]` - unified OpenSpec tool |
+| Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE1: Implementation
 
@@ -21,7 +18,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`.opencode/scripts/lib/osc-ctx "$1"`
+  !`.opencode/scripts/lib/osc ctx get "$1"`
 2. Confirm `phase` is PHASE1
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
@@ -33,9 +30,9 @@ Change: $1
 Before beginning implementation:
 
 1. Run: `openspec status --change "$1" --json`
-2. Log via `osc-log` with `cli_status` field
+2. Log via `osc log` with `cli_status` field
 3. Run: `openspec instructions apply --change "$1" --json`
-4. Log via `osc-log` with `cli_instructions` field
+4. Log via `osc log` with `cli_instructions` field
 
 ## PURPOSE
 
@@ -77,7 +74,7 @@ Per the skill workflow:
 - Re-run the commit after fixing - hooks must pass
 
 **Persistent failures:** If fixes aren't possible within 3 attempts:
-- Document the issue via `osc-log`
+- Document the issue via `osc log`
 - Consider if artifacts need modification
 - May need to signal COMPLETE with blocker_reason
 
@@ -104,19 +101,14 @@ After implementation complete:
 - If git commit fails: Check staged files, verify working directory clean, retry once
 - If tests fail repeatedly (>3 attempts): Use subagent to debug, check spec clarity
 - If stuck in iteration loop (>3 iterations with no progress): Document blocker, signal COMPLETE
-- If openspec CLI commands fail: Proceed without CLI output, document via `osc-log`
+- If openspec CLI commands fail: Proceed without CLI output, document via `osc log`
 
 ## BLOCKER HANDLING
 
 If you encounter an unrecoverable issue that prevents progress:
 
 ```bash
-echo '{
-  "status": "COMPLETE",
-  "with_blocker": true,
-  "blocker_reason": "[Describe the specific blocking issue]",
-  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-}' > openspec/changes/$1/complete.json
+.opencode/scripts/lib/osc complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
 ```
 
 The orchestrator will detect this and halt the workflow.
@@ -131,51 +123,39 @@ The orchestrator will detect this and halt the workflow.
 
 When all tasks are complete:
 ```bash
-.opencode/scripts/lib/osc-state "$1" complete
+.opencode/scripts/lib/osc state complete "$1"
 ```
 
 ## DECISION LOG
 
 Append entry:
 ```bash
-echo '{
-  "phase": "IMPLEMENTATION",
-  "iteration": N,
-  "summary": "What was accomplished this iteration",
-  "assumptions": ["Assumption with rationale"],
-  "tasks_completed": ["1.1", "1.2"],
-  "tasks_remaining": 0,
-  "commits_made": N,
-  "cli_status": {},
-  "cli_instructions": {},
-  "errors": [],
-  "next_steps": "Continue implementation or transition to PHASE2"
-}' | .opencode/scripts/lib/osc-log "$1" append
+.opencode/scripts/lib/osc log append "$1" \
+  --phase IMPLEMENTATION \
+  --iteration N \
+  --summary "What was accomplished this iteration" \
+  --next-steps "Continue implementation or transition to PHASE2" \
+  --errors '[]' \
+  --extra '{"assumptions":["Assumption with rationale"],"tasks_completed":["1.1","1.2"],"tasks_remaining":0,"commits_made":N,"cli_status":{},"cli_instructions":{}}'
 ```
 
 ## ITERATIONS.JSON
 
 Append entry:
 ```bash
-echo '{
-  "iteration": N,
-  "phase": "IMPLEMENTATION",
-  "tasks_completed": ["1.1", "1.2", "1.3"],
-  "tasks_remaining": 0,
-  "tasks_this_session": 3,
-  "commits_made": N,
-  "cli_status": {},
-  "cli_instructions": {},
-  "errors": [],
-  "notes": "Brief summary"
-}' | .opencode/scripts/lib/osc-iterations "$1" append
+.opencode/scripts/lib/osc iterations append "$1" \
+  --phase IMPLEMENTATION \
+  --iteration N \
+  --notes "Brief summary" \
+  --errors '[]' \
+  --extra '{"tasks_completed":["1.1","1.2","1.3"],"tasks_remaining":0,"tasks_this_session":3,"commits_made":N,"cli_status":{},"cli_instructions":{}}'
 ```
 
 ## TRANSITION
 
 When all tasks in `tasks.md` are marked complete `[x]`:
 - Log: "All tasks complete, transitioning to PHASE2 (REVIEW)"
-- Mark phase complete via `osc-state`
+- Mark phase complete via `osc state`
 - Script will advance to PHASE2
 
 Note: AGENTS.md updates will occur in PHASE3 (MAINTAIN DOCS), not here. Even if tasks.md contains AGENTS.md tasks, they should be deferred to PHASE3.

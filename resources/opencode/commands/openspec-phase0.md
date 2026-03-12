@@ -7,11 +7,8 @@ agent: openspec-analyzer
 
 | Tool | Usage |
 |------|-------|
-| `osc-ctx` | `.opencode/scripts/lib/osc-ctx <change>` - load change context |
-| `osc-state` | `.opencode/scripts/lib/osc-state <change> <action>` - manage state |
-| `osc-log` | `.opencode/scripts/lib/osc-log <change> <action>` - decision log |
-| `osc-iterations` | `.opencode/scripts/lib/osc-iterations <change> <action>` - iteration history |
-| `osc-complete` | `.opencode/scripts/lib/osc-complete <change> <action>` - signal blocker status |
+| `osc` | `.opencode/scripts/lib/osc <domain> <action> [args]` - unified OpenSpec tool |
+| Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE0: Artifact Review
 
@@ -20,7 +17,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`.opencode/scripts/lib/osc-ctx "$1"`
+  !`.opencode/scripts/lib/osc ctx get "$1"`
 2. Confirm `phase` is PHASE0
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/openspec-concepts/SKILL.md` (reference only)
@@ -43,19 +40,19 @@ Ensure OpenSpec artifacts are excellent before implementation. Validate:
    - **SUGGESTION**: Nice to have, non-blocking
 
 4. IF CRITICAL or WARNING issues found:
-   **YOU MUST FIX THEM IMMEDIATELY IN THIS SAME INVOCATION - DO NOT WAIT FOR NEXT ITERATION**
-   a. For each issue, use `openspec-modify-artifacts` skill to fix it NOW
-   b. Track iteration via `osc-log` and `osc-iterations`
-   c. After fixing all CRITICAL/WARNING issues, re-run review to verify fixes
-   d. Only report "Recommendation: Fix issues" if you are UNABLE to fix them
+    **YOU MUST FIX THEM IMMEDIATELY IN THIS SAME INVOCATION - DO NOT WAIT FOR NEXT ITERATION**
+    a. For each issue, use `openspec-modify-artifacts` skill to fix it NOW
+    b. Track iteration via `osc log` and `osc iterations`
+    c. After fixing all CRITICAL/WARNING issues, re-run review to verify fixes
+    d. Only report "Recommendation: Fix issues" if you are UNABLE to fix them
 
 5. IF CLEAN (no CRITICAL or WARNING issues):
-   a. Log completion via `osc-log`
-   b. Mark phase complete via `osc-state`
-   c. Script will advance to PHASE1
+    a. Log completion via `osc log`
+    b. Mark phase complete via `osc state`
+    c. Script will advance to PHASE1
 
 6. IF MAX ITERATIONS (5) reached without clean review:
-   a. Document all remaining CRITICAL issues via `osc-log`
+    a. Document all remaining CRITICAL issues via `osc log`
    b. Create `complete.json` with CRITICAL BLOCKER status (workflow stops)
 
 ## MANDATORY END
@@ -73,48 +70,39 @@ Record commit hash in decision log.
 
 Phase complete (clean review):
 ```bash
-.opencode/scripts/lib/osc-state "$1" complete
+.opencode/scripts/lib/osc state complete "$1"
 ```
 
 Critical blocker (cannot proceed):
 ```bash
-echo '{
-  "status": "COMPLETE",
-  "with_blocker": true,
-  "blocker_reason": "[Describe the blocking issue]",
-  "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
-}' > openspec/changes/$1/complete.json
+.opencode/scripts/lib/osc complete set "$1" BLOCKED --blocker-reason "[Describe the blocking issue]"
 ```
 
 ## DECISION LOG
 
 Append entry:
 ```bash
-echo '{
-  "phase": "ARTIFACT_REVIEW",
-  "iteration": N,
-  "summary": "Brief summary of this iteration",
-  "issues": {"critical": N, "warning": N, "suggestion": N},
-  "issues_fixed": {"critical": N, "warning": N, "suggestion": N},
-  "artifacts_modified": ["proposal.md", "specs/auth.md"],
-  "commit_hash": "<hash or null>",
-  "next_steps": "Proceed to PHASE1 or continue review"
-}' | .opencode/scripts/lib/osc-log "$1" append
+.opencode/scripts/lib/osc log append "$1" \
+  --phase ARTIFACT_REVIEW \
+  --iteration N \
+  --summary "Brief summary of this iteration" \
+  --commit-hash "<hash or null>" \
+  --next-steps "Proceed to PHASE1 or continue review" \
+  --issues '{"critical":N,"warning":N,"suggestion":N}' \
+  --artifacts-modified '["proposal.md","specs/auth.md"]' \
+  --extra '{"issues_fixed":{"critical":N,"warning":N,"suggestion":N}}'
 ```
 
 ## ITERATIONS.JSON
 
 Append entry:
 ```bash
-echo '{
-  "iteration": N,
-  "phase": "ARTIFACT_REVIEW",
-  "artifacts_reviewed": ["proposal", "specs", "design", "tasks"],
-  "issues_found": {"critical": N, "warning": N, "suggestion": N},
-  "issues_fixed": {"critical": N, "warning": N, "suggestion": N},
-  "commit_hash": "<hash or null>",
-  "notes": "Brief summary"
-}' | .opencode/scripts/lib/osc-iterations "$1" append
+.opencode/scripts/lib/osc iterations append "$1" \
+  --phase ARTIFACT_REVIEW \
+  --iteration N \
+  --commit-hash "<hash or null>" \
+  --notes "Brief summary" \
+  --extra '{"artifacts_reviewed":["proposal","specs","design","tasks"],"issues_found":{"critical":N,"warning":N,"suggestion":N},"issues_fixed":{"critical":N,"warning":N,"suggestion":N}}'
 ```
 
 ## GUARDRAILS

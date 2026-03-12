@@ -6,6 +6,8 @@ Usage:
     osc <domain> <action> [args] [options]
 
 Domains:
+    ctx         Aggregate context for a change
+    git         Git status for change directory
     state       Phase and iteration state management
     iterations  Iteration history tracking
     log         Decision log management
@@ -347,6 +349,10 @@ def cmd_iterations_append(args):
             entry["summary"] = args.summary
         if args.status:
             entry["status"] = args.status
+        if args.notes:
+            entry["notes"] = args.notes
+        if args.commit_hash:
+            entry["commit_hash"] = args.commit_hash
         if args.issues:
             try:
                 entry["issues"] = json.loads(args.issues)
@@ -367,6 +373,13 @@ def cmd_iterations_append(args):
                 entry["errors"] = json.loads(args.errors)
             except json.JSONDecodeError:
                 error("invalid_json", "errors must be valid JSON")
+        if args.extra:
+            try:
+                extra_data = json.loads(args.extra)
+                if isinstance(extra_data, dict):
+                    entry.update(extra_data)
+            except json.JSONDecodeError:
+                error("invalid_json", "extra must be valid JSON object")
 
     # Validate required fields
     if "iteration" not in entry:
@@ -421,6 +434,10 @@ def cmd_log_append(args):
         entry = {"phase": args.phase, "iteration": args.iteration}
         if args.summary:
             entry["summary"] = args.summary
+        if args.commit_hash:
+            entry["commit_hash"] = args.commit_hash
+        if args.next_steps:
+            entry["next_steps"] = args.next_steps
         if args.issues:
             try:
                 entry["issues"] = json.loads(args.issues)
@@ -431,11 +448,6 @@ def cmd_log_append(args):
                 entry["artifacts_modified"] = json.loads(args.artifacts_modified)
             except json.JSONDecodeError:
                 error("invalid_json", "artifacts_modified must be valid JSON")
-        if args.next_steps:
-            try:
-                entry["next_steps"] = json.loads(args.next_steps)
-            except json.JSONDecodeError:
-                error("invalid_json", "next_steps must be valid JSON")
         if args.decisions:
             try:
                 entry["decisions"] = json.loads(args.decisions)
@@ -446,6 +458,13 @@ def cmd_log_append(args):
                 entry["errors"] = json.loads(args.errors)
             except json.JSONDecodeError:
                 error("invalid_json", "errors must be valid JSON")
+        if args.extra:
+            try:
+                extra_data = json.loads(args.extra)
+                if isinstance(extra_data, dict):
+                    entry.update(extra_data)
+            except json.JSONDecodeError:
+                error("invalid_json", "extra must be valid JSON object")
 
     # Validate required fields
     if "phase" not in entry:
@@ -830,6 +849,138 @@ def cmd_validate_completion(args):
 
 
 # =============================================================================
+# Git Domain
+# =============================================================================
+
+
+def cmd_git_get(args):
+    """Get git status for change directory."""
+    import subprocess
+
+    change_dir = find_change_dir(args.change)
+
+    result = {"modified": [], "added": [], "untracked": [], "clean": True}
+
+    try:
+        cmd = [
+            "git", "status", "--porcelain",
+            "--", str(change_dir)
+        ]
+        output_lines = subprocess.check_output(
+            cmd, stderr=subprocess.DEVNULL, text=True
+        ).strip().split("\n")
+
+        for line in output_lines:
+            if not line:
+                continue
+            status = line[:2]
+            filepath = line[3:].strip()
+
+            if status.startswith("M") or status[1] == "M":
+                result["modified"].append(filepath)
+                result["clean"] = False
+            elif status.startswith("A") or status[1] == "A":
+                result["added"].append(filepath)
+                result["clean"] = False
+            elif status.startswith("??"):
+                result["untracked"].append(filepath)
+                result["clean"] = False
+            elif status.strip():
+                result["modified"].append(filepath)
+                result["clean"] = False
+
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    output(result)
+
+
+# =============================================================================
+# Ctx Domain
+# =============================================================================
+
+
+def cmd_ctx_get(args):
+    """Get aggregated context for a change."""
+    change_dir = find_change_dir(args.change)
+
+    def check_artifact(path: Path, artifact_type: str) -> dict:
+        if artifact_type == "directory":
+            if path.is_dir():
+                count = len(list(path.glob("*.md")))
+                return {"exists": True, "count": count}
+            return {"exists": False, "count": 0}
+        else:
+            if path.is_file():
+                return {"exists": True, "size": path.stat().st_size}
+            return {"exists": False, "size": 0}
+
+    def get_state():
+        state_file = change_dir / "state.json"
+        if not state_file.exists():
+            return {"phase": "UNKNOWN", "iteration": 0, "phase_complete": False}
+        state = read_json(state_file)
+        return {
+            "phase": state.get("phase", "UNKNOWN"),
+            "iteration": state.get("iteration", 0),
+            "phase_complete": state.get("phase_complete", False),
+        }
+
+    def get_git():
+        import subprocess
+        result = {"modified": [], "added": [], "untracked": [], "clean": True}
+        try:
+            cmd = ["git", "status", "--porcelain", "--", str(change_dir)]
+            output_lines = subprocess.check_output(
+                cmd, stderr=subprocess.DEVNULL, text=True
+            ).strip().split("\n")
+            for line in output_lines:
+                if not line:
+                    continue
+                status = line[:2]
+                filepath = line[3:].strip()
+                if status.startswith("M") or status[1] == "M":
+                    result["modified"].append(filepath)
+                    result["clean"] = False
+                elif status.startswith("A") or status[1] == "A":
+                    result["added"].append(filepath)
+                    result["clean"] = False
+                elif status.startswith("??"):
+                    result["untracked"].append(filepath)
+                    result["clean"] = False
+                elif status.strip():
+                    result["modified"].append(filepath)
+                    result["clean"] = False
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+        return result
+
+    proposal = check_artifact(change_dir / "proposal.md", "file")
+    specs = check_artifact(change_dir / "specs", "directory")
+    design = check_artifact(change_dir / "design.md", "file")
+    tasks = check_artifact(change_dir / "tasks.md", "file")
+
+    decision_log = read_json_array(change_dir / "decision-log.json")
+    iterations = read_json_array(change_dir / "iterations.json")
+
+    output({
+        "change": args.change,
+        "state": get_state(),
+        "git": get_git(),
+        "artifacts": {
+            "proposal": proposal,
+            "specs": specs,
+            "design": design,
+            "tasks": tasks,
+        },
+        "history": {
+            "decision_log_entries": len(decision_log),
+            "iterations_recorded": len(iterations),
+        },
+    })
+
+
+# =============================================================================
 # Argument Parsing
 # =============================================================================
 
@@ -844,6 +995,24 @@ def create_parser():
     parser.add_argument("--version", action="version", version=f"%(prog)s {version}")
 
     subparsers = parser.add_subparsers(dest="domain", help="Domain")
+
+    # Ctx domain
+    ctx_parser = subparsers.add_parser("ctx", help="Aggregate context for a change")
+    ctx_subparsers = ctx_parser.add_subparsers(dest="action", help="Action")
+
+    # ctx get
+    ctx_get = ctx_subparsers.add_parser("get", help="Get aggregated context")
+    ctx_get.add_argument("change", help="Change name")
+    ctx_get.set_defaults(func=cmd_ctx_get)
+
+    # Git domain
+    git_parser = subparsers.add_parser("git", help="Git status for change directory")
+    git_subparsers = git_parser.add_subparsers(dest="action", help="Action")
+
+    # git get
+    git_get = git_subparsers.add_parser("get", help="Get git status")
+    git_get.add_argument("change", help="Change name")
+    git_get.set_defaults(func=cmd_git_get)
 
     # State domain
     state_parser = subparsers.add_parser("state", help="Phase and iteration state management")
@@ -898,10 +1067,13 @@ def create_parser():
     iter_append.add_argument("--iteration", type=int, help="Iteration number")
     iter_append.add_argument("--summary", help="Summary text")
     iter_append.add_argument("--status", help="Status")
+    iter_append.add_argument("--notes", help="Notes")
+    iter_append.add_argument("--commit-hash", help="Git commit hash")
     iter_append.add_argument("--issues", help="Issues (JSON)")
     iter_append.add_argument("--artifacts-modified", help="Artifacts modified (JSON)")
     iter_append.add_argument("--decisions", help="Decisions (JSON)")
     iter_append.add_argument("--errors", help="Errors (JSON)")
+    iter_append.add_argument("--extra", help="Additional fields (JSON object)")
     iter_append.set_defaults(func=cmd_iterations_append)
 
     # Log domain
@@ -919,11 +1091,13 @@ def create_parser():
     log_append.add_argument("--phase", help="Phase")
     log_append.add_argument("--iteration", type=int, help="Iteration number")
     log_append.add_argument("--summary", help="Summary text")
+    log_append.add_argument("--commit-hash", help="Git commit hash")
+    log_append.add_argument("--next-steps", help="Next steps")
     log_append.add_argument("--issues", help="Issues (JSON)")
     log_append.add_argument("--artifacts-modified", help="Artifacts modified (JSON)")
-    log_append.add_argument("--next-steps", help="Next steps (JSON)")
     log_append.add_argument("--decisions", help="Decisions (JSON)")
     log_append.add_argument("--errors", help="Errors (JSON)")
+    log_append.add_argument("--extra", help="Additional fields (JSON object)")
     log_append.set_defaults(func=cmd_log_append)
 
     # Complete domain
