@@ -8,12 +8,12 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 
 ## Why use this?
 
-| Feature | OpenSpec Core | OpenSpec-extended |
-|---------|---------------|-------------------|
-| Manual change workflows | ✓ 11 commands | ✓ (via `--with-core`) |
-| Autonomous implementation | ✗ | ✓ 7-phase loop |
-| Specialized agents | ✗ | ✓ 3 agents |
-| Utility skills | ✗ | ✓ 6 skills |
+| Feature                   | OpenSpec Core | OpenSpec-extended     |
+| ------------------------- | ------------- | --------------------- |
+| Manual change workflows   | ✓ 11 commands | ✓ (via `--with-core`) |
+| Autonomous implementation | ✗             | ✓ 7-phase loop        |
+| Specialized agents        | ✗             | ✓ 3 agents            |
+| Utility skills            | ✗             | ✓ 6 skills            |
 
 **Key additions:**
 
@@ -83,31 +83,31 @@ ls .opencode/{skills,agents,commands,scripts}/
 
 ### Installing Resources
 
-| Command | Description |
-|---------|-------------|
-| `openspecx install opencode` | Add missing resources (skip existing) |
-| `openspecx install claude` | Same for Claude Code |
-| `openspecx install opencode --with-core` | Include 11 core OpenSpec workflows |
-| `openspecx update opencode` | Force update all (overwrite existing) |
+| Command                                  | Description                           |
+| ---------------------------------------- | ------------------------------------- |
+| `openspecx install opencode`             | Add missing resources (skip existing) |
+| `openspecx install claude`               | Same for Claude Code                  |
+| `openspecx install opencode --with-core` | Include 11 core OpenSpec workflows    |
+| `openspecx update opencode`              | Force update all (overwrite existing) |
 
 ### Extension Skills
 
-| Skill | Purpose |
-|-------|---------|
-| `openspec-concepts` | Teaches AI agents about OpenSpec framework |
-| `openspec-modify-artifacts` | Modifies artifacts with dependency tracking |
-| `openspec-review-artifacts` | Reviews artifacts for quality and completeness |
-| `openspec-generate-changelog` | Generate changelogs (Keep a Changelog format) |
-| `openspec-review-test-compliance` | Review test coverage for OpenSpec changes |
-| `openspec-maintain-ai-docs` | Maintain AGENTS.md and CLAUDE.md |
+| Skill                             | Purpose                                        |
+| --------------------------------- | ---------------------------------------------- |
+| `openspec-concepts`               | Teaches AI agents about OpenSpec framework     |
+| `openspec-modify-artifacts`       | Modifies artifacts with dependency tracking    |
+| `openspec-review-artifacts`       | Reviews artifacts for quality and completeness |
+| `openspec-generate-changelog`     | Generate changelogs (Keep a Changelog format)  |
+| `openspec-review-test-compliance` | Review test coverage for OpenSpec changes      |
+| `openspec-maintain-ai-docs`       | Maintain AGENTS.md and CLAUDE.md               |
 
 ### Specialized Agents
 
-| Agent | Purpose | Tools | Temp |
-|-------|---------|-------|------|
-| `openspec-analyzer` | Review, verify, reflect | read, grep, glob, bash | 0.1 |
-| `openspec-builder` | Implementation | read, grep, glob, bash, write, edit | 0.4 |
-| `openspec-maintainer` | Docs, sync, archive | read, grep, glob, bash, write, edit | 0.3 |
+| Agent                 | Purpose                 | Tools                               | Temp |
+| --------------------- | ----------------------- | ----------------------------------- | ---- |
+| `openspec-analyzer`   | Review, verify, reflect | read, grep, glob, bash              | 0.1  |
+| `openspec-builder`    | Implementation          | read, grep, glob, bash, write, edit | 0.4  |
+| `openspec-maintainer` | Docs, sync, archive     | read, grep, glob, bash, write, edit | 0.3  |
 
 ## Autonomous Workflow
 
@@ -115,15 +115,15 @@ ls .opencode/{skills,agents,commands,scripts}/
 
 ### Commands
 
-| Command | Phase | Description |
-|---------|-------|-------------|
-| `/openspec-phase0` | Review | Analyze existing artifacts |
-| `/openspec-phase1` | Build | Implement tasks |
-| `/openspec-phase2` | Verify | Verify implementation |
-| `/openspec-phase3` | Docs | Update documentation |
-| `/openspec-phase4` | Sync | Sync with upstream |
-| `/openspec-phase5` | Reflect | Self-assessment |
-| `/openspec-phase6` | Archive | Archive completed change |
+| Command            | Phase   | Description                |
+| ------------------ | ------- | -------------------------- |
+| `/openspec-phase0` | Review  | Analyze existing artifacts |
+| `/openspec-phase1` | Build   | Implement tasks            |
+| `/openspec-phase2` | Verify  | Verify implementation      |
+| `/openspec-phase3` | Docs    | Update documentation       |
+| `/openspec-phase4` | Sync    | Sync with upstream         |
+| `/openspec-phase5` | Reflect | Self-assessment            |
+| `/openspec-phase6` | Archive | Archive completed change   |
 
 ### Usage
 
@@ -139,29 +139,29 @@ ls .opencode/{skills,agents,commands,scripts}/
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
+| Option                     | Description                                                          |
+| -------------------------- | -------------------------------------------------------------------- |
 | `--max-phase-iterations N` | Max retries per phase before failing (default: 10, -1 for unlimited) |
-| `--timeout N` | Timeout in seconds |
-| `--model MODEL` | Specify model to use |
-| `--verbose` | Enable verbose output |
-| `--dry-run` | Show what would happen |
-| `--force` | Force operation |
-| `--clean` | Clean state before starting |
-| `--from-phase PHASEX` | Start from specific phase |
-| `--list` | List available phases |
-| `--version` | Show version |
+| `--timeout N`              | Timeout in seconds                                                   |
+| `--model MODEL`            | Specify model to use                                                 |
+| `--verbose`                | Enable verbose output                                                |
+| `--dry-run`                | Show what would happen                                               |
+| `--force`                  | Force operation                                                      |
+| `--clean`                  | Clean state before starting                                          |
+| `--from-phase PHASEX`      | Start from specific phase                                            |
+| `--list`                   | List available phases                                                |
+| `--version`                | Show version                                                         |
 
 ### State Files
 
 Located in `openspec/changes/<change>/`:
 
-| File | Purpose | Lifecycle |
-|------|---------|-----------|
-| `state.json` | Phase tracking | Deleted on success |
-| `complete.json` | Completion marker | Deleted after validation |
-| `iterations.json` | Iteration history | Archived |
-| `decision-log.json` | Agent reasoning | Archived |
+| File                | Purpose           | Lifecycle                |
+| ------------------- | ----------------- | ------------------------ |
+| `state.json`        | Phase tracking    | Deleted on success       |
+| `complete.json`     | Completion marker | Deleted after validation |
+| `iterations.json`   | Iteration history | Archived                 |
+| `decision-log.json` | Agent reasoning   | Archived                 |
 
 After PHASE6 (Archive), files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`.
 
