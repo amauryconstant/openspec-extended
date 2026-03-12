@@ -5,7 +5,7 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="openspecx"
-readonly SCRIPT_VERSION="0.11.2"
+readonly SCRIPT_VERSION="0.12.0"
 
 # Resolve symlink to get actual script location
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
@@ -92,12 +92,14 @@ $SCRIPT_NAME - Installer for OpenSpec resources
 
 Usage:
   $SCRIPT_NAME <command> <tool> [options]
+  $SCRIPT_NAME run <change-id> [options]
   $SCRIPT_NAME --version
   $SCRIPT_NAME --help
 
 Commands:
   install <tool>  Add missing resources (skip existing)
   update <tool>   Force update all resources (overwrite existing)
+  run             Run autonomous implementation workflow
 
 Available tools:
   opencode        Install to .opencode/ directory
@@ -108,10 +110,13 @@ Options:
   --version       Show version
   --help          Show this help message
 
+Run '$SCRIPT_NAME run --help' for workflow options.
+
 Examples:
   $SCRIPT_NAME install opencode
   $SCRIPT_NAME install opencode --with-core
   $SCRIPT_NAME update claude
+  $SCRIPT_NAME run my-change -v
 EOF
 }
 
@@ -146,14 +151,28 @@ copy_skills() {
 
 show_usage() {
     log_error "Usage: $SCRIPT_NAME <command> <tool> [--with-core]"
+    log_error "       $SCRIPT_NAME run <change-id> [options]"
     echo
     echo "Commands:"
     echo "  install <tool>  Add missing resources (skip existing)"
     echo "  update <tool>   Force update all resources (overwrite existing)"
+    echo "  run             Run autonomous implementation workflow"
     echo
     echo "Available tools: opencode, claude"
     echo
     echo "Run '$SCRIPT_NAME --help' for more information."
+}
+
+run_auto() {
+    local script_path="$(pwd)/.opencode/scripts/openspec-auto"
+    
+    if [[ ! -f "$script_path" ]]; then
+        log_error "openspec-auto not found"
+        log_error "Run: $SCRIPT_NAME install opencode"
+        exit 1
+    fi
+    
+    exec "$script_path" "$@"
 }
 
 update_gitignore() {
@@ -267,6 +286,11 @@ fi
 if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
     show_help
     exit 0
+fi
+
+if [[ "$1" == "run" ]]; then
+    shift
+    run_auto "$@"
 fi
 
 if [[ $# -lt 2 ]]; then
