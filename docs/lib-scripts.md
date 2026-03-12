@@ -2,15 +2,121 @@
 
 Helper scripts in `.opencode/scripts/lib/` for reliable agent operations. All output JSON.
 
-## Scripts
+## Primary Tool: `osc` (Python)
 
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `osc-state` | State file CRUD + transitions | `osc-state <change> <action>` |
-| `osc-ctx` | Aggregate context | `osc-ctx <change>` |
-| `osc-iterations` | Iteration history | `osc-iterations <change> [get\|append]` |
-| `osc-log` | Decision logging | `osc-log <change> [get\|append]` |
-| `osc-git` | Git status | `osc-git [change]` |
+The `osc` tool is the primary CLI for OpenSpec change management. It replaces multiple bash scripts with a unified Python interface.
+
+**Location**: `.opencode/scripts/lib/osc`
+
+**Requirements**: Python 3.8+ (stdlib only, no external packages)
+
+### Commands
+
+```
+osc <domain> <action> [args]
+
+Domains:
+  state       Phase and iteration state management
+  iterations  Iteration history tracking
+  log         Decision log management
+  complete    Completion status tracking
+  validate    Validation utilities
+```
+
+### State Domain
+
+```
+osc state get <change>
+osc state set-phase <change> <PHASE>
+osc state complete <change>
+osc state transition <change> <target> <reason> [details]
+osc state clear-transition <change>
+```
+
+**Transition reasons:**
+- `implementation_incorrect` - Artifacts correct, code needs fixing
+- `artifacts_modified` - Specs/design updated, re-implement needed
+- `retry_requested` - Same phase, different approach
+
+### Iterations Domain
+
+```
+osc iterations get <change>
+osc iterations append <change> --phase <PHASE> --iteration <N> [options]
+```
+
+Options: `--summary`, `--status`, `--issues`, `--artifacts-modified`, `--decisions`, `--errors`
+
+Also accepts JSON via stdin for backward compatibility.
+
+### Log Domain
+
+```
+osc log get <change>
+osc log append <change> --phase <PHASE> --iteration <N> [options]
+```
+
+Options: `--summary`, `--issues`, `--artifacts-modified`, `--next-steps`, `--decisions`, `--errors`
+
+Also accepts JSON via stdin for backward compatibility.
+
+### Complete Domain
+
+```
+osc complete check <change>
+osc complete get <change>
+osc complete set <change> [COMPLETE|BLOCKED] [--blocker-reason "text"]
+```
+
+### Validate Domain
+
+```
+osc validate skills
+osc validate commands
+osc validate change-dir <change>
+osc validate archive <change>
+osc validate iterations <change>
+osc validate completion <change>
+osc validate json <file>
+```
+
+## Output Examples
+
+### osc state get
+
+```json
+{"phase": "PHASE1", "iteration": 2, "phase_complete": false, "change": "add-auth"}
+```
+
+### osc state transition
+
+```json
+{"success": true, "transition": {"target": "PHASE1", "reason": "implementation_incorrect"}}
+```
+
+### osc iterations get
+
+```json
+{"count": 5, "iterations": [1, 2, 3, 4, 5]}
+```
+
+### osc complete check
+
+```json
+{"exists": true}
+```
+
+### osc validate skills
+
+```json
+{"valid": true}
+```
+
+Or with errors:
+
+```json
+{"valid": false, "errors": [{"check": "skills", "message": "Missing skill: openspec-concepts"}]}
+```
 
 ## Usage Patterns
 
@@ -26,49 +132,43 @@ Helper scripts in `.opencode/scripts/lib/` for reliable agent operations. All ou
 
 ```bash
 # Mark phase complete
-osc-state $1 complete
+osc state complete $1
 
 # Signal transition to fix implementation
-osc-state $1 transition PHASE1 implementation_incorrect "ValidationPipeline missing early exit"
+osc state transition $1 PHASE1 implementation_incorrect "ValidationPipeline missing early exit"
 
 # Log iteration
-echo '{"iteration":2,"phase":"IMPLEMENTATION",...}' | osc-iterations $1 append
+osc iterations append $1 --phase PHASE1 --iteration 2 --summary "Fixed validation"
 
 # Log decision
-echo '{"phase":"PHASE0","iteration":1,"summary":"..."}' | osc-log $1 append
+osc log append $1 --phase PHASE0 --iteration 1 --summary "Reviewed artifacts"
 ```
 
-### osc-state Actions
+---
 
-| Action | Description |
-|--------|-------------|
-| `get` | Get current state |
-| `set-phase <PHASE>` | Set current phase |
-| `complete` | Mark phase complete (normal advance) |
-| `transition <PHASE> <reason> [details]` | Set explicit transition target |
-| `clear-transition` | Clear transition field |
+## Legacy Bash Scripts (Deprecated)
 
-**Transition reasons:**
-- `implementation_incorrect` - Artifacts correct, code needs fixing
-- `artifacts_modified` - Specs/design updated, re-implement needed
-- `retry_requested` - Same phase, different approach
+These scripts are still available but deprecated. Use `osc` instead.
 
+| Script | Replaced By | Usage |
+|--------|-------------|-------|
+| `osc-state` | `osc state` | `osc-state <change> <action>` |
+| `osc-iterations` | `osc iterations` | `osc-iterations <change> [get\|append]` |
+| `osc-log` | `osc log` | `osc-log <change> [get\|append]` |
+| `osc-complete` | `osc complete` | `osc-complete <change> <action>` |
+| `osc-validate` | `osc validate` | `osc-validate <change> <action>` |
 
-## Output Examples
+## Bash-Only Scripts (Not Yet Migrated)
 
-### osc-state
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `osc-ctx` | Aggregate context | `osc-ctx <change>` |
+| `osc-git` | Git status | `osc-git [change]` |
+| `osc-baseline` | Baseline tracking | `osc-baseline <action>` |
+| `osc-phase` | Phase advancement | `osc-phase <change> <action>` |
+| `osc-common` | Shared functions | (sourced by other scripts) |
 
-```json
-{"phase":"PHASE1","iteration":2,"phase_complete":false,"change":"add-auth"}
-```
-
-### osc-state transition
-
-```json
-{"success":true,"transition":{"target":"PHASE1","reason":"implementation_incorrect"}}
-```
-
-### osc-ctx
+### osc-ctx Output
 
 ```json
 {
@@ -84,8 +184,3 @@ echo '{"phase":"PHASE0","iteration":1,"summary":"..."}' | osc-log $1 append
   "history": {"decision_log_entries": 3, "iterations_recorded": 1}
 }
 ```
-
-### osc-log
-
-Maintains:
-- `decision-log.json` - Structured decision log with entries appended via JSON input

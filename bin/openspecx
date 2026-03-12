@@ -5,7 +5,7 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="openspecx"
-readonly SCRIPT_VERSION="0.11.0"
+readonly SCRIPT_VERSION="0.11.2"
 
 # Resolve symlink to get actual script location
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
@@ -420,6 +420,16 @@ if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
     
     if [[ -d "$RESOURCES_DIR/$TOOL/scripts/lib" ]]; then
         mkdir -p "$SCRIPTS_DIR/lib"
+        
+        # Copy osc Python tool
+        if [[ -f "$RESOURCES_DIR/$TOOL/scripts/lib/osc" ]]; then
+            cp -f "$RESOURCES_DIR/$TOOL/scripts/lib/osc" "$SCRIPTS_DIR/lib/"
+            chmod +x "$SCRIPTS_DIR/lib/osc"
+            log_success "Deployed osc tool to $TOOL"
+            echo "  Target: $TARGET_DIR/scripts/lib/osc"
+        fi
+        
+        # Copy osc-* bash scripts
         LIB_COUNT=$(find "$RESOURCES_DIR/$TOOL/scripts/lib" -mindepth 1 -maxdepth 1 -type f -name "osc-*" 2>/dev/null | wc -l)
         
         if [[ $LIB_COUNT -gt 0 ]]; then

@@ -3,3 +3,4 @@ openspec-core/*
 openspec/
 .mise/version-state.json
 demo/
+__pycache__

@@ -164,6 +164,8 @@ get_resource_info_from_path() {
       resource_type="lib"; resource_name="osc-phase" ;;
     *"/scripts/lib/osc-validate"*)
       resource_type="lib"; resource_name="osc-validate" ;;
+    *"/scripts/lib/osc")
+      resource_type="lib"; resource_name="osc" ;;
   esac
   
   if [[ -n "$resource_type" && -n "$resource_name" ]]; then

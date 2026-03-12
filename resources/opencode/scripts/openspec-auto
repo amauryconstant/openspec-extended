@@ -422,6 +422,12 @@ run_lib_script() {
   return 0
 }
 
+run_osc() {
+  local domain="$1"
+  shift
+  "$SCRIPT_DIR/lib/osc" "$domain" "$@"
+}
+
 is_valid_json_result() {
   local result="$1"
   [[ -n "$result" ]] && [[ $(echo "$result" | jq -r '.valid' 2>/dev/null) == "true" ]]
@@ -438,7 +444,7 @@ validate_skills() {
   log "Validating required skills..."
   
   local result
-  result=$(run_lib_script "osc-validate" "$CHANGE_ID" skills)
+  result=$(run_osc validate skills)
   
   if ! is_valid_json_result "$result"; then
     log_error "Required skills validation failed"
@@ -455,7 +461,7 @@ validate_commands() {
   log "Validating required commands..."
   
   local result
-  result=$(run_lib_script "osc-validate" "$CHANGE_ID" commands)
+  result=$(run_osc validate commands)
   
   if ! is_valid_json_result "$result"; then
     log_error "Required commands validation failed"
@@ -471,7 +477,7 @@ validate_json() {
   local file="$1"
   
   local result
-  result=$(run_lib_script "osc-validate" "$CHANGE_ID" json "$file")
+  result=$(run_osc validate json "$file")
   
   if ! is_valid_json_result "$result"; then
     log_error "$(echo "$result" | jq -r '.errors[0].message // "Invalid JSON"' 2>/dev/null)"
@@ -485,7 +491,7 @@ validate_change_dir() {
   log "Validating change directory..."
   
   local result
-  result=$(run_lib_script "osc-validate" "$CHANGE_ID" change-dir)
+  result=$(run_osc validate change-dir "$CHANGE_ID")
   
   if ! is_valid_json_result "$result"; then
     log_error "Change directory validation failed"
@@ -620,7 +626,7 @@ EOF
 
 check_complete() {
   local result
-  result=$(run_lib_script "osc-complete" "$CHANGE_ID" check)
+  result=$(run_osc complete check "$CHANGE_ID")
   
   if [[ $(echo "$result" | jq -r '.exists // false' 2>/dev/null) != "true" ]]; then
     return 1
@@ -631,7 +637,7 @@ check_complete() {
 
 read_completion() {
   local result
-  result=$(run_lib_script "osc-complete" "$CHANGE_ID" get)
+  result=$(run_osc complete get "$CHANGE_ID")
   
   if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.status // empty' 2>/dev/null) == "" ]]; then
     return 1
@@ -646,7 +652,7 @@ read_completion() {
 
 get_current_phase() {
   local result
-  result=$(run_lib_script "osc-phase" "$CHANGE_ID" current)
+  result=$(run_osc state get "$CHANGE_ID")
   
   if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.phase // empty' 2>/dev/null) == "" ]]; then
     return 1
@@ -661,7 +667,7 @@ get_current_phase() {
 
 get_phase_iteration() {
   local result
-  result=$(run_lib_script "osc-phase" "$CHANGE_ID" current)
+  result=$(run_osc state get "$CHANGE_ID")
   
   if [[ -z "$result" ]]; then
     echo 0
@@ -747,7 +753,7 @@ get_transition_details() {
 }
 
 clear_transition() {
-  run_lib_script "osc-state" "$CHANGE_ID" clear-transition >/dev/null 2>&1 || true
+  run_osc state clear-transition "$CHANGE_ID" >/dev/null 2>&1 || true
 }
 
 is_phase_complete() {
@@ -868,29 +874,23 @@ run_phase() {
 advance_phase() {
   local current="$1"
   
-  local result
-  result=$(run_lib_script "osc-phase" "$CHANGE_ID" advance)
-  
-  if [[ -n "$result" ]]; then
-    echo "$result" | jq -r '.phase // "COMPLETE"'
-  else
-    case "$current" in
-      PHASE0) echo "PHASE1" ;;
-      PHASE1) echo "PHASE2" ;;
-      PHASE2) echo "PHASE3" ;;
-      PHASE3) echo "PHASE4" ;;
-      PHASE4) echo "PHASE5" ;;
-      PHASE5) echo "PHASE6" ;;
-      PHASE6) echo "COMPLETE" ;;
-      *) echo "COMPLETE" ;;
-    esac
-  fi
+  # Phase advancement is computed locally (no external tool needed)
+  case "$current" in
+    PHASE0) echo "PHASE1" ;;
+    PHASE1) echo "PHASE2" ;;
+    PHASE2) echo "PHASE3" ;;
+    PHASE3) echo "PHASE4" ;;
+    PHASE4) echo "PHASE5" ;;
+    PHASE5) echo "PHASE6" ;;
+    PHASE6) echo "COMPLETE" ;;
+    *) echo "COMPLETE" ;;
+  esac
 }
 
 
 validate_archive() {
   local result
-  result=$(run_lib_script "osc-validate" "$CHANGE_ID" archive)
+  result=$(run_osc validate archive "$CHANGE_ID")
   
   if ! is_valid_json_result "$result"; then
     log_error "$(echo "$result" | jq -r '.errors[0].message // "Archive validation failed"' 2>/dev/null)"
@@ -922,7 +922,7 @@ update_change_dir_if_archived() {
 
 validate_iterations() {
   local result
-  result=$(run_lib_script "osc-validate" "$CHANGE_ID" iterations)
+  result=$(run_osc validate iterations "$CHANGE_ID")
   
   if ! is_valid_json_result "$result"; then
     log_error "$(echo "$result" | jq -r '.errors[0].message // "Iterations validation failed"' 2>/dev/null)"
@@ -936,7 +936,7 @@ validate_completion() {
   log "Validating completion requirements..."
   
   local result
-  result=$(run_lib_script "osc-validate" "$CHANGE_ID" completion)
+  result=$(run_osc validate completion "$CHANGE_ID")
   
   if ! is_valid_json_result "$result"; then
     log_error "Completion validation failed"

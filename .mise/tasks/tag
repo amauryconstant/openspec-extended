@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Update version in README, commit, and push git tag for release"
+#MISE description="Update version in README, pyproject.toml, manifest.json, commit, and push git tag for release"
 #USAGE arg "<bump>" help="Version bump type" {
 #USAGE   choices "patch" "minor" "major"
 #USAGE }
@@ -66,6 +66,7 @@ fi
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "[DRY-RUN] Would update version to $NEW_VERSION in:"
   echo "  - README.md (badge + examples)"
+  echo "  - pyproject.toml"
   echo "  - resources/opencode/manifest.json"
   echo ""
   echo "[DRY-RUN] Would commit with message: Release version $NEW_VERSION"
@@ -98,8 +99,21 @@ update_version_in_manifest() {
   fi
 }
 
+update_version_in_pyproject() {
+  local version="$1"
+  local pyproject="$PROJECT_ROOT/pyproject.toml"
+
+  if [[ -f "$pyproject" ]]; then
+    sed -i "s/^version = \".*\"/version = \"$version\"/" "$pyproject"
+    echo "  ✓ pyproject.toml"
+  fi
+}
+
 echo "Updating version in README.md:"
 update_version_in_readme "$NEW_VERSION"
+echo ""
+echo "Updating version in pyproject.toml:"
+update_version_in_pyproject "$NEW_VERSION"
 echo ""
 echo "Updating version in manifest.json:"
 update_version_in_manifest "$NEW_VERSION"

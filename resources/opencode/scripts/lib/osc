@@ -1,0 +1,1014 @@
+#!/usr/bin/env python3
+"""
+osc - OpenSpec Change management tool
+
+Usage:
+    osc <domain> <action> [args] [options]
+
+Domains:
+    state       Phase and iteration state management
+    iterations  Iteration history tracking
+    log         Decision log management
+    complete    Completion status tracking
+    validate    Validation utilities
+
+Output: JSON to stdout, errors to stderr
+"""
+
+import sys
+import json
+import argparse
+import tempfile
+from pathlib import Path
+from datetime import datetime, timezone
+from typing import Optional, Any, Dict, List
+
+# Constants
+PHASES = ["PHASE0", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "PHASE5", "PHASE6"]
+
+PHASE_NAMES = {
+    "PHASE0": "ARTIFACT REVIEW",
+    "PHASE1": "IMPLEMENTATION",
+    "PHASE2": "REVIEW",
+    "PHASE3": "MAINTAIN DOCS",
+    "PHASE4": "SYNC",
+    "PHASE5": "SELF-REFLECTION",
+    "PHASE6": "ARCHIVE",
+}
+
+PHASE_COMMANDS = {
+    "PHASE0": "openspec-phase0",
+    "PHASE1": "openspec-phase1",
+    "PHASE2": "openspec-phase2",
+    "PHASE3": "openspec-phase3",
+    "PHASE4": "openspec-phase4",
+    "PHASE5": "openspec-phase5",
+    "PHASE6": "openspec-phase6",
+}
+
+VALID_TRANSITION_REASONS = [
+    "implementation_incorrect",
+    "artifacts_modified",
+    "retry_requested",
+]
+
+REQUIRED_SKILLS = [
+    "openspec-concepts",
+    "openspec-review-artifacts",
+    "openspec-modify-artifacts",
+    "openspec-apply-change",
+    "openspec-review-test-compliance",
+    "openspec-verify-change",
+    "openspec-maintain-ai-docs",
+    "openspec-sync-specs",
+    "openspec-archive-change",
+]
+
+SKILLS_DIR = Path(".opencode/skills")
+COMMANDS_DIR = Path(".opencode/commands")
+
+
+# =============================================================================
+# Utility Functions
+# =============================================================================
+
+
+def get_version() -> str:
+    """Get version from manifest.json."""
+    script_dir = Path(__file__).parent
+    manifest_path = script_dir.parent.parent / "manifest.json"
+    
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text())
+            version = manifest.get("resources", {}).get("lib", {}).get("osc", {}).get("version")
+            if version:
+                return version
+        except (json.JSONDecodeError, KeyError):
+            pass
+    
+    return "unknown"
+
+
+def error(code: str, message: str, **context) -> None:
+    """Output error JSON to stderr and exit."""
+    result = {"error": code, "message": message}
+    result.update(context)
+    print(json.dumps(result), file=sys.stderr)
+    sys.exit(1)
+
+
+def output(data: dict) -> None:
+    """Output JSON to stdout."""
+    print(json.dumps(data))
+
+
+def get_timestamp() -> str:
+    """Get current UTC timestamp in ISO format."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def find_change_dir(change: str) -> Path:
+    """Find change directory (primary or archived)."""
+    primary = Path(f"openspec/changes/{change}")
+    if primary.is_dir():
+        return primary
+
+    archive_dir = Path("openspec/changes/archive")
+    if not archive_dir.is_dir():
+        error("change_not_found", "Change directory does not exist", change=change)
+
+    for d in sorted(archive_dir.iterdir()):
+        if d.is_dir() and d.name.endswith(f"-{change}"):
+            return d
+
+    error("change_not_found", "Change directory does not exist", change=change)
+
+
+def read_json(path: Path) -> Any:
+    """Read JSON file, return empty dict if not found."""
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError as e:
+        error("invalid_json", f"Invalid JSON in {path}", path=str(path))
+
+
+def write_json(path: Path, data: Any) -> None:
+    """Write JSON file atomically."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w", delete=False, dir=path.parent, suffix=".json"
+    ) as f:
+        json.dump(data, f, indent=2)
+        f.flush()
+        Path(f.name).replace(path)
+
+
+def read_json_array(path: Path) -> List:
+    """Read JSON array file, return empty list if not found or invalid."""
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text())
+        if not isinstance(data, list):
+            error("invalid_format", f"{path.name} is not a valid JSON array")
+        return data
+    except json.JSONDecodeError:
+        error("invalid_json", f"Invalid JSON in {path}")
+
+
+def append_to_json_array(path: Path, entry: Dict) -> int:
+    """Append entry to JSON array file, return new count."""
+    data = read_json_array(path)
+    data.append(entry)
+    write_json(path, data)
+    return len(data)
+
+
+def read_stdin_json() -> Optional[Dict]:
+    """Read JSON from stdin if available."""
+    import select
+
+    # Check if stdin has data available (non-blocking check)
+    # On Windows, select only works on sockets, so we use isatty as fallback
+    if sys.stdin.isatty():
+        return None
+
+    # Check if there's data waiting on stdin (Unix only)
+    if hasattr(select, "select"):
+        try:
+            has_data, _, _ = select.select([sys.stdin], [], [], 0)
+            if not has_data:
+                return None
+        except (ValueError, OSError):
+            # stdin might be closed or invalid
+            return None
+
+    try:
+        content = sys.stdin.read().strip()
+        if not content:
+            return None
+        return json.loads(content)
+    except json.JSONDecodeError:
+        error("invalid_json", "Input is not valid JSON")
+
+
+# =============================================================================
+# State Domain
+# =============================================================================
+
+
+def cmd_state_get(args):
+    """Get current state."""
+    change_dir = find_change_dir(args.change)
+    state_file = change_dir / "state.json"
+
+    if not state_file.exists():
+        error("state_not_found", "state.json does not exist", path=str(state_file))
+
+    state = read_json(state_file)
+    output(
+        {
+            "phase": state.get("phase", "UNKNOWN"),
+            "iteration": state.get("iteration", 0),
+            "phase_complete": state.get("phase_complete", False),
+            "change": args.change,
+        }
+    )
+
+
+def cmd_state_set_phase(args):
+    """Set current phase."""
+    if args.phase not in PHASES:
+        error("invalid_phase", f"Invalid phase: {args.phase}", valid=PHASES)
+
+    change_dir = find_change_dir(args.change)
+    state_file = change_dir / "state.json"
+
+    if not state_file.exists():
+        error("state_not_found", "state.json does not exist")
+
+    state = read_json(state_file)
+    previous = state.get("phase", "UNKNOWN")
+    state["phase"] = args.phase
+    state["phase_name"] = PHASE_NAMES.get(args.phase, "UNKNOWN")
+    state["last_updated"] = get_timestamp()
+    write_json(state_file, state)
+
+    output({"success": True, "phase": args.phase, "previous_phase": previous})
+
+
+def cmd_state_complete(args):
+    """Mark phase complete."""
+    change_dir = find_change_dir(args.change)
+    state_file = change_dir / "state.json"
+
+    if not state_file.exists():
+        error("state_not_found", "state.json does not exist")
+
+    state = read_json(state_file)
+    state["phase_complete"] = True
+    state["last_updated"] = get_timestamp()
+    write_json(state_file, state)
+
+    output({"success": True, "phase_complete": True})
+
+
+def cmd_state_transition(args):
+    """Set explicit transition target."""
+    if args.target not in PHASES:
+        error(
+            "invalid_target",
+            f"Invalid target phase: {args.target}",
+            valid=PHASES,
+        )
+
+    if args.reason not in VALID_TRANSITION_REASONS:
+        error(
+            "invalid_reason",
+            f"Invalid reason: {args.reason}",
+            valid=VALID_TRANSITION_REASONS,
+        )
+
+    change_dir = find_change_dir(args.change)
+    state_file = change_dir / "state.json"
+
+    if not state_file.exists():
+        error("state_not_found", "state.json does not exist")
+
+    state = read_json(state_file)
+    state["phase_complete"] = True
+    state["transition"] = {"target": args.target, "reason": args.reason}
+    if args.details:
+        state["transition"]["details"] = args.details
+    state["last_updated"] = get_timestamp()
+    write_json(state_file, state)
+
+    result = {"success": True, "transition": {"target": args.target, "reason": args.reason}}
+    if args.details:
+        result["transition"]["details"] = args.details
+    output(result)
+
+
+def cmd_state_clear_transition(args):
+    """Clear transition field."""
+    change_dir = find_change_dir(args.change)
+    state_file = change_dir / "state.json"
+
+    if not state_file.exists():
+        error("state_not_found", "state.json does not exist")
+
+    state = read_json(state_file)
+    state.pop("transition", None)
+    state["last_updated"] = get_timestamp()
+    write_json(state_file, state)
+
+    output({"success": True, "transition_cleared": True})
+
+
+# =============================================================================
+# Iterations Domain
+# =============================================================================
+
+
+def cmd_iterations_get(args):
+    """Get iteration history."""
+    change_dir = find_change_dir(args.change)
+    iterations_file = change_dir / "iterations.json"
+
+    if not iterations_file.exists():
+        output({"count": 0, "iterations": []})
+        return
+
+    iterations = read_json_array(iterations_file)
+    iteration_nums = [i.get("iteration") for i in iterations if "iteration" in i]
+    output({"count": len(iterations), "iterations": iteration_nums})
+
+
+def cmd_iterations_append(args):
+    """Append iteration entry (from stdin or CLI args)."""
+    change_dir = find_change_dir(args.change)
+    iterations_file = change_dir / "iterations.json"
+
+    # Build entry from stdin or args
+    stdin_data = read_stdin_json()
+    if stdin_data is not None:
+        entry = stdin_data
+    else:
+        if args.iteration is None or args.phase is None:
+            error(
+                "missing_field",
+                "iteration and phase required (via --iteration and --phase or stdin)",
+            )
+        entry = {"iteration": args.iteration, "phase": args.phase}
+        if args.summary:
+            entry["summary"] = args.summary
+        if args.status:
+            entry["status"] = args.status
+        if args.issues:
+            try:
+                entry["issues"] = json.loads(args.issues)
+            except json.JSONDecodeError:
+                error("invalid_json", "issues must be valid JSON")
+        if args.artifacts_modified:
+            try:
+                entry["artifacts_modified"] = json.loads(args.artifacts_modified)
+            except json.JSONDecodeError:
+                error("invalid_json", "artifacts_modified must be valid JSON")
+        if args.decisions:
+            try:
+                entry["decisions"] = json.loads(args.decisions)
+            except json.JSONDecodeError:
+                error("invalid_json", "decisions must be valid JSON")
+        if args.errors:
+            try:
+                entry["errors"] = json.loads(args.errors)
+            except json.JSONDecodeError:
+                error("invalid_json", "errors must be valid JSON")
+
+    # Validate required fields
+    if "iteration" not in entry:
+        error("missing_field", "iteration field is required")
+
+    # Add timestamp if not present
+    entry.setdefault("timestamp", get_timestamp())
+
+    total = append_to_json_array(iterations_file, entry)
+    output(
+        {
+            "success": True,
+            "iteration": entry["iteration"],
+            "total_count": total,
+        }
+    )
+
+
+# =============================================================================
+# Log Domain
+# =============================================================================
+
+
+def cmd_log_get(args):
+    """Get decision log."""
+    change_dir = find_change_dir(args.change)
+    log_file = change_dir / "decision-log.json"
+
+    if not log_file.exists():
+        output({"count": 0, "entries": []})
+        return
+
+    entries = read_json_array(log_file)
+    output({"count": len(entries), "entries": entries})
+
+
+def cmd_log_append(args):
+    """Append log entry (from stdin or CLI args)."""
+    change_dir = find_change_dir(args.change)
+    log_file = change_dir / "decision-log.json"
+
+    # Build entry from stdin or args
+    stdin_data = read_stdin_json()
+    if stdin_data is not None:
+        entry = stdin_data
+    else:
+        if args.phase is None or args.iteration is None:
+            error(
+                "missing_field",
+                "phase and iteration required (via --phase and --iteration or stdin)",
+            )
+        entry = {"phase": args.phase, "iteration": args.iteration}
+        if args.summary:
+            entry["summary"] = args.summary
+        if args.issues:
+            try:
+                entry["issues"] = json.loads(args.issues)
+            except json.JSONDecodeError:
+                error("invalid_json", "issues must be valid JSON")
+        if args.artifacts_modified:
+            try:
+                entry["artifacts_modified"] = json.loads(args.artifacts_modified)
+            except json.JSONDecodeError:
+                error("invalid_json", "artifacts_modified must be valid JSON")
+        if args.next_steps:
+            try:
+                entry["next_steps"] = json.loads(args.next_steps)
+            except json.JSONDecodeError:
+                error("invalid_json", "next_steps must be valid JSON")
+        if args.decisions:
+            try:
+                entry["decisions"] = json.loads(args.decisions)
+            except json.JSONDecodeError:
+                error("invalid_json", "decisions must be valid JSON")
+        if args.errors:
+            try:
+                entry["errors"] = json.loads(args.errors)
+            except json.JSONDecodeError:
+                error("invalid_json", "errors must be valid JSON")
+
+    # Validate required fields
+    if "phase" not in entry:
+        error("missing_field", "phase field is required")
+    if "iteration" not in entry:
+        error("missing_field", "iteration field is required")
+
+    # Get entry number and timestamp
+    entries = read_json_array(log_file)
+    entry_num = len(entries) + 1
+    timestamp = get_timestamp()
+
+    entry["entry"] = entry_num
+    entry["timestamp"] = timestamp
+
+    total = append_to_json_array(log_file, entry)
+    output(
+        {
+            "success": True,
+            "entry": entry_num,
+            "phase": entry["phase"],
+            "iteration": entry["iteration"],
+            "timestamp": timestamp,
+        }
+    )
+
+
+# =============================================================================
+# Complete Domain
+# =============================================================================
+
+
+def cmd_complete_check(args):
+    """Check if complete.json exists."""
+    change_dir = find_change_dir(args.change)
+    complete_file = change_dir / "complete.json"
+
+    if not complete_file.exists():
+        output({"exists": False})
+        sys.exit(1)
+
+    try:
+        json.loads(complete_file.read_text())
+        output({"exists": True})
+    except json.JSONDecodeError:
+        output({"exists": False, "error": "invalid_json"})
+        sys.exit(1)
+
+
+def cmd_complete_get(args):
+    """Get completion status."""
+    change_dir = find_change_dir(args.change)
+    complete_file = change_dir / "complete.json"
+
+    if not complete_file.exists():
+        error("complete_not_found", "complete.json does not exist")
+
+    try:
+        data = json.loads(complete_file.read_text())
+    except json.JSONDecodeError:
+        error("invalid_json", "complete.json contains invalid JSON")
+
+    result = {
+        "status": data.get("status", "UNKNOWN"),
+        "with_blocker": data.get("with_blocker", False),
+    }
+    if data.get("blocker_reason"):
+        result["blocker_reason"] = data["blocker_reason"]
+
+    output(result)
+
+
+def cmd_complete_set(args):
+    """Set completion status."""
+    change_dir = find_change_dir(args.change)
+    complete_file = change_dir / "complete.json"
+
+    timestamp = get_timestamp()
+
+    if args.status == "BLOCKED" and args.blocker_reason:
+        data = {
+            "status": args.status,
+            "with_blocker": True,
+            "blocker_reason": args.blocker_reason,
+            "timestamp": timestamp,
+        }
+        write_json(complete_file, data)
+        output(
+            {
+                "status": args.status,
+                "with_blocker": True,
+                "blocker_reason": args.blocker_reason,
+            }
+        )
+    else:
+        data = {
+            "status": args.status,
+            "with_blocker": False,
+            "timestamp": timestamp,
+        }
+        write_json(complete_file, data)
+        output({"status": args.status, "with_blocker": False})
+
+
+# =============================================================================
+# Validate Domain
+# =============================================================================
+
+
+def cmd_validate_json(args):
+    """Validate JSON file."""
+    file_path = Path(args.file)
+
+    if not file_path.exists():
+        output(
+            {
+                "valid": False,
+                "errors": [{"check": "json", "message": f"File not found: {args.file}"}],
+            }
+        )
+        sys.exit(1)
+
+    try:
+        json.loads(file_path.read_text())
+        output({"valid": True})
+    except json.JSONDecodeError:
+        output(
+            {
+                "valid": False,
+                "errors": [
+                    {"check": "json", "message": f"Invalid JSON in file: {args.file}"}
+                ],
+            }
+        )
+        sys.exit(1)
+
+
+def cmd_validate_skills(args):
+    """Validate required skills exist."""
+    errors = []
+
+    for skill in REQUIRED_SKILLS:
+        skill_path = SKILLS_DIR / skill / "SKILL.md"
+        if not skill_path.exists():
+            errors.append({"check": "skills", "message": f"Missing skill: {skill}"})
+
+    if errors:
+        output({"valid": False, "errors": errors})
+        sys.exit(1)
+
+    output({"valid": True})
+
+
+def cmd_validate_commands(args):
+    """Validate required commands exist."""
+    errors = []
+
+    for phase in PHASES:
+        cmd_name = PHASE_COMMANDS.get(phase)
+        if cmd_name:
+            cmd_path = COMMANDS_DIR / f"{cmd_name}.md"
+            if not cmd_path.exists():
+                errors.append(
+                    {"check": "commands", "message": f"Missing command: {cmd_name}"}
+                )
+
+    if errors:
+        output({"valid": False, "errors": errors})
+        sys.exit(1)
+
+    output({"valid": True})
+
+
+def cmd_validate_change_dir(args):
+    """Validate change directory structure."""
+    change_path = Path(f"openspec/changes/{args.change}")
+    errors = []
+
+    if not change_path.is_dir():
+        output(
+            {
+                "valid": False,
+                "errors": [
+                    {
+                        "check": "change-dir",
+                        "message": f"Change directory not found: {change_path}",
+                    }
+                ],
+            }
+        )
+        sys.exit(1)
+
+    required_files = ["tasks.md", "proposal.md", "design.md"]
+    for file in required_files:
+        if not (change_path / file).exists():
+            errors.append(
+                {"check": "change-dir", "message": f"Missing required file: {file}"}
+            )
+
+    specs_dir = change_path / "specs"
+    if not specs_dir.is_dir() or not list(specs_dir.glob("*.md")):
+        errors.append(
+            {"check": "change-dir", "message": "No spec files found in specs/"}
+        )
+
+    if errors:
+        output({"valid": False, "errors": errors})
+        sys.exit(1)
+
+    output({"valid": True})
+
+
+def cmd_validate_archive(args):
+    """Validate change is archived."""
+    archive_dir = Path("openspec/changes/archive")
+    archives = []
+
+    if archive_dir.is_dir():
+        for d in archive_dir.iterdir():
+            if d.is_dir() and d.name.endswith(f"-{args.change}"):
+                archives.append(d)
+
+    if len(archives) == 0:
+        output(
+            {
+                "valid": False,
+                "errors": [{"check": "archive", "message": "Change not archived"}],
+            }
+        )
+        sys.exit(1)
+
+    if len(archives) > 1:
+        output(
+            {
+                "valid": False,
+                "errors": [
+                    {
+                        "check": "archive",
+                        "message": f"Multiple archives found for change: {len(archives)}",
+                    }
+                ],
+            }
+        )
+        sys.exit(1)
+
+    output({"valid": True, "archive": str(archives[0])})
+
+
+def cmd_validate_iterations(args):
+    """Validate iterations.json exists and is valid."""
+    try:
+        change_dir = find_change_dir(args.change)
+    except SystemExit:
+        output(
+            {
+                "valid": False,
+                "errors": [
+                    {"check": "iterations", "message": "Change directory not found"}
+                ],
+            }
+        )
+        sys.exit(1)
+
+    iterations_file = change_dir / "iterations.json"
+
+    if not iterations_file.exists():
+        output(
+            {
+                "valid": False,
+                "errors": [
+                    {"check": "iterations", "message": "iterations.json not found"}
+                ],
+            }
+        )
+        sys.exit(1)
+
+    try:
+        json.loads(iterations_file.read_text())
+    except json.JSONDecodeError:
+        output(
+            {
+                "valid": False,
+                "errors": [
+                    {
+                        "check": "iterations",
+                        "message": "iterations.json contains invalid JSON",
+                    }
+                ],
+            }
+        )
+        sys.exit(1)
+
+    output({"valid": True})
+
+
+def cmd_validate_completion(args):
+    """Validate all completion requirements."""
+    errors = []
+
+    try:
+        change_dir = find_change_dir(args.change)
+    except SystemExit:
+        output(
+            {
+                "valid": False,
+                "errors": [
+                    {"check": "completion", "message": "Change directory not found"}
+                ],
+            }
+        )
+        sys.exit(1)
+
+    # Check state.json
+    state_file = change_dir / "state.json"
+    if not state_file.exists():
+        errors.append({"check": "completion", "message": "state.json not found"})
+    else:
+        try:
+            json.loads(state_file.read_text())
+        except json.JSONDecodeError:
+            errors.append(
+                {"check": "completion", "message": "state.json contains invalid JSON"}
+            )
+
+    # Check complete.json
+    complete_file = change_dir / "complete.json"
+    if not complete_file.exists():
+        errors.append({"check": "completion", "message": "complete.json not found"})
+    else:
+        try:
+            json.loads(complete_file.read_text())
+        except json.JSONDecodeError:
+            errors.append(
+                {
+                    "check": "completion",
+                    "message": "complete.json contains invalid JSON",
+                }
+            )
+
+    # Check iterations.json
+    iterations_file = change_dir / "iterations.json"
+    if not iterations_file.exists():
+        errors.append(
+            {"check": "completion", "message": "iterations.json not found"}
+        )
+    else:
+        try:
+            json.loads(iterations_file.read_text())
+        except json.JSONDecodeError:
+            errors.append(
+                {
+                    "check": "completion",
+                    "message": "iterations.json contains invalid JSON",
+                }
+            )
+
+    # Check decision-log.json
+    log_file = change_dir / "decision-log.json"
+    if not log_file.exists():
+        errors.append(
+            {"check": "completion", "message": "decision-log.json not found"}
+        )
+
+    # Check archive
+    archive_dir = Path("openspec/changes/archive")
+    archives = []
+    if archive_dir.is_dir():
+        for d in archive_dir.iterdir():
+            if d.is_dir() and d.name.endswith(f"-{args.change}"):
+                archives.append(d)
+
+    if len(archives) == 0:
+        errors.append(
+            {"check": "completion", "message": "Archive validation failed"}
+        )
+
+    if errors:
+        output({"valid": False, "errors": errors})
+        sys.exit(1)
+
+    output({"valid": True})
+
+
+# =============================================================================
+# Argument Parsing
+# =============================================================================
+
+
+def create_parser():
+    version = get_version()
+    parser = argparse.ArgumentParser(
+        prog="osc",
+        description="OpenSpec Change management tool",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {version}")
+
+    subparsers = parser.add_subparsers(dest="domain", help="Domain")
+
+    # State domain
+    state_parser = subparsers.add_parser("state", help="Phase and iteration state management")
+    state_subparsers = state_parser.add_subparsers(dest="action", help="Action")
+
+    # state get
+    state_get = state_subparsers.add_parser("get", help="Get current state")
+    state_get.add_argument("change", help="Change name")
+    state_get.set_defaults(func=cmd_state_get)
+
+    # state set-phase
+    state_set_phase = state_subparsers.add_parser("set-phase", help="Set current phase")
+    state_set_phase.add_argument("change", help="Change name")
+    state_set_phase.add_argument("phase", help="Phase to set")
+    state_set_phase.set_defaults(func=cmd_state_set_phase)
+
+    # state complete
+    state_complete = state_subparsers.add_parser("complete", help="Mark phase complete")
+    state_complete.add_argument("change", help="Change name")
+    state_complete.set_defaults(func=cmd_state_complete)
+
+    # state transition
+    state_transition = state_subparsers.add_parser(
+        "transition", help="Set explicit transition target"
+    )
+    state_transition.add_argument("change", help="Change name")
+    state_transition.add_argument("target", help="Target phase")
+    state_transition.add_argument("reason", help="Transition reason")
+    state_transition.add_argument("details", nargs="?", default=None, help="Optional details")
+    state_transition.set_defaults(func=cmd_state_transition)
+
+    # state clear-transition
+    state_clear = state_subparsers.add_parser(
+        "clear-transition", help="Clear transition field"
+    )
+    state_clear.add_argument("change", help="Change name")
+    state_clear.set_defaults(func=cmd_state_clear_transition)
+
+    # Iterations domain
+    iter_parser = subparsers.add_parser("iterations", help="Iteration history tracking")
+    iter_subparsers = iter_parser.add_subparsers(dest="action", help="Action")
+
+    # iterations get
+    iter_get = iter_subparsers.add_parser("get", help="Get iteration history")
+    iter_get.add_argument("change", help="Change name")
+    iter_get.set_defaults(func=cmd_iterations_get)
+
+    # iterations append
+    iter_append = iter_subparsers.add_parser("append", help="Append iteration entry")
+    iter_append.add_argument("change", help="Change name")
+    iter_append.add_argument("--phase", help="Phase")
+    iter_append.add_argument("--iteration", type=int, help="Iteration number")
+    iter_append.add_argument("--summary", help="Summary text")
+    iter_append.add_argument("--status", help="Status")
+    iter_append.add_argument("--issues", help="Issues (JSON)")
+    iter_append.add_argument("--artifacts-modified", help="Artifacts modified (JSON)")
+    iter_append.add_argument("--decisions", help="Decisions (JSON)")
+    iter_append.add_argument("--errors", help="Errors (JSON)")
+    iter_append.set_defaults(func=cmd_iterations_append)
+
+    # Log domain
+    log_parser = subparsers.add_parser("log", help="Decision log management")
+    log_subparsers = log_parser.add_subparsers(dest="action", help="Action")
+
+    # log get
+    log_get = log_subparsers.add_parser("get", help="Get decision log")
+    log_get.add_argument("change", help="Change name")
+    log_get.set_defaults(func=cmd_log_get)
+
+    # log append
+    log_append = log_subparsers.add_parser("append", help="Append log entry")
+    log_append.add_argument("change", help="Change name")
+    log_append.add_argument("--phase", help="Phase")
+    log_append.add_argument("--iteration", type=int, help="Iteration number")
+    log_append.add_argument("--summary", help="Summary text")
+    log_append.add_argument("--issues", help="Issues (JSON)")
+    log_append.add_argument("--artifacts-modified", help="Artifacts modified (JSON)")
+    log_append.add_argument("--next-steps", help="Next steps (JSON)")
+    log_append.add_argument("--decisions", help="Decisions (JSON)")
+    log_append.add_argument("--errors", help="Errors (JSON)")
+    log_append.set_defaults(func=cmd_log_append)
+
+    # Complete domain
+    complete_parser = subparsers.add_parser("complete", help="Completion status tracking")
+    complete_subparsers = complete_parser.add_subparsers(dest="action", help="Action")
+
+    # complete check
+    complete_check = complete_subparsers.add_parser("check", help="Check if complete.json exists")
+    complete_check.add_argument("change", help="Change name")
+    complete_check.set_defaults(func=cmd_complete_check)
+
+    # complete get
+    complete_get = complete_subparsers.add_parser("get", help="Get completion status")
+    complete_get.add_argument("change", help="Change name")
+    complete_get.set_defaults(func=cmd_complete_get)
+
+    # complete set
+    complete_set = complete_subparsers.add_parser("set", help="Set completion status")
+    complete_set.add_argument("change", help="Change name")
+    complete_set.add_argument(
+        "status", nargs="?", default="COMPLETE", help="Status (COMPLETE or BLOCKED)"
+    )
+    complete_set.add_argument(
+        "--blocker-reason", help="Blocker reason (required if status is BLOCKED)"
+    )
+    complete_set.set_defaults(func=cmd_complete_set)
+
+    # Validate domain
+    validate_parser = subparsers.add_parser("validate", help="Validation utilities")
+    validate_subparsers = validate_parser.add_subparsers(dest="action", help="Action")
+
+    # validate json
+    validate_json = validate_subparsers.add_parser("json", help="Validate JSON file")
+    validate_json.add_argument("file", help="File path")
+    validate_json.set_defaults(func=cmd_validate_json)
+
+    # validate skills
+    validate_skills = validate_subparsers.add_parser("skills", help="Validate required skills")
+    validate_skills.set_defaults(func=cmd_validate_skills)
+
+    # validate commands
+    validate_commands = validate_subparsers.add_parser(
+        "commands", help="Validate required commands"
+    )
+    validate_commands.set_defaults(func=cmd_validate_commands)
+
+    # validate change-dir
+    validate_change_dir = validate_subparsers.add_parser(
+        "change-dir", help="Validate change directory structure"
+    )
+    validate_change_dir.add_argument("change", help="Change name")
+    validate_change_dir.set_defaults(func=cmd_validate_change_dir)
+
+    # validate archive
+    validate_archive = validate_subparsers.add_parser("archive", help="Validate change is archived")
+    validate_archive.add_argument("change", help="Change name")
+    validate_archive.set_defaults(func=cmd_validate_archive)
+
+    # validate iterations
+    validate_iterations = validate_subparsers.add_parser(
+        "iterations", help="Validate iterations.json"
+    )
+    validate_iterations.add_argument("change", help="Change name")
+    validate_iterations.set_defaults(func=cmd_validate_iterations)
+
+    # validate completion
+    validate_completion = validate_subparsers.add_parser(
+        "completion", help="Validate all completion requirements"
+    )
+    validate_completion.add_argument("change", help="Change name")
+    validate_completion.set_defaults(func=cmd_validate_completion)
+
+    return parser
+
+
+def main():
+    parser = create_parser()
+    args = parser.parse_args()
+
+    if not hasattr(args, "func"):
+        parser.print_help()
+        sys.exit(1)
+
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

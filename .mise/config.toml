@@ -2,9 +2,13 @@
 shellcheck = "latest"
 pre-commit = {version = "latest", postinstall = "pre-commit install"}
 bats = "latest"
+uv = "latest"
+
+[env]
+_.python.venv = { path = ".venv" }
 
 [hooks]
-postinstall="mise run sync-core"
+postinstall = ["mise run sync-core", "uv sync"]
 
 [tasks.test]
 description = "Run unit and integration tests"
@@ -16,7 +20,18 @@ run = [
 
 [tasks."test:unit"]
 description = "Run unit tests"
+run = [
+    { task="test:unit:bash"},
+    { task="test:unit:python"},
+]
+
+[tasks."test:unit:bash"]
+description = "Run bash unit tests"
 run = "bats tests/unit"
+
+[tasks."test:unit:python"]
+description = "Run Python unit tests (osc tool)"
+run = "uv run pytest tests/lib -v"
 
 [tasks."test:integration"]
 description = "Run integration tests"
