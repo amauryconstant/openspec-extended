@@ -224,7 +224,7 @@ def cmd_state_get(args):
 
 
 def cmd_state_set_phase(args):
-    """Set current phase."""
+    """Set current phase (and optionally iteration)."""
     if args.phase not in PHASES:
         error("invalid_phase", f"Invalid phase: {args.phase}", valid=PHASES)
 
@@ -238,6 +238,8 @@ def cmd_state_set_phase(args):
     previous = state.get("phase", "UNKNOWN")
     state["phase"] = args.phase
     state["phase_name"] = PHASE_NAMES.get(args.phase, "UNKNOWN")
+    if hasattr(args, "iteration") and args.iteration is not None:
+        state["iteration"] = args.iteration
     state["last_updated"] = get_timestamp()
     write_json(state_file, state)
 
@@ -989,6 +991,31 @@ def cmd_ctx_get(args):
 
 
 # =============================================================================
+# Instructions Domain (proxies to openspec CLI)
+# =============================================================================
+
+
+def cmd_instructions(args):
+    """Proxy to openspec instructions command."""
+    import subprocess
+
+    cmd_args = ["openspec", "instructions", args.artifact]
+    if args.change:
+        cmd_args.extend(["--change", args.change])
+    if getattr(args, "json", False):
+        cmd_args.append("--json")
+
+    try:
+        result = subprocess.run(cmd_args, capture_output=True, text=True)
+        print(result.stdout, end="")
+        if result.returncode != 0:
+            print(result.stderr, file=sys.stderr, end="")
+            sys.exit(result.returncode)
+    except FileNotFoundError:
+        error("cli_not_found", "openspec CLI not found in PATH")
+
+
+# =============================================================================
 # Baseline Domain
 # =============================================================================
 
@@ -1204,6 +1231,15 @@ def create_parser():
     ctx_get.add_argument("change", help="Change name")
     ctx_get.set_defaults(func=cmd_ctx_get)
 
+    # Instructions domain (proxies to openspec CLI)
+    instructions_parser = subparsers.add_parser(
+        "instructions", help="Get artifact instructions (proxies to openspec CLI)"
+    )
+    instructions_parser.add_argument("artifact", help="Artifact type (e.g., specs, apply)")
+    instructions_parser.add_argument("--change", help="Change name")
+    instructions_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    instructions_parser.set_defaults(func=cmd_instructions)
+
     # Git domain
     git_parser = subparsers.add_parser("git", help="Git status for change directory")
     git_subparsers = git_parser.add_subparsers(dest="action", help="Action")
@@ -1236,16 +1272,27 @@ def create_parser():
     state_parser = subparsers.add_parser("state", help="Phase and iteration state management")
     state_subparsers = state_parser.add_subparsers(dest="action", help="Action")
 
-    # state get
+    # state get / show (aliases)
     state_get = state_subparsers.add_parser("get", help="Get current state")
     state_get.add_argument("change", help="Change name")
     state_get.set_defaults(func=cmd_state_get)
+    
+    state_show = state_subparsers.add_parser("show", help="Get current state (alias for get)")
+    state_show.add_argument("change", help="Change name")
+    state_show.set_defaults(func=cmd_state_get)
 
-    # state set-phase
+    # state set-phase / set (aliases)
     state_set_phase = state_subparsers.add_parser("set-phase", help="Set current phase")
     state_set_phase.add_argument("change", help="Change name")
     state_set_phase.add_argument("phase", help="Phase to set")
+    state_set_phase.add_argument("--iteration", type=int, help="Iteration number")
     state_set_phase.set_defaults(func=cmd_state_set_phase)
+    
+    state_set = state_subparsers.add_parser("set", help="Set current phase (alias for set-phase)")
+    state_set.add_argument("change", help="Change name")
+    state_set.add_argument("phase", help="Phase to set")
+    state_set.add_argument("--iteration", type=int, help="Iteration number")
+    state_set.set_defaults(func=cmd_state_set_phase)
 
     # state complete
     state_complete = state_subparsers.add_parser("complete", help="Mark phase complete")

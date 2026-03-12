@@ -66,11 +66,13 @@ run_streaming() {
     fi
 
     # Stream to terminal via FD 3 (BATS) or stdout, while capturing to file
+    # Use process substitution to capture output reliably
     "$@" 2>&1 | tee "$tmp_file" >&$output_fd
     local exit_code=${PIPESTATUS[0]}
 
-    # Wait for tee to finish writing (prevents race condition with buffered output)
-    wait 2>/dev/null || true
+    # Ensure tee has finished - pipeline completes when command exits
+    # Small delay to ensure filesystem buffers are flushed
+    sleep 0.1
 
     output=$(cat "$tmp_file")
     status=$exit_code

@@ -445,12 +445,6 @@ run_osc() {
   return 0
 }
 
-run_osc() {
-  local domain="$1"
-  shift
-  "$SCRIPT_DIR/lib/osc" "$domain" "$@"
-}
-
 is_valid_json_result() {
   local result="$1"
   [[ -n "$result" ]] && [[ $(echo "$result" | jq -r '.valid' 2>/dev/null) == "true" ]]
@@ -674,31 +668,33 @@ read_completion() {
 }
 
 get_current_phase() {
-  local result
-  result=$(run_osc state get "$CHANGE_ID")
+  local state_file="$CHANGE_DIR/state.json"
   
-  if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.phase // empty' 2>/dev/null) == "" ]]; then
+  if [[ ! -f "$state_file" ]]; then
     return 1
   fi
   
   local phase
-  phase=$(echo "$result" | jq -r '.phase')
+  phase=$(jq -r '.phase // empty' "$state_file" 2>/dev/null)
+  
+  if [[ -z "$phase" ]]; then
+    return 1
+  fi
   
   echo "$phase"
   return 0
 }
 
 get_phase_iteration() {
-  local result
-  result=$(run_osc state get "$CHANGE_ID")
+  local state_file="$CHANGE_DIR/state.json"
   
-  if [[ -z "$result" ]]; then
+  if [[ ! -f "$state_file" ]]; then
     echo 0
     return
   fi
   
   local iteration
-  iteration=$(echo "$result" | jq -r '.iteration // 0')
+  iteration=$(jq -r '.iteration // 0' "$state_file" 2>/dev/null)
   
   echo "$iteration"
 }
@@ -1239,10 +1235,9 @@ main() {
   fi
   
   if [[ -z "$FROM_PHASE" ]] && read_state; then
-    local current_phase
-    current_phase=$(get_current_phase)
+    RESUME_PHASE=$(get_current_phase)
     
-    log "Resuming from phase: $current_phase - $(get_phase_name "$current_phase")"
+    log "Resuming from phase: $RESUME_PHASE - $(get_phase_name "$RESUME_PHASE")"
     
     if [[ "$FORCE" == false ]] && [[ -t 0 ]]; then
       echo ""
@@ -1263,16 +1258,25 @@ main() {
   
   local current_phase="PHASE0"
   local started=false
+  local phase_determined=false
+  
+  # Apply resume phase if set
+  if [[ -n "${RESUME_PHASE:-}" ]]; then
+    current_phase="$RESUME_PHASE"
+    phase_determined=true
+  fi
   
   while true; do
     if [[ "$started" == false ]] && [[ -n "$FROM_PHASE" ]]; then
       current_phase="$FROM_PHASE"
       log "Starting from phase: $current_phase - $(get_phase_name "$current_phase")"
       started=true
-    elif current_phase=$(get_current_phase); then
-      : 
-    else
+      phase_determined=true
+    elif [[ "$phase_determined" == false ]] && current_phase=$(get_current_phase); then
+      phase_determined=true
+    elif [[ "$phase_determined" == false ]]; then
       current_phase="PHASE0"
+      phase_determined=true
     fi
     
     # Check for blocker signal from any phase
