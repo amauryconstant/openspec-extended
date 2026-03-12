@@ -6,8 +6,10 @@ Usage:
     osc <domain> <action> [args] [options]
 
 Domains:
+    baseline    Baseline tracking (commit/branch)
     ctx         Aggregate context for a change
     git         Git status for change directory
+    phase       Phase advancement management
     state       Phase and iteration state management
     iterations  Iteration history tracking
     log         Decision log management
@@ -862,6 +864,12 @@ def cmd_git_get(args):
     result = {"modified": [], "added": [], "untracked": [], "clean": True}
 
     try:
+        # Get current branch
+        branch = subprocess.check_output(
+            ["git", "branch", "--show-current"], stderr=subprocess.DEVNULL, text=True
+        ).strip() or "unknown"
+        result["branch"] = branch
+
         cmd = [
             "git", "status", "--porcelain",
             "--", str(change_dir)
@@ -890,7 +898,7 @@ def cmd_git_get(args):
                 result["clean"] = False
 
     except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
+        result["branch"] = "unknown"
 
     output(result)
 
@@ -981,6 +989,185 @@ def cmd_ctx_get(args):
 
 
 # =============================================================================
+# Baseline Domain
+# =============================================================================
+
+
+def cmd_baseline_record(args):
+    """Record baseline (current commit/branch)."""
+    import subprocess
+
+    try:
+        subprocess.check_output(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            stderr=subprocess.DEVNULL, text=True
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        error("not_git_repo", "Current directory is not a git repository")
+
+    try:
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL, text=True
+        ).strip()
+        branch = subprocess.check_output(
+            ["git", "branch", "--show-current"], stderr=subprocess.DEVNULL, text=True
+        ).strip() or "unknown"
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        error("git_error", "Failed to get git info")
+
+    timestamp = get_timestamp()
+
+    baseline_file = Path(".openspec-baseline.json")
+    data = {
+        "commit": commit,
+        "branch": branch,
+        "timestamp": timestamp,
+    }
+    write_json(baseline_file, data)
+    output(data)
+
+
+def cmd_baseline_get(args):
+    """Get baseline content."""
+    baseline_file = Path(".openspec-baseline.json")
+
+    if not baseline_file.exists():
+        error("baseline_not_found", ".openspec-baseline.json does not exist")
+
+    try:
+        data = json.loads(baseline_file.read_text())
+    except json.JSONDecodeError:
+        error("invalid_json", ".openspec-baseline.json contains invalid JSON")
+
+    output(data)
+
+
+# =============================================================================
+# Phase Domain
+# =============================================================================
+
+
+def get_next_phase(current: str) -> str:
+    """Get next phase in sequence."""
+    phase_order = {
+        "PHASE0": "PHASE1",
+        "PHASE1": "PHASE2",
+        "PHASE2": "PHASE3",
+        "PHASE3": "PHASE4",
+        "PHASE4": "PHASE5",
+        "PHASE5": "PHASE6",
+        "PHASE6": "COMPLETE",
+        "COMPLETE": "COMPLETE",
+    }
+    return phase_order.get(current, "COMPLETE")
+
+
+def cmd_phase_current(args):
+    """Get current phase info."""
+    change_dir = find_change_dir(args.change)
+    state_file = change_dir / "state.json"
+
+    # Don't create state for archived changes
+    if "archive" in str(change_dir) and not state_file.exists():
+        error("archived", "Change is archived, no active state")
+
+    if not state_file.exists():
+        # Create initial state
+        timestamp = get_timestamp()
+        state = {
+            "phase": "PHASE0",
+            "phase_name": PHASE_NAMES.get("PHASE0", "UNKNOWN"),
+            "iteration": 1,
+            "phase_complete": False,
+            "phase_iterations": {},
+            "started_at": timestamp,
+            "last_updated": timestamp,
+        }
+        write_json(state_file, state)
+    else:
+        state = read_json(state_file)
+
+    phase = state.get("phase", "UNKNOWN")
+    iteration = state.get("iteration", 0)
+    next_phase = get_next_phase(phase)
+
+    output({"phase": phase, "next": next_phase, "iteration": iteration})
+
+
+def cmd_phase_next(args):
+    """Get next phase name."""
+    change_dir = find_change_dir(args.change)
+    state_file = change_dir / "state.json"
+
+    if not state_file.exists():
+        # Create initial state
+        timestamp = get_timestamp()
+        state = {
+            "phase": "PHASE0",
+            "phase_name": PHASE_NAMES.get("PHASE0", "UNKNOWN"),
+            "iteration": 1,
+            "phase_complete": False,
+            "phase_iterations": {},
+            "started_at": timestamp,
+            "last_updated": timestamp,
+        }
+        write_json(state_file, state)
+    else:
+        state = read_json(state_file)
+
+    current = state.get("phase", "UNKNOWN")
+    if not current:
+        error("invalid_state", "state.json missing phase field")
+
+    next_phase = get_next_phase(current)
+    output({"next": next_phase})
+
+
+def cmd_phase_advance(args):
+    """Advance to next phase."""
+    change_dir = find_change_dir(args.change)
+    state_file = change_dir / "state.json"
+
+    if not state_file.exists():
+        # Create initial state
+        timestamp = get_timestamp()
+        state = {
+            "phase": "PHASE0",
+            "phase_name": PHASE_NAMES.get("PHASE0", "UNKNOWN"),
+            "iteration": 1,
+            "phase_complete": False,
+            "phase_iterations": {},
+            "started_at": timestamp,
+            "last_updated": timestamp,
+        }
+        write_json(state_file, state)
+    else:
+        state = read_json(state_file)
+
+    current_phase = state.get("phase", "UNKNOWN")
+    if not current_phase:
+        error("invalid_state", "state.json missing phase field")
+
+    next_phase = get_next_phase(current_phase)
+    timestamp = get_timestamp()
+
+    state["phase"] = next_phase
+    state["phase_name"] = PHASE_NAMES.get(next_phase, "UNKNOWN")
+    state["iteration"] = 1
+    state["phase_complete"] = False
+    state["last_updated"] = timestamp
+    write_json(state_file, state)
+
+    next_next = get_next_phase(next_phase)
+    output({
+        "phase": next_phase,
+        "previous": current_phase,
+        "next": next_next,
+        "iteration": 1,
+    })
+
+
+# =============================================================================
 # Argument Parsing
 # =============================================================================
 
@@ -995,6 +1182,18 @@ def create_parser():
     parser.add_argument("--version", action="version", version=f"%(prog)s {version}")
 
     subparsers = parser.add_subparsers(dest="domain", help="Domain")
+
+    # Baseline domain
+    baseline_parser = subparsers.add_parser("baseline", help="Baseline tracking")
+    baseline_subparsers = baseline_parser.add_subparsers(dest="action", help="Action")
+
+    # baseline record
+    baseline_record = baseline_subparsers.add_parser("record", help="Record baseline")
+    baseline_record.set_defaults(func=cmd_baseline_record)
+
+    # baseline get
+    baseline_get = baseline_subparsers.add_parser("get", help="Get baseline")
+    baseline_get.set_defaults(func=cmd_baseline_get)
 
     # Ctx domain
     ctx_parser = subparsers.add_parser("ctx", help="Aggregate context for a change")
@@ -1013,6 +1212,25 @@ def create_parser():
     git_get = git_subparsers.add_parser("get", help="Get git status")
     git_get.add_argument("change", help="Change name")
     git_get.set_defaults(func=cmd_git_get)
+
+    # Phase domain
+    phase_parser = subparsers.add_parser("phase", help="Phase advancement management")
+    phase_subparsers = phase_parser.add_subparsers(dest="action", help="Action")
+
+    # phase current
+    phase_current = phase_subparsers.add_parser("current", help="Get current phase info")
+    phase_current.add_argument("change", help="Change name")
+    phase_current.set_defaults(func=cmd_phase_current)
+
+    # phase next
+    phase_next = phase_subparsers.add_parser("next", help="Get next phase name")
+    phase_next.add_argument("change", help="Change name")
+    phase_next.set_defaults(func=cmd_phase_next)
+
+    # phase advance
+    phase_advance = phase_subparsers.add_parser("advance", help="Advance to next phase")
+    phase_advance.add_argument("change", help="Change name")
+    phase_advance.set_defaults(func=cmd_phase_advance)
 
     # State domain
     state_parser = subparsers.add_parser("state", help="Phase and iteration state management")

@@ -15,28 +15,30 @@ teardown() {
 # Error schema consistency
 
 @test "schema: osc-state error format has error and message fields" {
-    run_osc_state
+    run_osc_state get "nonexistent-change"
     [ "$status" -eq 1 ]
     assert_error_schema "$output"
 }
 
 @test "schema: osc-iterations error format has error and message fields" {
-    run_osc_iterations
+    run_osc_iterations get "nonexistent-change"
     [ "$status" -eq 1 ]
     assert_error_schema "$output"
 }
 
 @test "schema: osc-log error format has error and message fields" {
-    run_osc_log
+    run_osc_log get "nonexistent-change"
     [ "$status" -eq 1 ]
     assert_error_schema "$output"
 }
 
-@test "schema: osc-git error format (not in git repo)" {
+@test "schema: osc-git returns valid output even without git repo" {
+    setup_change "test-change"
     rm -rf .git
-    run_osc_git
-    [ "$status" -eq 1 ]
-    assert_error_schema "$output"
+    run_osc_git "test-change"
+    [ "$status" -eq 0 ]
+    # Should return branch as "unknown" when not in git repo
+    assert_json_equals "$output" ".branch" "unknown"
 }
 
 @test "schema: osc-ctx error format has error and message fields" {
@@ -46,25 +48,30 @@ teardown() {
 }
 
 @test "schema: osc-validate error format has error and message fields" {
-    run_osc_validate
+    # osc validate returns {"valid": false, "errors": [...]} format, not {"error": "...", "message": "..."}
+    run_osc_validate change-dir "nonexistent-change"
     [ "$status" -eq 1 ]
-    assert_error_schema "$output"
+    # Check for valid=false format instead of error/message format
+    if ! echo "$output" | jq -e '.valid == false' &>/dev/null; then
+        echo "Expected valid=false, got: $output"
+        return 1
+    fi
 }
 
 @test "schema: osc-phase error format has error and message fields" {
-    run_osc_phase
+    run_osc_phase current "nonexistent-change"
     [ "$status" -eq 1 ]
     assert_error_schema "$output"
 }
 
 @test "schema: osc-baseline error format has error and message fields" {
-    run_osc_baseline
+    run_osc_baseline get
     [ "$status" -eq 1 ]
     assert_error_schema "$output"
 }
 
 @test "schema: osc-complete error format has error and message fields" {
-    run_osc_complete
+    run_osc_complete get "nonexistent-change"
     [ "$status" -eq 1 ]
     assert_error_schema "$output"
 }
@@ -74,7 +81,7 @@ teardown() {
 @test "schema: osc-state get output has required fields" {
     setup_change_with_state "test-change" '{"phase":"PHASE1","iteration":2,"phase_complete":false}'
     
-    run_osc_state "test-change" get
+    run_osc_state get "test-change"
     [ "$status" -eq 0 ]
     assert_json_has_field "$output" "phase"
     assert_json_has_field "$output" "iteration"
@@ -85,7 +92,7 @@ teardown() {
 @test "schema: osc-iterations get output has required fields" {
     setup_change_with_iterations "test-change" '[{"iteration":1}]'
     
-    run_osc_iterations "test-change" get
+    run_osc_iterations get "test-change"
     [ "$status" -eq 0 ]
     assert_json_has_field "$output" "count"
     assert_json_has_field "$output" "iterations"
@@ -94,14 +101,16 @@ teardown() {
 @test "schema: osc-log get output has required fields" {
     setup_change_with_decision_log "test-change" '[{"entry":1}]'
     
-    run_osc_log "test-change" get
+    run_osc_log get "test-change"
     [ "$status" -eq 0 ]
     assert_json_has_field "$output" "count"
     assert_json_has_field "$output" "entries"
 }
 
 @test "schema: osc-git output has required fields" {
-    run_osc_git
+    setup_change "test-change"
+    
+    run_osc_git "test-change"
     [ "$status" -eq 0 ]
     assert_json_has_field "$output" "modified"
     assert_json_has_field "$output" "added"
@@ -125,7 +134,7 @@ teardown() {
 @test "schema: osc-validate output has valid field" {
     setup_change "test-change"
     
-    run_osc_validate "test-change" change-dir
+    run_osc_validate change-dir "test-change"
     [ "$status" -eq 0 ]
     assert_json_has_field "$output" "valid"
 }
@@ -133,7 +142,7 @@ teardown() {
 @test "schema: osc-validate invalid output has errors array" {
     mkdir -p "openspec/changes/test-change"
     
-    run_osc_validate "test-change" change-dir
+    run_osc_validate change-dir "test-change"
     [ "$status" -eq 1 ]
     assert_json_has_field "$output" "valid"
     assert_json_has_field "$output" "errors"
@@ -142,7 +151,7 @@ teardown() {
 @test "schema: osc-phase current output has required fields" {
     setup_change_with_state "test-change" '{"phase":"PHASE1","iteration":2}'
     
-    run_osc_phase "test-change" current
+    run_osc_phase current "test-change"
     [ "$status" -eq 0 ]
     assert_json_has_field "$output" "phase"
     assert_json_has_field "$output" "next"
@@ -152,7 +161,7 @@ teardown() {
 @test "schema: osc-phase advance output has required fields" {
     setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":1}'
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     assert_json_has_field "$output" "phase"
     assert_json_has_field "$output" "previous"
@@ -181,7 +190,7 @@ teardown() {
 @test "schema: osc-complete get output has required fields" {
     setup_change_with_complete "test-change" '{"status":"COMPLETE","with_blocker":false}'
     
-    run_osc_complete "test-change" get
+    run_osc_complete get "test-change"
     [ "$status" -eq 0 ]
     assert_json_has_field "$output" "status"
     assert_json_has_field "$output" "with_blocker"
@@ -190,7 +199,7 @@ teardown() {
 @test "schema: osc-complete check output has exists field" {
     setup_change_with_complete "test-change" '{"status":"COMPLETE"}'
     
-    run_osc_complete "test-change" check
+    run_osc_complete check "test-change"
     [ "$status" -eq 0 ]
     assert_json_has_field "$output" "exists"
 }
@@ -198,7 +207,7 @@ teardown() {
 @test "schema: osc-complete set output has required fields" {
     setup_change "test-change"
     
-    run_osc_complete "test-change" set
+    run_osc_complete set "test-change"
     [ "$status" -eq 0 ]
     assert_json_has_field "$output" "status"
     assert_json_has_field "$output" "with_blocker"

@@ -144,26 +144,6 @@ get_resource_info_from_path() {
       resource_type="commands"; resource_name="opsx-maintain-docs" ;;
     *"/scripts/openspec-auto")
       resource_type="scripts"; resource_name="openspec-auto" ;;
-    *"/scripts/lib/osc-common"*)
-      resource_type="lib"; resource_name="osc-common" ;;
-    *"/scripts/lib/osc-state"*)
-      resource_type="lib"; resource_name="osc-state" ;;
-    *"/scripts/lib/osc-ctx"*)
-      resource_type="lib"; resource_name="osc-ctx" ;;
-    *"/scripts/lib/osc-iterations"*)
-      resource_type="lib"; resource_name="osc-iterations" ;;
-    *"/scripts/lib/osc-log"*)
-      resource_type="lib"; resource_name="osc-log" ;;
-    *"/scripts/lib/osc-git"*)
-      resource_type="lib"; resource_name="osc-git" ;;
-    *"/scripts/lib/osc-baseline"*)
-      resource_type="lib"; resource_name="osc-baseline" ;;
-    *"/scripts/lib/osc-complete"*)
-      resource_type="lib"; resource_name="osc-complete" ;;
-    *"/scripts/lib/osc-phase"*)
-      resource_type="lib"; resource_name="osc-phase" ;;
-    *"/scripts/lib/osc-validate"*)
-      resource_type="lib"; resource_name="osc-validate" ;;
     *"/scripts/lib/osc")
       resource_type="lib"; resource_name="osc" ;;
   esac

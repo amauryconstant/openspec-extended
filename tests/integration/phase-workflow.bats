@@ -17,12 +17,12 @@ teardown() {
 @test "phase-workflow: advances from PHASE0 to PHASE1 with proper state updates" {
     setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":1,"phase_complete":true}'
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE1"
     assert_json_equals "$output" ".previous" "PHASE0"
     
-    run_osc_state "test-change" get
+    run_osc_state get "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE1"
     assert_json_equals "$output" ".iteration" "1"
@@ -32,32 +32,32 @@ teardown() {
 @test "phase-workflow: advances through multiple phases (0->1->2->3)" {
     setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":1,"phase_complete":true}'
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE1"
     
-    run_osc_state "test-change" complete
+    run_osc_state complete "test-change"
     [ "$status" -eq 0 ]
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE2"
     
-    run_osc_state "test-change" complete
+    run_osc_state complete "test-change"
     [ "$status" -eq 0 ]
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE3"
     
-    run_osc_state "test-change" get
+    run_osc_state get "test-change"
     assert_json_equals "$output" ".phase" "PHASE3"
 }
 
 @test "phase-workflow: state file persists correctly between phase advances" {
     setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":5,"phase_complete":true}'
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     
     local state_file="openspec/changes/test-change/state.json"
@@ -69,7 +69,7 @@ teardown() {
     [ "$phase" == "PHASE1" ]
     [ "$iteration" == "1" ]
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     
     phase=$(jq -r '.phase' "$state_file")
@@ -79,14 +79,14 @@ teardown() {
 @test "phase-workflow: iterations are recorded during phase transitions" {
     setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":1,"phase_complete":true}'
     
-    echo '{"iteration":1,"phase":"PHASE0","action":"initial"}' | "$LIB_DIR/osc-iterations" "test-change" append
+    "$LIB_DIR/osc" iterations append "test-change" --phase "PHASE0" --iteration 1 --extra '{"action":"initial"}'
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     
-    echo '{"iteration":1,"phase":"PHASE1","action":"started"}' | "$LIB_DIR/osc-iterations" "test-change" append
+    "$LIB_DIR/osc" iterations append "test-change" --phase "PHASE1" --iteration 1 --extra '{"action":"started"}'
     
-    run_osc_iterations "test-change" get
+    run_osc_iterations get "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".count" "2"
 }
@@ -94,64 +94,64 @@ teardown() {
 @test "phase-workflow: phase names are correct for each phase number" {
     setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":0}'
     
-    run_osc_phase "test-change" next
+    run_osc_phase next "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".next" "PHASE1"
     
-    run_osc_state "test-change" set-phase "PHASE1"
-    run_osc_phase "test-change" next
+    run_osc_state set-phase "test-change" "PHASE1"
+    run_osc_phase next "test-change"
     assert_json_equals "$output" ".next" "PHASE2"
     
-    run_osc_state "test-change" set-phase "PHASE2"
-    run_osc_phase "test-change" next
+    run_osc_state set-phase "test-change" "PHASE2"
+    run_osc_phase next "test-change"
     assert_json_equals "$output" ".next" "PHASE3"
     
-    run_osc_state "test-change" set-phase "PHASE3"
-    run_osc_phase "test-change" next
+    run_osc_state set-phase "test-change" "PHASE3"
+    run_osc_phase next "test-change"
     assert_json_equals "$output" ".next" "PHASE4"
     
-    run_osc_state "test-change" set-phase "PHASE4"
-    run_osc_phase "test-change" next
+    run_osc_state set-phase "test-change" "PHASE4"
+    run_osc_phase next "test-change"
     assert_json_equals "$output" ".next" "PHASE5"
     
-    run_osc_state "test-change" set-phase "PHASE5"
-    run_osc_phase "test-change" next
+    run_osc_state set-phase "test-change" "PHASE5"
+    run_osc_phase next "test-change"
     assert_json_equals "$output" ".next" "PHASE6"
     
-    run_osc_state "test-change" set-phase "PHASE6"
-    run_osc_phase "test-change" next
+    run_osc_state set-phase "test-change" "PHASE6"
+    run_osc_phase next "test-change"
     assert_json_equals "$output" ".next" "COMPLETE"
 }
 
 @test "phase-workflow: advance resets iteration to 1" {
     setup_change_with_state "test-change" '{"phase":"PHASE1","iteration":5,"phase_complete":true}'
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".iteration" "1"
     
-    run_osc_state "test-change" get
+    run_osc_state get "test-change"
     assert_json_equals "$output" ".iteration" "1"
 }
 
 @test "phase-workflow: advance sets phase_complete to false" {
     setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":1,"phase_complete":true}'
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     
-    run_osc_state "test-change" get
+    run_osc_state get "test-change"
     assert_json_false "$output" ".phase_complete"
 }
 
 @test "phase-workflow: complete action integrates with phase workflow" {
     setup_change_with_state "test-change" '{"phase":"PHASE1","iteration":2,"phase_complete":false}'
     
-    run_osc_state "test-change" complete
+    run_osc_state complete "test-change"
     [ "$status" -eq 0 ]
     assert_json_true "$output" ".phase_complete"
     
-    run_osc_phase "test-change" current
+    run_osc_phase current "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE1"
 }
@@ -159,7 +159,7 @@ teardown() {
 @test "phase-workflow: advance to COMPLETE from PHASE6" {
     setup_change_with_state "test-change" '{"phase":"PHASE6","iteration":1,"phase_complete":true}'
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "COMPLETE"
     assert_json_equals "$output" ".previous" "PHASE6"
@@ -175,7 +175,7 @@ teardown() {
     echo '[]' > "openspec/changes/archive/2024-01-15-test-change/decision-log.json"
     
     # Advance from PHASE6 should go to COMPLETE
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "COMPLETE"
     
@@ -193,19 +193,19 @@ teardown() {
     
     # Advance through all phases
     for expected_phase in PHASE1 PHASE2 PHASE3 PHASE4 PHASE5 PHASE6 COMPLETE; do
-        run_osc_phase "test-change" advance
+        run_osc_phase advance "test-change"
         [ "$status" -eq 0 ]
         assert_json_equals "$output" ".phase" "$expected_phase"
         
         # Mark complete for next advance (except COMPLETE)
         if [[ "$expected_phase" != "COMPLETE" ]]; then
-            run_osc_state "test-change" complete
+            run_osc_state complete "test-change"
             [ "$status" -eq 0 ]
         fi
     done
     
     # Final state should be COMPLETE
-    run_osc_state "test-change" get
+    run_osc_state get "test-change"
     assert_json_equals "$output" ".phase" "COMPLETE"
 }
 
@@ -250,12 +250,12 @@ EOF
     setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":3,"phase_complete":true}'
     
     # Normal advance should work (this was the bug - script exited on missing transition)
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE1"
     
     # Verify state is correct
-    run_osc_state "test-change" get
+    run_osc_state get "test-change"
     assert_json_equals "$output" ".phase" "PHASE1"
     assert_json_equals "$output" ".iteration" "1"
     assert_json_false "$output" ".phase_complete"
@@ -270,11 +270,11 @@ EOF
     [ "$target" == "PHASE1" ]
     
     # After handling transition, clear it
-    run_osc_state "test-change" clear-transition
+    run_osc_state clear-transition "test-change"
     [ "$status" -eq 0 ]
     
     # Normal advance should now work (to PHASE3)
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     assert_json_equals "$output" ".phase" "PHASE3"
 }
 
@@ -294,16 +294,16 @@ EOF
     setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":1,"phase_complete":true}'
     
     # Advance through PHASE0 -> PHASE1 -> PHASE2 without explicit transitions
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     assert_json_equals "$output" ".phase" "PHASE1"
     
-    run_osc_state "test-change" complete
+    run_osc_state complete "test-change"
     [ "$status" -eq 0 ]
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     assert_json_equals "$output" ".phase" "PHASE2"
     
-    run_osc_state "test-change" get
+    run_osc_state get "test-change"
     assert_json_equals "$output" ".phase" "PHASE2"
     assert_json_false "$output" ".phase_complete"
 }
@@ -321,11 +321,11 @@ EOF
     [ "$reason" == "implementation_incorrect" ]
     
     # After clearing transition, manual phase change should work
-    run_osc_state "test-change" clear-transition
-    run_osc_state "test-change" set-phase "PHASE1"
+    run_osc_state clear-transition "test-change"
+    run_osc_state set-phase "test-change" "PHASE1"
     [ "$status" -eq 0 ]
     
-    run_osc_state "test-change" get
+    run_osc_state get "test-change"
     assert_json_equals "$output" ".phase" "PHASE1"
 }
 

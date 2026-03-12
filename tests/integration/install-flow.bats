@@ -63,8 +63,7 @@ teardown() {
     [ "$status" -eq 0 ]
     
     assert_dir_exists ".opencode/scripts/lib"
-    assert_file_exists ".opencode/scripts/lib/osc-common"
-    assert_file_exists ".opencode/scripts/lib/osc-state"
+    assert_file_exists ".opencode/scripts/lib/osc"
 }
 
 @test "install-flow: install opencode copies manifest with version" {

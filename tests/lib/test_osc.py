@@ -1684,3 +1684,341 @@ class TestEdgeCases:
         assert "artifacts_modified" in osc.VALID_TRANSITION_REASONS
         assert "implementation_incorrect" in osc.VALID_TRANSITION_REASONS
         assert "retry_requested" in osc.VALID_TRANSITION_REASONS
+
+
+# =============================================================================
+# Test Baseline Domain
+# =============================================================================
+
+
+class TestBaselineRecord:
+    """Tests for baseline record command."""
+
+    def test_baseline_record_creates_file(self, monkeypatch, capsys):
+        """Test that record creates baseline file."""
+        project_root = Path(__file__).parent.parent.parent
+        monkeypatch.chdir(project_root)
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace()
+
+        osc.cmd_baseline_record(args)
+
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert "commit" in result
+        assert "branch" in result
+        assert "timestamp" in result
+
+        # Check file was created in project root
+        assert (project_root / ".openspec-baseline.json").exists()
+
+        # Cleanup
+        (project_root / ".openspec-baseline.json").unlink(missing_ok=True)
+
+    def test_baseline_record_returns_git_info(self, monkeypatch, capsys):
+        """Test that record returns git commit/branch/timestamp."""
+        project_root = Path(__file__).parent.parent.parent
+        monkeypatch.chdir(project_root)
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace()
+
+        osc.cmd_baseline_record(args)
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        assert "commit" in result
+        assert "branch" in result
+        assert "timestamp" in result
+        assert len(result["commit"]) == 40  # SHA-1 hash length
+
+        # Cleanup
+        (project_root / ".openspec-baseline.json").unlink(missing_ok=True)
+
+    def test_baseline_record_fails_outside_git(self, tmp_path, monkeypatch, capsys):
+        """Test that record fails outside git repo."""
+        non_git = tmp_path / "non-git"
+        non_git.mkdir()
+        monkeypatch.chdir(non_git)
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace()
+
+        with pytest.raises(SystemExit):
+            osc.cmd_baseline_record(args)
+
+        captured = capsys.readouterr()
+        result = json.loads(captured.err)
+        assert result["error"] == "not_git_repo"
+
+
+class TestBaselineGet:
+    """Tests for baseline get command."""
+
+    def test_baseline_get_returns_content(self, tmp_path, monkeypatch, capsys):
+        """Test that get returns baseline content."""
+        monkeypatch.chdir(tmp_path)
+        baseline_file = tmp_path / ".openspec-baseline.json"
+        baseline_file.write_text(
+            '{"commit": "abc123", "branch": "feature", "timestamp": "2024-01-15T10:00:00Z"}'
+        )
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace()
+
+        osc.cmd_baseline_get(args)
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        assert result["commit"] == "abc123"
+        assert result["branch"] == "feature"
+        assert result["timestamp"] == "2024-01-15T10:00:00Z"
+
+    def test_baseline_get_fails_without_file(self, tmp_path, monkeypatch, capsys):
+        """Test that get fails without baseline file."""
+        monkeypatch.chdir(tmp_path)
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace()
+
+        with pytest.raises(SystemExit):
+            osc.cmd_baseline_get(args)
+
+        captured = capsys.readouterr()
+        result = json.loads(captured.err)
+        assert result["error"] == "baseline_not_found"
+
+    def test_baseline_get_fails_with_invalid_json(self, tmp_path, monkeypatch, capsys):
+        """Test that get fails with invalid JSON."""
+        monkeypatch.chdir(tmp_path)
+        baseline_file = tmp_path / ".openspec-baseline.json"
+        baseline_file.write_text("not valid json")
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace()
+
+        with pytest.raises(SystemExit):
+            osc.cmd_baseline_get(args)
+
+        captured = capsys.readouterr()
+        result = json.loads(captured.err)
+        assert result["error"] == "invalid_json"
+
+
+# =============================================================================
+# Test Phase Domain
+# =============================================================================
+
+
+class TestPhaseCurrent:
+    """Tests for phase current command."""
+
+    def test_phase_current_creates_initial_state(self, change_dir, monkeypatch, capsys):
+        """Test that current creates initial state if missing."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(change="test-change")
+
+        osc.cmd_phase_current(args)
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        assert result["phase"] == "PHASE0"
+        assert result["next"] == "PHASE1"
+        assert result["iteration"] == 1
+
+        # Verify state file was created
+        assert (change_dir / "state.json").exists()
+
+    def test_phase_current_returns_existing_state(
+        self, change_dir, monkeypatch, capsys
+    ):
+        """Test that current returns existing state."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+        (change_dir / "state.json").write_text(
+            '{"phase": "PHASE2", "iteration": 3, "phase_complete": false}'
+        )
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(change="test-change")
+
+        osc.cmd_phase_current(args)
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        assert result["phase"] == "PHASE2"
+        assert result["next"] == "PHASE3"
+        assert result["iteration"] == 3
+
+    def test_phase_current_archived_no_state(self, tmp_path, monkeypatch, capsys):
+        """Test that current fails for archived change without state."""
+        archive_path = tmp_path / "openspec/changes/archive/2024-01-15-test-change"
+        archive_path.mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(change="test-change")
+
+        with pytest.raises(SystemExit):
+            osc.cmd_phase_current(args)
+
+        captured = capsys.readouterr()
+        result = json.loads(captured.err)
+        assert result["error"] == "archived"
+
+
+class TestPhaseNext:
+    """Tests for phase next command."""
+
+    def test_phase_next_returns_next_phase(self, change_dir, monkeypatch, capsys):
+        """Test that next returns correct next phase."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+        (change_dir / "state.json").write_text('{"phase": "PHASE1"}')
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(change="test-change")
+
+        osc.cmd_phase_next(args)
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        assert result["next"] == "PHASE2"
+
+    def test_phase_next_all_phases(self, change_dir, monkeypatch, capsys):
+        """Test next for all phases."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+
+        expected = {
+            "PHASE0": "PHASE1",
+            "PHASE1": "PHASE2",
+            "PHASE2": "PHASE3",
+            "PHASE3": "PHASE4",
+            "PHASE4": "PHASE5",
+            "PHASE5": "PHASE6",
+            "PHASE6": "COMPLETE",
+        }
+
+        from types import SimpleNamespace
+
+        for phase, expected_next in expected.items():
+            (change_dir / "state.json").write_text(f'{{"phase": "{phase}"}}')
+
+            args = SimpleNamespace(change="test-change")
+            osc.cmd_phase_next(args)
+            captured = capsys.readouterr()
+            result = json.loads(captured.out)
+
+            assert result["next"] == expected_next, f"Failed for {phase}"
+
+
+class TestPhaseAdvance:
+    """Tests for phase advance command."""
+
+    def test_phase_advance_advances_phase(self, change_dir, monkeypatch, capsys):
+        """Test that advance moves to next phase."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+        (change_dir / "state.json").write_text(
+            '{"phase": "PHASE0", "iteration": 5, "phase_complete": true}'
+        )
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(change="test-change")
+
+        osc.cmd_phase_advance(args)
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        assert result["phase"] == "PHASE1"
+        assert result["previous"] == "PHASE0"
+        assert result["next"] == "PHASE2"
+        assert result["iteration"] == 1
+
+    def test_phase_advance_resets_iteration(self, change_dir, monkeypatch, capsys):
+        """Test that advance resets iteration to 1."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+        (change_dir / "state.json").write_text(
+            '{"phase": "PHASE1", "iteration": 10, "phase_complete": true}'
+        )
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(change="test-change")
+
+        osc.cmd_phase_advance(args)
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        assert result["iteration"] == 1
+
+    def test_phase_advance_persists_state(self, change_dir, monkeypatch, capsys):
+        """Test that advance persists state to file."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+        (change_dir / "state.json").write_text(
+            '{"phase": "PHASE0", "iteration": 2, "phase_complete": true}'
+        )
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(change="test-change")
+
+        osc.cmd_phase_advance(args)
+        capsys.readouterr()  # Clear output
+
+        # Verify file was updated
+        state = json.loads((change_dir / "state.json").read_text())
+        assert state["phase"] == "PHASE1"
+        assert state["iteration"] == 1
+        assert state["phase_complete"] == False
+
+    def test_phase_advance_to_complete(self, change_dir, monkeypatch, capsys):
+        """Test advancing from PHASE6 to COMPLETE."""
+        monkeypatch.chdir(change_dir.parent.parent.parent)
+        (change_dir / "state.json").write_text(
+            '{"phase": "PHASE6", "iteration": 1, "phase_complete": true}'
+        )
+
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(change="test-change")
+
+        osc.cmd_phase_advance(args)
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+
+        assert result["phase"] == "COMPLETE"
+        assert result["previous"] == "PHASE6"
+
+
+class TestGetNextPhase:
+    """Tests for get_next_phase utility function."""
+
+    def test_get_next_phase_all(self):
+        """Test get_next_phase for all phases."""
+        expected = {
+            "PHASE0": "PHASE1",
+            "PHASE1": "PHASE2",
+            "PHASE2": "PHASE3",
+            "PHASE3": "PHASE4",
+            "PHASE4": "PHASE5",
+            "PHASE5": "PHASE6",
+            "PHASE6": "COMPLETE",
+            "COMPLETE": "COMPLETE",
+            "UNKNOWN": "COMPLETE",
+        }
+
+        for phase, expected_next in expected.items():
+            result = osc.get_next_phase(phase)
+            assert result == expected_next, f"Failed for {phase}"

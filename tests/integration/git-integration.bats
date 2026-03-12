@@ -15,7 +15,7 @@ teardown() {
 }
 
 @test "git-integration: baseline is recorded with commit hash" {
-    run_osc_baseline "record"
+    run_osc_baseline record
     [ "$status" -eq 0 ]
     
     local commit
@@ -26,7 +26,7 @@ teardown() {
 }
 
 @test "git-integration: baseline persists across state operations" {
-    run_osc_baseline "record"
+    run_osc_baseline record
     [ "$status" -eq 0 ]
     
     local recorded_commit
@@ -34,10 +34,10 @@ teardown() {
     
     setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":1}'
     
-    run_osc_phase "test-change" advance
+    run_osc_phase advance "test-change"
     [ "$status" -eq 0 ]
     
-    run_osc_baseline "get"
+    run_osc_baseline get
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".commit" "$recorded_commit"
 }
@@ -57,7 +57,7 @@ teardown() {
 }
 
 @test "git-integration: branch name is captured correctly" {
-    run_osc_baseline "record"
+    run_osc_baseline record
     [ "$status" -eq 0 ]
     
     local branch

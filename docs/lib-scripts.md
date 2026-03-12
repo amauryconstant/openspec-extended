@@ -4,7 +4,7 @@ Helper scripts in `.opencode/scripts/lib/` for reliable agent operations. All ou
 
 ## Primary Tool: `osc` (Python)
 
-The `osc` tool is the primary CLI for OpenSpec change management. It replaces multiple bash scripts with a unified Python interface.
+The `osc` tool is the unified CLI for OpenSpec change management. It replaces multiple bash scripts with a unified Python interface.
 
 **Location**: `.opencode/scripts/lib/osc`
 
@@ -16,14 +16,25 @@ The `osc` tool is the primary CLI for OpenSpec change management. It replaces mu
 osc <domain> <action> [args]
 
 Domains:
+  baseline    Baseline tracking (commit/branch)
   ctx         Aggregate context for a change
   git         Git status for change directory
+  phase       Phase advancement management
   state       Phase and iteration state management
   iterations  Iteration history tracking
   log         Decision log management
   complete    Completion status tracking
   validate    Validation utilities
 ```
+
+### Baseline Domain
+
+```
+osc baseline record
+osc baseline get
+```
+
+Records and retrieves baseline (commit/branch/timestamp) in `.openspec-baseline.json`.
 
 ### Ctx Domain
 
@@ -40,6 +51,18 @@ osc git get <change>
 ```
 
 Returns git status for the change directory.
+
+### Phase Domain
+
+```
+osc phase current <change>
+osc phase next <change>
+osc phase advance <change>
+```
+
+- `current` - Get current phase, next phase, and iteration
+- `next` - Get just the next phase name
+- `advance` - Advance to next phase, reset iteration to 1
 
 ### State Domain
 
@@ -63,7 +86,7 @@ osc iterations get <change>
 osc iterations append <change> --phase <PHASE> --iteration <N> [options]
 ```
 
-Options: `--summary`, `--status`, `--issues`, `--artifacts-modified`, `--decisions`, `--errors`
+Options: `--summary`, `--status`, `--notes`, `--commit-hash`, `--issues`, `--artifacts-modified`, `--decisions`, `--errors`, `--extra`
 
 Also accepts JSON via stdin for backward compatibility.
 
@@ -74,7 +97,7 @@ osc log get <change>
 osc log append <change> --phase <PHASE> --iteration <N> [options]
 ```
 
-Options: `--summary`, `--issues`, `--artifacts-modified`, `--next-steps`, `--decisions`, `--errors`
+Options: `--summary`, `--commit-hash`, `--next-steps`, `--issues`, `--artifacts-modified`, `--decisions`, `--errors`, `--extra`
 
 Also accepts JSON via stdin for backward compatibility.
 
@@ -99,6 +122,24 @@ osc validate json <file>
 ```
 
 ## Output Examples
+
+### osc baseline record
+
+```json
+{"commit": "abc123def456...", "branch": "main", "timestamp": "2024-01-15T10:30:00Z"}
+```
+
+### osc phase current
+
+```json
+{"phase": "PHASE1", "next": "PHASE2", "iteration": 2}
+```
+
+### osc phase advance
+
+```json
+{"phase": "PHASE2", "previous": "PHASE1", "next": "PHASE3", "iteration": 1}
+```
 
 ### osc state get
 
@@ -160,31 +201,13 @@ osc iterations append $1 --phase PHASE1 --iteration 2 --summary "Fixed validatio
 
 # Log decision
 osc log append $1 --phase PHASE0 --iteration 1 --summary "Reviewed artifacts"
+
+# Record baseline before starting
+osc baseline record
+
+# Advance to next phase
+osc phase advance $1
 ```
-
----
-
-## Legacy Bash Scripts (Deprecated)
-
-These scripts are still available but deprecated. Use `osc` instead.
-
-| Script | Replaced By | Usage |
-|--------|-------------|-------|
-| `osc-ctx` | `osc ctx` | `osc-ctx <change>` |
-| `osc-git` | `osc git` | `osc-git [change]` |
-| `osc-state` | `osc state` | `osc-state <change> <action>` |
-| `osc-iterations` | `osc iterations` | `osc-iterations <change> [get\|append]` |
-| `osc-log` | `osc log` | `osc-log <change> [get\|append]` |
-| `osc-complete` | `osc complete` | `osc-complete <change> <action>` |
-| `osc-validate` | `osc validate` | `osc-validate <change> <action>` |
-
-## Bash-Only Scripts (Not Yet Migrated)
-
-| Script | Purpose | Usage |
-|--------|---------|-------|
-| `osc-baseline` | Baseline tracking | `osc-baseline <action>` |
-| `osc-phase` | Phase advancement | `osc-phase <change> <action>` |
-| `osc-common` | Shared functions | (sourced by other scripts) |
 
 ### osc ctx get Output
 
@@ -192,7 +215,7 @@ These scripts are still available but deprecated. Use `osc` instead.
 {
   "change": "add-auth",
   "state": {"phase": "PHASE0", "iteration": 1, "phase_complete": false},
-  "git": {"modified": [], "added": [], "untracked": [], "clean": true},
+  "git": {"modified": [], "added": [], "untracked": [], "clean": true, "branch": "main"},
   "artifacts": {
     "proposal": {"exists": true, "size": 2048},
     "specs": {"exists": true, "count": 2},

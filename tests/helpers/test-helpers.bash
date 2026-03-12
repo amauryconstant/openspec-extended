@@ -129,49 +129,62 @@ assert_output_contains() {
     fi
 }
 
-# Run osc-state with test environment
+# Run osc Python tool with test environment
+run_osc() {
+    run "$LIB_DIR/osc" "$@"
+}
+
+# Convenience wrappers for common commands
+# Note: osc Python tool expects action before change name
+# Usage: run_osc_state get <change> (not run_osc_state <change> get)
 run_osc_state() {
-    run "$LIB_DIR/osc-state" "$@"
+    local action="$1"
+    shift
+    run "$LIB_DIR/osc" state "$action" "$@"
 }
 
-# Run osc-iterations with test environment
 run_osc_iterations() {
-    run "$LIB_DIR/osc-iterations" "$@"
+    local action="$1"
+    shift
+    run "$LIB_DIR/osc" iterations "$action" "$@"
 }
 
-# Run osc-log with test environment
 run_osc_log() {
-    run "$LIB_DIR/osc-log" "$@"
+    local action="$1"
+    shift
+    run "$LIB_DIR/osc" log "$action" "$@"
 }
 
-# Run osc-git with test environment
 run_osc_git() {
-    run "$LIB_DIR/osc-git" "$@"
+    run "$LIB_DIR/osc" git get "$@"
 }
 
-# Run osc-ctx with test environment
 run_osc_ctx() {
-    run "$LIB_DIR/osc-ctx" "$@"
+    run "$LIB_DIR/osc" ctx get "$@"
 }
 
-# Run osc-validate with test environment
 run_osc_validate() {
-    run "$LIB_DIR/osc-validate" "$@"
+    local action="$1"
+    shift
+    run "$LIB_DIR/osc" validate "$action" "$@"
 }
 
-# Run osc-phase with test environment
 run_osc_phase() {
-    run "$LIB_DIR/osc-phase" "$@"
+    local action="$1"
+    shift
+    run "$LIB_DIR/osc" phase "$action" "$@"
 }
 
-# Run osc-baseline with test environment
 run_osc_baseline() {
-    run "$LIB_DIR/osc-baseline" "$@"
+    local action="$1"
+    shift
+    run "$LIB_DIR/osc" baseline "$action" "$@"
 }
 
-# Run osc-complete with test environment
 run_osc_complete() {
-    run "$LIB_DIR/osc-complete" "$@"
+    local action="$1"
+    shift
+    run "$LIB_DIR/osc" complete "$action" "$@"
 }
 
 # Setup .opencode/skills directory with required skills
@@ -322,7 +335,7 @@ assert_phase_equals() {
     local expected_phase="$2"
     
     local actual
-    actual=$("$LIB_DIR/osc-state" "$change" get 2>/dev/null | jq -r '.phase')
+    actual=$("$LIB_DIR/osc" state "$change" get 2>/dev/null | jq -r '.phase')
     
     if [[ "$actual" != "$expected_phase" ]]; then
         echo "Expected phase to be '$expected_phase', got '$actual'"
@@ -374,8 +387,8 @@ run_full_phase_cycle() {
     local change="$1"
     
     for phase in PHASE0 PHASE1 PHASE2 PHASE3 PHASE4 PHASE5 PHASE6; do
-        "$LIB_DIR/osc-state" "$change" complete >/dev/null 2>&1 || true
-        "$LIB_DIR/osc-phase" "$change" advance >/dev/null 2>&1 || true
+        "$LIB_DIR/osc" state "$change" complete >/dev/null 2>&1 || true
+        "$LIB_DIR/osc" phase "$change" advance >/dev/null 2>&1 || true
     done
 }
 

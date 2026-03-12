@@ -17,45 +17,45 @@ teardown() {
 @test "change-lifecycle: create change -> advance phases -> complete" {
     setup_change_with_state "lifecycle-test" '{"phase":"PHASE0","iteration":0,"phase_complete":false}'
     
-    run_osc_phase "lifecycle-test" current
+    run_osc_phase current "lifecycle-test"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE0"
     
-    run_osc_state "lifecycle-test" complete
+    run_osc_state complete "lifecycle-test"
     [ "$status" -eq 0 ]
     
-    run_osc_phase "lifecycle-test" advance
+    run_osc_phase advance "lifecycle-test"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE1"
     
-    run_osc_state "lifecycle-test" complete
-    run_osc_phase "lifecycle-test" advance
+    run_osc_state complete "lifecycle-test"
+    run_osc_phase advance "lifecycle-test"
     assert_json_equals "$output" ".phase" "PHASE2"
     
-    run_osc_state "lifecycle-test" complete
-    run_osc_phase "lifecycle-test" advance
+    run_osc_state complete "lifecycle-test"
+    run_osc_phase advance "lifecycle-test"
     assert_json_equals "$output" ".phase" "PHASE3"
     
-    run_osc_state "lifecycle-test" complete
-    run_osc_phase "lifecycle-test" advance
+    run_osc_state complete "lifecycle-test"
+    run_osc_phase advance "lifecycle-test"
     assert_json_equals "$output" ".phase" "PHASE4"
     
-    run_osc_state "lifecycle-test" complete
-    run_osc_phase "lifecycle-test" advance
+    run_osc_state complete "lifecycle-test"
+    run_osc_phase advance "lifecycle-test"
     assert_json_equals "$output" ".phase" "PHASE5"
     
-    run_osc_state "lifecycle-test" complete
-    run_osc_phase "lifecycle-test" advance
+    run_osc_state complete "lifecycle-test"
+    run_osc_phase advance "lifecycle-test"
     assert_json_equals "$output" ".phase" "PHASE6"
     
-    run_osc_state "lifecycle-test" complete
-    run_osc_phase "lifecycle-test" advance
+    run_osc_state complete "lifecycle-test"
+    run_osc_phase advance "lifecycle-test"
     assert_json_equals "$output" ".phase" "COMPLETE"
     
-    run_osc_complete "lifecycle-test" set
+    run_osc_complete set "lifecycle-test"
     [ "$status" -eq 0 ]
     
-    run_osc_complete "lifecycle-test" check
+    run_osc_complete check "lifecycle-test"
     [ "$status" -eq 0 ]
     assert_json_true "$output" ".exists"
 }
@@ -63,9 +63,9 @@ teardown() {
 @test "change-lifecycle: context aggregation across full lifecycle" {
     setup_change_with_state "lifecycle-test" '{"phase":"PHASE1","iteration":2,"phase_complete":false}'
     
-    echo '{"iteration":1,"phase":"PHASE0","notes":"review"}' | "$LIB_DIR/osc-iterations" "lifecycle-test" append
+    "$LIB_DIR/osc" iterations append "lifecycle-test" --phase "PHASE0" --iteration 1 --extra '{"notes":"review"}'
     
-    echo '{"iteration":1,"phase":"PHASE1","notes":"implement"}' | "$LIB_DIR/osc-iterations" "lifecycle-test" append
+    "$LIB_DIR/osc" iterations append "lifecycle-test" --phase "PHASE1" --iteration 1 --extra '{"notes":"implement"}'
     
     run_osc_ctx "lifecycle-test"
     [ "$status" -eq 0 ]
@@ -81,7 +81,7 @@ teardown() {
 @test "change-lifecycle: archive workflow creates archive directory" {
     setup_change_with_state "lifecycle-test" '{"phase":"PHASE6","iteration":1,"phase_complete":true}'
     
-    run_osc_complete "lifecycle-test" set
+    run_osc_complete set "lifecycle-test"
     [ "$status" -eq 0 ]
     
     setup_archive "lifecycle-test" "2024-01-15"
@@ -97,18 +97,18 @@ teardown() {
     setup_change_with_state "change-alpha" '{"phase":"PHASE1","iteration":1}'
     setup_change_with_state "change-beta" '{"phase":"PHASE3","iteration":2}'
     
-    run_osc_phase "change-alpha" current
+    run_osc_phase current "change-alpha"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE1"
     
-    run_osc_phase "change-beta" current
+    run_osc_phase current "change-beta"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE3"
     
-    run_osc_phase "change-alpha" advance
+    run_osc_phase advance "change-alpha"
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".phase" "PHASE2"
     
-    run_osc_phase "change-beta" current
+    run_osc_phase current "change-beta"
     assert_json_equals "$output" ".phase" "PHASE3"
 }
