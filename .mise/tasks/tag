@@ -114,6 +114,7 @@ update_version_in_readme "$NEW_VERSION"
 echo ""
 echo "Updating version in pyproject.toml:"
 update_version_in_pyproject "$NEW_VERSION"
+uv sync
 echo ""
 echo "Updating version in manifest.json:"
 update_version_in_manifest "$NEW_VERSION"
