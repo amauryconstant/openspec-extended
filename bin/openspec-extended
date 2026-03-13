@@ -73,9 +73,13 @@ log_warn() {
     echo -e "${COLOR_YELLOW}!${COLOR_RESET} $*"
 }
 
-get_git_tag() {
-    git -C "$SCRIPT_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' && return
-    echo "$SCRIPT_VERSION"
+get_version() {
+    local manifest="$1"
+    if [[ ! -f "$manifest" ]]; then
+        log_error "Manifest not found: $manifest"
+        exit 1
+    fi
+    jq -r '.version' "$manifest"
 }
 
 show_version() {
@@ -427,9 +431,9 @@ case $_tool_rc in
         ;;
 esac
 
-GIT_VERSION=$(get_git_tag)
 FULL_PATH="$(pwd)/$TARGET_DIR"
 SOURCE_MANIFEST="$RESOURCES_DIR/$TOOL/manifest.json"
+GIT_VERSION=$(get_version "$SOURCE_MANIFEST")
 
 mkdir -p "$FULL_PATH/skills"
 
