@@ -1036,6 +1036,7 @@ show_progress() {
 
 archive_log_file() {
   if [[ -z "$LOG_FILE" ]] || [[ ! -f "$LOG_FILE" ]]; then
+    log_verbose "No log file to archive"
     return 0
   fi
   
@@ -1051,11 +1052,17 @@ archive_log_file() {
     git add "$archive_log"
     if git commit --amend --no-edit 2>/dev/null; then
       log_verbose "Archive commit amended with log file"
+      return 0
     else
-      log_warning "Failed to amend archive commit with log file"
+      log_error "Failed to amend archive commit with log file"
+      log_error "Log file was moved but not committed: $archive_log"
+      return 1
     fi
   else
-    log_warning "Failed to move log file to archive"
+    log_error "Failed to move log file to archive"
+    log_error "Log file: $LOG_FILE"
+    log_error "Target: $archive_log"
+    return 1
   fi
 }
 
@@ -1353,13 +1360,19 @@ main() {
         # Note: cleanup_state_files() is NOT called because PHASE6 already cleaned
         # transient files before archiving (state.json, complete.json, baseline)
         if validate_archive; then
-          archive_log_file
-          log ""
-          log "================================"
-          log_success "Implementation completed successfully!"
-          log "================================"
-          
-          exit 0
+          if archive_log_file; then
+            log ""
+            log "================================"
+            log_success "Implementation completed successfully!"
+            log "================================"
+            
+            exit 0
+          else
+            log ""
+            log_error "Log file archiving failed"
+            log_error "Archive exists but log file was not properly saved"
+            exit 1
+          fi
         else
           log ""
           log_error "Archive validation failed"
