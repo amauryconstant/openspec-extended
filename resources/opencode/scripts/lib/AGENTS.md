@@ -75,6 +75,7 @@ osx state clear-transition <change>
 ```
 
 **Transition reasons:**
+
 - `implementation_incorrect` - Artifacts correct, code needs fixing
 - `artifacts_modified` - Specs/design updated, re-implement needed
 - `retry_requested` - Same phase, different approach
@@ -126,55 +127,70 @@ osx validate json <file>
 ### osx baseline record
 
 ```json
-{"commit": "abc123def456...", "branch": "main", "timestamp": "2024-01-15T10:30:00Z"}
+{
+  "commit": "abc123def456...",
+  "branch": "main",
+  "timestamp": "2024-01-15T10:30:00Z"
+}
 ```
 
 ### osx phase current
 
 ```json
-{"phase": "PHASE1", "next": "PHASE2", "iteration": 2}
+{ "phase": "PHASE1", "next": "PHASE2", "iteration": 2 }
 ```
 
 ### osx phase advance
 
 ```json
-{"phase": "PHASE2", "previous": "PHASE1", "next": "PHASE3", "iteration": 1}
+{ "phase": "PHASE2", "previous": "PHASE1", "next": "PHASE3", "iteration": 1 }
 ```
 
 ### osx state get
 
 ```json
-{"phase": "PHASE1", "iteration": 2, "phase_complete": false, "change": "add-auth"}
+{
+  "phase": "PHASE1",
+  "iteration": 2,
+  "phase_complete": false,
+  "change": "add-auth"
+}
 ```
 
 ### osx state transition
 
 ```json
-{"success": true, "transition": {"target": "PHASE1", "reason": "implementation_incorrect"}}
+{
+  "success": true,
+  "transition": { "target": "PHASE1", "reason": "implementation_incorrect" }
+}
 ```
 
 ### osx iterations get
 
 ```json
-{"count": 5, "iterations": [1, 2, 3, 4, 5]}
+{ "count": 5, "iterations": [1, 2, 3, 4, 5] }
 ```
 
 ### osx complete check
 
 ```json
-{"exists": true}
+{ "exists": true }
 ```
 
 ### osx validate skills
 
 ```json
-{"valid": true}
+{ "valid": true }
 ```
 
 Or with errors:
 
 ```json
-{"valid": false, "errors": [{"check": "skills", "message": "Missing skill: osx-concepts"}]}
+{
+  "valid": false,
+  "errors": [{ "check": "skills", "message": "Missing skill: osx-concepts" }]
+}
 ```
 
 ## Usage Patterns
@@ -214,14 +230,20 @@ osx phase advance $1
 ```json
 {
   "change": "add-auth",
-  "state": {"phase": "PHASE0", "iteration": 1, "phase_complete": false},
-  "git": {"modified": [], "added": [], "untracked": [], "clean": true, "branch": "main"},
-  "artifacts": {
-    "proposal": {"exists": true, "size": 2048},
-    "specs": {"exists": true, "count": 2},
-    "design": {"exists": true, "size": 4096},
-    "tasks": {"exists": true, "size": 1024}
+  "state": { "phase": "PHASE0", "iteration": 1, "phase_complete": false },
+  "git": {
+    "modified": [],
+    "added": [],
+    "untracked": [],
+    "clean": true,
+    "branch": "main"
   },
-  "history": {"decision_log_entries": 3, "iterations_recorded": 1}
+  "artifacts": {
+    "proposal": { "exists": true, "size": 2048 },
+    "specs": { "exists": true, "count": 2 },
+    "design": { "exists": true, "size": 4096 },
+    "tasks": { "exists": true, "size": 1024 }
+  },
+  "history": { "decision_log_entries": 3, "iterations_recorded": 1 }
 }
 ```
