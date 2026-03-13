@@ -34,31 +34,31 @@
     },
     "commands": {
       "osx-phase0": {
-        "version": "0.2.6"
+        "version": "0.2.7"
       },
       "osx-phase1": {
-        "version": "0.2.8"
-      },
-      "osx-phase2": {
-        "version": "0.2.11"
-      },
-      "osx-phase3": {
         "version": "0.2.9"
       },
-      "osx-phase4": {
-        "version": "0.2.6"
-      },
-      "osx-phase5": {
-        "version": "0.2.10"
-      },
-      "osx-phase6": {
+      "osx-phase2": {
         "version": "0.2.12"
       },
+      "osx-phase3": {
+        "version": "0.3.0"
+      },
+      "osx-phase4": {
+        "version": "0.2.7"
+      },
+      "osx-phase5": {
+        "version": "0.2.11"
+      },
+      "osx-phase6": {
+        "version": "0.2.13"
+      },
       "osx-modify": {
-        "version": "0.1.1"
+        "version": "0.1.2"
       },
       "osx-review": {
-        "version": "0.1.1"
+        "version": "0.1.2"
       },
       "osx-verify-tests": {
         "version": "0.1.1"

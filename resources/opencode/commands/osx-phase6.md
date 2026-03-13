@@ -7,7 +7,7 @@ agent: osx-maintainer
 
 | Tool | Usage |
 |------|-------|
-| `osc` | `.opencode/scripts/lib/osc <domain> <action> [args]` - unified OpenSpec tool |
+| `osc` | `.opencode/scripts/lib/osx <domain> <action> [args]` - unified OpenSpec tool |
 | Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE6: Archive Change
@@ -26,7 +26,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-   !`.opencode/scripts/lib/osc ctx get "$1"`
+   !`.opencode/scripts/lib/osx ctx get "$1"`
 2. Confirm `phase` is PHASE6
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
@@ -76,7 +76,7 @@ These files are runtime artifacts that should not be archived.
 Append entry to decision log BEFORE committing:
 
 ```bash
-.opencode/scripts/lib/osc log append "$1" \
+.opencode/scripts/lib/osx log append "$1" \
   --phase ARCHIVE \
   --iteration N \
   --summary "Change successfully archived" \
@@ -91,7 +91,7 @@ Note: Commit hash is captured in git history, not duplicated in logs.
 Append entry to iterations.json BEFORE committing:
 
 ```bash
-.opencode/scripts/lib/osc iterations append "$1" \
+.opencode/scripts/lib/osx iterations append "$1" \
   --phase ARCHIVE \
   --iteration N \
   --notes "Change archived and committed successfully" \
@@ -137,7 +137,7 @@ After PHASE6 archive:
 If you encounter an unrecoverable issue that prevents progress:
 
 ```bash
-.opencode/scripts/lib/osc complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
+.opencode/scripts/lib/osx complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
 ```
 
 The orchestrator will detect this and halt the workflow.

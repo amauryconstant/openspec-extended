@@ -7,7 +7,7 @@ agent: osx-analyzer
 
 | Tool | Usage |
 |------|-------|
-| `osc` | `.opencode/scripts/lib/osc <domain> <action> [args]` - unified OpenSpec tool |
+| `osc` | `.opencode/scripts/lib/osx <domain> <action> [args]` - unified OpenSpec tool |
 | Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE5: Self-Reflection
@@ -17,9 +17,9 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`.opencode/scripts/lib/osc ctx get "$1"`
+  !`.opencode/scripts/lib/osx ctx get "$1"`
 2. Confirm `phase` is PHASE5
-3. Review full history via `osc log get "$1"` to understand entire workflow
+3. Review full history via `osx log get "$1"` to understand entire workflow
 4. Review `history.iterations_recorded` for iteration counts per phase
 5. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
 
@@ -108,7 +108,7 @@ cat > "openspec/changes/$1/reflections.md" << 'EOF'
 EOF
 
 # Log with path reference (not inline content)
-.opencode/scripts/lib/osc log append "$1" \
+.opencode/scripts/lib/osx log append "$1" \
   --phase SELF_REFLECTION \
   --iteration N \
   --summary "Self-reflection completed. Workflow evaluation finished." \
@@ -121,7 +121,7 @@ EOF
 
 Append entry:
 ```bash
-.opencode/scripts/lib/osc iterations append "$1" \
+.opencode/scripts/lib/osx iterations append "$1" \
   --phase SELF_REFLECTION \
   --iteration N \
   --commit-hash "<hash or null>" \
@@ -145,7 +145,7 @@ Record commit hash in decision log and iterations.json.
 If you encounter an unrecoverable issue that prevents progress:
 
 ```bash
-.opencode/scripts/lib/osc complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
+.opencode/scripts/lib/osx complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
 ```
 
 The orchestrator will detect this and halt the workflow.
@@ -157,5 +157,5 @@ The orchestrator will detect this and halt the workflow.
 ## TRANSITION
 
 1. Log: "Self-reflection complete, proceeding to ARCHIVE"
-2. Mark phase complete via `osc state`
+2. Mark phase complete via `osx state`
 3. Script will advance to PHASE6 (ARCHIVE)

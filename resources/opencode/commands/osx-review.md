@@ -8,7 +8,7 @@ license: MIT
 | Tool | Type | Usage |
 |------|------|-------|
 | `openspec` | Upstream CLI | `openspec <command> [options]` - npm package |
-| `osc ctx` | Local script | `.opencode/scripts/lib/osc ctx get <change>` - load change context |
+| `osx ctx` | Local script | `.opencode/scripts/lib/osx ctx get <change>` - load change context |
 
 Review OpenSpec artifacts (proposal, design, tasks, specs) for quality and completeness.
 
@@ -38,11 +38,12 @@ Optionally specify `[change-name] [artifact-id]` after `/osx-review`. If omitted
 
    Announce: "Reviewing change: <name>" and how to override.
 
-2. **Check status to understand schema**
+2. **Check status to understand schema** (Optional) 
     ```bash
-    .opencode/scripts/lib/osc ctx get "<name>"
+    .opencode/scripts/lib/osx ctx get "<name>"
     ```
-    Parse JSON for: state (phase, iteration), artifacts with existence info.
+    - Parse JSON for: state (phase, iteration), artifacts with existence info.
+    - Bypass if the call returns nothing or an error.
 
 3. **Select artifact to review**
 

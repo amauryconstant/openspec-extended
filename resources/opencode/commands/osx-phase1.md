@@ -8,7 +8,7 @@ agent: osx-builder
 | Tool | Type | Usage |
 |------|------|-------|
 | `openspec` | Upstream CLI | `openspec <command> [options]` - npm package |
-| `osc` | Local script | `.opencode/scripts/lib/osc <domain> <action> [args]` - unified OpenSpec tool |
+| `osx` | Local script | `.opencode/scripts/lib/osx <domain> <action> [args]` - unified OpenSpec tool |
 | Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE1: Implementation
@@ -18,7 +18,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`.opencode/scripts/lib/osc ctx get "$1"`
+  !`.opencode/scripts/lib/osx ctx get "$1"`
 2. Confirm `phase` is PHASE1
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
@@ -30,9 +30,9 @@ Change: $1
 Before beginning implementation:
 
 1. Run: `openspec status --change "$1" --json`
-2. Log via `osc log` with `cli_status` field
+2. Log via `osx log` with `cli_status` field
 3. Run: `openspec instructions apply --change "$1" --json`
-4. Log via `osc log` with `cli_instructions` field
+4. Log via `osx log` with `cli_instructions` field
 
 ## PURPOSE
 
@@ -42,7 +42,7 @@ Implement tasks from the change, making logical milestone commits and validating
 
 ### 1. Load Implementation Skill
 
-Load skill: Use `osc-apply-change` skill for change "$1"
+Load skill: Use `osx-apply-change` skill for change "$1"
 
 The skill provides the implementation workflow. Follow its task execution pattern.
 
@@ -74,7 +74,7 @@ Per the skill workflow:
 - Re-run the commit after fixing - hooks must pass
 
 **Persistent failures:** If fixes aren't possible within 3 attempts:
-- Document the issue via `osc log`
+- Document the issue via `osx log`
 - Consider if artifacts need modification
 - May need to signal COMPLETE with blocker_reason
 
@@ -101,14 +101,14 @@ After implementation complete:
 - If git commit fails: Check staged files, verify working directory clean, retry once
 - If tests fail repeatedly (>3 attempts): Use subagent to debug, check spec clarity
 - If stuck in iteration loop (>3 iterations with no progress): Document blocker, signal COMPLETE
-- If openspec CLI commands fail: Proceed without CLI output, document via `osc log`
+- If openspec CLI commands fail: Proceed without CLI output, document via `osx log`
 
 ## BLOCKER HANDLING
 
 If you encounter an unrecoverable issue that prevents progress:
 
 ```bash
-.opencode/scripts/lib/osc complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
+.opencode/scripts/lib/osx complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
 ```
 
 The orchestrator will detect this and halt the workflow.
@@ -123,14 +123,14 @@ The orchestrator will detect this and halt the workflow.
 
 When all tasks are complete:
 ```bash
-.opencode/scripts/lib/osc state complete "$1"
+.opencode/scripts/lib/osx state complete "$1"
 ```
 
 ## DECISION LOG
 
 Append entry:
 ```bash
-.opencode/scripts/lib/osc log append "$1" \
+.opencode/scripts/lib/osx log append "$1" \
   --phase IMPLEMENTATION \
   --iteration N \
   --summary "What was accomplished this iteration" \
@@ -143,7 +143,7 @@ Append entry:
 
 Append entry:
 ```bash
-.opencode/scripts/lib/osc iterations append "$1" \
+.opencode/scripts/lib/osx iterations append "$1" \
   --phase IMPLEMENTATION \
   --iteration N \
   --notes "Brief summary" \
@@ -155,7 +155,7 @@ Append entry:
 
 When all tasks in `tasks.md` are marked complete `[x]`:
 - Log: "All tasks complete, transitioning to PHASE2 (REVIEW)"
-- Mark phase complete via `osc state`
+- Mark phase complete via `osx state`
 - Script will advance to PHASE2
 
 Note: AGENTS.md updates will occur in PHASE3 (MAINTAIN DOCS), not here. Even if tasks.md contains AGENTS.md tasks, they should be deferred to PHASE3.

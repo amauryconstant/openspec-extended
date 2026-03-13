@@ -7,7 +7,7 @@ agent: osx-analyzer
 
 | Tool | Usage |
 |------|-------|
-| `osc` | `.opencode/scripts/lib/osc <domain> <action> [args]` - unified OpenSpec tool |
+| `osx` | `.opencode/scripts/lib/osx <domain> <action> [args]` - unified OpenSpec tool |
 | Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE0: Artifact Review
@@ -17,7 +17,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`.opencode/scripts/lib/osc ctx get "$1"`
+  !`.opencode/scripts/lib/osx ctx get "$1"`
 2. Confirm `phase` is PHASE0
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
@@ -42,17 +42,17 @@ Ensure OpenSpec artifacts are excellent before implementation. Validate:
 4. IF CRITICAL or WARNING issues found:
     **YOU MUST FIX THEM IMMEDIATELY IN THIS SAME INVOCATION - DO NOT WAIT FOR NEXT ITERATION**
     a. For each issue, use `osx-modify-artifacts` skill to fix it NOW
-    b. Track iteration via `osc log` and `osc iterations`
+    b. Track iteration via `osx log` and `osx iterations`
     c. After fixing all CRITICAL/WARNING issues, re-run review to verify fixes
     d. Only report "Recommendation: Fix issues" if you are UNABLE to fix them
 
 5. IF CLEAN (no CRITICAL or WARNING issues):
-    a. Log completion via `osc log`
-    b. Mark phase complete via `osc state`
+    a. Log completion via `osx log`
+    b. Mark phase complete via `osx state`
     c. Script will advance to PHASE1
 
 6. IF MAX ITERATIONS (5) reached without clean review:
-    a. Document all remaining CRITICAL issues via `osc log`
+    a. Document all remaining CRITICAL issues via `osx log`
    b. Create `complete.json` with CRITICAL BLOCKER status (workflow stops)
 
 ## MANDATORY END
@@ -70,19 +70,19 @@ Record commit hash in decision log.
 
 Phase complete (clean review):
 ```bash
-.opencode/scripts/lib/osc state complete "$1"
+.opencode/scripts/lib/osx state complete "$1"
 ```
 
 Critical blocker (cannot proceed):
 ```bash
-.opencode/scripts/lib/osc complete set "$1" BLOCKED --blocker-reason "[Describe the blocking issue]"
+.opencode/scripts/lib/osx complete set "$1" BLOCKED --blocker-reason "[Describe the blocking issue]"
 ```
 
 ## DECISION LOG
 
 Append entry:
 ```bash
-.opencode/scripts/lib/osc log append "$1" \
+.opencode/scripts/lib/osx log append "$1" \
   --phase ARTIFACT_REVIEW \
   --iteration N \
   --summary "Brief summary of this iteration" \
@@ -97,7 +97,7 @@ Append entry:
 
 Append entry:
 ```bash
-.opencode/scripts/lib/osc iterations append "$1" \
+.opencode/scripts/lib/osx iterations append "$1" \
   --phase ARTIFACT_REVIEW \
   --iteration N \
   --commit-hash "<hash or null>" \

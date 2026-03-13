@@ -7,7 +7,7 @@ agent: osx-maintainer
 
 | Tool | Usage |
 |------|-------|
-| `osc` | `.opencode/scripts/lib/osc <domain> <action> [args]` - unified OpenSpec tool |
+| `osc` | `.opencode/scripts/lib/osx <domain> <action> [args]` - unified OpenSpec tool |
 | Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE4: Sync Specs
@@ -17,7 +17,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`.opencode/scripts/lib/osc ctx get "$1"`
+  !`.opencode/scripts/lib/osx ctx get "$1"`
 2. Confirm `phase` is PHASE4
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
@@ -60,7 +60,7 @@ Record commit hash in decision log and iterations.json.
 If you encounter an unrecoverable issue that prevents progress:
 
 ```bash
-.opencode/scripts/lib/osc complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
+.opencode/scripts/lib/osx complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
 ```
 
 The orchestrator will detect this and halt the workflow.
@@ -74,14 +74,14 @@ The orchestrator will detect this and halt the workflow.
 
 Phase complete:
 ```bash
-.opencode/scripts/lib/osc state complete "$1"
+.opencode/scripts/lib/osx state complete "$1"
 ```
 
 ## DECISION LOG
 
 Append entry:
 ```bash
-.opencode/scripts/lib/osc log append "$1" \
+.opencode/scripts/lib/osx log append "$1" \
   --phase SYNC \
   --iteration N \
   --summary "Specs synced successfully" \
@@ -94,7 +94,7 @@ Append entry:
 
 Append entry:
 ```bash
-.opencode/scripts/lib/osc iterations append "$1" \
+.opencode/scripts/lib/osx iterations append "$1" \
   --phase SYNC \
   --iteration N \
   --commit-hash "<hash or null>" \
@@ -106,10 +106,10 @@ Append entry:
 
 IF delta specs exist and were synced:
 1. Log: "Specs synced, proceeding to ARCHIVE"
-2. Mark phase complete via `osc state`
+2. Mark phase complete via `osx state`
 3. Script will advance to PHASE5
 
 IF no delta specs:
 1. Log: "No delta specs, skipping SYNC"
-2. Mark phase complete via `osc state`
+2. Mark phase complete via `osx state`
 3. Script will advance to PHASE5

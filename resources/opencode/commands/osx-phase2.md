@@ -8,7 +8,7 @@ agent: osx-analyzer
 | Tool | Type | Usage |
 |------|------|-------|
 | `openspec` | Upstream CLI | `openspec <command> [options]` - npm package |
-| `osc` | Local script | `.opencode/scripts/lib/osc <domain> <action> [args]` - unified OpenSpec tool |
+| `osx` | Local script | `.opencode/scripts/lib/osx <domain> <action> [args]` - unified OpenSpec tool |
 | Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE2: Verification
@@ -18,7 +18,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`.opencode/scripts/lib/osc ctx get "$1"`
+  !`.opencode/scripts/lib/osx ctx get "$1"`
 2. Confirm `phase` is PHASE2
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
@@ -28,9 +28,9 @@ Change: $1
 Before starting PHASE2:
 
 1. Run: `openspec status --change "$1" --json`
-2. Log via `osc log` with `cli_status` field
+2. Log via `osx log` with `cli_status` field
 3. Run: `openspec instructions apply --change "$1" --json`
-4. Log via `osc log` with `cli_instructions` field
+4. Log via `osx log` with `cli_instructions` field
 
 ## PURPOSE
 
@@ -38,9 +38,9 @@ Validate implementation matches artifacts - completeness, correctness, coherence
 
 ## PROCESS
 
-1. Load and use `osc-verify-change` skill for change "$1"
+1. Load and use `osx-verify-change` skill for change "$1"
 2. Execute the skill's verification instructions exactly
-3. Log the verification report via `osc log` in `verification_report` field
+3. Log the verification report via `osx log` in `verification_report` field
 4. Do NOT modify the skill's verification report format
 
 The skill provides:
@@ -59,7 +59,7 @@ First, determine the root cause:
 2. Commit the artifact changes
 3. Signal transition back to PHASE1:
    ```bash
-   .opencode/scripts/lib/osc state transition "$1" PHASE1 artifacts_modified "Brief description of what was fixed"
+   .opencode/scripts/lib/osx state transition "$1" PHASE1 artifacts_modified "Brief description of what was fixed"
    ```
 4. Log: "Artifacts modified, transitioning to PHASE1 for re-implementation"
 
@@ -67,14 +67,14 @@ First, determine the root cause:
 1. DO NOT modify artifacts
 2. Signal transition back to PHASE1:
    ```bash
-   .opencode/scripts/lib/osc state transition "$1" PHASE1 implementation_incorrect "Brief description of what needs fixing"
+   .opencode/scripts/lib/osx state transition "$1" PHASE1 implementation_incorrect "Brief description of what needs fixing"
    ```
 3. Log: "Implementation incorrect, transitioning to PHASE1 for fixes"
 
 **Case C: Same phase needs retry with different approach**
 1. Signal retry:
    ```bash
-   .opencode/scripts/lib/osc state transition "$1" PHASE2 retry_requested "Brief description of alternative approach"
+   .opencode/scripts/lib/osx state transition "$1" PHASE2 retry_requested "Brief description of alternative approach"
    ```
 2. Log: "Requesting retry with different approach"
 
@@ -82,9 +82,9 @@ IF NO CRITICAL OR WARNING ISSUES (SUGGESTIONS OK):
 
 1. Log: "Verification passed, no CRITICAL or WARNING issues"
 2. Log any SUGGESTION issues for future reference
-3. Mark phase complete via `osc state`:
+3. Mark phase complete via `osx state`:
    ```bash
-   .opencode/scripts/lib/osc state complete "$1"
+   .opencode/scripts/lib/osx state complete "$1"
    ```
 4. Script will advance to PHASE3
 
@@ -132,7 +132,7 @@ Record commit hash in decision log and iterations.json.
 
 Phase complete (verification passed):
 ```bash
-.opencode/scripts/lib/osc state complete "$1"
+.opencode/scripts/lib/osx state complete "$1"
 ```
 
 ## DECISION LOG
@@ -168,7 +168,7 @@ None.
 EOF
 
 # Log with path reference (not inline content)
-.opencode/scripts/lib/osc log append "$1" \
+.opencode/scripts/lib/osx log append "$1" \
   --phase REVIEW \
   --iteration N \
   --summary "Verification results summary" \
@@ -181,7 +181,7 @@ EOF
 
 Append entry:
 ```bash
-.opencode/scripts/lib/osc iterations append "$1" \
+.opencode/scripts/lib/osx iterations append "$1" \
   --phase REVIEW \
   --iteration N \
   --commit-hash "<hash or null>" \
@@ -191,11 +191,11 @@ Append entry:
 
 ## TRANSITION
 
-Use `osc state transition` for explicit phase control:
+Use `osx state transition` for explicit phase control:
 
 | Scenario | Command | Reason |
 |----------|---------|--------|
-| Artifacts fixed | `osc state transition "$1" PHASE1 artifacts_modified "..."` | Specs/design updated, re-implement |
-| Implementation wrong | `osc state transition "$1" PHASE1 implementation_incorrect "..."` | Artifacts correct, code needs fix |
-| Retry with new approach | `osc state transition "$1" PHASE2 retry_requested "..."` | Try different solution |
-| Verification passed | `osc state complete "$1"` | Normal advance to PHASE3 |
+| Artifacts fixed | `osx state transition "$1" PHASE1 artifacts_modified "..."` | Specs/design updated, re-implement |
+| Implementation wrong | `osx state transition "$1" PHASE1 implementation_incorrect "..."` | Artifacts correct, code needs fix |
+| Retry with new approach | `osx state transition "$1" PHASE2 retry_requested "..."` | Try different solution |
+| Verification passed | `osx state complete "$1"` | Normal advance to PHASE3 |
