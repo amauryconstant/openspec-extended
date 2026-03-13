@@ -223,6 +223,7 @@ deploy_core() {
     if output=$(openspec init --tools "$tool" --force 2>&1); then
         log_success "Core resources installed via openspec"
         rename_core_resources "$tool"
+        remove_conflicting_core_resources "$tool"
     else
         log_error "openspec init failed"
         echo "$output" >&2
@@ -285,6 +286,36 @@ rename_core_resources() {
     
     if [[ $renamed_count -gt 0 ]]; then
         log_success "Renamed $renamed_count core resource(s)"
+    fi
+}
+
+remove_conflicting_core_resources() {
+    local tool="$1"
+    local target_dir
+    target_dir=$(get_tool_dir "$tool")
+    
+    log_info "Removing core resources that conflict with extended resources..."
+    
+    local removed_count=0
+    
+    if [[ -d "$target_dir/commands" ]]; then
+        while IFS= read -r -d '' cmd_file; do
+            local basename
+            basename=$(basename "$cmd_file")
+            
+            if [[ "$basename" =~ ^osc-(.+)\.md$ ]]; then
+                local osx_name="osx-${BASH_REMATCH[1]}.md"
+                
+                if [[ -f "$target_dir/commands/$osx_name" ]]; then
+                    rm "$cmd_file"
+                    removed_count=$((removed_count + 1))
+                fi
+            fi
+        done < <(find "$target_dir/commands" -maxdepth 1 -type f -name "osc-*.md" -print0 2>/dev/null)
+    fi
+    
+    if [[ $removed_count -gt 0 ]]; then
+        log_success "Removed $removed_count conflicting core resource(s)"
     fi
 }
 
@@ -439,25 +470,62 @@ COMMANDS_DIR="$FULL_PATH/commands"
 if [[ -d "$RESOURCES_DIR/$TOOL/commands" ]]; then
     mkdir -p "$COMMANDS_DIR"
     
-    FLAT_COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
-    if [[ $FLAT_COMMAND_COUNT -gt 0 ]]; then
-        cp -f "$RESOURCES_DIR/$TOOL/commands"/*.md "$COMMANDS_DIR/"
-        log_success "Copied $FLAT_COMMAND_COUNT command(s) to $TOOL"
-        echo "  Target: $TARGET_DIR/commands/"
-    fi
-    
-    for subdir in "$RESOURCES_DIR/$TOOL/commands"/*/; do
-        if [[ -d "$subdir" ]]; then
-            subdir_name=$(basename "$subdir")
-            NESTED_COMMAND_COUNT=$(find "$subdir" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
-            if [[ $NESTED_COMMAND_COUNT -gt 0 ]]; then
-                mkdir -p "$COMMANDS_DIR/$subdir_name"
-                cp -f "$subdir"*.md "$COMMANDS_DIR/$subdir_name/"
-                log_success "Copied $NESTED_COMMAND_COUNT command(s) to $TOOL/$subdir_name"
-                echo "  Target: $TARGET_DIR/commands/$subdir_name/"
-            fi
+    if [[ "$COMMAND" == "update" ]]; then
+        FLAT_COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
+        if [[ $FLAT_COMMAND_COUNT -gt 0 ]]; then
+            cp -f "$RESOURCES_DIR/$TOOL/commands"/*.md "$COMMANDS_DIR/"
+            log_success "Updated $FLAT_COMMAND_COUNT command(s) in $TOOL"
+            echo "  Target: $TARGET_DIR/commands/"
         fi
-    done
+        
+        for subdir in "$RESOURCES_DIR/$TOOL/commands"/*/; do
+            if [[ -d "$subdir" ]]; then
+                subdir_name=$(basename "$subdir")
+                NESTED_COMMAND_COUNT=$(find "$subdir" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
+                if [[ $NESTED_COMMAND_COUNT -gt 0 ]]; then
+                    mkdir -p "$COMMANDS_DIR/$subdir_name"
+                    cp -f "$subdir"*.md "$COMMANDS_DIR/$subdir_name/"
+                    log_success "Updated $NESTED_COMMAND_COUNT command(s) in $TOOL/$subdir_name"
+                    echo "  Target: $TARGET_DIR/commands/$subdir_name/"
+                fi
+            fi
+        done
+    else
+        NEW_COMMAND_COUNT=0
+        while IFS= read -r -d '' cmd_file; do
+            cmd_name=$(basename "$cmd_file")
+            if [[ ! -f "$COMMANDS_DIR/$cmd_name" ]]; then
+                cp "$cmd_file" "$COMMANDS_DIR/"
+                NEW_COMMAND_COUNT=$((NEW_COMMAND_COUNT + 1))
+            fi
+        done < <(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f -name "*.md" -print0 2>/dev/null)
+        
+        if [[ $NEW_COMMAND_COUNT -gt 0 ]]; then
+            log_success "Installed $NEW_COMMAND_COUNT command(s) to $TOOL"
+            echo "  Target: $TARGET_DIR/commands/"
+        fi
+        
+        for subdir in "$RESOURCES_DIR/$TOOL/commands"/*/; do
+            if [[ -d "$subdir" ]]; then
+                subdir_name=$(basename "$subdir")
+                mkdir -p "$COMMANDS_DIR/$subdir_name"
+                
+                NEW_NESTED_COUNT=0
+                while IFS= read -r -d '' cmd_file; do
+                    cmd_name=$(basename "$cmd_file")
+                    if [[ ! -f "$COMMANDS_DIR/$subdir_name/$cmd_name" ]]; then
+                        cp "$cmd_file" "$COMMANDS_DIR/$subdir_name/"
+                        NEW_NESTED_COUNT=$((NEW_NESTED_COUNT + 1))
+                    fi
+                done < <(find "$subdir" -mindepth 1 -maxdepth 1 -type f -name "*.md" -print0 2>/dev/null)
+                
+                if [[ $NEW_NESTED_COUNT -gt 0 ]]; then
+                    log_success "Installed $NEW_NESTED_COUNT command(s) to $TOOL/$subdir_name"
+                    echo "  Target: $TARGET_DIR/commands/$subdir_name/"
+                fi
+            fi
+        done
+    fi
 fi
 
 SCRIPTS_DIR="$FULL_PATH/scripts"
@@ -501,20 +569,53 @@ if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
         mkdir -p "$SCRIPTS_DIR/lib"
         
         if [[ -f "$RESOURCES_DIR/$TOOL/scripts/lib/osx" ]]; then
-            cp -f "$RESOURCES_DIR/$TOOL/scripts/lib/osx" "$SCRIPTS_DIR/lib/"
+            if [[ "$COMMAND" == "update" ]]; then
+                cp -f "$RESOURCES_DIR/$TOOL/scripts/lib/osx" "$SCRIPTS_DIR/lib/"
+            else
+                if [[ ! -f "$SCRIPTS_DIR/lib/osx" ]]; then
+                    cp "$RESOURCES_DIR/$TOOL/scripts/lib/osx" "$SCRIPTS_DIR/lib/"
+                fi
+            fi
             chmod +x "$SCRIPTS_DIR/lib/osx"
             log_success "Deployed osx tool to $TOOL"
             echo "  Target: $TARGET_DIR/scripts/lib/osx"
         fi
         
+        if [[ -f "$RESOURCES_DIR/$TOOL/scripts/lib/AGENTS.md" ]]; then
+            if [[ "$COMMAND" == "update" ]]; then
+                cp -f "$RESOURCES_DIR/$TOOL/scripts/lib/AGENTS.md" "$SCRIPTS_DIR/lib/"
+            else
+                if [[ ! -f "$SCRIPTS_DIR/lib/AGENTS.md" ]]; then
+                    cp "$RESOURCES_DIR/$TOOL/scripts/lib/AGENTS.md" "$SCRIPTS_DIR/lib/"
+                fi
+            fi
+        fi
+        
         LIB_COUNT=$(find "$RESOURCES_DIR/$TOOL/scripts/lib" -mindepth 1 -maxdepth 1 -type f -name "osx-*" 2>/dev/null | wc -l)
         
         if [[ $LIB_COUNT -gt 0 ]]; then
-            cp -f "$RESOURCES_DIR/$TOOL/scripts/lib"/osx-* "$SCRIPTS_DIR/lib/"
-            chmod +x "$SCRIPTS_DIR/lib"/osx-*
-            
-            log_success "Deployed $LIB_COUNT lib script(s) to $TOOL"
-            echo "  Target: $TARGET_DIR/scripts/lib/"
+            if [[ "$COMMAND" == "update" ]]; then
+                cp -f "$RESOURCES_DIR/$TOOL/scripts/lib"/osx-* "$SCRIPTS_DIR/lib/"
+                chmod +x "$SCRIPTS_DIR/lib"/osx-*
+                
+                log_success "Deployed $LIB_COUNT lib script(s) to $TOOL"
+                echo "  Target: $TARGET_DIR/scripts/lib/"
+            else
+                NEW_LIB_COUNT=0
+                while IFS= read -r -d '' lib_file; do
+                    lib_name=$(basename "$lib_file")
+                    if [[ ! -f "$SCRIPTS_DIR/lib/$lib_name" ]]; then
+                        cp "$lib_file" "$SCRIPTS_DIR/lib/"
+                        chmod +x "$SCRIPTS_DIR/lib/$lib_name"
+                        NEW_LIB_COUNT=$((NEW_LIB_COUNT + 1))
+                    fi
+                done < <(find "$RESOURCES_DIR/$TOOL/scripts/lib" -mindepth 1 -maxdepth 1 -type f -name "osx-*" -print0 2>/dev/null)
+                
+                if [[ $NEW_LIB_COUNT -gt 0 ]]; then
+                    log_success "Deployed $NEW_LIB_COUNT lib script(s) to $TOOL"
+                    echo "  Target: $TARGET_DIR/scripts/lib/"
+                fi
+            fi
         fi
     fi
 fi

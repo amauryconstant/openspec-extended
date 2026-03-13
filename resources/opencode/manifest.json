@@ -76,36 +76,6 @@
       }
     },
     "lib": {
-      "osx-common": {
-        "version": "0.1.4"
-      },
-      "osx-state": {
-        "version": "0.3.3"
-      },
-      "osx-ctx": {
-        "version": "0.2.2"
-      },
-      "osx-iterations": {
-        "version": "0.2.3"
-      },
-      "osx-log": {
-        "version": "0.3.3"
-      },
-      "osx-git": {
-        "version": "0.1.2"
-      },
-      "osx-baseline": {
-        "version": "0.1.1"
-      },
-      "osx-complete": {
-        "version": "0.1.2"
-      },
-      "osx-phase": {
-        "version": "0.1.7"
-      },
-      "osx-validate": {
-        "version": "0.1.2"
-      },
       "osx": {
         "version": "0.1.1"
       }
