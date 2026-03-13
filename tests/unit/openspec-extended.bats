@@ -116,7 +116,6 @@ teardown() {
 
 @test "openspec-extended: script contains required functions" {
     grep -q "resolve_install_dirs" "$OPENCODEX_BIN"
-    grep -q "get_git_tag" "$OPENCODEX_BIN"
     grep -q "copy_skills" "$OPENCODEX_BIN"
     grep -q "deploy_core" "$OPENCODEX_BIN"
 }
@@ -131,7 +130,7 @@ teardown() {
 
 # ========== Version fallback ==========
 
-@test "openspec-extended: get_git_tag falls back to SCRIPT_VERSION outside git" {
+@test "openspec-extended: script uses SCRIPT_VERSION fallback" {
     # The script should have a fallback version
     grep -q "SCRIPT_VERSION" "$OPENCODEX_BIN"
     
