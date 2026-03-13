@@ -1,6 +1,6 @@
 [project]
 name = "openspec-extended"
-version = "0.14.0"
+version = "0.15.0"
 description = "OpenSpec-extended - Bridge AI coding assistants with OpenSpec spec-driven development"
 readme = "README.md"
 requires-python = ">=3.14"
