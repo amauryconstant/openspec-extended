@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Bash](https://img.shields.io/badge/Bash-3.2+-green.svg?style=flat-square)](https://www.gnu.org/software/bash/)
-[![Version](https://img.shields.io/badge/version-v0.15.4-orange.svg?style=flat-square)](https://github.com/amauryconstant/openspec-extended)
+[![Version](https://img.shields.io/badge/version-v0.16.0-orange.svg?style=flat-square)](https://github.com/amauryconstant/openspec-extended)
 
 An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) that adds autonomous implementation capabilities and utility skills for AI coding assistants.
 
@@ -37,7 +37,7 @@ curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/mai
 ### Specific Version
 
 ```bash
-VERSION=v0.15.4 curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
+VERSION=v0.16.0 curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
 ```
 
 ### System-wide Install
