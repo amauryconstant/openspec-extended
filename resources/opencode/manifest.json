@@ -72,7 +72,7 @@
     },
     "scripts": {
       "osx-orchestrate": {
-        "version": "1.6.0"
+        "version": "1.6.2"
       }
     },
     "lib": {
@@ -107,7 +107,7 @@
         "version": "0.1.2"
       },
       "osx": {
-        "version": "0.1.0"
+        "version": "0.1.1"
       }
     }
   }

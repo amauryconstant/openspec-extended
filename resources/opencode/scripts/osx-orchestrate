@@ -430,18 +430,14 @@ run_osx() {
   result=$("$SCRIPT_DIR/lib/osx" "${args[@]}" 2>"$stderr_file")
   local exit_code=$?
   
+  rm -f "$stderr_file"
+  
+  echo "$result"
+  
   if [[ $exit_code -ne 0 ]]; then
-    if [[ -s "$stderr_file" ]]; then
-      log_error "osx ${args[*]} failed:"
-      cat "$stderr_file" >&2
-    fi
-    rm -f "$stderr_file"
-    echo ""
     return 1
   fi
   
-  rm -f "$stderr_file"
-  echo "$result"
   return 0
 }
 
@@ -452,7 +448,12 @@ is_valid_json_result() {
 
 print_validation_errors() {
   local result="$1"
-  echo "$result" | jq -r '.errors[]?.message' 2>/dev/null | while read -r msg; do
+  local error_count
+  error_count=$(echo "$result" | jq -r '.errors | length' 2>/dev/null)
+  
+  for ((i=0; i<error_count; i++)); do
+    local msg
+    msg=$(echo "$result" | jq -r ".errors[$i].message" 2>/dev/null)
     [[ -n "$msg" ]] && log_error "$msg"
   done
 }
@@ -461,7 +462,7 @@ validate_skills() {
   log "Validating required skills..."
   
   local result
-  result=$(run_osx validate skills)
+  result=$(run_osx validate skills) || true
   
   if ! is_valid_json_result "$result"; then
     log_error "Required skills validation failed"
@@ -478,7 +479,7 @@ validate_commands() {
   log "Validating required commands..."
   
   local result
-  result=$(run_osx validate commands)
+  result=$(run_osx validate commands) || true
   
   if ! is_valid_json_result "$result"; then
     log_error "Required commands validation failed"
@@ -494,7 +495,7 @@ validate_json() {
   local file="$1"
   
   local result
-  result=$(run_osx validate json "$file")
+  result=$(run_osx validate json "$file") || true
   
   if ! is_valid_json_result "$result"; then
     log_error "$(echo "$result" | jq -r '.errors[0].message // "Invalid JSON"' 2>/dev/null)"
@@ -508,7 +509,7 @@ validate_change_dir() {
   log "Validating change directory..."
   
   local result
-  result=$(run_osx validate change-dir "$CHANGE_ID")
+  result=$(run_osx validate change-dir "$CHANGE_ID") || true
   
   if ! is_valid_json_result "$result"; then
     log_error "Change directory validation failed"
@@ -557,7 +558,7 @@ record_baseline() {
   log "Recording baseline..."
   
   local result
-  result=$(run_osx baseline record)
+  result=$(run_osx baseline record) || true
   
   if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.commit // empty' 2>/dev/null) == "" ]]; then
     log_error "Failed to record baseline"
@@ -643,7 +644,7 @@ EOF
 
 check_complete() {
   local result
-  result=$(run_osx complete check "$CHANGE_ID")
+  result=$(run_osx complete check "$CHANGE_ID") || true
   
   if [[ $(echo "$result" | jq -r '.exists // false' 2>/dev/null) != "true" ]]; then
     return 1
@@ -654,7 +655,7 @@ check_complete() {
 
 read_completion() {
   local result
-  result=$(run_osx complete get "$CHANGE_ID")
+  result=$(run_osx complete get "$CHANGE_ID") || true
   
   if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.status // empty' 2>/dev/null) == "" ]]; then
     return 1
@@ -913,7 +914,7 @@ advance_phase() {
 
 validate_archive() {
   local result
-  result=$(run_osx validate archive "$CHANGE_ID")
+  result=$(run_osx validate archive "$CHANGE_ID") || true
   
   if ! is_valid_json_result "$result"; then
     log_error "$(echo "$result" | jq -r '.errors[0].message // "Archive validation failed"' 2>/dev/null)"
@@ -945,7 +946,7 @@ update_change_dir_if_archived() {
 
 validate_iterations() {
   local result
-  result=$(run_osx validate iterations "$CHANGE_ID")
+  result=$(run_osx validate iterations "$CHANGE_ID") || true
   
   if ! is_valid_json_result "$result"; then
     log_error "$(echo "$result" | jq -r '.errors[0].message // "Iterations validation failed"' 2>/dev/null)"
@@ -959,7 +960,7 @@ validate_completion() {
   log "Validating completion requirements..."
   
   local result
-  result=$(run_osx validate completion "$CHANGE_ID")
+  result=$(run_osx validate completion "$CHANGE_ID") || true
   
   if ! is_valid_json_result "$result"; then
     log_error "Completion validation failed"

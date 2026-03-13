@@ -628,7 +628,7 @@ def cmd_validate_change_dir(args):
             )
 
     specs_dir = change_path / "specs"
-    if not specs_dir.is_dir() or not list(specs_dir.glob("*.md")):
+    if not specs_dir.is_dir() or not list(specs_dir.rglob("*.md")):
         errors.append(
             {"check": "change-dir", "message": "No spec files found in specs/"}
         )
