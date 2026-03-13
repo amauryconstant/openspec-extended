@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Test helpers for osc-* unit tests
+# Test helpers for osx-* unit tests
 # Source this file in each .bats file
-
 # Get the project root directory (3 levels up from this file)
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LIB_DIR="$PROJECT_ROOT/resources/opencode/scripts/lib"
@@ -130,61 +129,61 @@ assert_output_contains() {
 }
 
 # Run osc Python tool with test environment
-run_osc() {
+run_osx() {
     run "$LIB_DIR/osc" "$@"
 }
 
 # Convenience wrappers for common commands
-# Note: osc Python tool expects action before change name
-# Usage: run_osc_state get <change> (not run_osc_state <change> get)
-run_osc_state() {
+# Note: osx Python tool expects action before change name
+# Usage: run_osx_state get <change> (not run_osx_state <change> get)
+run_osx_state() {
     local action="$1"
     shift
-    run "$LIB_DIR/osc" state "$action" "$@"
+    run "$LIB_DIR/osx" state "$action" "$@"
 }
 
-run_osc_iterations() {
+run_osx_iterations() {
     local action="$1"
     shift
-    run "$LIB_DIR/osc" iterations "$action" "$@"
+    run "$LIB_DIR/osx" iterations "$action" "$@"
 }
 
-run_osc_log() {
+run_osx_log() {
     local action="$1"
     shift
-    run "$LIB_DIR/osc" log "$action" "$@"
+    run "$LIB_DIR/osx" log "$action" "$@"
 }
 
-run_osc_git() {
-    run "$LIB_DIR/osc" git get "$@"
+run_osx_git() {
+    run "$LIB_DIR/osx" git get "$@"
 }
 
-run_osc_ctx() {
-    run "$LIB_DIR/osc" ctx get "$@"
+run_osx_ctx() {
+    run "$LIB_DIR/osx" ctx get "$@"
 }
 
-run_osc_validate() {
+run_osx_validate() {
     local action="$1"
     shift
-    run "$LIB_DIR/osc" validate "$action" "$@"
+    run "$LIB_DIR/osx" validate "$action" "$@"
 }
 
-run_osc_phase() {
+run_osx_phase() {
     local action="$1"
     shift
-    run "$LIB_DIR/osc" phase "$action" "$@"
+    run "$LIB_DIR/osx" phase "$action" "$@"
 }
 
-run_osc_baseline() {
+run_osx_baseline() {
     local action="$1"
     shift
-    run "$LIB_DIR/osc" baseline "$action" "$@"
+    run "$LIB_DIR/osx" baseline "$action" "$@"
 }
 
-run_osc_complete() {
+run_osx_complete() {
     local action="$1"
     shift
-    run "$LIB_DIR/osc" complete "$action" "$@"
+    run "$LIB_DIR/osx" complete "$action" "$@"
 }
 
 # Setup .opencode/skills directory with required skills
@@ -193,15 +192,15 @@ setup_skills_dir() {
     mkdir -p "$skills_dir"
     
     local skills=(
-        "openspec-concepts"
-        "openspec-review-artifacts"
-        "openspec-modify-artifacts"
-        "openspec-apply-change"
-        "openspec-review-test-compliance"
-        "openspec-verify-change"
-        "openspec-maintain-ai-docs"
-        "openspec-sync-specs"
-        "openspec-archive-change"
+        "osx-concepts"
+        "osx-review-artifacts"
+        "osx-modify-artifacts"
+        "osx-apply-change"
+        "osx-review-test-compliance"
+        "osx-verify-change"
+        "osx-maintain-ai-docs"
+        "osx-sync-specs"
+        "osx-archive-change"
     )
     
     for skill in "${skills[@]}"; do
@@ -216,13 +215,13 @@ setup_commands_dir() {
     mkdir -p "$commands_dir"
     
     local commands=(
-        "openspec-phase0"
-        "openspec-phase1"
-        "openspec-phase2"
-        "openspec-phase3"
-        "openspec-phase4"
-        "openspec-phase5"
-        "openspec-phase6"
+        "osx-phase0"
+        "osx-phase1"
+        "osx-phase2"
+        "osx-phase3"
+        "osx-phase4"
+        "osx-phase5"
+        "osx-phase6"
     )
     
     for cmd in "${commands[@]}"; do
@@ -335,7 +334,7 @@ assert_phase_equals() {
     local expected_phase="$2"
     
     local actual
-    actual=$("$LIB_DIR/osc" state "$change" get 2>/dev/null | jq -r '.phase')
+    actual=$("$LIB_DIR/osx" state "$change" get 2>/dev/null | jq -r '.phase')
     
     if [[ "$actual" != "$expected_phase" ]]; then
         echo "Expected phase to be '$expected_phase', got '$actual'"
@@ -387,8 +386,8 @@ run_full_phase_cycle() {
     local change="$1"
     
     for phase in PHASE0 PHASE1 PHASE2 PHASE3 PHASE4 PHASE5 PHASE6; do
-        "$LIB_DIR/osc" state "$change" complete >/dev/null 2>&1 || true
-        "$LIB_DIR/osc" phase "$change" advance >/dev/null 2>&1 || true
+        "$LIB_DIR/osx" state "$change" complete >/dev/null 2>&1 || true
+        "$LIB_DIR/osx" phase "$change" advance >/dev/null 2>&1 || true
     done
 }
 
@@ -396,14 +395,14 @@ run_full_phase_cycle() {
 # Install test helpers
 # ============================================
 
-OPENCODEX_BIN="$PROJECT_ROOT/bin/openspecx"
+OPENCODEX_BIN="$PROJECT_ROOT/bin/openspec-extended"
 INSTALL_SCRIPT="$PROJECT_ROOT/install.sh"
 FIXTURES_INSTALL="$FIXTURES_DIR/install"
 
-# Setup a fake installed openspecx location
-setup_installed_openspecx() {
+# Setup a fake installed openspec-extended location
+setup_installed_osx() {
     local prefix="${1:-$TEST_DIR/.local}"
-    local install_dir="$prefix/share/openspecx"
+    local install_dir="$prefix/share/openspec-extended"
     
     mkdir -p "$install_dir/resources/opencode/skills"
     mkdir -p "$install_dir/resources/opencode/agents"
@@ -420,12 +419,12 @@ setup_installed_openspecx() {
     cp -r "$PROJECT_ROOT/resources/opencode/commands"/* "$install_dir/resources/opencode/commands/" 2>/dev/null || true
     cp -r "$PROJECT_ROOT/resources/opencode/scripts"/* "$install_dir/resources/opencode/scripts/" 2>/dev/null || true
     
-    # Copy openspecx binary
-    cp "$OPENCODEX_BIN" "$install_dir/bin/openspecx"
-    chmod +x "$install_dir/bin/openspecx"
+    # Copy openspec-extended binary
+    cp "$OPENCODEX_BIN" "$install_dir/bin/openspec-extended"
+    chmod +x "$install_dir/bin/openspec-extended"
     
     # Create symlink
-    ln -sf "$install_dir/bin/openspecx" "$prefix/bin/openspecx"
+    ln -sf "$install_dir/bin/openspec-extended" "$prefix/bin/openspec-extended"
     
     echo "$prefix"
 }
@@ -444,12 +443,12 @@ create_test_tarball() {
     mkdir -p "$pkg_dir/resources/opencode/scripts"
     mkdir -p "$pkg_dir/openspec-core/.opencode/skills"
     
-    # Minimal openspecx
-    cat > "$pkg_dir/bin/openspecx" << 'EOF'
+    # Minimal openspec-extended
+    cat > "$pkg_dir/bin/openspec-extended" << 'EOF'
 #!/usr/bin/env bash
-echo "openspecx test"
+echo "openspec-extended test"
 EOF
-    chmod +x "$pkg_dir/bin/openspecx"
+    chmod +x "$pkg_dir/bin/openspec-extended"
     
     # Minimal skill
     echo "# Test Skill" > "$pkg_dir/resources/opencode/skills/test-skill/SKILL.md"
@@ -463,8 +462,8 @@ EOF
     rm -rf "$temp_dir"
 }
 
-# Run openspecx with test environment
-run_openspecx() {
+# Run openspec-extended with test environment
+run_osx() {
     run "$OPENCODEX_BIN" "$@"
 }
 

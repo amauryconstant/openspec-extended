@@ -15,7 +15,7 @@ teardown() {
 }
 
 @test "git-integration: baseline is recorded with commit hash" {
-    run_osc_baseline record
+    run_osx_baseline record
     [ "$status" -eq 0 ]
     
     local commit
@@ -26,7 +26,7 @@ teardown() {
 }
 
 @test "git-integration: baseline persists across state operations" {
-    run_osc_baseline record
+    run_osx_baseline record
     [ "$status" -eq 0 ]
     
     local recorded_commit
@@ -34,10 +34,10 @@ teardown() {
     
     setup_change_with_state "test-change" '{"phase":"PHASE0","iteration":1}'
     
-    run_osc_phase advance "test-change"
+    run_osx_phase advance "test-change"
     [ "$status" -eq 0 ]
     
-    run_osc_baseline get
+    run_osx_baseline get
     [ "$status" -eq 0 ]
     assert_json_equals "$output" ".commit" "$recorded_commit"
 }
@@ -48,7 +48,7 @@ teardown() {
     echo "test content" > "openspec/changes/test-change/test-file.txt"
     git add "openspec/changes/test-change/test-file.txt"
     
-    run_osc_git "test-change"
+    run_osx_git "test-change"
     [ "$status" -eq 0 ]
     
     local added_count
@@ -57,7 +57,7 @@ teardown() {
 }
 
 @test "git-integration: branch name is captured correctly" {
-    run_osc_baseline record
+    run_osx_baseline record
     [ "$status" -eq 0 ]
     
     local branch
@@ -75,7 +75,7 @@ teardown() {
     mkdir -p "openspec/changes/test-change/newdir"
     echo "new file" > "openspec/changes/test-change/newdir/untracked.md"
     
-    run_osc_git "test-change"
+    run_osx_git "test-change"
     [ "$status" -eq 0 ]
     
     local untracked_count
@@ -91,7 +91,7 @@ teardown() {
     
     echo "modified content" >> "openspec/changes/test-change/proposal.md"
     
-    run_osc_git "test-change"
+    run_osx_git "test-change"
     [ "$status" -eq 0 ]
     
     local modified_count

@@ -100,52 +100,52 @@ get_resource_info_from_path() {
   local resource_name=""
   
   case "$path" in
-    *"/skills/openspec-concepts/"*)
-      resource_type="skills"; resource_name="openspec-concepts" ;;
-    *"/skills/openspec-generate-changelog/"*)
-      resource_type="skills"; resource_name="openspec-generate-changelog" ;;
-    *"/skills/openspec-maintain-ai-docs/"*)
-      resource_type="skills"; resource_name="openspec-maintain-ai-docs" ;;
-    *"/skills/openspec-modify-artifacts/"*)
-      resource_type="skills"; resource_name="openspec-modify-artifacts" ;;
-    *"/skills/openspec-review-artifacts/"*)
-      resource_type="skills"; resource_name="openspec-review-artifacts" ;;
-    *"/skills/openspec-review-test-compliance/"*)
-      resource_type="skills"; resource_name="openspec-review-test-compliance" ;;
-    *"/agents/openspec-analyzer"*)
-      resource_type="agents"; resource_name="openspec-analyzer" ;;
-    *"/agents/openspec-builder"*)
-      resource_type="agents"; resource_name="openspec-builder" ;;
-    *"/agents/openspec-maintainer"*)
-      resource_type="agents"; resource_name="openspec-maintainer" ;;
-    *"/commands/openspec-phase0"*)
-      resource_type="commands"; resource_name="openspec-phase0" ;;
-    *"/commands/openspec-phase1"*)
-      resource_type="commands"; resource_name="openspec-phase1" ;;
-    *"/commands/openspec-phase2"*)
-      resource_type="commands"; resource_name="openspec-phase2" ;;
-    *"/commands/openspec-phase3"*)
-      resource_type="commands"; resource_name="openspec-phase3" ;;
-    *"/commands/openspec-phase4"*)
-      resource_type="commands"; resource_name="openspec-phase4" ;;
-    *"/commands/openspec-phase5"*)
-      resource_type="commands"; resource_name="openspec-phase5" ;;
-    *"/commands/openspec-phase6"*)
-      resource_type="commands"; resource_name="openspec-phase6" ;;
-    *"/commands/opsx-review"*|*"/commands/opsx/review"*)
-      resource_type="commands"; resource_name="opsx-review" ;;
-    *"/commands/opsx-modify"*|*"/commands/opsx/modify"*)
-      resource_type="commands"; resource_name="opsx-modify" ;;
-    *"/commands/opsx-verify-tests"*|*"/commands/opsx/verify-tests"*)
-      resource_type="commands"; resource_name="opsx-verify-tests" ;;
-    *"/commands/opsx-changelog"*|*"/commands/opsx/changelog"*)
-      resource_type="commands"; resource_name="opsx-changelog" ;;
-    *"/commands/opsx-maintain-docs"*|*"/commands/opsx/maintain-docs"*)
-      resource_type="commands"; resource_name="opsx-maintain-docs" ;;
-    *"/scripts/openspec-auto")
-      resource_type="scripts"; resource_name="openspec-auto" ;;
-    *"/scripts/lib/osc")
-      resource_type="lib"; resource_name="osc" ;;
+    *"/skills/osx-concepts/"*)
+      resource_type="skills"; resource_name="osx-concepts" ;;
+    *"/skills/osx-generate-changelog/"*)
+      resource_type="skills"; resource_name="osx-generate-changelog" ;;
+    *"/skills/osx-maintain-ai-docs/"*)
+      resource_type="skills"; resource_name="osx-maintain-ai-docs" ;;
+    *"/skills/osx-modify-artifacts/"*)
+      resource_type="skills"; resource_name="osx-modify-artifacts" ;;
+    *"/skills/osx-review-artifacts/"*)
+      resource_type="skills"; resource_name="osx-review-artifacts" ;;
+    *"/skills/osx-review-test-compliance/"*)
+      resource_type="skills"; resource_name="osx-review-test-compliance" ;;
+    *"/agents/osx-analyzer"*)
+      resource_type="agents"; resource_name="osx-analyzer" ;;
+    *"/agents/osx-builder"*)
+      resource_type="agents"; resource_name="osx-builder" ;;
+    *"/agents/osx-maintainer"*)
+      resource_type="agents"; resource_name="osx-maintainer" ;;
+    *"/commands/osx-phase0"*)
+      resource_type="commands"; resource_name="osx-phase0" ;;
+    *"/commands/osx-phase1"*)
+      resource_type="commands"; resource_name="osx-phase1" ;;
+    *"/commands/osx-phase2"*)
+      resource_type="commands"; resource_name="osx-phase2" ;;
+    *"/commands/osx-phase3"*)
+      resource_type="commands"; resource_name="osx-phase3" ;;
+    *"/commands/osx-phase4"*)
+      resource_type="commands"; resource_name="osx-phase4" ;;
+    *"/commands/osx-phase5"*)
+      resource_type="commands"; resource_name="osx-phase5" ;;
+    *"/commands/osx-phase6"*)
+      resource_type="commands"; resource_name="osx-phase6" ;;
+    *"/commands/osx-review"*|*"/commands/osx/review"*)
+      resource_type="commands"; resource_name="osx-review" ;;
+    *"/commands/osx-modify"*|*"/commands/osx/modify"*)
+      resource_type="commands"; resource_name="osx-modify" ;;
+    *"/commands/osx-verify-tests"*|*"/commands/osx/verify-tests"*)
+      resource_type="commands"; resource_name="osx-verify-tests" ;;
+    *"/commands/osx-changelog"*|*"/commands/osx/changelog"*)
+      resource_type="commands"; resource_name="osx-changelog" ;;
+    *"/commands/osx-maintain-docs"*|*"/commands/osx/maintain-docs"*)
+      resource_type="commands"; resource_name="osx-maintain-docs" ;;
+    *"/scripts/osx-orchestrate")
+      resource_type="scripts"; resource_name="osx-orchestrate" ;;
+    *"/scripts/lib/osx")
+      resource_type="lib"; resource_name="osx" ;;
   esac
   
   if [[ -n "$resource_type" && -n "$resource_name" ]]; then

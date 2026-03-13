@@ -74,27 +74,27 @@ teardown() {
 
 # ========== Directory creation ==========
 
-@test "install: creates PREFIX/share/openspecx directory" {
+@test "install: creates PREFIX/share/openspec-extended directory" {
     local prefix="$TEST_DIR/.local"
     
     # The install function should create directories
     # We test this indirectly by verifying uninstall works
-    mkdir -p "$prefix/share/openspecx"
+    mkdir -p "$prefix/share/openspec-extended"
     mkdir -p "$prefix/bin"
     
-    assert_dir_exists "$prefix/share/openspecx"
+    assert_dir_exists "$prefix/share/openspec-extended"
 }
 
 # ========== Uninstall functionality ==========
 
 @test "install: uninstall removes install directory" {
     local prefix="$TEST_DIR/.local"
-    local install_dir="$prefix/share/openspecx"
+    local install_dir="$prefix/share/openspec-extended"
     
     # Create fake installation
     mkdir -p "$install_dir/resources"
     mkdir -p "$prefix/bin"
-    touch "$prefix/bin/openspecx"
+    touch "$prefix/bin/openspec-extended"
     
     # Run uninstall
     PREFIX="$prefix" run bash "$INSTALL_SCRIPT" --uninstall
@@ -105,19 +105,19 @@ teardown() {
 
 @test "install: uninstall removes symlink" {
     local prefix="$TEST_DIR/.local"
-    local install_dir="$prefix/share/openspecx"
+    local install_dir="$prefix/share/openspec-extended"
     
     # Create fake installation with symlink
     mkdir -p "$install_dir/bin"
     mkdir -p "$prefix/bin"
-    echo "#!/bin/bash" > "$install_dir/bin/openspecx"
-    ln -sf "$install_dir/bin/openspecx" "$prefix/bin/openspecx"
+    echo "#!/bin/bash" > "$install_dir/bin/openspec-extended"
+    ln -sf "$install_dir/bin/openspec-extended" "$prefix/bin/openspec-extended"
     
     # Run uninstall
     PREFIX="$prefix" run bash "$INSTALL_SCRIPT" --uninstall
     
     # Symlink should be removed
-    [ ! -e "$prefix/bin/openspecx" ]
+    [ ! -e "$prefix/bin/openspec-extended" ]
 }
 
 @test "install: uninstall handles missing installation gracefully" {

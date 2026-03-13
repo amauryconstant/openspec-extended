@@ -5,7 +5,7 @@
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPTS_DIR="$PROJECT_ROOT/resources/opencode/scripts"
 FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures"
-INSTALLER="$PROJECT_ROOT/bin/openspecx"
+INSTALLER="$PROJECT_ROOT/bin/openspec-extended"
 
 require_e2e_confirm() {
     if [[ "${E2E_CONFIRM:-}" != "1" ]]; then
@@ -51,8 +51,8 @@ copy_fixture() {
     fi
 }
 
-run_openspec_auto() {
-    run .opencode/scripts/openspec-auto "$@"
+run_osx_orchestrate() {
+    run .opencode/scripts/osx-orchestrate "$@"
 }
 
 run_streaming() {
@@ -85,8 +85,8 @@ run_streaming() {
     return $exit_code
 }
 
-run_openspec_auto_streaming() {
-    run_streaming .opencode/scripts/openspec-auto "$@"
+run_osx_orchestrate_streaming() {
+    run_streaming .opencode/scripts/osx-orchestrate "$@"
 }
 
 wait_for_file() {
@@ -156,7 +156,7 @@ setup_minimal_change() {
 Minimal test change for E2E testing.
 
 ## Summary
-Test change for validating openspec-auto.
+Test change for validating osx-orchestrate.
 EOF
 
     cat > "$change_dir/design.md" << 'EOF'

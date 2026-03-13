@@ -8,16 +8,26 @@
 
 **Scope**: Minimal project - no deep infrastructure, CI, or complex install scripts.
 
+## Naming Convention
+
+| Resource | Core (upstream) | Extended (local) |
+|----------|-----------------|------------------|
+| **CLI** | `openspec` | `openspec-extended` |
+| **Commands** | `/osc-*` | `/osx-*` |
+| **Skills** | `osc-*` | `osx-*` |
+| **Agents** | N/A | `osx-*` |
+| **Lib scripts** | N/A | `osx` |
+
 **Extension Skills** (core skills in `openspec-core/AGENTS.md`):
 
 | Skill | Purpose |
 |-------|---------|
-| `openspec-concepts` | Teaches AI agents about OpenSpec framework |
-| `openspec-modify-artifact` | Modifies OpenSpec artifacts with dependency tracking |
-| `openspec-review-artifact` | Reviews artifacts for quality, completeness, consistency |
-| `openspec-maintain-ai-docs` | Maintain AGENTS.md and CLAUDE.md documentation |
-| `openspec-generate-changelog` | Generate changelogs in Keep a Changelog format |
-| `openspec-review-test-compliance` | Review test coverage for OpenSpec changes |
+| `osx-concepts` | Teaches AI agents about OpenSpec framework |
+| `osx-modify-artifacts` | Modifies OpenSpec artifacts with dependency tracking |
+| `osx-review-artifacts` | Reviews artifacts for quality, completeness, consistency |
+| `osx-maintain-ai-docs` | Maintain AGENTS.md and CLAUDE.md documentation |
+| `osx-generate-changelog` | Generate changelogs in Keep a Changelog format |
+| `osx-review-test-compliance` | Review test coverage for OpenSpec changes |
 
 ---
 
@@ -25,10 +35,10 @@
 
 | Command | Purpose |
 | ------- | ------- |
-| `openspecx install opencode` | Add skills, commands, agents, scripts to `.opencode/` |
-| `openspecx install claude` | Add skills, commands to `.claude/` |
-| `openspecx update opencode` | Force update all resources in `.opencode/` |
-| `openspecx update claude` | Force update all resources in `.claude/` |
+| `openspec-extended install opencode` | Add skills, commands, agents, scripts to `.opencode/` |
+| `openspec-extended install claude` | Add skills, commands to `.claude/` |
+| `openspec-extended update opencode` | Force update all resources in `.opencode/` |
+| `openspec-extended update claude` | Force update all resources in `.claude/` |
 
 **Verify**: `ls .opencode/{skills,agents,commands,scripts}/`
 
@@ -69,16 +79,16 @@ log_error() { echo -e "${COLOR_RED}✗${COLOR_RESET} $*" >&2; }
 ## Project Structure
 
 ```
-bin/openspecx              # Main executable
-openspec-core/             # Official OpenSpec workflows (read-only, sync from upstream)
-resources/opencode/        # Extended resources (maintained locally)
-  ├── skills/              # Extension skills
-  ├── agents/              # Agent definitions (personality + capabilities)
-  ├── commands/            # Phase-specific commands
+bin/openspec-extended       # Main executable
+openspec-core/              # Official OpenSpec workflows (read-only, sync from upstream)
+resources/opencode/         # Extended resources (maintained locally)
+  ├── skills/               # Extension skills (osx-*)
+  ├── agents/               # Agent definitions (osx-*)
+  ├── commands/             # Phase commands (osx-phase*, osx-*)
   └── scripts/
-      ├── openspec-auto    # Autonomous workflow orchestrator
-      └── lib/             # Helper utilities (osc-*)
-research/                  # Platform documentation
+      ├── osx-orchestrate   # Autonomous workflow orchestrator
+      └── lib/osx           # Helper CLI tool
+research/                   # Platform documentation
 ```
 
 ---
@@ -89,13 +99,13 @@ Create `resources/opencode/skills/<skill-name>/SKILL.md` with frontmatter:
 
 ```yaml
 ---
-name: my-skill
+name: osx-my-skill
 description: Brief description
 license: MIT
 ---
 ```
 
-**Naming**: 1-64 chars, lowercase with hyphens, regex `^[a-z0-9]+(-[a-z0-9]+)*$`, must match directory name.
+**Naming**: 1-64 chars, lowercase with hyphens, regex `^[a-z0-9]+(-[a-z0-9]+)*$`, must match directory name. Use `osx-` prefix for extended skills.
 
 **Platform details**: `research/opencode-docs.md`
 
@@ -103,33 +113,33 @@ license: MIT
 
 ## Autonomous Workflow
 
-**Purpose**: 7-phase autonomous implementation loop via `openspec-auto`
+**Purpose**: 7-phase autonomous implementation loop via `osx-orchestrate`
 
 ### Agents & Commands
 
 | Agent | Tools | Temp | Phases |
 | ----- | ----- | ---- | ------ |
-| `openspec-analyzer` | read, grep, glob, bash | 0.1 | PHASE0, PHASE2, PHASE5 |
-| `openspec-builder` | read, grep, glob, bash, write, edit | 0.4 | PHASE1 |
-| `openspec-maintainer` | read, grep, glob, bash, write, edit | 0.3 | PHASE3, PHASE4, PHASE6 |
+| `osx-analyzer` | read, grep, glob, bash | 0.1 | PHASE0, PHASE2, PHASE5 |
+| `osx-builder` | read, grep, glob, bash, write, edit | 0.4 | PHASE1 |
+| `osx-maintainer` | read, grep, glob, bash, write, edit | 0.3 | PHASE3, PHASE4, PHASE6 |
 
 | Command | Agent | Description |
 | ------- | ----- | ----------- |
-| `/openspec-phase0` | analyzer | Artifact Review |
-| `/openspec-phase1` | builder | Implementation |
-| `/openspec-phase2` | analyzer | Verification |
-| `/openspec-phase3` | maintainer | Maintain-Docs |
-| `/openspec-phase4` | maintainer | Sync |
-| `/openspec-phase5` | analyzer | Self-Reflection |
-| `/openspec-phase6` | maintainer | Archive |
+| `/osx-phase0` | analyzer | Artifact Review |
+| `/osx-phase1` | builder | Implementation |
+| `/osx-phase2` | analyzer | Verification |
+| `/osx-phase3` | maintainer | Maintain-Docs |
+| `/osx-phase4` | maintainer | Sync |
+| `/osx-phase5` | analyzer | Self-Reflection |
+| `/osx-phase6` | maintainer | Archive |
 
 ### Usage
 
 ```bash
-.opencode/scripts/openspec-auto <change-name>
-.opencode/scripts/openspec-auto add-auth --max-phase-iterations 20 --verbose
-.opencode/scripts/openspec-auto add-auth --from-phase PHASE3
-.opencode/scripts/openspec-auto add-auth --dry-run
+.opencode/scripts/osx-orchestrate <change-name>
+.opencode/scripts/osx-orchestrate add-auth --max-phase-iterations 20 --verbose
+.opencode/scripts/osx-orchestrate add-auth --from-phase PHASE3
+.opencode/scripts/osx-orchestrate add-auth --dry-run
 ```
 
 ### Options
@@ -145,13 +155,13 @@ license: MIT
 | `iterations.json` | Iteration history | Archived (never deleted) |
 | `decision-log.json` | Agent reasoning | Archived (never deleted) |
 
-Note: After PHASE6 (Archive), historical files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`. Transient files (state.json, complete.json, baseline) are deleted before the archive commit, leaving a clean git history. The `osc-*` lib scripts automatically detect archived locations.
+Note: After PHASE6 (Archive), historical files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`. Transient files (state.json, complete.json, baseline) are deleted before the archive commit, leaving a clean git history. The `osx` lib tool automatically detects archived locations.
 
 ### Manual Invocation
 
 ```
-/openspec-phase0 my-change-name
-@openspec-analyzer  # hidden but accessible
+/osx-phase0 my-change-name
+@osx-analyzer  # hidden but accessible
 ```
 
 ### Lib Scripts

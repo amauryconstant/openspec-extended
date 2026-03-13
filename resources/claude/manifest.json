@@ -3,19 +3,19 @@
   "version": "",
   "resources": {
     "skills": {
-      "openspec-concepts": { "version": "0.3.1" },
-      "openspec-generate-changelog": { "version": "0.2.0" },
-      "openspec-maintain-ai-docs": { "version": "0.2.0" },
-      "openspec-modify-artifacts": { "version": "0.2.2" },
-      "openspec-review-artifacts": { "version": "0.2.2" },
-      "openspec-review-test-compliance": { "version": "0.2.0" }
+      "osx-concepts": { "version": "0.3.1" },
+      "osx-generate-changelog": { "version": "0.2.0" },
+      "osx-maintain-ai-docs": { "version": "0.2.0" },
+      "osx-modify-artifacts": { "version": "0.2.2" },
+      "osx-review-artifacts": { "version": "0.2.2" },
+      "osx-review-test-compliance": { "version": "0.2.0" }
     },
     "commands": {
-      "opsx-review": { "version": "0.2.0" },
-      "opsx-modify": { "version": "0.2.0" },
-      "opsx-verify-tests": { "version": "0.2.0" },
-      "opsx-changelog": { "version": "0.2.0" },
-      "opsx-maintain-docs": { "version": "0.2.0" }
+      "osx-review": { "version": "0.2.0" },
+      "osx-modify": { "version": "0.2.0" },
+      "osx-verify-tests": { "version": "0.2.0" },
+      "osx-changelog": { "version": "0.2.0" },
+      "osx-maintain-docs": { "version": "0.2.0" }
     }
   }
 }

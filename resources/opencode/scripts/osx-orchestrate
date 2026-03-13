@@ -1,0 +1,1382 @@
+#!/usr/bin/env bash
+# OpenSpec Extended Autonomous Workflow Orchestrator
+# Version is read from manifest.json at runtime
+# Usage: osx-orchestrate <change-name> [options]
+
+set -euo pipefail
+
+# ==============================================================================
+# FUNCTION RETURN CONVENTIONS
+# ==============================================================================
+#
+# check_* functions: Return 0/1 as boolean (use in conditionals)
+#   - check_phase_complete: Returns 0 if complete, 1 if not
+#   - check_transition: Returns 0 + echoes target if set, 1 if not set
+#   - check_complete: Returns 0 if complete.json exists, 1 if not
+#
+# get_* functions: Always succeed (return 0), echo default on error
+#   - get_current_phase: Returns phase from state.json
+#   - get_phase_iteration: Returns iteration count (0 if error)
+#   - get_transition_reason: Returns reason or "unknown"
+#   - get_transition_details: Returns details or ""
+#
+# IMPORTANT: When using check_* functions for their output value,
+# use conditional pattern: if value=$(check_func) && [[ -n "$value" ]]; then
+# ==============================================================================
+
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_VERSION=$(jq -r '.resources.scripts["osx-orchestrate"].version // "unknown"' \
+  "$SCRIPT_DIR/../manifest.json" 2>/dev/null || echo "unknown")
+readonly DEFAULT_TIMEOUT=1800
+readonly DEFAULT_MAX_PHASE_ITERATIONS=10
+
+# Find change directory (primary or archived)
+find_change_dir() {
+  local change="$1"
+  local primary="openspec/changes/$change"
+  
+  if [[ -d "$primary" ]]; then
+    echo "$primary"
+    return 0
+  fi
+  
+  local archive_dir="openspec/changes/archive"
+  if [[ ! -d "$archive_dir" ]]; then
+    return 1
+  fi
+  
+  local archive_match
+  archive_match=$(find "$archive_dir" -maxdepth 1 -type d -name "*-$change" 2>/dev/null | head -1)
+  
+  if [[ -n "$archive_match" ]]; then
+    echo "$archive_match"
+    return 0
+  fi
+  
+  return 1
+}
+
+get_phase_name() {
+  case "$1" in
+    PHASE0) echo "ARTIFACT REVIEW" ;;
+    PHASE1) echo "IMPLEMENTATION" ;;
+    PHASE2) echo "REVIEW" ;;
+    PHASE3) echo "MAINTAIN DOCS" ;;
+    PHASE4) echo "SYNC" ;;
+    PHASE5) echo "SELF-REFLECTION" ;;
+    PHASE6) echo "ARCHIVE" ;;
+    *)      echo "UNKNOWN" ;;
+  esac
+}
+
+get_phase_command() {
+  case "$1" in
+    PHASE0) echo "osx-phase0" ;;
+    PHASE1) echo "osx-phase1" ;;
+    PHASE2) echo "osx-phase2" ;;
+    PHASE3) echo "osx-phase3" ;;
+    PHASE4) echo "osx-phase4" ;;
+    PHASE5) echo "osx-phase5" ;;
+    PHASE6) echo "osx-phase6" ;;
+    *)      echo "" ;;
+  esac
+}
+
+get_phase_agent() {
+  case "$1" in
+    PHASE0) echo "osx-analyzer" ;;
+    PHASE1) echo "osx-builder" ;;
+    PHASE2) echo "osx-analyzer" ;;
+    PHASE3) echo "osx-maintainer" ;;
+    PHASE4) echo "osx-maintainer" ;;
+    PHASE5) echo "osx-analyzer" ;;
+    PHASE6) echo "osx-maintainer" ;;
+    *)      echo "" ;;
+  esac
+}
+
+readonly REQUIRED_SKILLS=(
+  "osx-concepts"
+  "osx-review-artifacts"
+  "osx-modify-artifacts"
+  "osc-apply-change"
+  "osx-review-test-compliance"
+  "osc-verify-change"
+  "osx-maintain-ai-docs"
+  "osc-sync-specs"
+  "osc-archive-change"
+)
+
+MODEL=""
+CHANGE_ID=""
+CHANGE_DIR=""
+MAX_PHASE_ITERATIONS=$DEFAULT_MAX_PHASE_ITERATIONS
+TIMEOUT=$DEFAULT_TIMEOUT
+VERBOSE=false
+DRY_RUN=false
+START_TIME=0
+TOTAL_INVOCATIONS=0
+FORCE=false
+CLEAN=false
+FROM_PHASE=""
+NO_COLOR=false
+INTERRUPTED=false
+CHILD_PID=""
+LOG_FILE=""
+LOG_ENABLED=false
+LOG_USER_SPECIFIED=false
+
+AI_PLATFORM=""
+SKILLS_DIR=""
+COMMANDS_DIR=""
+
+readonly COLOR_GREEN='\033[0;32m'
+readonly COLOR_YELLOW='\033[0;33m'
+readonly COLOR_RED='\033[0;31m'
+readonly COLOR_BLUE='\033[0;34m'
+readonly COLOR_RESET='\033[0m'
+
+_timestamp() {
+  date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+log() {
+  local msg="$(_timestamp) [INFO] $*"
+  if [[ "$NO_COLOR" == true ]]; then
+    echo "$msg"
+  else
+    echo -e "${COLOR_BLUE}$msg${COLOR_RESET}"
+  fi
+}
+
+log_success() {
+  local msg="$(_timestamp) [OK] $*"
+  if [[ "$NO_COLOR" == true ]]; then
+    echo "$msg"
+  else
+    echo -e "${COLOR_GREEN}$msg${COLOR_RESET}"
+  fi
+}
+
+log_warning() {
+  local msg="$(_timestamp) [WARN] $*"
+  if [[ "$NO_COLOR" == true ]]; then
+    echo "$msg" >&2
+  else
+    echo -e "${COLOR_YELLOW}$msg${COLOR_RESET}" >&2
+  fi
+}
+
+log_error() {
+  local msg="$(_timestamp) [ERROR] $*"
+  if [[ "$NO_COLOR" == true ]]; then
+    echo "$msg" >&2
+  else
+    echo -e "${COLOR_RED}$msg${COLOR_RESET}" >&2
+  fi
+}
+
+log_verbose() {
+  local msg="$(_timestamp) [VERBOSE] $*"
+  
+  if [[ "$VERBOSE" == true ]]; then
+    # When verbose, write to stdout (goes through tee to log file with colors stripped)
+    if [[ "$NO_COLOR" == true ]]; then
+      echo "$msg"
+    else
+      echo -e "${COLOR_BLUE}$msg${COLOR_RESET}"
+    fi
+  elif [[ -n "$LOG_FILE" ]]; then
+    # When not verbose but logging enabled, write directly to log file
+    echo "$msg" >> "$LOG_FILE"
+  fi
+}
+
+detect_platform() {
+  if command -v opencode &> /dev/null; then
+    AI_PLATFORM="opencode"
+    SKILLS_DIR=".opencode/skills"
+    COMMANDS_DIR=".opencode/commands"
+    log_verbose "Detected platform: OpenCode"
+    return 0
+  else
+    log_error "OpenCode not found"
+    log_error "Install opencode: https://opencode.ai"
+    exit 1
+  fi
+}
+
+usage() {
+  cat << EOF
+Usage: $0 <change-id> [OPTIONS]
+
+Arguments:
+  change-id        OpenSpec change ID (e.g., reverse-transformation)
+
+Options:
+  -t, --timeout N          Timeout per iteration in seconds (default: 1800)
+  -m, --model MODEL        Model to use for AI assistant (optional)
+  -l, --log-file [PATH]    Log output to file (default: openspec/changes/<change>/osx-orchestrate.log)
+  -v, --verbose            Show detailed progress information
+  -d, --dry-run            Show what would be done without executing
+  -f, --force              Continue without prompts (for CI/CD)
+  -c, --clean              Clean up state files for fresh start
+  -n, --no-color           Disable colored output
+  -V, --version            Show version and exit
+  -h, --help               Show this help message
+      --list               List available changes and exit
+      --max-phase-iterations N  Max retries per phase (default: 10, -1 for unlimited)
+      --from-phase PHASEX  Resume from specific phase (skips pre-flight validation)
+
+Examples:
+  $0 reverse-transformation
+  $0 reverse-transformation -l
+  $0 reverse-transformation -l /tmp/rt.log -v
+  $0 reverse-transformation -t 3600 -m claude-3-opus
+  $0 reverse-transformation --from-phase PHASE3 -v
+  $0 reverse-transformation -c -f
+  $0 --list
+
+Version: $SCRIPT_VERSION
+EOF
+
+  if [[ "${1:-}" == "--error" ]]; then
+    exit 1
+  else
+    exit 0
+  fi
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --help|-h)
+        usage
+        ;;
+      --list)
+        list_changes
+        exit 0
+        ;;
+      --max-phase-iterations)
+        if [[ ! "$2" =~ ^-?[0-9]+$ ]]; then
+          log_error "Invalid max-phase-iterations value: $2 (must be integer or -1 for unlimited)"
+          usage --error
+        fi
+        if [[ "$2" -lt -1 ]] || [[ "$2" -eq 0 ]]; then
+          log_error "Invalid max-phase-iterations value: $2 (must be -1, 1, or greater)"
+          usage --error
+        fi
+        MAX_PHASE_ITERATIONS="$2"
+        shift 2
+        ;;
+      --max-iterations)
+        if [[ ! "$2" =~ ^-?[0-9]+$ ]]; then
+          log_error "Invalid max-iterations value: $2 (must be integer or -1 for unlimited)"
+          usage --error
+        fi
+        if [[ "$2" -lt -1 ]] || [[ "$2" -eq 0 ]]; then
+          log_error "Invalid max-iterations value: $2 (must be -1, 1, or greater)"
+          usage --error
+        fi
+        MAX_PHASE_ITERATIONS="$2"
+        shift 2
+        ;;
+      --timeout|-t)
+        if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+          log_error "Invalid timeout value: $2 (must be positive integer in seconds)"
+          usage --error
+        fi
+        if [[ "$2" -lt 60 ]]; then
+          log_error "Invalid timeout value: $2 (must be at least 60 seconds)"
+          usage --error
+        fi
+        if [[ "$2" -gt 86400 ]]; then
+          log_error "Invalid timeout value: $2 (must be less than 86400 seconds / 24 hours)"
+          usage --error
+        fi
+        TIMEOUT="$2"
+        shift 2
+        ;;
+      --model|-m)
+        MODEL="$2"
+        shift 2
+        ;;
+      --log-file|-l)
+        if [[ -n "${2:-}" ]] && [[ ! "$2" =~ ^- ]]; then
+          LOG_FILE="$2"
+          LOG_USER_SPECIFIED=true
+          shift 2
+        else
+          LOG_ENABLED=true
+          shift
+        fi
+        ;;
+      --verbose|-v)
+        VERBOSE=true
+        shift
+        ;;
+      --dry-run|-d)
+        DRY_RUN=true
+        shift
+        ;;
+      --force|-f)
+        FORCE=true
+        shift
+        ;;
+      --clean|-c)
+        CLEAN=true
+        shift
+        ;;
+      --from-phase)
+        FROM_PHASE="$2"
+        shift 2
+        ;;
+      --no-color|-n)
+        NO_COLOR=true
+        COLOR_GREEN=''
+        COLOR_YELLOW=''
+        COLOR_RED=''
+        COLOR_BLUE=''
+        COLOR_RESET=''
+        shift
+        ;;
+      --version|-V)
+        echo "$SCRIPT_VERSION"
+        exit 0
+        ;;
+      -*)
+        log_error "Unknown option: $1"
+        usage --error
+        ;;
+      *)
+        if [[ -z "$CHANGE_ID" ]]; then
+          CHANGE_ID="$1"
+        else
+          log_error "Multiple change IDs provided"
+          usage --error
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z "$CHANGE_ID" ]]; then
+    log_error "No change ID provided"
+    echo ""
+    echo "Run '$0 --list' to see available changes"
+    usage --error
+  fi
+  
+  if [[ -n "$FROM_PHASE" ]]; then
+    if [[ ! "$FROM_PHASE" =~ ^PHASE[0-6]$ ]]; then
+      log_error "Invalid from-phase value: $FROM_PHASE (must be PHASE0-PHASE6)"
+      usage --error
+    fi
+  fi
+}
+
+list_changes() {
+  echo "Available OpenSpec changes:"
+  echo ""
+
+  if command -v openspec &> /dev/null; then
+    echo "From openspec CLI:"
+    if command -v jq &> /dev/null; then
+      openspec list --json 2>/dev/null | jq -r '.[] | "- \(.name)"' 2>/dev/null || echo "  (none)"
+    else
+      openspec list 2>/dev/null || echo "  (none)"
+    fi
+  fi
+
+  echo ""
+  echo "From openspec/changes/ directory:"
+  for dir in openspec/changes/*/; do
+    if [[ -d "$dir" ]]; then
+      local name
+      name=$(basename "$dir")
+      if [[ ! "$name" == "archive" ]]; then
+        local valid_marker=" ✓"
+        if [[ -f "$dir/tasks.md" ]] && [[ -f "$dir/proposal.md" ]] && [[ -f "$dir/design.md" ]] && [[ -d "$dir/specs" ]]; then
+          valid_marker=" ✓"
+        else
+          valid_marker=" ✗"
+        fi
+        echo "  $name$valid_marker"
+      fi
+    fi
+  done
+  
+  echo ""
+  echo "Legend: ✓ = valid structure, ✗ = missing required files"
+}
+
+require_tool() {
+  local tool="$1"
+  if ! command -v "$tool" &> /dev/null; then
+    log_error "Required tool not found: $tool"
+    log_error "Please install $tool or ensure it's in PATH"
+    exit 1
+  fi
+  log_verbose "Tool found: $tool"
+}
+
+run_osx() {
+  local args=("$@")
+  
+  local stderr_file
+  stderr_file=$(mktemp)
+  
+  local result
+  result=$("$SCRIPT_DIR/lib/osx" "${args[@]}" 2>"$stderr_file")
+  local exit_code=$?
+  
+  if [[ $exit_code -ne 0 ]]; then
+    if [[ -s "$stderr_file" ]]; then
+      log_error "osx ${args[*]} failed:"
+      cat "$stderr_file" >&2
+    fi
+    rm -f "$stderr_file"
+    echo ""
+    return 1
+  fi
+  
+  rm -f "$stderr_file"
+  echo "$result"
+  return 0
+}
+
+is_valid_json_result() {
+  local result="$1"
+  [[ -n "$result" ]] && [[ $(echo "$result" | jq -r '.valid' 2>/dev/null) == "true" ]]
+}
+
+print_validation_errors() {
+  local result="$1"
+  echo "$result" | jq -r '.errors[]?.message' 2>/dev/null | while read -r msg; do
+    [[ -n "$msg" ]] && log_error "$msg"
+  done
+}
+
+validate_skills() {
+  log "Validating required skills..."
+  
+  local result
+  result=$(run_osx validate skills)
+  
+  if ! is_valid_json_result "$result"; then
+    log_error "Required skills validation failed"
+    print_validation_errors "$result"
+    local platform_name=$(basename "$SKILLS_DIR")
+    log_error "Run: openspec-extended install $platform_name"
+    exit 1
+  fi
+  
+  log_verbose "All required skills found"
+}
+
+validate_commands() {
+  log "Validating required commands..."
+  
+  local result
+  result=$(run_osx validate commands)
+  
+  if ! is_valid_json_result "$result"; then
+    log_error "Required commands validation failed"
+    print_validation_errors "$result"
+    log_error "Run: openspec-extended install opencode"
+    exit 1
+  fi
+  
+  log_verbose "All required commands found"
+}
+
+validate_json() {
+  local file="$1"
+  
+  local result
+  result=$(run_osx validate json "$file")
+  
+  if ! is_valid_json_result "$result"; then
+    log_error "$(echo "$result" | jq -r '.errors[0].message // "Invalid JSON"' 2>/dev/null)"
+    return 1
+  fi
+  
+  return 0
+}
+
+validate_change_dir() {
+  log "Validating change directory..."
+  
+  local result
+  result=$(run_osx validate change-dir "$CHANGE_ID")
+  
+  if ! is_valid_json_result "$result"; then
+    log_error "Change directory validation failed"
+    print_validation_errors "$result"
+    log_error "Change directory: $CHANGE_DIR"
+    exit 1
+  fi
+  
+  log_verbose "Change directory validated"
+}
+
+validate_git() {
+  log "Validating git repository..."
+  
+  if ! git rev-parse HEAD &> /dev/null; then
+    log_error "Not in a git repository"
+    exit 1
+  fi
+  
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    log_warning "Git working directory is dirty"
+    log_warning "Uncommitted changes detected"
+    
+    if [[ "$FORCE" == false ]] && [[ -t 0 ]]; then
+      echo ""
+      echo "Options:"
+      echo "  1. Commit or stash changes before proceeding"
+      echo "  2. Abort and clean up first"
+      echo "  3. Continue anyway (use --force to skip this prompt)"
+      read -p "Continue? [y/N] " -n 1 -r
+      echo
+      
+      if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_error "Aborted due to dirty git state"
+        exit 1
+      fi
+    else
+      log_warning "Continuing with dirty git state (non-interactive or --force)"
+    fi
+  fi
+  
+  log_verbose "Git repository is ready"
+}
+
+record_baseline() {
+  log "Recording baseline..."
+  
+  local result
+  result=$(run_osx baseline record)
+  
+  if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.commit // empty' 2>/dev/null) == "" ]]; then
+    log_error "Failed to record baseline"
+    exit 1
+  fi
+  
+  local commit
+  commit=$(echo "$result" | jq -r '.commit')
+  log_verbose "Baseline recorded: $commit"
+}
+
+read_state() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    return 1
+  fi
+  
+  if ! validate_json "$state_file"; then
+    log_error "State file is corrupted, cannot resume"
+    exit 1
+  fi
+  
+  local phase iteration
+  phase=$(jq -r '.phase // empty' "$state_file" 2>/dev/null)
+  iteration=$(jq -r '.iteration // empty' "$state_file" 2>/dev/null)
+  
+  if [[ -z "$phase" ]] || [[ -z "$iteration" ]]; then
+    log_error "State file missing required fields"
+    exit 1
+  fi
+  
+  if [[ ! "$phase" =~ ^PHASE[0-6]$ ]] && [[ "$phase" != "COMPLETE" ]]; then
+    log_error "State file has invalid phase value: $phase"
+    exit 1
+  fi
+  
+  if [[ ! "$iteration" =~ ^[0-9]+$ ]]; then
+    log_error "State file has invalid iteration value: $iteration"
+    exit 1
+  fi
+  
+  return 0
+}
+
+write_state() {
+  local phase="$1"
+  local iteration="${2:-1}"
+  local phase_complete="${3:-false}"
+  local is_new_iteration="${4:-true}"
+  
+  local phase_iterations="{}"
+  
+  if [[ -f "$CHANGE_DIR/state.json" ]]; then
+    phase_iterations=$(jq -c '.phase_iterations // {}' "$CHANGE_DIR/state.json" 2>/dev/null || echo "{}")
+  fi
+  
+  if [[ "$is_new_iteration" == "true" ]]; then
+    local current_count
+    current_count=$(echo "$phase_iterations" | jq -r ".\"$phase\" // 0")
+    local new_count=$((current_count + 1))
+    phase_iterations=$(echo "$phase_iterations" | jq -c --arg phase "$phase" --argjson count "$new_count" '.[$phase] = $count')
+  fi
+  
+  local state_json
+  state_json=$(cat <<EOF
+{
+  "phase": "$phase",
+  "phase_name": "$(get_phase_name "$phase")",
+  "iteration": $iteration,
+  "phase_complete": $phase_complete,
+  "total_invocations": $TOTAL_INVOCATIONS,
+  "phase_iterations": $phase_iterations,
+  "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "last_updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+  )
+  
+  echo "$state_json" > "$CHANGE_DIR/state.json"
+  log_verbose "State updated: $phase (iteration $iteration, complete: $phase_complete)"
+}
+
+check_complete() {
+  local result
+  result=$(run_osx complete check "$CHANGE_ID")
+  
+  if [[ $(echo "$result" | jq -r '.exists // false' 2>/dev/null) != "true" ]]; then
+    return 1
+  fi
+  
+  return 0
+}
+
+read_completion() {
+  local result
+  result=$(run_osx complete get "$CHANGE_ID")
+  
+  if [[ -z "$result" ]] || [[ $(echo "$result" | jq -r '.status // empty' 2>/dev/null) == "" ]]; then
+    return 1
+  fi
+  
+  local status
+  status=$(echo "$result" | jq -r '.status')
+  
+  echo "$status"
+  return 0
+}
+
+get_current_phase() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    return 1
+  fi
+  
+  local phase
+  phase=$(jq -r '.phase // empty' "$state_file" 2>/dev/null)
+  
+  if [[ -z "$phase" ]]; then
+    return 1
+  fi
+  
+  echo "$phase"
+  return 0
+}
+
+get_phase_iteration() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    echo 0
+    return
+  fi
+  
+  local iteration
+  iteration=$(jq -r '.iteration // 0' "$state_file" 2>/dev/null)
+  
+  echo "$iteration"
+}
+
+check_phase_complete() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    return 1
+  fi
+  
+  local phase_complete
+  phase_complete=$(jq -r '.phase_complete // false' "$state_file" 2>/dev/null)
+  
+  if [[ "$phase_complete" == "true" ]]; then
+    return 0
+  fi
+  
+  return 1
+}
+
+clear_phase_complete() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    return
+  fi
+  
+  local updated_json
+  updated_json=$(jq '.phase_complete = false' "$state_file" 2>/dev/null)
+  
+  if [[ -n "$updated_json" ]]; then
+    echo "$updated_json" > "$state_file"
+  fi
+}
+
+check_transition() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    return 1
+  fi
+  
+  local transition_target
+  transition_target=$(jq -r '.transition.target // empty' "$state_file" 2>/dev/null)
+  
+  if [[ -n "$transition_target" ]]; then
+    echo "$transition_target"
+    return 0
+  fi
+  
+  return 1
+}
+
+get_transition_reason() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    echo "unknown"
+    return
+  fi
+  
+  jq -r '.transition.reason // "unknown"' "$state_file" 2>/dev/null
+}
+
+get_transition_details() {
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if [[ ! -f "$state_file" ]]; then
+    echo ""
+    return
+  fi
+  
+  jq -r '.transition.details // ""' "$state_file" 2>/dev/null
+}
+
+clear_transition() {
+  run_osx state clear-transition "$CHANGE_ID" >/dev/null 2>&1 || true
+}
+
+is_phase_complete() {
+  local phase="$1"
+  local state_file="$CHANGE_DIR/state.json"
+  
+  if ! read_state; then
+    return 1
+  fi
+  
+  local current_phase
+  current_phase=$(jq -r '.phase // empty' "$state_file" 2>/dev/null)
+  
+  if [[ -z "$current_phase" ]]; then
+    return 1
+  fi
+  
+  if [[ "$current_phase" != "$phase" ]]; then
+    return 0
+  fi
+  
+  return 1
+}
+
+run_agent() {
+  local phase="$1"
+  
+  if [[ "$DRY_RUN" == true ]]; then
+    log "[DRY RUN] Would run command for $phase"
+    return 0
+  fi
+  
+  log "Agent invocation #$TOTAL_INVOCATIONS for $phase"
+  
+  local cmd_name=$(get_phase_command "$phase")
+  local agent_name=$(get_phase_agent "$phase")
+  local title="OpenSpec: $CHANGE_ID - $(get_phase_name "$phase")"
+  
+  log_verbose "Using command: /$cmd_name"
+  log_verbose "Using agent: $agent_name"
+  log_verbose "Session title: $title"
+  
+  local exit_code
+  
+  local model_flag=""
+  if [[ -n "$MODEL" ]]; then
+    model_flag="--model=$MODEL"
+  fi
+  
+  timeout --foreground "$TIMEOUT" \
+    opencode run \
+    --command "$cmd_name" \
+    --agent "$agent_name" \
+    "$CHANGE_ID" \
+    --title="$title" \
+    $model_flag &
+  
+  CHILD_PID=$!
+  wait "$CHILD_PID"
+  exit_code=$?
+  
+  CHILD_PID=""
+  
+  if [[ "$INTERRUPTED" == true ]]; then
+    log_warning "Execution interrupted by user"
+    exit 130
+  fi
+  
+  if [[ $exit_code -eq 124 ]]; then
+    log_error "Agent iteration timed out after $((TIMEOUT / 60)) minutes"
+    return 1
+  elif [[ $exit_code -ne 0 ]]; then
+    log_error "Agent execution failed with exit code $exit_code"
+    return 1
+  fi
+  
+  return 0
+}
+
+run_phase() {
+  local phase="$1"
+  log "$(get_phase_name "$phase")"
+  
+  local iteration=1
+  
+  while [[ $iteration -le $MAX_PHASE_ITERATIONS ]] || [[ $MAX_PHASE_ITERATIONS -eq -1 ]]; do
+    TOTAL_INVOCATIONS=$((TOTAL_INVOCATIONS + 1))
+    write_state "$phase" "$iteration"
+    
+    if ! run_agent "$phase"; then
+      return 1
+    fi
+    
+    if [[ "$DRY_RUN" == true ]]; then
+      return 0
+    fi
+    
+    if [[ "$phase" == "PHASE6" ]]; then
+      update_change_dir_if_archived
+    fi
+    
+    # PHASE6 completion is detected by archive existence, not state.json
+    # (PHASE6 deletes transient files before archiving)
+    if [[ "$phase" == "PHASE6" ]]; then
+      if validate_archive >/dev/null 2>&1; then
+        log_success "$phase completed in $iteration iteration(s)"
+        return 0
+      fi
+    elif check_phase_complete; then
+      log_success "$phase completed in $iteration iteration(s)"
+      clear_phase_complete
+      return 0
+    fi
+    
+    iteration=$((iteration + 1))
+  done
+  
+  log_warning "$phase reached max phase iterations ($MAX_PHASE_ITERATIONS)"
+  return 1
+}
+
+advance_phase() {
+  local current="$1"
+  
+  # Phase advancement is computed locally (no external tool needed)
+  case "$current" in
+    PHASE0) echo "PHASE1" ;;
+    PHASE1) echo "PHASE2" ;;
+    PHASE2) echo "PHASE3" ;;
+    PHASE3) echo "PHASE4" ;;
+    PHASE4) echo "PHASE5" ;;
+    PHASE5) echo "PHASE6" ;;
+    PHASE6) echo "COMPLETE" ;;
+    *) echo "COMPLETE" ;;
+  esac
+}
+
+
+validate_archive() {
+  local result
+  result=$(run_osx validate archive "$CHANGE_ID")
+  
+  if ! is_valid_json_result "$result"; then
+    log_error "$(echo "$result" | jq -r '.errors[0].message // "Archive validation failed"' 2>/dev/null)"
+    return 1
+  fi
+  
+  local archive_path
+  archive_path=$(echo "$result" | jq -r '.archive // ""')
+  log_success "Archive found: $archive_path"
+  return 0
+}
+
+update_change_dir_if_archived() {
+  if [[ -d "$CHANGE_DIR" ]]; then
+    return 0
+  fi
+  
+  local new_dir
+  new_dir=$(find_change_dir "$CHANGE_ID") || return 1
+  
+  if [[ -n "$new_dir" ]] && [[ -d "$new_dir" ]]; then
+    CHANGE_DIR="$new_dir"
+    log_verbose "CHANGE_DIR updated to: $CHANGE_DIR"
+    return 0
+  fi
+  
+  return 1
+}
+
+validate_iterations() {
+  local result
+  result=$(run_osx validate iterations "$CHANGE_ID")
+  
+  if ! is_valid_json_result "$result"; then
+    log_error "$(echo "$result" | jq -r '.errors[0].message // "Iterations validation failed"' 2>/dev/null)"
+    return 1
+  fi
+  
+  return 0
+}
+
+validate_completion() {
+  log "Validating completion requirements..."
+  
+  local result
+  result=$(run_osx validate completion "$CHANGE_ID")
+  
+  if ! is_valid_json_result "$result"; then
+    log_error "Completion validation failed"
+    print_validation_errors "$result"
+    return 1
+  fi
+  
+  log_success "All validation checks passed"
+  return 0
+}
+
+show_progress() {
+  {
+    echo "================================"
+    echo "Progress Summary"
+    echo "================================"
+    echo "Change ID: $CHANGE_ID"
+    echo "Change directory: $CHANGE_DIR"
+    echo ""
+    
+    local current_phase
+    if current_phase=$(get_current_phase); then
+      echo "Current phase: $current_phase - $(get_phase_name "$current_phase")"
+      local iteration
+      iteration=$(get_phase_iteration)
+      echo "Phase iteration: $iteration"
+    else
+      echo "Current phase: Not started"
+    fi
+    
+    echo ""
+    echo "Total invocations: $TOTAL_INVOCATIONS"
+    
+    local elapsed
+    elapsed=$(($(date +%s) - START_TIME))
+    local minutes=$((elapsed / 60))
+    local seconds=$((elapsed % 60))
+    echo "Elapsed time: ${minutes}m ${seconds}s"
+    
+    if [[ -n "$LOG_FILE" ]]; then
+      echo "Log file: $LOG_FILE"
+    fi
+    
+    if [[ -f "$CHANGE_DIR/state.json" ]]; then
+      echo ""
+      echo "Iterations by phase:"
+      local p0 p1 p2 p3 p4 p5 p6
+      p0=$(jq -r '.phase_iterations.PHASE0 // 0' "$CHANGE_DIR/state.json")
+      p1=$(jq -r '.phase_iterations.PHASE1 // 0' "$CHANGE_DIR/state.json")
+      p2=$(jq -r '.phase_iterations.PHASE2 // 0' "$CHANGE_DIR/state.json")
+      p3=$(jq -r '.phase_iterations.PHASE3 // 0' "$CHANGE_DIR/state.json")
+      p4=$(jq -r '.phase_iterations.PHASE4 // 0' "$CHANGE_DIR/state.json")
+      p5=$(jq -r '.phase_iterations.PHASE5 // 0' "$CHANGE_DIR/state.json")
+      p6=$(jq -r '.phase_iterations.PHASE6 // 0' "$CHANGE_DIR/state.json")
+      echo "  PHASE0 (ARTIFACT REVIEW): $p0"
+      echo "  PHASE1 (IMPLEMENTATION): $p1"
+      echo "  PHASE2 (REVIEW): $p2"
+      echo "  PHASE3 (MAINTAIN DOCS): $p3"
+      echo "  PHASE4 (SYNC): $p4"
+      echo "  PHASE5 (SELF-REFLECTION): $p5"
+      echo "  PHASE6 (ARCHIVE): $p6"
+    fi
+    
+    echo "================================"
+  } | {
+    if [[ -n "$LOG_FILE" ]]; then
+      tee -a "$LOG_FILE" | { [[ "$VERBOSE" == true ]] && cat || cat >/dev/null; }
+    else
+      { [[ "$VERBOSE" == true ]] && cat || cat >/dev/null; }
+    fi
+  }
+}
+
+archive_log_file() {
+  if [[ -z "$LOG_FILE" ]] || [[ ! -f "$LOG_FILE" ]]; then
+    return 0
+  fi
+  
+  if [[ "$LOG_USER_SPECIFIED" == true ]]; then
+    log_verbose "User-specified log path, not moving to archive"
+    return 0
+  fi
+  
+  local archive_log="$CHANGE_DIR/osx-orchestrate.log"
+  
+  if mv "$LOG_FILE" "$archive_log" 2>/dev/null; then
+    log_verbose "Log moved to archive: $archive_log"
+    git add "$archive_log"
+    if git commit --amend --no-edit 2>/dev/null; then
+      log_verbose "Archive commit amended with log file"
+    else
+      log_warning "Failed to amend archive commit with log file"
+    fi
+  else
+    log_warning "Failed to move log file to archive"
+  fi
+}
+
+cleanup() {
+  local exit_code=$?
+  
+  if [[ -n "${CHILD_PID:-}" ]] && kill -0 "$CHILD_PID" 2>/dev/null; then
+    log "Terminating child process (PID: $CHILD_PID)..."
+    kill -TERM "$CHILD_PID" 2>/dev/null || true
+    wait "$CHILD_PID" 2>/dev/null || true
+    CHILD_PID=""
+  fi
+  
+  if [[ "$INTERRUPTED" == true ]]; then
+    log ""
+    log_warning "Execution interrupted by user"
+    log "State files preserved for resumption:"
+    log "  $CHANGE_DIR/state.json"
+    log "  $CHANGE_DIR/complete.json"
+    log "  $CHANGE_DIR/iterations.json"
+    log "  $CHANGE_DIR/decision-log.json"
+    log ""
+    log "To resume: Run script again with same change-id"
+    exit 130
+  fi
+  
+  if [[ $exit_code -ne 0 ]]; then
+    log ""
+    log_error "Script exited with error (code $exit_code)"
+    log "State files preserved for investigation:"
+    log "  $CHANGE_DIR/state.json"
+    log "  $CHANGE_DIR/complete.json"
+    log "  $CHANGE_DIR/iterations.json"
+    log "  $CHANGE_DIR/decision-log.json"
+    log ""
+    log "To resume: Run script again with same change-id"
+  else
+    if [[ -f "$CHANGE_DIR/state.json" ]]; then
+      rm "$CHANGE_DIR/state.json" || log_warning "Failed to remove state.json"
+    fi
+    if [[ -f "$CHANGE_DIR/complete.json" ]]; then
+      rm "$CHANGE_DIR/complete.json" || log_warning "Failed to remove complete.json"
+    fi
+    if [[ -f ".openspec-baseline.json" ]]; then
+      rm ".openspec-baseline.json" || log_warning "Failed to remove .openspec-baseline.json"
+    fi
+    if [[ -n "$LOG_FILE" ]] && [[ "$LOG_USER_SPECIFIED" == false ]] && [[ -f "$LOG_FILE" ]]; then
+      rm "$LOG_FILE" || log_warning "Failed to remove $LOG_FILE"
+    fi
+  fi
+  
+  return $exit_code
+}
+
+handle_interrupt() {
+  INTERRUPTED=true
+  if [[ -n "${CHILD_PID:-}" ]] && kill -0 "$CHILD_PID" 2>/dev/null; then
+    kill -TERM "$CHILD_PID" 2>/dev/null || true
+  fi
+}
+
+find_change_dir() {
+  if [[ -d "openspec/changes/$CHANGE_ID" ]]; then
+    CHANGE_DIR="openspec/changes/$CHANGE_ID"
+    log_verbose "Found change at: $CHANGE_DIR"
+    return 0
+  fi
+  
+  if command -v openspec &> /dev/null && command -v jq &> /dev/null; then
+    local cli_path
+    cli_path=$(openspec list --json 2>/dev/null | jq -r --arg id "$CHANGE_ID" '.[] | select(.name == $id) | .path' 2>/dev/null)
+    
+    if [[ -n "$cli_path" ]]; then
+      CHANGE_DIR="$cli_path"
+      log_verbose "Found change via CLI lookup at: $CHANGE_DIR"
+      return 0
+    fi
+  fi
+  
+  return 1
+}
+
+setup_logging() {
+  if [[ "$LOG_ENABLED" == true ]] && [[ -z "$LOG_FILE" ]]; then
+    LOG_FILE=".osx-orchestrate-${CHANGE_ID}.log"
+  fi
+  
+  if [[ -n "$LOG_FILE" ]]; then
+    local log_dir
+    log_dir=$(dirname "$LOG_FILE")
+    
+    if [[ "$log_dir" != "." ]] && [[ ! -d "$log_dir" ]]; then
+      mkdir -p "$log_dir" || {
+        log_warning "Failed to create log directory: $log_dir"
+        LOG_FILE=""
+        return 1
+      }
+    fi
+    
+    if ! touch "$LOG_FILE" 2>/dev/null; then
+      log_warning "Failed to create log file: $LOG_FILE (permission denied?)"
+      LOG_FILE=""
+      return 1
+    fi
+    
+    # Redirect stdout to both terminal (with colors) and log file (without colors)
+    exec > >(tee >(sed 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE")) 2>&1
+    log_verbose "Logging to: $LOG_FILE"
+  fi
+}
+
+main() {
+  parse_args "$@"
+  
+  if ! find_change_dir; then
+    log_error "Change not found: $CHANGE_ID"
+    echo ""
+    echo "Tried:"
+    echo "  - Direct path: openspec/changes/$CHANGE_ID"
+    if command -v openspec &> /dev/null; then
+      echo "  - CLI lookup: openspec list"
+    fi
+    echo ""
+    echo "Run '$0 --list' to see available changes"
+    exit 1
+  fi
+  
+  if [[ "$CHANGE_DIR" == *"/archive/"* ]] && [[ ! -f "$CHANGE_DIR/state.json" ]]; then
+    log_success "Change '$CHANGE_ID' is already archived and complete"
+    log "Archive location: $CHANGE_DIR"
+    exit 0
+  fi
+  
+  setup_logging
+  
+  START_TIME=$(date +%s)
+  
+  log ""
+  log "================================"
+  log "OpenSpec Autonomous Implementation"
+  log "================================"
+  log "Version: $SCRIPT_VERSION"
+  log "Change ID: $CHANGE_ID"
+  log "Change directory: $CHANGE_DIR"
+  if [[ -n "$MODEL" ]]; then
+    log "Model: $MODEL"
+  fi
+  log "Max phase iterations: $MAX_PHASE_ITERATIONS"
+  log "Timeout: $TIMEOUT seconds"
+  if [[ -n "$LOG_FILE" ]]; then
+    log "Log file: $LOG_FILE"
+  fi
+  log "================================"
+  log ""
+  
+  if [[ "$CLEAN" == true ]]; then
+    log_verbose "Cleaning up state files for fresh start..."
+    rm -f "$CHANGE_DIR/state.json" 2>/dev/null || true
+    rm -f "$CHANGE_DIR/complete.json" 2>/dev/null || true
+    rm -f "$CHANGE_DIR/iterations.json" 2>/dev/null || true
+    rm -f ".openspec-baseline.json" 2>/dev/null || true
+    rm -f ".osx-orchestrate-${CHANGE_ID}.log" 2>/dev/null || true
+    log_verbose "State files cleaned, starting fresh"
+  fi
+  
+  if [[ -z "$FROM_PHASE" ]]; then
+    require_tool "git"
+    require_tool "jq"
+    require_tool "openspec"
+    
+    detect_platform
+    require_tool "opencode"
+    
+    validate_skills
+    validate_commands
+    validate_git
+    validate_change_dir
+    
+    record_baseline
+  else
+    log "Skipping pre-flight validation (--from-phase specified)"
+  fi
+  
+  if [[ -z "$FROM_PHASE" ]] && read_state; then
+    RESUME_PHASE=$(get_current_phase)
+    
+    log "Resuming from phase: $RESUME_PHASE - $(get_phase_name "$RESUME_PHASE")"
+    
+    if [[ "$FORCE" == false ]] && [[ -t 0 ]]; then
+      echo ""
+      read -p "Continue? [Y/n] " -n 1 -r
+      echo
+      
+      if [[ $REPLY =~ ^[Nn]$ ]]; then
+        log_error "Aborted by user"
+        exit 1
+      fi
+    else
+      log "Auto-continuing (non-interactive or --force)"
+    fi
+  fi
+  
+  trap handle_interrupt SIGINT SIGTERM
+  trap cleanup EXIT
+  
+  local current_phase="PHASE0"
+  local started=false
+  local phase_determined=false
+  
+  # Apply resume phase if set
+  if [[ -n "${RESUME_PHASE:-}" ]]; then
+    current_phase="$RESUME_PHASE"
+    phase_determined=true
+  fi
+  
+  while true; do
+    if [[ "$started" == false ]] && [[ -n "$FROM_PHASE" ]]; then
+      current_phase="$FROM_PHASE"
+      log "Starting from phase: $current_phase - $(get_phase_name "$current_phase")"
+      started=true
+      phase_determined=true
+    elif [[ "$phase_determined" == false ]] && current_phase=$(get_current_phase); then
+      phase_determined=true
+    elif [[ "$phase_determined" == false ]]; then
+      current_phase="PHASE0"
+      phase_determined=true
+    fi
+    
+    # Check for blocker signal from any phase
+    if check_complete; then
+      local with_blocker
+      with_blocker=$(jq -r '.with_blocker // "false"' "$CHANGE_DIR/complete.json" 2>/dev/null)
+      
+      if [[ "$with_blocker" == "true" ]]; then
+        local blocker_reason
+        blocker_reason=$(jq -r '.blocker_reason // "Unknown"' "$CHANGE_DIR/complete.json" 2>/dev/null)
+        
+        log ""
+        log "================================"
+        log_error "CRITICAL BLOCKER DETECTED"
+        log "================================"
+        log_warning "Blocker: $blocker_reason"
+        log "Review decision-log.json for details"
+        show_progress
+        
+        exit 1
+      fi
+    fi
+    
+    case "$current_phase" in
+      PHASE0|PHASE1|PHASE2|PHASE3|PHASE4|PHASE5)
+        if ! run_phase "$current_phase"; then
+          log_error "$current_phase failed"
+          exit 1
+        fi
+        show_progress
+        
+        # Check for explicit transition signal using conditional pattern
+        # (check_transition returns 1 when no transition, which would exit with set -e)
+        local transition_target=""
+        if transition_target=$(check_transition) && [[ -n "$transition_target" ]]; then
+          local transition_reason
+          local transition_details
+          transition_reason=$(get_transition_reason)
+          transition_details=$(get_transition_details)
+          
+          log "Explicit transition: $current_phase → $transition_target"
+          log_verbose "Reason: $transition_reason"
+          if [[ -n "$transition_details" ]]; then
+            log_verbose "Details: $transition_details"
+          fi
+          
+          clear_transition
+          clear_phase_complete
+          current_phase="$transition_target"
+        else
+          local next_phase
+          next_phase=$(advance_phase "$current_phase")
+          log "Phase transition: $current_phase → $next_phase"
+          current_phase="$next_phase"
+        fi
+        ;;
+      
+      PHASE6)
+        if ! run_phase "$current_phase"; then
+          log_error "$current_phase failed"
+          exit 1
+        fi
+        # Note: Don't call show_progress here because:
+        # 1. state.json was deleted before archiving
+        # 2. CHANGE_DIR now points to archive (no active state)
+        # 3. get_current_phase would try to create new state.json in archive
+        
+        # PHASE6 is terminal - validate archive and exit without calling advance_phase
+        # Note: cleanup_state_files() is NOT called because PHASE6 already cleaned
+        # transient files before archiving (state.json, complete.json, baseline)
+        if validate_archive; then
+          archive_log_file
+          log ""
+          log "================================"
+          log_success "Implementation completed successfully!"
+          log "================================"
+          
+          exit 0
+        else
+          log ""
+          log_error "Archive validation failed"
+          log "State files preserved for investigation"
+          exit 1
+        fi
+        ;;
+      
+      COMPLETE)
+        log "All phases complete, validating..."
+        ;;
+      
+      *)
+        log_error "Unknown phase: $current_phase"
+        exit 1
+        ;;
+    esac
+  done
+}
+
+main "$@"

@@ -6,17 +6,17 @@ repos:
         entry: mise exec -- shellcheck -s bash --rcfile=.shellcheckrc
         language: system
         types: [shell]
-        files: ^(bin/openspecx|\.mise/tasks/)
+        files: ^(bin/openspecx-extended|\.mise/tasks/)
 
       - id: check-version-bump
         name: Check version bump in versioned files
         entry: mise run version:check
         language: system
-        files: ^(resources/(opencode|claude)/(skills/.*/(SKILL\.md|references/.*\.md)|agents/.*\.md|commands/.*\.md|scripts/(openspec-auto|lib/osc-.*))|install\.sh|bin/openspecx)$
+        files: ^(resources/(opencode|claude)/(skills/.*/(SKILL\.md|references/.*\.md)|agents/.*\.md|commands/.*\.md|scripts/(osx-orchestrate|lib/osx))|install\.sh|bin/openspecx-extended)$
         pass_filenames: false
 
       - id: test
-        name: Test the openspec-auto script and its dependencies
+        name: Test the osx-orchestrate script and its dependencies
         entry: mise run test
         language: system
         files: ^(resources/opencode/scripts/|tests/)

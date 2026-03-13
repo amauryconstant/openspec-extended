@@ -20,9 +20,9 @@ teardown() {
 @test "complete workflow with archive validation" {
     local change="add-hello-script"
     local change_dir="openspec/changes/$change"
-    local log_file="$change_dir/openspec-auto.log"
+    local log_file="$change_dir/osx-orchestrate.log"
 
-    run_openspec_auto_streaming "$change" --force --verbose --max-phase-iterations 3 --timeout 600
+    run_osx_orchestrate_streaming "$change" --force --verbose --max-phase-iterations 3 --timeout 600
     [ "$status" -eq 0 ]
 
     # 1. Verify artifact was created and works
@@ -76,7 +76,7 @@ teardown() {
     
     # 10. Verify logging behavior
     # Find log file in archive (it moves there during PHASE6)
-    local archived_log="$archive_dir/openspec-auto.log"
+    local archived_log="$archive_dir/osx-orchestrate.log"
     if [[ -f "$archived_log" ]]; then
         # Log file should contain [VERBOSE] messages
         assert_file_contains "$archived_log" "[VERBOSE]"

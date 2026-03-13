@@ -1,84 +1,113 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "version": "0.14.0",
   "resources": {
     "skills": {
-      "openspec-concepts": {
+      "osx-concepts": {
         "version": "0.3.1"
       },
-      "openspec-generate-changelog": {
+      "osx-generate-changelog": {
         "version": "0.2.0"
       },
-      "openspec-maintain-ai-docs": {
+      "osx-maintain-ai-docs": {
         "version": "0.2.0"
       },
-      "openspec-modify-artifacts": {
+      "osx-modify-artifacts": {
         "version": "0.2.3"
       },
-      "openspec-review-artifacts": {
+      "osx-review-artifacts": {
         "version": "0.2.5"
       },
-      "openspec-review-test-compliance": {
+      "osx-review-test-compliance": {
         "version": "0.2.0"
       }
     },
     "agents": {
-      "openspec-analyzer": {
-        "version": "0.2.2"
+      "osx-analyzer": {
+        "version": "0.2.1"
       },
-      "openspec-builder": {
-        "version": "0.2.2"
+      "osx-builder": {
+        "version": "0.2.1"
       },
-      "openspec-maintainer": {
+      "osx-maintainer": {
         "version": "0.2.1"
       }
     },
     "commands": {
-      "openspec-phase0": {
-        "version": "0.2.7"
+      "osx-phase0": {
+        "version": "0.2.6"
       },
-      "openspec-phase1": {
-        "version": "0.2.9"
+      "osx-phase1": {
+        "version": "0.2.8"
       },
-      "openspec-phase2": {
-        "version": "0.2.12"
-      },
-      "openspec-phase3": {
-        "version": "0.2.10"
-      },
-      "openspec-phase4": {
-        "version": "0.2.7"
-      },
-      "openspec-phase5": {
+      "osx-phase2": {
         "version": "0.2.11"
       },
-      "openspec-phase6": {
-        "version": "0.2.13"
+      "osx-phase3": {
+        "version": "0.2.9"
       },
-      "opsx-review": {
-        "version": "0.1.2"
+      "osx-phase4": {
+        "version": "0.2.6"
       },
-      "opsx-modify": {
-        "version": "0.1.2"
+      "osx-phase5": {
+        "version": "0.2.10"
       },
-      "opsx-verify-tests": {
+      "osx-phase6": {
+        "version": "0.2.12"
+      },
+      "osx-modify": {
         "version": "0.1.1"
       },
-      "opsx-changelog": {
+      "osx-review": {
         "version": "0.1.1"
       },
-      "opsx-maintain-docs": {
+      "osx-verify-tests": {
+        "version": "0.1.1"
+      },
+      "osx-changelog": {
+        "version": "0.1.1"
+      },
+      "osx-maintain-docs": {
         "version": "0.1.1"
       }
     },
     "scripts": {
-      "openspec-auto": {
-        "version": "1.6.1"
+      "osx-orchestrate": {
+        "version": "1.6.0"
       }
     },
     "lib": {
-      "osc": {
-        "version": "0.4.0"
+      "osx-common": {
+        "version": "0.1.4"
+      },
+      "osx-state": {
+        "version": "0.3.3"
+      },
+      "osx-ctx": {
+        "version": "0.2.2"
+      },
+      "osx-iterations": {
+        "version": "0.2.3"
+      },
+      "osx-log": {
+        "version": "0.3.3"
+      },
+      "osx-git": {
+        "version": "0.1.2"
+      },
+      "osx-baseline": {
+        "version": "0.1.1"
+      },
+      "osx-complete": {
+        "version": "0.1.2"
+      },
+      "osx-phase": {
+        "version": "0.1.7"
+      },
+      "osx-validate": {
+        "version": "0.1.2"
+      },
+      "osx": {
+        "version": "0.1.0"
       }
     }
   }

@@ -57,8 +57,8 @@ export PATH="$PWD/bin:$PATH"
 ### Verify
 
 ```bash
-openspecx --version
-# openspecx 0.14.0
+openspec-extended --version
+# openspec-extended 0.14.0
 ```
 
 ## Setup in Your Project
@@ -67,10 +67,10 @@ openspecx --version
 cd your-project
 
 # Install extension resources
-openspecx install opencode
+openspec-extended install opencode
 
 # Include core OpenSpec workflows (11 commands)
-openspecx install opencode --with-core
+openspec-extended install opencode --with-core
 ```
 
 ### Verify Installation
@@ -83,58 +83,58 @@ ls .opencode/{skills,agents,commands,scripts}/
 
 ### Installing Resources
 
-| Command                                  | Description                           |
-| ---------------------------------------- | ------------------------------------- |
-| `openspecx install opencode`             | Add missing resources (skip existing) |
-| `openspecx install claude`               | Same for Claude Code                  |
-| `openspecx install opencode --with-core` | Include 11 core OpenSpec workflows    |
-| `openspecx update opencode`              | Force update all (overwrite existing) |
+| Command                                         | Description                           |
+| ----------------------------------------------- | ------------------------------------- |
+| `openspec-extended install opencode`            | Add missing resources (skip existing) |
+| `openspec-extended install claude`              | Same for Claude Code                  |
+| `openspec-extended install opencode --with-core`| Include 11 core OpenSpec workflows    |
+| `openspec-extended update opencode`             | Force update all (overwrite existing) |
 
 ### Extension Skills
 
-| Skill                             | Purpose                                        |
-| --------------------------------- | ---------------------------------------------- |
-| `openspec-concepts`               | Teaches AI agents about OpenSpec framework     |
-| `openspec-modify-artifacts`       | Modifies artifacts with dependency tracking    |
-| `openspec-review-artifacts`       | Reviews artifacts for quality and completeness |
-| `openspec-generate-changelog`     | Generate changelogs (Keep a Changelog format)  |
-| `openspec-review-test-compliance` | Review test coverage for OpenSpec changes      |
-| `openspec-maintain-ai-docs`       | Maintain AGENTS.md and CLAUDE.md               |
+| Skill                        | Purpose                                        |
+| ---------------------------- | ---------------------------------------------- |
+| `osx-concepts`               | Teaches AI agents about OpenSpec framework     |
+| `osx-modify-artifacts`       | Modifies artifacts with dependency tracking    |
+| `osx-review-artifacts`       | Reviews artifacts for quality and completeness |
+| `osx-generate-changelog`     | Generate changelogs (Keep a Changelog format)  |
+| `osx-review-test-compliance` | Review test coverage for OpenSpec changes      |
+| `osx-maintain-ai-docs`       | Maintain AGENTS.md and CLAUDE.md               |
 
 ### Specialized Agents
 
-| Agent                 | Purpose                 | Tools                               | Temp |
-| --------------------- | ----------------------- | ----------------------------------- | ---- |
-| `openspec-analyzer`   | Review, verify, reflect | read, grep, glob, bash              | 0.1  |
-| `openspec-builder`    | Implementation          | read, grep, glob, bash, write, edit | 0.4  |
-| `openspec-maintainer` | Docs, sync, archive     | read, grep, glob, bash, write, edit | 0.3  |
+| Agent              | Purpose                 | Tools                               | Temp |
+| ------------------ | ----------------------- | ----------------------------------- | ---- |
+| `osx-analyzer`     | Review, verify, reflect | read, grep, glob, bash              | 0.1  |
+| `osx-builder`      | Implementation          | read, grep, glob, bash, write, edit | 0.4  |
+| `osx-maintainer`   | Docs, sync, archive     | read, grep, glob, bash, write, edit | 0.3  |
 
 ## Autonomous Workflow
 
-7-phase loop for end-to-end implementation via `openspec-auto`.
+7-phase loop for end-to-end implementation via `osx-orchestrate`.
 
 ### Commands
 
-| Command            | Phase   | Description                |
-| ------------------ | ------- | -------------------------- |
-| `/openspec-phase0` | Review  | Analyze existing artifacts |
-| `/openspec-phase1` | Build   | Implement tasks            |
-| `/openspec-phase2` | Verify  | Verify implementation      |
-| `/openspec-phase3` | Docs    | Update documentation       |
-| `/openspec-phase4` | Sync    | Sync with upstream         |
-| `/openspec-phase5` | Reflect | Self-assessment            |
-| `/openspec-phase6` | Archive | Archive completed change   |
+| Command         | Phase   | Description                |
+| --------------- | ------- | -------------------------- |
+| `/osx-phase0`   | Review  | Analyze existing artifacts |
+| `/osx-phase1`   | Build   | Implement tasks            |
+| `/osx-phase2`   | Verify  | Verify implementation      |
+| `/osx-phase3`   | Docs    | Update documentation       |
+| `/osx-phase4`   | Sync    | Sync with upstream         |
+| `/osx-phase5`   | Reflect | Self-assessment            |
+| `/osx-phase6`   | Archive | Archive completed change   |
 
 ### Usage
 
 ```bash
 # Run autonomous implementation
-.opencode/scripts/openspec-auto <change-name>
+.opencode/scripts/osx-orchestrate <change-name>
 
 # With options
-.opencode/scripts/openspec-auto add-auth --max-phase-iterations 20 --verbose
-.opencode/scripts/openspec-auto add-auth --from-phase PHASE3
-.opencode/scripts/openspec-auto add-auth --dry-run
+.opencode/scripts/osx-orchestrate add-auth --max-phase-iterations 20 --verbose
+.opencode/scripts/osx-orchestrate add-auth --from-phase PHASE3
+.opencode/scripts/osx-orchestrate add-auth --dry-run
 ```
 
 ### Options
@@ -169,15 +169,15 @@ After PHASE6 (Archive), files move to `openspec/changes/archive/YYYY-MM-DD-<chan
 
 ```
 OpenSpec-extended/
-├── bin/openspecx           # CLI installer
+├── bin/openspec-extended   # CLI installer
 ├── install.sh              # Installation script
 ├── openspec-core/          # Core workflows (synced from upstream)
 ├── resources/
 │   ├── opencode/           # OpenCode resources
 │   │   ├── skills/         # 6 extension skills
 │   │   ├── agents/         # 3 agent definitions
-│   │   ├── commands/       # Phase commands + opsx-* utilities
-│   │   └── scripts/        # openspec-auto + lib/
+│   │   ├── commands/       # Phase commands + osx-* utilities
+│   │   └── scripts/        # osx-orchestrate + lib/
 │   └── claude/             # Claude Code resources (same structure)
 └── research/               # Platform documentation
 ```

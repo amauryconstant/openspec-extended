@@ -13,8 +13,8 @@
 
 set -euo pipefail
 
-readonly SCRIPT_NAME="openspecx"
-readonly SCRIPT_VERSION="0.1.2"
+readonly SCRIPT_NAME="openspec-extended"
+readonly SCRIPT_VERSION="0.1.3"
 
 # Configurable via environment
 PREFIX="${PREFIX:-$HOME/.local}"
@@ -169,7 +169,7 @@ install() {
     # Download tarball
     local temp_dir
     temp_dir=$(mktemp -d)
-    local tarball="$temp_dir/openspecx.tar.gz"
+    local tarball="$temp_dir/openspec-extended.tar.gz"
     
     if ! download_tarball "$version" "$tarball"; then
         rm -rf "$temp_dir"
@@ -234,7 +234,7 @@ install() {
             echo "  Or run: echo 'export PATH=\"$BIN_DIR:\$PATH\"' >> ~/.zshrc && source ~/.zshrc"
         fi
     else
-        log_success "Ready to use: openspecx install opencode"
+        log_success "Ready to use: openspec-extended install opencode"
     fi
 }
 
@@ -287,7 +287,7 @@ main() {
     done
     
     # Set derived paths
-    INSTALL_DIR="$PREFIX/share/openspecx"
+    INSTALL_DIR="$PREFIX/share/openspec-extended"
     BIN_DIR="$PREFIX/bin"
     
     check_dependencies

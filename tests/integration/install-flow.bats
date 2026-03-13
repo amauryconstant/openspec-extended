@@ -14,7 +14,7 @@ teardown() {
 # ========== install opencode ==========
 
 @test "install-flow: install opencode creates .opencode structure" {
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     assert_dir_exists ".opencode/skills"
@@ -24,50 +24,50 @@ teardown() {
 }
 
 @test "install-flow: install opencode copies extension skills" {
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
-    assert_dir_exists ".opencode/skills/openspec-concepts"
-    assert_dir_exists ".opencode/skills/openspec-modify-artifacts"
-    assert_dir_exists ".opencode/skills/openspec-review-artifacts"
+    assert_dir_exists ".opencode/skills/osx-concepts"
+    assert_dir_exists ".opencode/skills/osx-modify-artifacts"
+    assert_dir_exists ".opencode/skills/osx-review-artifacts"
 }
 
 @test "install-flow: install opencode copies agents" {
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
-    assert_file_exists ".opencode/agents/openspec-analyzer.md"
-    assert_file_exists ".opencode/agents/openspec-builder.md"
-    assert_file_exists ".opencode/agents/openspec-maintainer.md"
+    assert_file_exists ".opencode/agents/osx-analyzer.md"
+    assert_file_exists ".opencode/agents/osx-builder.md"
+    assert_file_exists ".opencode/agents/osx-maintainer.md"
 }
 
 @test "install-flow: install opencode copies commands" {
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
-    assert_file_exists ".opencode/commands/openspec-phase0.md"
-    assert_file_exists ".opencode/commands/openspec-phase1.md"
-    assert_file_exists ".opencode/commands/openspec-phase2.md"
+    assert_file_exists ".opencode/commands/osx-phase0.md"
+    assert_file_exists ".opencode/commands/osx-phase1.md"
+    assert_file_exists ".opencode/commands/osx-phase2.md"
 }
 
 @test "install-flow: install opencode copies scripts and makes executable" {
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
-    assert_file_exists ".opencode/scripts/openspec-auto"
-    assert_executable ".opencode/scripts/openspec-auto"
+    assert_file_exists ".opencode/scripts/osx-orchestrate"
+    assert_executable ".opencode/scripts/osx-orchestrate"
 }
 
 @test "install-flow: install opencode copies lib scripts" {
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     assert_dir_exists ".opencode/scripts/lib"
-    assert_file_exists ".opencode/scripts/lib/osc"
+    assert_file_exists ".opencode/scripts/lib/osx"
 }
 
 @test "install-flow: install opencode copies manifest with version" {
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     assert_file_exists ".opencode/manifest.json"
@@ -80,7 +80,7 @@ teardown() {
 }
 
 @test "install-flow: install opencode shows success message" {
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     [[ "$output" == *"Installed"* ]] || [[ "$output" == *"Copied"* ]]
@@ -89,7 +89,7 @@ teardown() {
 # ========== install claude ==========
 
 @test "install-flow: install claude creates .claude structure" {
-    run_openspecx install claude
+    run_osx install claude
     [ "$status" -eq 0 ]
     
     assert_dir_exists ".claude/skills"
@@ -97,34 +97,34 @@ teardown() {
 }
 
 @test "install-flow: install claude copies extension skills" {
-    run_openspecx install claude
+    run_osx install claude
     [ "$status" -eq 0 ]
     
-    assert_dir_exists ".claude/skills/openspec-concepts"
+    assert_dir_exists ".claude/skills/osx-concepts"
 }
 
 # ========== install --with-core ==========
 
 @test "install-flow: install --with-core includes core skills" {
-    run_openspecx install opencode --with-core
+    run_osx install opencode --with-core
     [ "$status" -eq 0 ]
     
     # Core skills should be present
-    assert_dir_exists ".opencode/skills/openspec-propose" || \
-    assert_dir_exists ".opencode/skills/openspec-new-change" || \
+    assert_dir_exists ".opencode/skills/osc-propose" || \
+    assert_dir_exists ".opencode/skills/osc-new-change" || \
     [[ "$(ls .opencode/skills/ 2>/dev/null | wc -l)" -gt 6 ]]
 }
 
 @test "install-flow: install --with-core includes core commands" {
-    run_openspecx install opencode --with-core
+    run_osx install opencode --with-core
     [ "$status" -eq 0 ]
     
-    # Core commands should be present (either flat or in opsx/ subdir)
+    # Core commands should be present (either flat or in osx/ subdir)
     local has_core=false
     
-    if [[ -f ".opencode/commands/opsx-propose.md" ]]; then
+    if [[ -f ".opencode/commands/osx-propose.md" ]]; then
         has_core=true
-    elif [[ -d ".opencode/commands/opsx" ]]; then
+    elif [[ -d ".opencode/commands/osx" ]]; then
         has_core=true
     fi
     
@@ -136,31 +136,31 @@ teardown() {
 
 @test "install-flow: update overwrites existing skills" {
     # First install
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     # Modify a skill's SKILL.md
-    echo "modified" >> ".opencode/skills/openspec-concepts/SKILL.md"
+    echo "modified" >> ".opencode/skills/osx-concepts/SKILL.md"
     
     # Get original content length
     local orig_len
-    orig_len=$(wc -c < "$PROJECT_ROOT/resources/opencode/skills/openspec-concepts/SKILL.md")
+    orig_len=$(wc -c < "$PROJECT_ROOT/resources/opencode/skills/osx-concepts/SKILL.md")
     
     # Update
-    run_openspecx update opencode
+    run_osx update opencode
     [ "$status" -eq 0 ]
     
     # File should be overwritten (back to original size)
     local new_len
-    new_len=$(wc -c < ".opencode/skills/openspec-concepts/SKILL.md")
+    new_len=$(wc -c < ".opencode/skills/osx-concepts/SKILL.md")
     [ "$new_len" -eq "$orig_len" ]
 }
 
 @test "install-flow: update shows updated message" {
     # First install
-    run_openspecx install opencode
+    run_osx install opencode
     
-    run_openspecx update opencode
+    run_osx update opencode
     [ "$status" -eq 0 ]
     
     [[ "$output" == *"Updated"* ]]
@@ -170,11 +170,11 @@ teardown() {
 
 @test "install-flow: install skips existing skills" {
     # First install
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     # Second install should skip
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     [[ "$output" == *"Skipped"* ]] || [[ "$output" == *"0 skill"* ]]
@@ -182,8 +182,8 @@ teardown() {
 
 # ========== .gitignore ==========
 
-@test "install-flow: updates .gitignore when openspec-auto present" {
-    run_openspecx install opencode
+@test "install-flow: updates .gitignore when osx-orchestrate present" {
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     [ -f ".gitignore" ]
@@ -191,7 +191,7 @@ teardown() {
 }
 
 @test "install-flow: .gitignore has markers" {
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     grep -q "BEGIN OpenSpec autonomous" .gitignore
@@ -201,7 +201,7 @@ teardown() {
 @test "install-flow: .gitignore preserves existing content" {
     echo "# Existing content" > .gitignore
     
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     grep -q "# Existing content" .gitignore
@@ -211,7 +211,7 @@ teardown() {
 # ========== Skills have SKILL.md ==========
 
 @test "install-flow: skills have SKILL.md file" {
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     for skill_dir in .opencode/skills/*/; do
@@ -222,7 +222,7 @@ teardown() {
 # ========== Commands have .md files ==========
 
 @test "install-flow: commands have .md files" {
-    run_openspecx install opencode
+    run_osx install opencode
     [ "$status" -eq 0 ]
     
     local count
@@ -233,6 +233,6 @@ teardown() {
 # ========== Error handling ==========
 
 @test "install-flow: install to invalid tool fails gracefully" {
-    run_openspecx install nonexistent-tool
+    run_osx install nonexistent-tool
     [ "$status" -eq 1 ]
 }
