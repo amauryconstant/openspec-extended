@@ -1045,7 +1045,17 @@ archive_log_file() {
     return 0
   fi
   
-  local archive_log="$CHANGE_DIR/osx-orchestrate.log"
+  local result
+  result=$(run_osx validate archive "$CHANGE_ID") || true
+  local archive_dir
+  archive_dir=$(echo "$result" | jq -r '.archive // ""')
+  
+  if [[ -z "$archive_dir" ]]; then
+    log_error "Failed to get archive path"
+    return 1
+  fi
+  
+  local archive_log="$archive_dir/osx-orchestrate.log"
   
   if mv "$LOG_FILE" "$archive_log" 2>/dev/null; then
     log_verbose "Log moved to archive: $archive_log"
