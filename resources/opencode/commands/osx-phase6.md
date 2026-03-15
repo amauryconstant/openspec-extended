@@ -102,12 +102,13 @@ Note: Commit hash is captured in git history, not duplicated in logs.
 
 ### Step 5: Commit Archive
 
-Commit all archived files and log updates in a single commit:
+1. Invoke osx-commit skill
+2. Commit all archived files and log updates:
 
-```bash
-git add openspec/changes/archive/
-git commit -m "Archive change $1"
-```
+   ```bash
+   git add openspec/changes/archive/
+   git commit -m "Archive change $1"
+   ```
 
 Note: After archiving, the change directory moves to archive/. The osc-* functions automatically detect this and will continue to work.
 

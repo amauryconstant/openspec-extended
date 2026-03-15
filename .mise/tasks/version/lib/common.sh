@@ -112,6 +112,8 @@ get_resource_info_from_path() {
       resource_type="skills"; resource_name="osx-review-artifacts" ;;
     *"/skills/osx-review-test-compliance/"*)
       resource_type="skills"; resource_name="osx-review-test-compliance" ;;
+    *"/skills/osx-commit/"*)
+      resource_type="skills"; resource_name="osx-commit" ;;
     *"/agents/osx-analyzer"*)
       resource_type="agents"; resource_name="osx-analyzer" ;;
     *"/agents/osx-builder"*)

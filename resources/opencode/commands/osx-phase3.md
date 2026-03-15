@@ -78,12 +78,15 @@ This consolidation ensures:
 
 IF documentation was updated during this phase:
 
-```bash
-git add AGENTS.md CLAUDE.md
-git commit -m "Update documentation for $1"
-```
+1. Invoke osx-commit skill
+2. Commit changes:
 
-Record commit hash in decision log and iterations.json.
+   ```bash
+   git add AGENTS.md CLAUDE.md
+   git commit -m "Update documentation for $1"
+   ```
+
+3. Record commit hash in decision log and iterations.json
 
 ## BLOCKER HANDLING
 

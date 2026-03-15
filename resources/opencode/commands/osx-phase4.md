@@ -46,14 +46,17 @@ Merge delta specs from the change to main specs.
 
 ## MANDATORY END
 
-IF delta specs were synced, commit before transitioning:
+IF delta specs were synced:
 
-```bash
-git add openspec/specs/
-git commit -m "Sync $1 specs to main"
-```
+1. Invoke osx-commit skill
+2. Commit changes:
 
-Record commit hash in decision log and iterations.json.
+   ```bash
+   git add openspec/specs/
+   git commit -m "Sync $1 specs to main"
+   ```
+
+3. Record commit hash in decision log and iterations.json
 
 ## BLOCKER HANDLING
 

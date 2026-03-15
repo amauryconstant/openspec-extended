@@ -121,12 +121,15 @@ EOF
 
 IF artifacts were modified during this phase (CRITICAL/WARNING fixes):
 
-```bash
-git add openspec/changes/$1/
-git commit -m "Fix artifacts after verification for $1"
-```
+1. Invoke osx-commit skill
+2. Commit changes:
 
-Record commit hash in decision log and iterations.json.
+   ```bash
+   git add openspec/changes/$1/
+   git commit -m "Fix artifacts after verification for $1"
+   ```
+
+3. Record commit hash in decision log and iterations.json
 
 ## STATE FILE UPDATES
 

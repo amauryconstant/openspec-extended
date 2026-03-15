@@ -131,14 +131,15 @@ Append entry:
 
 ## MANDATORY END
 
-Commit reflections:
+1. Invoke osx-commit skill
+2. Commit changes:
 
-```bash
-git add openspec/changes/$1/reflections.md
-git commit -m "Complete self-reflection for $1"
-```
+   ```bash
+   git add openspec/changes/$1/reflections.md
+   git commit -m "Complete self-reflection for $1"
+   ```
 
-Record commit hash in decision log and iterations.json.
+3. Record commit hash in decision log and iterations.json
 
 ## BLOCKER HANDLING
 

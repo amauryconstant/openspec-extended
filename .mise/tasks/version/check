@@ -18,6 +18,7 @@ done
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- \
   'resources/*/skills/*/SKILL.md' \
   'resources/*/skills/*/references/*.md' \
+  'resources/*/skills/*/scripts/*' \
   'resources/*/agents/*.md' \
   'resources/*/commands/*.md' \
   'resources/*/commands/*/*.md' \

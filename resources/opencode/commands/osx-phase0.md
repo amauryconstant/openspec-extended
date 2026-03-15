@@ -57,14 +57,17 @@ Ensure OpenSpec artifacts are excellent before implementation. Validate:
 
 ## MANDATORY END
 
-Before transitioning to PHASE1, IF artifacts were modified during this phase:
+IF artifacts were modified during this phase:
 
-```bash
-git add openspec/changes/$1/
-git commit -m "Review and iterate artifacts for $1"
-```
+1. Invoke osx-commit skill
+2. Commit changes:
 
-Record commit hash in decision log.
+   ```bash
+   git add openspec/changes/$1/
+   git commit -m "Review and iterate artifacts for $1"
+   ```
+
+3. Record commit hash in decision log
 
 ## STATE FILE UPDATES
 

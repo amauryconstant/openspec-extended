@@ -1,7 +1,10 @@
 {
-  "version": "0.16.0",
+  "version": "0.17.0",
   "resources": {
     "skills": {
+      "osx-commit": {
+        "version": "0.1.0"
+      },
       "osx-concepts": {
         "version": "0.3.1"
       },
@@ -34,25 +37,25 @@
     },
     "commands": {
       "osx-phase0": {
-        "version": "0.2.7"
+        "version": "0.2.8"
       },
       "osx-phase1": {
-        "version": "0.2.9"
-      },
-      "osx-phase2": {
-        "version": "0.2.12"
-      },
-      "osx-phase3": {
         "version": "0.3.0"
       },
+      "osx-phase2": {
+        "version": "0.2.13"
+      },
+      "osx-phase3": {
+        "version": "0.3.1"
+      },
       "osx-phase4": {
-        "version": "0.2.7"
+        "version": "0.2.8"
       },
       "osx-phase5": {
-        "version": "0.2.11"
+        "version": "0.3.0"
       },
       "osx-phase6": {
-        "version": "0.2.13"
+        "version": "0.3.0"
       },
       "osx-modify": {
         "version": "0.1.2"

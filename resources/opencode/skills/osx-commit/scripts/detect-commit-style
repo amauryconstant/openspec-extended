@@ -1,0 +1,34 @@
+#!/bin/bash
+# Detect commit message standard from git history
+# Usage: detect-commit-style [SAMPLE_SIZE]
+# Output: STANDARD_NAME (e.g., "CONVENTIONAL", "CLASSIC", "UNKNOWN")
+
+set -euo pipefail
+
+readonly SAMPLE="${1:-10}"
+readonly MIN_MATCHES=3
+
+# Get commit messages
+if ! msgs=$(git log --format="%s" -"${SAMPLE}" 2>/dev/null); then
+    echo "UNKNOWN: No commits found"
+    exit 0
+fi
+
+# Count matches for each pattern (grep -c returns 1 when no match, so capture properly)
+conv=$(echo "$msgs" | grep -cE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\(.+\))?!?:' 2>/dev/null) || conv=0
+ang=$(echo "$msgs" | grep -cE '^(build|ci|docs|feat|fix|perf|refactor|test)\([a-z-]+\):' 2>/dev/null) || ang=0
+emoji=$(echo "$msgs" | grep -cP '^[\x{1F300}-\x{1F9FF}]' 2>/dev/null) || emoji=0
+classic=$(echo "$msgs" | grep -cE '^(Add|Fix|Update|Remove|Refactor|Release|Improve|Rename|Bump|Enable|Correct|Relocate|Restructure|Replace|Enhance|Merge|Revert|Document|Simplify|Optimize)' 2>/dev/null) || classic=0
+
+# Require minimum matches to avoid false positives
+if [[ $ang -ge $MIN_MATCHES && $ang -ge $conv ]]; then
+    echo "ANGULAR ($ang/$SAMPLE)"
+elif [[ $conv -ge $MIN_MATCHES ]]; then
+    echo "CONVENTIONAL ($conv/$SAMPLE)"
+elif [[ $emoji -ge $MIN_MATCHES ]]; then
+    echo "GITMOJI ($emoji/$SAMPLE)"
+elif [[ $classic -ge $MIN_MATCHES ]]; then
+    echo "CLASSIC ($classic/$SAMPLE)"
+else
+    echo "UNKNOWN (fallback: CLASSIC)"
+fi

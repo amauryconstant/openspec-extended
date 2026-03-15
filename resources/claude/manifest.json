@@ -1,8 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "version": "",
+  "version": "0.17.0",
   "resources": {
     "skills": {
+      "osx-commit": { "version": "0.1.0" },
       "osx-concepts": { "version": "0.3.1" },
       "osx-generate-changelog": { "version": "0.2.0" },
       "osx-maintain-ai-docs": { "version": "0.2.0" },
