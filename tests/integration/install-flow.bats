@@ -355,3 +355,107 @@ teardown() {
     core_installed=$(jq -r '.core.installed' "$manifest")
     [ "$core_installed" = "true" ]
 }
+
+# ========== Validation - no false positives for scripts/lib ==========
+
+@test "install-flow: validation shows no warnings for deployed scripts and lib" {
+    run_osx install opencode
+    [ "$status" -eq 0 ]
+    
+    # Should NOT show warnings for scripts/lib resources
+    [[ "$output" != *"Resource 'osx' in manifest but not deployed"* ]]
+    [[ "$output" != *"Resource 'osx-orchestrate' in manifest but not deployed"* ]]
+    [[ "$output" != *"Validation"* ]] || [[ "$output" == *"0 warning"* ]]
+}
+
+# ========== Core rename logic (mocked) ==========
+
+# Helper to source installer functions without running main
+load_installer_functions() {
+    local installer="$PROJECT_ROOT/bin/openspec-extended"
+    
+    # Extract color constants and functions (everything before main())
+    local code
+    code=$(sed '/^main()/,$d' "$installer")
+    
+    # Remove the readonly declarations that cause issues
+    code=$(echo "$code" | grep -v "^readonly TOOL_DIRS")
+    
+    # Define TOOL_DIRS as global first
+    declare -gA TOOL_DIRS=(["opencode"]=".opencode" ["claude"]=".claude")
+    
+    # Source the remaining code
+    eval "$code"
+}
+
+@test "install-flow: rename_core_resources handles opsx-* to osc-* renaming" {
+    # First install to create base structure
+    run_osx install opencode
+    [ "$status" -eq 0 ]
+    
+    # Create mock openspec CLI output in command/ (singular)
+    mkdir -p .opencode/command
+    echo "# opsx-apply command" > .opencode/command/opsx-apply.md
+    echo "# opsx-archive command" > .opencode/command/opsx-archive.md
+    
+    # Source and call rename function
+    load_installer_functions
+    rename_core_resources "opencode"
+    
+    # Verify renamed files exist in commands/ (plural)
+    assert_file_exists ".opencode/commands/osc-apply.md"
+    assert_file_exists ".opencode/commands/osc-archive.md"
+    
+    # Verify original names don't exist
+    [[ ! -f ".opencode/commands/opsx-apply.md" ]]
+}
+
+@test "install-flow: rename_core_resources consolidates command/ to commands/" {
+    # First install to create base structure
+    run_osx install opencode
+    [ "$status" -eq 0 ]
+    
+    # Create mock openspec CLI output in command/ (singular)
+    mkdir -p .opencode/command
+    echo "# osc-explore command" > .opencode/command/osc-explore.md
+    echo "# osc-new command" > .opencode/command/osc-new.md
+    
+    # Source and call rename function
+    load_installer_functions
+    rename_core_resources "opencode"
+    
+    # Verify files moved to commands/ (plural)
+    assert_file_exists ".opencode/commands/osc-explore.md"
+    assert_file_exists ".opencode/commands/osc-new.md"
+    
+    # Verify command/ (singular) directory is removed
+    [[ ! -d ".opencode/command" ]]
+}
+
+@test "install-flow: rename_core_resources moves osx/opsx subdirs to commands/osc/" {
+    # First install to create base structure
+    run_osx install opencode
+    [ "$status" -eq 0 ]
+    
+    # Create mock openspec CLI output with subdirectory
+    mkdir -p .opencode/command/osx
+    echo "# osx subcommand" > .opencode/command/osx/phase0.md
+    echo "# another subcommand" > .opencode/command/osx/phase1.md
+    
+    # Also test opsx subdir
+    mkdir -p .opencode/command/opsx
+    echo "# opsx subcommand" > .opencode/command/opsx/apply.md
+    
+    # Source and call rename function
+    load_installer_functions
+    rename_core_resources "opencode"
+    
+    # Verify subdirectory moved and renamed to osc/
+    assert_dir_exists ".opencode/commands/osc"
+    assert_file_exists ".opencode/commands/osc/phase0.md"
+    assert_file_exists ".opencode/commands/osc/phase1.md"
+    assert_file_exists ".opencode/commands/osc/apply.md"
+    
+    # Verify original subdirs don't exist
+    [[ ! -d ".opencode/command" ]]
+}
