@@ -66,12 +66,14 @@ run_streaming() {
     fi
 
     # Stream to terminal via FD 3 (BATS) or stdout, while capturing to file
-    # Use process substitution to capture output reliably
+    # IMPORTANT: Orchestrate script already uses exec > >(tee ...) for logging
+    # So we must avoid nested tee which breaks exit code capture
+    # Solution: Redirect to file and terminal without additional tee layer
     "$@" 2>&1 | tee "$tmp_file" >&$output_fd
     local exit_code=${PIPESTATUS[0]}
 
-    # Ensure tee has finished - pipeline completes when command exits
-    # Small delay to ensure filesystem buffers are flushed
+    # Ensure all output is captured and flushed
+    sync
     sleep 0.1
 
     output=$(cat "$tmp_file")
@@ -141,6 +143,91 @@ assert_file_contains() {
     if ! grep -q "$pattern" "$file" 2>/dev/null; then
         echo "Expected file '$file' to contain pattern: $pattern"
         return 1
+    fi
+}
+
+# Get archive directory for a change
+get_archive_dir() {
+    local change="$1"
+    find openspec/changes/archive -name "*-$change" -type d 2>/dev/null | head -1
+}
+
+# Get log file path (works for both active and archived changes)
+get_log_file() {
+    local change="$1"
+    local archive_dir
+    archive_dir=$(get_archive_dir "$change")
+    if [[ -n "$archive_dir" ]] && [[ -f "$archive_dir/osx-orchestrate.log" ]]; then
+        echo "$archive_dir/osx-orchestrate.log"
+    elif [[ -f "openspec/changes/$change/osx-orchestrate.log" ]]; then
+        echo "openspec/changes/$change/osx-orchestrate.log"
+    else
+        echo ""
+    fi
+}
+
+# Assert JSON file is valid and parseable
+assert_valid_json() {
+    local file="$1"
+    [ -f "$file" ] || return 1
+
+    jq empty "$file" >/dev/null 2>&1 || {
+        echo "Invalid JSON: $file"
+        return 1
+    }
+}
+
+# Assert JSON array has minimum count
+assert_json_count_ge() {
+    local file="$1"
+    local min_count="$2"
+
+    local count
+    count=$(jq '. | length' "$file")
+
+    [[ "$count" -ge "$min_count" ]] || {
+        echo "Expected ≥$min_count entries, got $count in $file"
+        return 1
+    }
+}
+
+# Assert JSON field exists and is not null
+assert_json_field_exists() {
+    local json="$1"
+    local field="$2"
+
+    local value
+    value=$(echo "$json" | jq -r ".$field // empty")
+
+    [[ -n "$value" ]] || {
+        echo "Field not found: $field"
+        return 1
+    }
+}
+
+# Save shared state to JSON file (for BATS setup_file → test communication)
+save_e2e_state() {
+    local archive_dir="${1:-}"
+    local change_name="${2:-}"
+    local workflow_ran="${3:-false}"
+
+    local state_json
+    state_json=$(jq -n \
+        --arg archive_dir "$archive_dir" \
+        --arg change_name "$change_name" \
+        --arg workflow_ran "$workflow_ran" \
+        '{archive_dir: $archive_dir, change_name: $change_name, workflow_ran: $workflow_ran}')
+
+    echo "$state_json" > .e2e-state.json
+}
+
+# Load shared state from JSON file
+load_e2e_state() {
+    if [[ -f ".e2e-state.json" ]]; then
+        SHARED_ARCHIVE_DIR=$(jq -r '.archive_dir // empty' .e2e-state.json)
+        SHARED_CHANGE_NAME=$(jq -r '.change_name // empty' .e2e-state.json)
+        SHARED_WORKFLOW_RAN=$(jq -r '.workflow_ran // "false"' .e2e-state.json)
+        export SHARED_ARCHIVE_DIR SHARED_CHANGE_NAME SHARED_WORKFLOW_RAN
     fi
 }
 
