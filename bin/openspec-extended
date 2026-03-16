@@ -5,7 +5,14 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="openspec-extended"
-readonly SCRIPT_VERSION="0.13.0"
+readonly SCRIPT_VERSION="1.0.0"
+
+readonly COLOR_GREEN='\033[0;32m'
+readonly COLOR_RED='\033[0;31m'
+readonly COLOR_YELLOW='\033[0;33m'
+readonly COLOR_RESET='\033[0m'
+
+declare -A TOOL_DIRS=(["opencode"]=".opencode" ["claude"]=".claude")
 
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 while [[ -L "$SCRIPT_SOURCE" ]]; do
@@ -18,23 +25,20 @@ readonly SCRIPT_DIR
 
 RESOURCES_DIR=""
 
-resolve_install_dirs() {
-    local install_base=""
-    
-    local xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
-    if [[ -d "$xdg_data_home/openspec-extended/resources" ]]; then
-        install_base="$xdg_data_home/openspec-extended"
-    elif [[ -d "$HOME/.local/share/openspec-extended/resources" ]]; then
-        install_base="$HOME/.local/share/openspec-extended"
-    fi
-    
+log_success() { echo -e "${COLOR_GREEN}✓${COLOR_RESET} $*"; }
+log_info()    { echo -e "→ $*"; }
+log_error()   { echo -e "${COLOR_RED}✗${COLOR_RESET} $*" >&2; }
+log_warn()    { echo -e "${COLOR_YELLOW}!${COLOR_RESET} $*"; }
+
+resolve_resources_dir() {
     if [[ -d "$SCRIPT_DIR/../resources" ]]; then
         RESOURCES_DIR="$(cd "$SCRIPT_DIR/../resources" && pwd)"
         return 0
     fi
     
-    if [[ -n "$install_base" ]]; then
-        RESOURCES_DIR="$install_base/resources"
+    local xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+    if [[ -d "$xdg_data_home/openspec-extended/resources" ]]; then
+        RESOURCES_DIR="$xdg_data_home/openspec-extended/resources"
         return 0
     fi
     
@@ -44,42 +48,12 @@ resolve_install_dirs() {
     exit 1
 }
 
-readonly COLOR_GREEN='\033[0;32m'
-readonly COLOR_RED='\033[0;31m'
-readonly COLOR_YELLOW='\033[0;33m'
-readonly COLOR_RESET='\033[0m'
-
 get_tool_dir() {
-    case "$1" in
-        opencode) echo ".opencode" ;;
-        claude)   echo ".claude" ;;
-        *)        return 1 ;;
-    esac
-}
-
-log_success() {
-    echo -e "${COLOR_GREEN}✓${COLOR_RESET} $*"
-}
-
-log_info() {
-    echo -e "→ $*"
-}
-
-log_error() {
-    echo -e "${COLOR_RED}✗${COLOR_RESET} $*" >&2
-}
-
-log_warn() {
-    echo -e "${COLOR_YELLOW}!${COLOR_RESET} $*"
-}
-
-get_version() {
-    local manifest="$1"
-    if [[ ! -f "$manifest" ]]; then
-        log_error "Manifest not found: $manifest"
-        exit 1
+    local tool="$1"
+    if [[ -z "${TOOL_DIRS[$tool]:-}" ]]; then
+        return 1
     fi
-    jq -r '.version' "$manifest"
+    echo "${TOOL_DIRS[$tool]}"
 }
 
 show_version() {
@@ -97,7 +71,7 @@ Usage:
   $SCRIPT_NAME --help
 
 Commands:
-  install <tool>  Add missing resources (skip existing)
+  install <tool>  Install/update resources (version-aware)
   update <tool>   Force update all resources (overwrite existing)
   run             Run autonomous implementation workflow
 
@@ -106,7 +80,7 @@ Available tools:
   claude          Install to .claude/ directory
 
 Options:
-  --with-core     Also deploy core OpenSpec skills from openspec-core/
+  --with-core     Also deploy core OpenSpec skills (osc-*)
   --version       Show version
   --help          Show this help message
 
@@ -120,42 +94,13 @@ Examples:
 EOF
 }
 
-copy_skills() {
-    local source_dir="$1"
-    local target_dir="$2"
-    local force="$3"
-    
-    local processed_count=0
-    local skipped_count=0
-    
-    while IFS= read -r -d '' skill_dir; do
-        local skill_name
-        skill_name=$(basename "$skill_dir")
-        local target_skill_dir="$target_dir/$skill_name"
-        
-        if [[ "$force" == "true" ]]; then
-            cp -r "$skill_dir" "$target_dir/"
-            processed_count=$((processed_count + 1))
-        else
-            if [[ -d "$target_skill_dir" ]]; then
-                skipped_count=$((skipped_count + 1))
-            else
-                cp -r "$skill_dir" "$target_dir/"
-                processed_count=$((processed_count + 1))
-            fi
-        fi
-    done < <(find "$source_dir" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
-    
-    echo "$processed_count:$skipped_count"
-}
-
 show_usage() {
     log_error "Usage: $SCRIPT_NAME <command> <tool> [--with-core]"
     log_error "       $SCRIPT_NAME run <change-id> [options]"
     echo
     echo "Commands:"
-    echo "  install <tool>  Add missing resources (skip existing)"
-    echo "  update <tool>   Force update all resources (overwrite existing)"
+    echo "  install <tool>  Install/update resources (version-aware)"
+    echo "  update <tool>   Force update all resources"
     echo "  run             Run autonomous implementation workflow"
     echo
     echo "Available tools: opencode, claude"
@@ -163,20 +108,278 @@ show_usage() {
     echo "Run '$SCRIPT_NAME --help' for more information."
 }
 
-run_auto() {
-    local script_path="$(pwd)/.opencode/scripts/osx-orchestrate"
+parse_version() {
+    local v="$1"
+    if [[ ! "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "0 0 0"
+        return
+    fi
+    echo "${v//./ }"
+}
+
+compare_versions() {
+    local v1="$1" v2="$2"
     
-    if [[ ! -f "$script_path" ]]; then
-        log_error "osx-orchestrate not found"
-        log_error "Run: $SCRIPT_NAME install opencode"
+    if [[ -z "$v1" ]] || [[ -z "$v2" ]]; then
+        echo "0"
+        return
+    fi
+    
+    read -ra p1 <<< "$(parse_version "$v1")"
+    read -ra p2 <<< "$(parse_version "$v2")"
+    
+    for i in 0 1 2; do
+        local n1="${p1[$i]:-0}"
+        local n2="${p2[$i]:-0}"
+        if (( n1 > n2 )); then
+            echo "1"
+            return
+        elif (( n1 < n2 )); then
+            echo "-1"
+            return
+        fi
+    done
+    echo "0"
+}
+
+get_installed_version() {
+    local manifest="$1" type="$2" name="$3"
+    
+    if [[ ! -f "$manifest" ]]; then
+        echo ""
+        return
+    fi
+    
+    jq -r ".resources.$type.\"$name\".version // empty" "$manifest" 2>/dev/null || echo ""
+}
+
+should_deploy() {
+    local name="$1" source_version="$2" target_path="$3" target_manifest="$4" type="$5" force="$6"
+    
+    if [[ "$force" == "true" ]]; then
+        echo "update"
+        return
+    fi
+    
+    if [[ ! -e "$target_path" ]]; then
+        echo "install"
+        return
+    fi
+    
+    local installed
+    installed=$(get_installed_version "$target_manifest" "$type" "$name")
+    
+    if [[ -z "$installed" ]]; then
+        echo "install"
+        return
+    fi
+    
+    local cmp
+    cmp=$(compare_versions "$source_version" "$installed")
+    
+    if [[ "$cmp" == "1" ]]; then
+        echo "upgrade"
+    else
+        echo "skip"
+    fi
+}
+
+get_target_path() {
+    local type="$1" target_dir="$2" name="$3"
+    
+    case "$type" in
+        skills)   echo "$target_dir/skills/$name" ;;
+        commands)
+            if [[ -f "$target_dir/commands/${name}.md" ]]; then
+                echo "$target_dir/commands/${name}.md"
+            else
+                for subdir in "$target_dir/commands"/*/; do
+                    if [[ -d "$subdir" ]]; then
+                        local base_name="${name#osx-}"
+                        if [[ -f "$subdir${base_name}.md" ]]; then
+                            echo "$subdir${base_name}.md"
+                            return
+                        fi
+                    fi
+                done
+                echo "$target_dir/commands/${name}.md"
+            fi
+            ;;
+        agents)   echo "$target_dir/agents/${name}.md" ;;
+        scripts)  echo "$target_dir/scripts/$name" ;;
+        lib)      echo "$target_dir/scripts/lib/$name" ;;
+    esac
+}
+
+deploy_skills() {
+    local source_base="$1" target_dir="$2" name="$3"
+    local target_skills="$target_dir/skills"
+    mkdir -p "$target_skills"
+    rm -rf "$target_skills/$name"
+    cp -r "$source_base/$name" "$target_skills/"
+}
+
+deploy_commands() {
+    local source_base="$1" target_dir="$2" name="$3"
+    local target_commands="$target_dir/commands"
+    mkdir -p "$target_commands"
+    
+    if [[ -f "$source_base/${name}.md" ]]; then
+        cp -f "$source_base/${name}.md" "$target_commands/"
+    else
+        for subdir in "$source_base"/*/; do
+            if [[ -d "$subdir" ]]; then
+                local subdir_name
+                subdir_name=$(basename "$subdir")
+                local base_name="${name#osx-}"
+                if [[ -f "$subdir${base_name}.md" ]]; then
+                    mkdir -p "$target_commands/$subdir_name"
+                    cp -f "$subdir${base_name}.md" "$target_commands/$subdir_name/"
+                    return
+                fi
+            fi
+        done
+        return 1
+    fi
+}
+
+deploy_agents() {
+    local source_base="$1" target_dir="$2" name="$3"
+    local target_agents="$target_dir/agents"
+    mkdir -p "$target_agents"
+    cp -f "$source_base/${name}.md" "$target_agents/"
+}
+
+deploy_scripts() {
+    local source_base="$1" target_dir="$2" name="$3"
+    local target_scripts="$target_dir/scripts"
+    mkdir -p "$target_scripts"
+    cp -f "$source_base/$name" "$target_scripts/"
+    chmod +x "$target_scripts/$name"
+}
+
+deploy_lib() {
+    local source_base="$1" target_dir="$2" name="$3"
+    local target_lib="$target_dir/scripts/lib"
+    mkdir -p "$target_lib"
+    cp -f "$source_base/$name" "$target_lib/"
+    chmod +x "$target_lib/$name"
+}
+
+deploy_type() {
+    local type="$1" source_dir="$2" target_dir="$3" target_manifest="$4" source_manifest="$5" force="$6"
+    
+    local source_type_dir
+    case "$type" in
+        skills)   source_type_dir="$source_dir/skills" ;;
+        commands) source_type_dir="$source_dir/commands" ;;
+        agents)   source_type_dir="$source_dir/agents" ;;
+        scripts)  source_type_dir="$source_dir/scripts" ;;
+        lib)      source_type_dir="$source_dir/scripts/lib" ;;
+    esac
+    
+    if [[ ! -d "$source_type_dir" ]]; then
+        return 0
+    fi
+    
+    local resources
+    resources=$(jq -r ".resources.$type | keys[] // empty" "$source_manifest" 2>/dev/null) || return 0
+    
+    if [[ -z "$resources" ]]; then
+        return 0
+    fi
+    
+    local count=0
+    local skipped=0
+    
+    for name in $resources; do
+        local source_version
+        source_version=$(jq -r ".resources.$type.\"$name\".version // empty" "$source_manifest" 2>/dev/null) || continue
+        
+        if [[ -z "$source_version" ]]; then
+            continue
+        fi
+        
+        local target_path
+        target_path=$(get_target_path "$type" "$target_dir" "$name")
+        
+        local decision
+        decision=$(should_deploy "$name" "$source_version" "$target_path" "$target_manifest" "$type" "$force")
+        
+        case "$decision" in
+            install|upgrade|update)
+                "deploy_$type" "$source_type_dir" "$target_dir" "$name"
+                count=$((count + 1))
+                ;;
+            skip)
+                skipped=$((skipped + 1))
+                ;;
+        esac
+    done
+    
+    DEPLOY_TOTAL=$((DEPLOY_TOTAL + count))
+    DEPLOY_SKIPPED=$((DEPLOY_SKIPPED + skipped))
+    
+    if [[ $count -gt 0 ]]; then
+        local type_label="$type"
+        if [[ "$type" == "skills" ]] && [[ $count -eq 1 ]]; then
+            type_label="skill"
+        elif [[ "$type" == "commands" ]] && [[ $count -eq 1 ]]; then
+            type_label="command"
+        elif [[ "$type" == "agents" ]] && [[ $count -eq 1 ]]; then
+            type_label="agent"
+        elif [[ "$type" == "scripts" ]] && [[ $count -eq 1 ]]; then
+            type_label="script"
+        elif [[ "$type" == "lib" ]] && [[ $count -eq 1 ]]; then
+            type_label="lib script"
+        fi
+        log_success "Deployed $count $type_label to $TOOL"
+        echo "  Target: ${TARGET_DIR}/${type}/"
+    fi
+    
+    if [[ $skipped -gt 0 ]]; then
+        echo "  Skipped $skipped current $type"
+    fi
+}
+
+deploy_all_resources() {
+    local tool="$1" force="$2"
+    local source_dir="$RESOURCES_DIR/$tool"
+    local source_manifest="$source_dir/manifest.json"
+    
+    if [[ ! -f "$source_manifest" ]]; then
+        log_error "Manifest not found: $source_manifest"
         exit 1
     fi
     
-    exec "$script_path" "$@"
+    local source_version
+    source_version=$(jq -r '.version' "$source_manifest")
+    
+    local target_dir
+    target_dir="$(pwd)/${TOOL_DIRS[$tool]}"
+    local target_manifest="$target_dir/manifest.json"
+    
+    mkdir -p "$target_dir"
+    
+    DEPLOY_TOTAL=0
+    DEPLOY_SKIPPED=0
+    
+    for type in skills commands agents scripts lib; do
+        deploy_type "$type" "$source_dir" "$target_dir" "$target_manifest" "$source_manifest" "$force"
+    done
+    
+    jq --arg v "$source_version" '.version = $v' "$source_manifest" > "$target_manifest"
+    log_success "Manifest updated to v$source_version"
+    echo "  Target: $TARGET_DIR/manifest.json"
+    
+    if [[ $DEPLOY_TOTAL -eq 0 ]] && [[ $DEPLOY_SKIPPED -eq 0 ]]; then
+        echo "No resources to deploy"
+    elif [[ $DEPLOY_TOTAL -eq 0 ]] && [[ $DEPLOY_SKIPPED -gt 0 ]]; then
+        echo "All $DEPLOY_SKIPPED resources are current"
+    fi
 }
 
 update_gitignore() {
-    local force="$1"
     local gitignore="$(pwd)/.gitignore"
     local marker_start="# BEGIN OpenSpec autonomous workflow state"
     local marker_end="# END OpenSpec autonomous workflow state"
@@ -185,11 +388,7 @@ update_gitignore() {
         touch "$gitignore"
     fi
     
-    if [[ "$force" == "true" ]]; then
-        local content
-        content=$(sed "/^$marker_start$/,/^$marker_end$/d" "$gitignore" 2>/dev/null || cat "$gitignore")
-        echo "$content" > "$gitignore"
-    elif grep -qF "$marker_start" "$gitignore" 2>/dev/null; then
+    if grep -qF "$marker_start" "$gitignore" 2>/dev/null; then
         return 0
     fi
     
@@ -212,29 +411,6 @@ update_gitignore() {
     log_success "Added OpenSpec state files to .gitignore"
 }
 
-deploy_core() {
-    local tool="$1"
-    
-    if ! command -v openspec &>/dev/null; then
-        log_error "openspec CLI not found. Install it first:"
-        echo "  npm install -g @fission-ai/openspec"
-        return 1
-    fi
-    
-    log_info "Delegating to openspec CLI for core resources..."
-    
-    local output
-    if output=$(openspec init --tools "$tool" --force 2>&1); then
-        log_success "Core resources installed via openspec"
-        rename_core_resources "$tool"
-        remove_conflicting_core_resources "$tool"
-    else
-        log_error "openspec init failed"
-        echo "$output" >&2
-        return 1
-    fi
-}
-
 rename_core_resources() {
     local tool="$1"
     local target_dir
@@ -242,7 +418,7 @@ rename_core_resources() {
     
     log_info "Renaming core resources (opsx-* → osc-*, openspec-* → osc-*)..."
     
-    local renamed_count=0
+    local renamed=0
     
     if [[ -d "$target_dir/commands" ]]; then
         while IFS= read -r -d '' cmd_file; do
@@ -254,7 +430,7 @@ rename_core_resources() {
             if [[ "$basename" =~ ^opsx-(.+)\.md$ ]]; then
                 local new_name="osc-${BASH_REMATCH[1]}.md"
                 mv "$cmd_file" "$dirname/$new_name"
-                renamed_count=$((renamed_count + 1))
+                renamed=$((renamed + 1))
             fi
         done < <(find "$target_dir/commands" -type f -name "opsx-*.md" -print0 2>/dev/null)
         
@@ -265,7 +441,7 @@ rename_core_resources() {
                 mv "$target_dir/commands/osx"/*.md "$target_dir/commands/osc/" 2>/dev/null || true
                 rmdir "$target_dir/commands/osx" 2>/dev/null || true
             fi
-            renamed_count=$((renamed_count + 1))
+            renamed=$((renamed + 1))
         fi
     fi
     
@@ -283,49 +459,65 @@ rename_core_resources() {
                 if [[ -f "$dirname/$new_name/SKILL.md" ]]; then
                     sed -i "s/^name: openspec-/name: osc-/" "$dirname/$new_name/SKILL.md"
                 fi
-                renamed_count=$((renamed_count + 1))
+                renamed=$((renamed + 1))
             fi
         done < <(find "$target_dir/skills" -mindepth 1 -maxdepth 1 -type d -name "openspec-*" -print0 2>/dev/null)
     fi
     
-    if [[ $renamed_count -gt 0 ]]; then
-        log_success "Renamed $renamed_count core resource(s)"
+    if [[ $renamed -gt 0 ]]; then
+        log_success "Renamed $renamed core resource(s)"
     fi
 }
 
-remove_conflicting_core_resources() {
+deploy_core() {
     local tool="$1"
     local target_dir
     target_dir=$(get_tool_dir "$tool")
+    local target_manifest="$(pwd)/$target_dir/manifest.json"
     
-    log_info "Removing core resources that conflict with extended resources..."
-    
-    local removed_count=0
-    
-    if [[ -d "$target_dir/commands" ]]; then
-        while IFS= read -r -d '' cmd_file; do
-            local basename
-            basename=$(basename "$cmd_file")
-            
-            if [[ "$basename" =~ ^osc-(.+)\.md$ ]]; then
-                local osx_name="osx-${BASH_REMATCH[1]}.md"
-                
-                if [[ -f "$target_dir/commands/$osx_name" ]]; then
-                    rm "$cmd_file"
-                    removed_count=$((removed_count + 1))
-                fi
-            fi
-        done < <(find "$target_dir/commands" -maxdepth 1 -type f -name "osc-*.md" -print0 2>/dev/null)
+    if ! command -v openspec &>/dev/null; then
+        log_error "openspec CLI not found. Install it first:"
+        echo "  npm install -g @fission-ai/openspec"
+        return 1
     fi
     
-    if [[ $removed_count -gt 0 ]]; then
-        log_success "Removed $removed_count conflicting core resource(s)"
+    log_info "Delegating to openspec CLI for core resources..."
+    
+    local output
+    if output=$(openspec init --tools "$tool" --force 2>&1); then
+        rename_core_resources "$tool"
+        log_success "Core resources installed (osc-*)"
+        
+        local core_version
+        core_version=$(openspec --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "unknown")
+        
+        if [[ -f "$target_manifest" ]]; then
+            local tmp_manifest="${target_manifest}.tmp"
+            jq --arg v "$core_version" '.core = {"version": $v, "installed": true}' \
+                "$target_manifest" > "$tmp_manifest" && mv "$tmp_manifest" "$target_manifest"
+            log_info "Core v$core_version tracked in manifest"
+        fi
+    else
+        log_error "openspec init failed"
+        echo "$output" >&2
+        return 1
     fi
 }
 
+run_auto() {
+    local script_path="$(pwd)/.opencode/scripts/osx-orchestrate"
+    
+    if [[ ! -f "$script_path" ]]; then
+        log_error "osx-orchestrate not found"
+        log_error "Run: $SCRIPT_NAME install opencode"
+        exit 1
+    fi
+    
+    exec "$script_path" "$@"
+}
+
 validate_deployment() {
-    local target_dir="$1"
-    local manifest="$2"
+    local target_dir="$1" manifest="$2"
     local warnings=0
     
     if [[ ! -d "$target_dir" ]]; then
@@ -335,25 +527,31 @@ validate_deployment() {
     local resource_names
     resource_names=$(echo "$manifest" | jq -r '.resources | to_entries[] | .value | keys[]' 2>/dev/null | sort -u || true)
     
-    for resource_name in $resource_names; do
+    for name in $resource_names; do
         local found=false
         
-        if [[ -d "$target_dir/skills/$resource_name" ]]; then
+        if [[ -d "$target_dir/skills/$name" ]]; then
             found=true
-        elif [[ -f "$target_dir/agents/$resource_name.md" ]]; then
+        elif [[ -f "$target_dir/agents/${name}.md" ]]; then
             found=true
-        elif [[ -f "$target_dir/commands/$resource_name.md" ]]; then
+        elif [[ -f "$target_dir/commands/${name}.md" ]]; then
             found=true
-        elif [[ -f "$target_dir/commands/osx/${resource_name#osx-}.md" ]]; then
+        elif [[ -d "$target_dir/commands" ]]; then
+            local base_name="${name#osx-}"
+            for subdir in "$target_dir/commands"/*/; do
+                if [[ -f "$subdir${base_name}.md" ]]; then
+                    found=true
+                    break
+                fi
+            done
+        elif [[ -f "$target_dir/scripts/$name" ]]; then
             found=true
-        elif [[ -f "$target_dir/scripts/$resource_name" ]]; then
-            found=true
-        elif [[ -f "$target_dir/scripts/lib/$resource_name" ]]; then
+        elif [[ -f "$target_dir/scripts/lib/$name" ]]; then
             found=true
         fi
         
         if [[ "$found" == "false" ]]; then
-            log_warn "Resource '$resource_name' in manifest but not deployed"
+            log_warn "Resource '$name' in manifest but not deployed"
             warnings=$((warnings + 1))
         fi
     done
@@ -363,298 +561,87 @@ validate_deployment() {
     fi
 }
 
-if [[ $# -eq 0 ]]; then
-    show_usage
-    exit 1
-fi
-
-if [[ "$1" == "--version" ]] || [[ "$1" == "-V" ]]; then
-    show_version
-    exit 0
-fi
-
-if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
-    show_help
-    exit 0
-fi
-
-if [[ "$1" == "run" ]]; then
-    shift
-    run_auto "$@"
-fi
-
-if [[ $# -lt 2 ]]; then
-    show_usage
-    exit 1
-fi
-
-resolve_install_dirs
-
-COMMAND="$1"
-TOOL="$2"
-WITH_CORE=false
-
-shift 2
-while [[ $# -gt 0 ]]; do
+main() {
+    if [[ $# -eq 0 ]]; then
+        show_usage
+        exit 1
+    fi
+    
     case "$1" in
-        --with-core)
-            WITH_CORE=true
-            shift
+        --version|-V)
+            show_version
+            exit 0
             ;;
-        *)
-            log_error "Unknown option: $1"
-            show_usage
-            exit 1
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        run)
+            shift
+            run_auto "$@"
             ;;
     esac
-done
-
-if [[ "$COMMAND" != "install" && "$COMMAND" != "update" ]]; then
-    log_error "Unknown command: $COMMAND"
-    echo
-    echo "Available commands: install, update"
-    echo
-    show_usage
-    exit 1
-fi
-
-set +e
-_target_dir=$(get_tool_dir "$TOOL")
-_tool_rc=$?
-set -e
-case $_tool_rc in
-    0) TARGET_DIR="$_target_dir" ;;
-    *) 
-        log_error "Unknown tool: $TOOL"
+    
+    if [[ $# -lt 2 ]]; then
+        show_usage
+        exit 1
+    fi
+    
+    local command="$1"
+    local tool="$2"
+    local with_core=false
+    local force=false
+    
+    shift 2
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --with-core)
+                with_core=true
+                shift
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                show_usage
+                exit 1
+                ;;
+        esac
+    done
+    
+    if [[ "$command" != "install" ]] && [[ "$command" != "update" ]]; then
+        log_error "Unknown command: $command"
+        echo
+        echo "Available commands: install, update"
+        show_usage
+        exit 1
+    fi
+    
+    if [[ "$command" == "update" ]]; then
+        force=true
+    fi
+    
+    TARGET_DIR=$(get_tool_dir "$tool") || {
+        log_error "Unknown tool: $tool"
         echo "  Available tools: opencode, claude"
         exit 1
-        ;;
-esac
-
-FULL_PATH="$(pwd)/$TARGET_DIR"
-SOURCE_MANIFEST="$RESOURCES_DIR/$TOOL/manifest.json"
-GIT_VERSION=$(get_version "$SOURCE_MANIFEST")
-
-mkdir -p "$FULL_PATH/skills"
-
-if [[ -d "$RESOURCES_DIR/$TOOL/skills" ]]; then
-    if [[ "$COMMAND" == "update" ]]; then
-        RESULT=$(copy_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH/skills" "true")
-        UPDATED_COUNT="${RESULT%%:*}"
-        
-        if [[ $UPDATED_COUNT -gt 0 ]]; then
-            log_success "Updated $UPDATED_COUNT skill(s) in $TOOL (v$GIT_VERSION)"
-            echo "  Target: $TARGET_DIR/skills"
-        else
-            echo "No skills found in resources/$TOOL/skills/"
-        fi
-    else
-        RESULT=$(copy_skills "$RESOURCES_DIR/$TOOL/skills" "$FULL_PATH/skills" "false")
-        INSTALLED_COUNT="${RESULT%%:*}"
-        SKIPPED_COUNT="${RESULT##*:}"
-        
-        if [[ $INSTALLED_COUNT -gt 0 ]]; then
-            log_success "Installed $INSTALLED_COUNT skill(s) to $TOOL (v$GIT_VERSION)"
-            echo "  Target: $TARGET_DIR/skills"
-        fi
-        
-        if [[ $SKIPPED_COUNT -gt 0 ]]; then
-            echo "  Skipped $SKIPPED_COUNT existing skill(s)"
-        fi
-        
-        if [[ $INSTALLED_COUNT -eq 0 && $SKIPPED_COUNT -eq 0 ]]; then
-            echo "No skills found in resources/$TOOL/skills/"
-        fi
-    fi
-else
-    echo "resources/$TOOL/skills/ directory not found"
-fi
-
-COMMANDS_DIR="$FULL_PATH/commands"
-if [[ -d "$RESOURCES_DIR/$TOOL/commands" ]]; then
-    mkdir -p "$COMMANDS_DIR"
+    }
+    TOOL="$tool"
     
-    if [[ "$COMMAND" == "update" ]]; then
-        FLAT_COMMAND_COUNT=$(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
-        if [[ $FLAT_COMMAND_COUNT -gt 0 ]]; then
-            cp -f "$RESOURCES_DIR/$TOOL/commands"/*.md "$COMMANDS_DIR/"
-            log_success "Updated $FLAT_COMMAND_COUNT command(s) in $TOOL"
-            echo "  Target: $TARGET_DIR/commands/"
-        fi
-        
-        for subdir in "$RESOURCES_DIR/$TOOL/commands"/*/; do
-            if [[ -d "$subdir" ]]; then
-                subdir_name=$(basename "$subdir")
-                NESTED_COMMAND_COUNT=$(find "$subdir" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
-                if [[ $NESTED_COMMAND_COUNT -gt 0 ]]; then
-                    mkdir -p "$COMMANDS_DIR/$subdir_name"
-                    cp -f "$subdir"*.md "$COMMANDS_DIR/$subdir_name/"
-                    log_success "Updated $NESTED_COMMAND_COUNT command(s) in $TOOL/$subdir_name"
-                    echo "  Target: $TARGET_DIR/commands/$subdir_name/"
-                fi
-            fi
-        done
-    else
-        NEW_COMMAND_COUNT=0
-        while IFS= read -r -d '' cmd_file; do
-            cmd_name=$(basename "$cmd_file")
-            if [[ ! -f "$COMMANDS_DIR/$cmd_name" ]]; then
-                cp "$cmd_file" "$COMMANDS_DIR/"
-                NEW_COMMAND_COUNT=$((NEW_COMMAND_COUNT + 1))
-            fi
-        done < <(find "$RESOURCES_DIR/$TOOL/commands" -mindepth 1 -maxdepth 1 -type f -name "*.md" -print0 2>/dev/null)
-        
-        if [[ $NEW_COMMAND_COUNT -gt 0 ]]; then
-            log_success "Installed $NEW_COMMAND_COUNT command(s) to $TOOL"
-            echo "  Target: $TARGET_DIR/commands/"
-        fi
-        
-        for subdir in "$RESOURCES_DIR/$TOOL/commands"/*/; do
-            if [[ -d "$subdir" ]]; then
-                subdir_name=$(basename "$subdir")
-                mkdir -p "$COMMANDS_DIR/$subdir_name"
-                
-                NEW_NESTED_COUNT=0
-                while IFS= read -r -d '' cmd_file; do
-                    cmd_name=$(basename "$cmd_file")
-                    if [[ ! -f "$COMMANDS_DIR/$subdir_name/$cmd_name" ]]; then
-                        cp "$cmd_file" "$COMMANDS_DIR/$subdir_name/"
-                        NEW_NESTED_COUNT=$((NEW_NESTED_COUNT + 1))
-                    fi
-                done < <(find "$subdir" -mindepth 1 -maxdepth 1 -type f -name "*.md" -print0 2>/dev/null)
-                
-                if [[ $NEW_NESTED_COUNT -gt 0 ]]; then
-                    log_success "Installed $NEW_NESTED_COUNT command(s) to $TOOL/$subdir_name"
-                    echo "  Target: $TARGET_DIR/commands/$subdir_name/"
-                fi
-            fi
-        done
-    fi
-fi
-
-SCRIPTS_DIR="$FULL_PATH/scripts"
-if [[ -d "$RESOURCES_DIR/$TOOL/scripts" ]]; then
-    mkdir -p "$SCRIPTS_DIR"
-    SCRIPT_COUNT=$(find "$RESOURCES_DIR/$TOOL/scripts" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | wc -l)
+    resolve_resources_dir
     
-    if [[ $SCRIPT_COUNT -gt 0 ]]; then
-        if [[ "$COMMAND" == "update" ]]; then
-            find "$RESOURCES_DIR/$TOOL/scripts" -mindepth 1 -maxdepth 1 -type f -exec cp -f {} "$SCRIPTS_DIR/" \;
-            find "$SCRIPTS_DIR" -type f -name "*.sh" -exec chmod +x {} \;
-            if [[ -f "$SCRIPTS_DIR/osx-orchestrate" ]]; then
-                chmod +x "$SCRIPTS_DIR/osx-orchestrate"
-            fi
-            log_success "Updated $SCRIPT_COUNT script(s) in $TOOL"
-            echo "  Target: $TARGET_DIR/scripts/"
-        else
-            NEW_SCRIPT_COUNT=0
-            while IFS= read -r -d '' script_file; do
-                script_name=$(basename "$script_file")
-                if [[ ! -f "$SCRIPTS_DIR/$script_name" ]]; then
-                    cp "$script_file" "$SCRIPTS_DIR/"
-                    if [[ "$script_name" == *.sh ]]; then
-                        chmod +x "$SCRIPTS_DIR/$script_name"
-                    fi
-                    if [[ "$script_name" == "osx-orchestrate" ]]; then
-                        chmod +x "$SCRIPTS_DIR/$script_name"
-                    fi
-                    NEW_SCRIPT_COUNT=$((NEW_SCRIPT_COUNT + 1))
-                fi
-            done < <(find "$RESOURCES_DIR/$TOOL/scripts" -mindepth 1 -maxdepth 1 -type f -print0)
-            
-            if [[ $NEW_SCRIPT_COUNT -gt 0 ]]; then
-                log_success "Installed $NEW_SCRIPT_COUNT script(s) to $TOOL"
-                echo "  Target: $TARGET_DIR/scripts/"
-            fi
-        fi
+    deploy_all_resources "$tool" "$force"
+    
+    if [[ -f "$(pwd)/$TARGET_DIR/scripts/osx-orchestrate" ]]; then
+        update_gitignore
     fi
     
-    if [[ -d "$RESOURCES_DIR/$TOOL/scripts/lib" ]]; then
-        mkdir -p "$SCRIPTS_DIR/lib"
-        
-        if [[ -f "$RESOURCES_DIR/$TOOL/scripts/lib/osx" ]]; then
-            if [[ "$COMMAND" == "update" ]]; then
-                cp -f "$RESOURCES_DIR/$TOOL/scripts/lib/osx" "$SCRIPTS_DIR/lib/"
-            else
-                if [[ ! -f "$SCRIPTS_DIR/lib/osx" ]]; then
-                    cp "$RESOURCES_DIR/$TOOL/scripts/lib/osx" "$SCRIPTS_DIR/lib/"
-                fi
-            fi
-            chmod +x "$SCRIPTS_DIR/lib/osx"
-            log_success "Deployed osx tool to $TOOL"
-            echo "  Target: $TARGET_DIR/scripts/lib/osx"
-        fi
-        
-        if [[ -f "$RESOURCES_DIR/$TOOL/scripts/lib/AGENTS.md" ]]; then
-            if [[ "$COMMAND" == "update" ]]; then
-                cp -f "$RESOURCES_DIR/$TOOL/scripts/lib/AGENTS.md" "$SCRIPTS_DIR/lib/"
-            else
-                if [[ ! -f "$SCRIPTS_DIR/lib/AGENTS.md" ]]; then
-                    cp "$RESOURCES_DIR/$TOOL/scripts/lib/AGENTS.md" "$SCRIPTS_DIR/lib/"
-                fi
-            fi
-        fi
-        
-        LIB_COUNT=$(find "$RESOURCES_DIR/$TOOL/scripts/lib" -mindepth 1 -maxdepth 1 -type f -name "osx-*" 2>/dev/null | wc -l)
-        
-        if [[ $LIB_COUNT -gt 0 ]]; then
-            if [[ "$COMMAND" == "update" ]]; then
-                cp -f "$RESOURCES_DIR/$TOOL/scripts/lib"/osx-* "$SCRIPTS_DIR/lib/"
-                chmod +x "$SCRIPTS_DIR/lib"/osx-*
-                
-                log_success "Deployed $LIB_COUNT lib script(s) to $TOOL"
-                echo "  Target: $TARGET_DIR/scripts/lib/"
-            else
-                NEW_LIB_COUNT=0
-                while IFS= read -r -d '' lib_file; do
-                    lib_name=$(basename "$lib_file")
-                    if [[ ! -f "$SCRIPTS_DIR/lib/$lib_name" ]]; then
-                        cp "$lib_file" "$SCRIPTS_DIR/lib/"
-                        chmod +x "$SCRIPTS_DIR/lib/$lib_name"
-                        NEW_LIB_COUNT=$((NEW_LIB_COUNT + 1))
-                    fi
-                done < <(find "$RESOURCES_DIR/$TOOL/scripts/lib" -mindepth 1 -maxdepth 1 -type f -name "osx-*" -print0 2>/dev/null)
-                
-                if [[ $NEW_LIB_COUNT -gt 0 ]]; then
-                    log_success "Deployed $NEW_LIB_COUNT lib script(s) to $TOOL"
-                    echo "  Target: $TARGET_DIR/scripts/lib/"
-                fi
-            fi
-        fi
+    if [[ "$with_core" == "true" ]]; then
+        deploy_core "$tool"
     fi
-fi
-
-AGENTS_SOURCE="$RESOURCES_DIR/$TOOL/agents"
-AGENTS_TARGET="$FULL_PATH/agents"
-if [[ -d "$AGENTS_SOURCE" ]]; then
-    mkdir -p "$AGENTS_TARGET"
-    AGENT_COUNT=$(find "$AGENTS_SOURCE" -mindepth 1 -maxdepth 1 -type f -name "*.md" 2>/dev/null | wc -l)
     
-    if [[ $AGENT_COUNT -gt 0 ]]; then
-        cp -f "$AGENTS_SOURCE"/*.md "$AGENTS_TARGET/"
-        log_success "Copied $AGENT_COUNT agent definition(s) to $TOOL"
-        echo "  Target: $TARGET_DIR/agents/"
+    local source_manifest="$RESOURCES_DIR/$tool/manifest.json"
+    if [[ -f "$source_manifest" ]]; then
+        validate_deployment "$(pwd)/$TARGET_DIR" "$(cat "$source_manifest")"
     fi
-fi
+}
 
-TARGET_MANIFEST="$FULL_PATH/manifest.json"
-if [[ -f "$SOURCE_MANIFEST" ]]; then
-    jq --arg v "$GIT_VERSION" '.version = $v' "$SOURCE_MANIFEST" > "$TARGET_MANIFEST"
-    log_success "Copied manifest to $TARGET_DIR/manifest.json (v$GIT_VERSION)"
-    
-    validate_deployment "$FULL_PATH" "$(cat "$SOURCE_MANIFEST")"
-fi
-
-if [[ -f "$SCRIPTS_DIR/osx-orchestrate" ]]; then
-    if [[ "$COMMAND" == "update" ]]; then
-        update_gitignore "true"
-    else
-        update_gitignore "false"
-    fi
-fi
-
-if [[ "$WITH_CORE" == "true" ]]; then
-    deploy_core "$TOOL"
-fi
-
-exit 0
+main "$@"

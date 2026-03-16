@@ -83,7 +83,7 @@ teardown() {
     run_osx install opencode
     [ "$status" -eq 0 ]
     
-    [[ "$output" == *"Installed"* ]] || [[ "$output" == *"Copied"* ]]
+    [[ "$output" == *"Deployed"* ]]
 }
 
 # ========== install claude ==========
@@ -156,14 +156,14 @@ teardown() {
     [ "$new_len" -eq "$orig_len" ]
 }
 
-@test "install-flow: update shows updated message" {
+@test "install-flow: update shows deployed message" {
     # First install
     run_osx install opencode
     
     run_osx update opencode
     [ "$status" -eq 0 ]
     
-    [[ "$output" == *"Updated"* ]]
+    [[ "$output" == *"Deployed"* ]]
 }
 
 # ========== install vs update ==========
@@ -235,4 +235,123 @@ teardown() {
 @test "install-flow: install to invalid tool fails gracefully" {
     run_osx install nonexistent-tool
     [ "$status" -eq 1 ]
+}
+
+# ========== Version-aware upgrade behavior ==========
+
+@test "install-flow: install upgrades skill when source version > installed version" {
+    # First install
+    run_osx install opencode
+    [ "$status" -eq 0 ]
+    
+    # Manually downgrade a skill in manifest to simulate older installed version
+    local manifest=".opencode/manifest.json"
+    local tmp_manifest="${manifest}.tmp"
+    jq '.resources.skills."osx-concepts".version = "0.1.0"' "$manifest" > "$tmp_manifest" && mv "$tmp_manifest" "$manifest"
+    
+    # Second install should upgrade
+    run_osx install opencode
+    [ "$status" -eq 0 ]
+    
+    # Check for upgrade or deployed message
+    [[ "$output" == *"Deployed"* ]] || [[ "$output" == *"1 skill"* ]]
+    
+    # Verify version was updated
+    local new_version
+    new_version=$(jq -r '.resources.skills."osx-concepts".version' "$manifest")
+    [[ "$new_version" != "0.1.0" ]]
+}
+
+@test "install-flow: install skips skill when source version == installed version" {
+    # First install
+    run_osx install opencode
+    [ "$status" -eq 0 ]
+    
+    # Second install should skip (versions match)
+    run_osx install opencode
+    [ "$status" -eq 0 ]
+    
+    # Should show skipped message or "0 skill" deployed
+    [[ "$output" == *"Skipped"* ]] || [[ "$output" == *"0 skill"* ]] || [[ "$output" == *"are current"* ]]
+}
+
+@test "install-flow: manifest tracks deployed resources with correct versions" {
+    run_osx install opencode
+    [ "$status" -eq 0 ]
+    
+    local manifest=".opencode/manifest.json"
+    
+    # Verify manifest has version at top level
+    local top_version
+    top_version=$(jq -r '.version' "$manifest")
+    [ -n "$top_version" ]
+    [ "$top_version" != "null" ]
+    
+    # Verify skills are tracked with versions
+    local skill_count
+    skill_count=$(jq '.resources.skills | length' "$manifest")
+    [ "$skill_count" -gt 0 ]
+    
+    # Verify a specific skill has version
+    local concept_version
+    concept_version=$(jq -r '.resources.skills."osx-concepts".version' "$manifest")
+    [ -n "$concept_version" ]
+    [ "$concept_version" != "null" ]
+    
+    # Verify agents are tracked
+    local agent_count
+    agent_count=$(jq '.resources.agents | length' "$manifest")
+    [ "$agent_count" -gt 0 ]
+    
+    # Verify scripts are tracked
+    local script_version
+    script_version=$(jq -r '.resources.scripts."osx-orchestrate".version' "$manifest")
+    [ -n "$script_version" ]
+    [ "$script_version" != "null" ]
+}
+
+@test "install-flow: update always deploys regardless of version" {
+    # First install
+    run_osx install opencode
+    [ "$status" -eq 0 ]
+    
+    # Modify a file to verify update overwrites
+    echo "modified" >> ".opencode/skills/osx-concepts/SKILL.md"
+    
+    # Update should redeploy
+    run_osx update opencode
+    [ "$status" -eq 0 ]
+    
+    # File should not contain our modification
+    ! grep -q "^modified$" ".opencode/skills/osx-concepts/SKILL.md"
+}
+
+# ========== Core tracking (--with-core) ==========
+
+@test "install-flow: --with-core adds core section to manifest when openspec available" {
+    # Check if openspec CLI is available
+    if ! command -v openspec &>/dev/null; then
+        skip "openspec CLI not available"
+    fi
+    
+    run_osx install opencode --with-core
+    [ "$status" -eq 0 ]
+    
+    # Verify core section exists in manifest
+    local manifest=".opencode/manifest.json"
+    local has_core
+    has_core=$(jq 'has("core")' "$manifest")
+    
+    [ "$has_core" = "true" ]
+    
+    # Verify core has version
+    local core_version
+    core_version=$(jq -r '.core.version' "$manifest")
+    [ -n "$core_version" ]
+    [ "$core_version" != "null" ]
+    
+    # Verify core has installed flag
+    local core_installed
+    core_installed=$(jq -r '.core.installed' "$manifest")
+    [ "$core_installed" = "true" ]
 }
