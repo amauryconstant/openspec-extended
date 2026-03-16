@@ -32,7 +32,7 @@ Merge delta specs from the change to main specs.
    - Look in `openspec/changes/$1/specs/`
    - If no delta specs exist: Skip to transition with log note
 
-2. Load skill: Use `osc-sync-specs` skill
+2. Load skill: Use `osc-sync-specs` (originally `openspec-sync-specs`) skill
 
 3. Sync delta specs:
    - ADDED → Append to main spec

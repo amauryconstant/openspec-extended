@@ -7,7 +7,7 @@ compatibility: Requires openspec CLI.
 
 Review OpenSpec artifacts for feasibility, correctness, completeness, and implementation-readiness.
 
-**IMPORTANT: This skill is for reviewing BEFORE implementation begins.** Do not use after apply-change. For post-implementation verification, use osc-verify-change instead.
+**IMPORTANT: This skill is for reviewing BEFORE implementation begins.** Do not use after apply-change. For post-implementation verification, use `osc-verify-change` (originally `openspec-verify-change`) instead.
 
 ---
 
@@ -18,8 +18,8 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 **Arguments**: `[change-name] [artifact-type]`
 
 **Examples**:
-- `/osxreview add-auth` - Review all artifacts in "add-auth"
-- `/osxreview add-auth proposal` - Review only proposal.md
+- `/osx-review add-auth` - Review all artifacts in "add-auth"
+- `/osx-review add-auth proposal` - Review only proposal.md
 - "Review the design" - Infer change from context
 
 ---
@@ -34,8 +34,8 @@ This skill is part of the **pre-implementation** review cycle:
                                        (iterate until ready)
 ```
 
-**After apply**: Use `osc-verify-change` to confirm implementation matches specs.
-**After verify passes**: Use `osc-archive-change` to finalize.
+**After apply**: Use `osc-verify-change` (originally `openspec-verify-change`) to confirm implementation matches specs.
+**After verify passes**: Use `osc-archive-change` (originally `openspec-archive-change`) to finalize.
 
 ---
 
@@ -229,8 +229,8 @@ This skill is part of the **pre-implementation** review cycle:
   - Proposal mentions "user-management" but specs/ has "users"
 
 **Next Steps:**
-- Fix critical issues: `/osxmodify <change-name>`
-- Re-review after fixes: `/osxreview <change-name>`
+- Fix critical issues: `/osx-modify <change-name>`
+- Re-review after fixes: `/osx-review <change-name>`
 ```
 
 **On All Clear**:
@@ -246,7 +246,7 @@ This skill is part of the **pre-implementation** review cycle:
 **Readiness**: Ready for implementation
 
 **Next Steps:**
-- Start implementation: `/osxapply <change-name>`
+- Start implementation: `/osx-apply <change-name>`
 ```
 
 ---
@@ -258,5 +258,5 @@ This skill is part of the **pre-implementation** review cycle:
 - Prioritize by severity: critical → warning → suggestion
 - Check cross-artifact consistency, not just individual files
 - Don't approve changes with critical issues
-- Suggest `/osxmodify` for fixes, don't fix yourself during review
+- Suggest `/osx-modify` for fixes, don't fix yourself during review
 - For post-implementation verification, use osc-verify-change instead

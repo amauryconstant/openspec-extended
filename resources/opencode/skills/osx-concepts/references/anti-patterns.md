@@ -49,7 +49,7 @@ openspec status --change "add-dark-mode" --json
 
 **Why it's wrong**: OpenSpec is iterative. The philosophy is "learn as you build, refine as you go."
 
-**Solution**: During `/osxapply`, if you discover:
+**Solution**: During `osc-apply-change`, if you discover:
 - Design approach won't work → Update `design.md` and continue
 - Scope needs adjustment → Update `proposal.md`
 - Requirements misunderstood → Update `specs/`
@@ -68,12 +68,12 @@ openspec status --change "add-dark-mode" --json
 
 ### 5. Archiving Incomplete Work
 
-**Problem**: Running `/osxarchive` when tasks are incomplete or specs aren't synced.
+**Problem**: Running `osc-archive-change` when tasks are incomplete or specs aren't synced.
 
 **Solution**: Before archiving:
 1. Verify all tasks are `[x]` in `tasks.md`
 2. Run `osx-review-test-compliance` (optional but recommended)
-3. Run `/osxverify` to validate implementation
+3. Run `osc-verify-change` to validate implementation
 4. Let archive prompt for spec sync if needed
 
 ---
@@ -201,7 +201,7 @@ The system SHALL expire sessions after 30 minutes of inactivity.
 
 **Problem**: Marking tasks complete (`[x]`) without actually implementing them.
 
-**Solution**: Only mark `[x]` after code is written and tested. During `/osxapply`:
+**Solution**: Only mark `[x]` after code is written and tested. During `osc-apply-change`:
 1. Implement the task
 2. Verify it works
 3. Then update checkbox

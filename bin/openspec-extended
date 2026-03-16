@@ -443,6 +443,22 @@ rename_core_resources() {
             fi
             renamed=$((renamed + 1))
         fi
+        
+        if [[ -d "$target_dir/commands/opsx" ]]; then
+            if [[ ! -d "$target_dir/commands/osc" ]]; then
+                mv "$target_dir/commands/opsx" "$target_dir/commands/osc"
+            else
+                mv "$target_dir/commands/opsx"/*.md "$target_dir/commands/osc/" 2>/dev/null || true
+                rmdir "$target_dir/commands/opsx" 2>/dev/null || true
+            fi
+            renamed=$((renamed + 1))
+        fi
+        
+        while IFS= read -r -d '' cmd_file; do
+            sed -i 's|/opsx-|/osc-|g' "$cmd_file"
+            sed -i 's|/opsx:|/osc:|g' "$cmd_file"
+            sed -i 's|OPSX: |OSC: |g' "$cmd_file"
+        done < <(find "$target_dir/commands" -type f -name "*.md" -print0 2>/dev/null)
     fi
     
     if [[ -d "$target_dir/skills" ]]; then
@@ -455,13 +471,16 @@ rename_core_resources() {
             if [[ "$basename" =~ ^openspec-(.+)$ ]]; then
                 local new_name="osc-${BASH_REMATCH[1]}"
                 mv "$skill_dir" "$dirname/$new_name"
-                
-                if [[ -f "$dirname/$new_name/SKILL.md" ]]; then
-                    sed -i "s/^name: openspec-/name: osc-/" "$dirname/$new_name/SKILL.md"
-                fi
                 renamed=$((renamed + 1))
             fi
         done < <(find "$target_dir/skills" -mindepth 1 -maxdepth 1 -type d -name "openspec-*" -print0 2>/dev/null)
+        
+        while IFS= read -r -d '' skill_file; do
+            sed -i 's|^name: openspec-|name: osc-|' "$skill_file"
+            sed -i 's|/opsx-|/osc-|g' "$skill_file"
+            sed -i 's|/opsx:|/osc:|g' "$skill_file"
+            sed -i 's|OPSX: |OSC: |g' "$skill_file"
+        done < <(find "$target_dir/skills" -type f -name "*.md" -print0 2>/dev/null)
     fi
     
     if [[ $renamed -gt 0 ]]; then

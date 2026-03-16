@@ -23,7 +23,7 @@ Guide to spec-driven development where you agree on WHAT to build before writing
 
 | Layer | Prefix | Source | Examples |
 |-------|--------|--------|----------|
-| **Core** | `osc-*` | Upstream (renamed from `openspec-*`) | `osc-new-change`, `osc-apply-change` |
+| **Core** | `osc-*` | Upstream (renamed from `openspec-*` by installer) | `osc-new-change` (was `openspec-new-change`), `osc-apply-change` (was `openspec-apply-change`) |
 | **Extended** | `osx-*` | Local enhancements | `osx-review-artifacts`, `osx-modify-artifacts` |
 
 **Artifact Flow**:
@@ -48,10 +48,10 @@ Traditional workflows pretend work is linear: plan → implement → done. Real 
 **Fluid actions, not rigid phases.**
 
 Skills are things you can do anytime. Dependencies are enablers—they show what's possible, not what you must do next. You can:
-- Start with `osc-new-change`, then create artifacts one at a time
-- Or use `osc-ff-change` to create all artifacts at once
-- During `osc-apply-change`, edit artifacts as you learn
-- Run `osc-verify-change` before archiving, or skip it entirely
+- Start with `osc-new-change` (was `openspec-new-change`), then create artifacts one at a time
+- Or use `osc-ff-change` (was `openspec-ff-change`) to create all artifacts at once
+- During `osc-apply-change` (was `openspec-apply-change`), edit artifacts as you learn
+- Run `osc-verify-change` (was `openspec-verify-change`) before archiving, or skip it entirely
 
 ### Four Principles
 
@@ -70,17 +70,17 @@ Skills are things you can do anytime. Dependencies are enablers—they show what
 
 Standard OpenSpec workflow skills from upstream. These implement the change lifecycle.
 
-| Skill | Purpose | When to Use |
-|-------|---------|-------------|
-| `osc-explore` | Think through ideas without committing | Unclear requirements, investigation |
-| `osc-new-change` | Create change folder | Beginning any new work |
-| `osc-continue-change` | Create next artifact incrementally | Step-by-step control, complex changes |
-| `osc-ff-change` | Create all artifacts at once | Clear scope, ready to build |
-| `osc-apply-change` | Implement tasks from tasks.md | Ready to write code |
-| `osc-verify-change` | Validate implementation | Before archiving (optional) |
-| `osc-sync-specs` | Merge delta specs into main | Optional—archive prompts if needed |
-| `osc-archive-change` | Complete the change | All work finished |
-| `osc-bulk-archive-change` | Archive multiple changes | Parallel work completed |
+| Skill | Original Name | Purpose | When to Use |
+|-------|---------------|---------|-------------|
+| `osc-explore` | `openspec-explore` | Think through ideas without committing | Unclear requirements, investigation |
+| `osc-new-change` | `openspec-new-change` | Create change folder | Beginning any new work |
+| `osc-continue-change` | `openspec-continue-change` | Create next artifact incrementally | Step-by-step control, complex changes |
+| `osc-ff-change` | `openspec-ff-change` | Create all artifacts at once | Clear scope, ready to build |
+| `osc-apply-change` | `openspec-apply-change` | Implement tasks from tasks.md | Ready to write code |
+| `osc-verify-change` | `openspec-verify-change` | Validate implementation | Before archiving (optional) |
+| `osc-sync-specs` | `openspec-sync-specs` | Merge delta specs into main | Optional—archive prompts if needed |
+| `osc-archive-change` | `openspec-archive-change` | Complete the change | All work finished |
+| `osc-bulk-archive-change` | `openspec-bulk-archive-change` | Archive multiple changes | Parallel work completed |
 
 ### 2.2 Extended Skills (osx-*)
 
@@ -88,17 +88,17 @@ Local enhancements that augment core workflow with quality assurance, tracking, 
 
 | Skill | Purpose | Augments | When to Use |
 |-------|---------|----------|-------------|
-| `osx-review-artifacts` | Pre-implementation quality check | `osc-ff-change` | After creating artifacts, before `osc-apply` |
+| `osx-review-artifacts` | Pre-implementation quality check | `osc-ff-change` (was `openspec-ff-change`) | After creating artifacts, before `osc-apply` |
 | `osx-modify-artifacts` | Edit artifacts with dependency tracking | Any artifact edit | Review feedback, requirement changes |
-| `osx-review-test-compliance` | Spec-to-test alignment analysis | `osc-apply-change` | After/during implementation |
-| `osx-maintain-ai-docs` | Update AGENTS.md | Before `osc-archive` | After implementation, before archive |
+| `osx-review-test-compliance` | Spec-to-test alignment analysis | `osc-apply-change` (was `openspec-apply-change`) | After/during implementation |
+| `osx-maintain-ai-docs` | Update CLAUDE.md | Before `osc-archive` (was `openspec-archive-change`) | After implementation, before archive |
 | `osx-generate-changelog` | Generate CHANGELOG.md | After `osc-archive` | Before release, after archiving |
 
 ### 2.3 Enhancement Patterns
 
 How extended skills augment core workflow:
 
-**Planning Phase**:
+**Planning Phase** (core skills: `osc-*` renamed from `openspec-*`):
 ```
 osc-ff-change → osx-review-artifacts → (issues found?) → osx-modify-artifacts → osc-apply-change
 ```
@@ -389,9 +389,9 @@ OpenSpec-extended includes an autonomous orchestrator (`osx-orchestrate`) that r
 | Prefix | Meaning | Source | Example |
 |--------|---------|--------|---------|
 | `openspec` | Core CLI tool | npm package | `openspec status`, `openspec new change` |
-| `osc-*` | Core skills | Upstream (renamed from `openspec-*`) | `osc-new-change`, `osc-apply-change` |
+| `osc-*` | Core skills | Upstream (installer renames `openspec-*` → `osc-*`) | `osc-new-change` (was `openspec-new-change`), `osc-apply-change` (was `openspec-apply-change`) |
 | `osx-*` | Extended skills | Local extensions | `osx-review-artifacts`, `osx-modify-artifacts` |
-| `osx` | Lib tool | `.opencode/scripts/lib/osx` | `osx ctx get`, `osx state complete` |
+| `osx` | Lib tool | Local script | `osx ctx get`, `osx state complete` |
 
 **Critical**: When executing phase commands (PHASE0-PHASE6), the tool is `osx` lib tool, not `osc`.
 

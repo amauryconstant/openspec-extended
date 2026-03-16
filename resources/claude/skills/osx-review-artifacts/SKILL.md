@@ -7,7 +7,7 @@ compatibility: Requires openspec CLI.
 
 Review OpenSpec artifacts for feasibility, correctness, completeness, and implementation-readiness.
 
-**IMPORTANT: This skill is for reviewing BEFORE implementation begins.** Do not use after apply-change. For post-implementation verification, use openspec-verify-change instead.
+**IMPORTANT: This skill is for reviewing BEFORE implementation begins.** Do not use after apply-change. For post-implementation verification, use `osc-verify-change` (originally `openspec-verify-change`) instead.
 
 ---
 
@@ -34,8 +34,8 @@ This skill is part of the **pre-implementation** review cycle:
                                        (iterate until ready)
 ```
 
-**After apply**: Use `openspec-verify-change` to confirm implementation matches specs.
-**After verify passes**: Use `openspec-archive-change` to finalize.
+**After apply**: Use `osc-verify-change` (originally `openspec-verify-change`) to confirm implementation matches specs.
+**After verify passes**: Use `osc-archive-change` (originally `openspec-archive-change`) to finalize.
 
 ---
 

@@ -18,7 +18,7 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 **Arguments**: `[change-name]`
 
 **Examples**:
-- `/osxtest-compliance add-auth` - Analyze test coverage for "add-auth"
+- `/osx-test-compliance add-auth` - Analyze test coverage for "add-auth"
 - "Check test coverage" - Infer change from context
 
 ---
@@ -171,8 +171,8 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 
 ### Next Steps
 - Address gaps: Add recommended tests
-- Re-run compliance: `/osxtest-compliance <name>`
-- Verify implementation: `/osxverify <name>`
+- Re-run compliance: `/osx-test-compliance <name>`
+- Verify implementation: `/osx-verify <name>`
 ```
 
 **Quick Summary** (for clean changes):
@@ -186,7 +186,7 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 - All scenarios have corresponding tests
 - 0 coverage gaps
 
-Ready to verify: `/osxverify <name>`
+Ready to verify: `/osx-verify <name>`
 ```
 
 ---

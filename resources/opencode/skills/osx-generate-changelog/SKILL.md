@@ -7,7 +7,7 @@ compatibility: Requires openspec CLI.
 
 Generate CHANGELOG.md from archived OpenSpec changes using Keep a Changelog format.
 
-**IMPORTANT: This skill processes ARCHIVED changes only.** Changes must be archived via `osc-archive-change` before they appear in the changelog. Active (unarchived) changes are not included.
+**IMPORTANT: This skill processes ARCHIVED changes only.** Changes must be archived via `osc-archive-change` (originally `openspec-archive-change`) before they appear in the changelog. Active (unarchived) changes are not included.
 
 ---
 

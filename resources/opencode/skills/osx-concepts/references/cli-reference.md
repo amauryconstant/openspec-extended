@@ -252,7 +252,7 @@ openspec list --json
 
 # If single change: use it
 # If multiple changes: use AskUserQuestion tool to select
-# If no changes: suggest /osxnew to create one
+# If no changes: suggest `osc-new-change` to create one
 ```
 
 ---
@@ -536,7 +536,7 @@ openspec list --json
 
 # 2. If multiple: use AskUserQuestion tool
 # 3. If single: use it directly
-# 4. If none: suggest /osxnew
+# 4. If none: suggest `osc-new-change`
 ```
 
 ### Pattern 3: Before Archiving
@@ -599,6 +599,6 @@ openspec instructions apply --change "add-dark-mode" --json
 ## Related Documentation
 
 - Main skill: `../SKILL.md`
-- `references/osxlifecycle.md` - Workflow lifecycle details
+- `references/autonomous-workflow.md` - Workflow lifecycle details
 - `references/artifact-formats.md` - Artifact structure
 - `research/openspec-cli.md` - Upstream CLI reference (project-level)

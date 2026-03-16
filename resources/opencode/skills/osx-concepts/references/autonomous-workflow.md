@@ -127,7 +127,7 @@ Phase commands instruct agents to "load and use" skills:
 
 | Prefix | Meaning | Source | Example |
 |--------|----------|---------|---------|
-| `openspec-*` (renamed to `osc-*`) | OpenSpec Core | Upstream npm package | `openspec-new-change`, `openspec-apply-change` |
+| `osc-*` (renamed from `openspec-*`) | OpenSpec Core | Upstream npm package, renamed by installer | `osc-new-change` (was `openspec-new-change`), `osc-apply-change` (was `openspec-apply-change`) |
 | `osx-*` | OpenSpec eXtended | Local extensions | `osx-review-artifacts`, `osx-modify-artifacts` |
 | `openspec` | Core CLI | npm installed tool | `openspec status`, `openspec new change` |
 

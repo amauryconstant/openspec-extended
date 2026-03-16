@@ -107,6 +107,13 @@ readonly REQUIRED_SKILLS=(
   "osc-archive-change"
 )
 
+declare -A REQUIRED_SKILLS_ORIGINAL_NAMES=(
+  ["osc-apply-change"]="openspec-apply-change"
+  ["osc-verify-change"]="openspec-verify-change"
+  ["osc-sync-specs"]="openspec-sync-specs"
+  ["osc-archive-change"]="openspec-archive-change"
+)
+
 MODEL=""
 CHANGE_ID=""
 CHANGE_DIR=""

@@ -67,6 +67,13 @@ REQUIRED_SKILLS = [
     "osc-archive-change",
 ]
 
+REQUIRED_SKILLS_ORIGINAL_NAMES = {
+    "osc-apply-change": "openspec-apply-change",
+    "osc-verify-change": "openspec-verify-change",
+    "osc-sync-specs": "openspec-sync-specs",
+    "osc-archive-change": "openspec-archive-change",
+}
+
 SKILLS_DIR = Path(".opencode/skills")
 COMMANDS_DIR = Path(".opencode/commands")
 

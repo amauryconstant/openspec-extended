@@ -38,7 +38,7 @@ Validate implementation matches artifacts - completeness, correctness, coherence
 
 ## PROCESS
 
-1. Load and use `osc-verify-change` skill for change "$1"
+1. Load and use `osc-verify-change` (originally `openspec-verify-change`) skill for change "$1"
 2. Execute the skill's verification instructions exactly
 3. Log the verification report via `osx log` in `verification_report` field
 4. Do NOT modify the skill's verification report format

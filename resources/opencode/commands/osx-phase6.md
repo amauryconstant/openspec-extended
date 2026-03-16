@@ -55,7 +55,7 @@ Note: PHASE6 does NOT call `osx state complete`. The orchestrator detects comple
 
 ### Step 2: Execute Archive
 
-1. Load skill: Use `osc-archive-change` skill
+1. Load skill: Use `osc-archive-change` (originally `openspec-archive-change`) skill
 
 2. Verify completion status:
    - Check artifact completion in `openspec/changes/$1/tasks.md`

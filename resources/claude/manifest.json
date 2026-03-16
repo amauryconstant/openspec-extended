@@ -1,25 +1,25 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "version": "0.17.0",
+  "version": "0.17.2",
   "resources": {
     "skills": {
       "osx-commit": {
         "version": "0.1.0"
       },
       "osx-concepts": {
-        "version": "0.4.0"
+        "version": "0.5.0"
       },
       "osx-generate-changelog": {
-        "version": "0.2.0"
+        "version": "0.2.1"
       },
       "osx-maintain-ai-docs": {
         "version": "0.2.0"
       },
       "osx-modify-artifacts": {
-        "version": "0.2.2"
+        "version": "0.2.3"
       },
       "osx-review-artifacts": {
-        "version": "0.2.2"
+        "version": "0.2.6"
       },
       "osx-review-test-compliance": {
         "version": "0.2.0"
