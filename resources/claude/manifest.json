@@ -3,20 +3,44 @@
   "version": "0.17.0",
   "resources": {
     "skills": {
-      "osx-commit": { "version": "0.1.0" },
-      "osx-concepts": { "version": "0.3.1" },
-      "osx-generate-changelog": { "version": "0.2.0" },
-      "osx-maintain-ai-docs": { "version": "0.2.0" },
-      "osx-modify-artifacts": { "version": "0.2.2" },
-      "osx-review-artifacts": { "version": "0.2.2" },
-      "osx-review-test-compliance": { "version": "0.2.0" }
+      "osx-commit": {
+        "version": "0.1.0"
+      },
+      "osx-concepts": {
+        "version": "0.4.0"
+      },
+      "osx-generate-changelog": {
+        "version": "0.2.0"
+      },
+      "osx-maintain-ai-docs": {
+        "version": "0.2.0"
+      },
+      "osx-modify-artifacts": {
+        "version": "0.2.2"
+      },
+      "osx-review-artifacts": {
+        "version": "0.2.2"
+      },
+      "osx-review-test-compliance": {
+        "version": "0.2.0"
+      }
     },
     "commands": {
-      "osx-review": { "version": "0.2.0" },
-      "osx-modify": { "version": "0.2.0" },
-      "osx-verify-tests": { "version": "0.2.0" },
-      "osx-changelog": { "version": "0.2.0" },
-      "osx-maintain-docs": { "version": "0.2.0" }
+      "osx-review": {
+        "version": "0.2.0"
+      },
+      "osx-modify": {
+        "version": "0.2.0"
+      },
+      "osx-verify-tests": {
+        "version": "0.2.0"
+      },
+      "osx-changelog": {
+        "version": "0.2.0"
+      },
+      "osx-maintain-docs": {
+        "version": "0.2.0"
+      }
     }
   }
 }

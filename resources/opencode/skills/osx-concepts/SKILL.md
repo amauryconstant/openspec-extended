@@ -1,34 +1,33 @@
 ---
 name: osx-concepts
-description:  Foundational knowledge for OpenSpec-extended spec-driven development. INVOKE: At start of OpenSpec work in any project, when confused about concepts, or needing depth on artifacts/workflow. Essential reading for AI agents working on OpenSpec-empowered projects.
+description: Foundational knowledge for OpenSpec-extended spec-driven development. INVOKE when starting OpenSpec work, confused about concepts, needing skill selection guidance, or understanding how extended skills (osx-*) augment core skills (osc-*). Covers skill taxonomy, artifact concepts, workflow patterns, and decision frameworks.
 license: MIT
 ---
 
 # OpenSpec for AI Agents
 
-Comprehensive guide to the OpenSpec-extended framework: spec-driven development where you agree on WHAT to build before writing code. All artifacts live in the repository, enabling collaboration between humans and AI.
+Guide to spec-driven development where you agree on WHAT to build before writing code. All artifacts live in the repository, enabling collaboration between humans and AI.
 
 ---
 
-## TL;DR: The Mental Model (30 Seconds)
+## TL;DR: Mental Model (30 Seconds)
 
-**Core Insight**: Work isn't linear. OpenSpec embraces this with fluid actions, not rigid phases.
+**Core Insight**: Work isn't linear. OpenSpec embraces fluid actions, not rigid phases.
 
-**What OpenSpec Is**: A framework for spec-driven development where you:
+**What OpenSpec Is**: A framework where you:
 1. Define WHAT to build (specs) before writing code
 2. Track changes as self-contained folders with artifacts
 3. Merge completed changes into the source of truth
 
-**5 Essential Commands**:
-| Command | Does |
-|---------|------|
-| `/osx:explore` | Think through ideas |
-| `/osx:new` | Start a change |
-| `/osx:ff` | Create all artifacts |
-| `/osx:apply` | Implement tasks |
-| `/osx:archive` | Complete change |
+**Skill Taxonomy**:
+
+| Layer | Prefix | Source | Examples |
+|-------|--------|--------|----------|
+| **Core** | `osc-*` | Upstream (renamed from `openspec-*`) | `osc-new-change`, `osc-apply-change` |
+| **Extended** | `osx-*` | Local enhancements | `osx-review-artifacts`, `osx-modify-artifacts` |
 
 **Artifact Flow**:
+
 ```
 proposal ──→ specs ──→ design ──→ tasks ──→ implement
   (why)      (what)     (how)     (steps)
@@ -36,25 +35,23 @@ proposal ──→ specs ──→ design ──→ tasks ──→ implement
 
 **Skip OpenSpec When**: 1-2 line fixes, emergency hotfixes, pure debugging.
 
-**Full details below. Reference files for deep dives.**
-
 ---
 
-## 1. Philosophy: Think in OpenSpec
+## 1. Philosophy
 
 ### The Problem OpenSpec Solves
 
-Traditional workflows pretend work is linear: plan → implement → done. But real work doesn't work that way. You implement something, realize your design was wrong, need to update specs, continue implementing. Linear phases fight against how work actually happens.
+Traditional workflows pretend work is linear: plan → implement → done. Real work doesn't work that way. You implement, realize design was wrong, update specs, continue implementing. Linear phases fight against how work actually happens.
 
 ### OpenSpec's Answer
 
 **Fluid actions, not rigid phases.**
 
-Commands are things you can do anytime. Dependencies are enablers—they show what's possible, not what you must do next. You can:
-- Start with `/osx:new`, then `/osx:continue` to create artifacts one at a time
-- Or use `/osx:ff` to create all artifacts at once
-- During `/osx:apply`, edit artifacts as you learn (design was wrong? fix it and continue)
-- Run `/osx:verify` before archiving, or skip it entirely
+Skills are things you can do anytime. Dependencies are enablers—they show what's possible, not what you must do next. You can:
+- Start with `osc-new-change`, then create artifacts one at a time
+- Or use `osc-ff-change` to create all artifacts at once
+- During `osc-apply-change`, edit artifacts as you learn
+- Run `osc-verify-change` before archiving, or skip it entirely
 
 ### Four Principles
 
@@ -67,21 +64,77 @@ Commands are things you can do anytime. Dependencies are enablers—they show wh
 
 ---
 
-## 2. Core Concepts
+## 2. Skill Taxonomy
 
-### 2.1 The Big Picture
+### 2.1 Core Skills (osc-*)
+
+Standard OpenSpec workflow skills from upstream. These implement the change lifecycle.
+
+| Skill | Purpose | When to Use |
+|-------|---------|-------------|
+| `osc-explore` | Think through ideas without committing | Unclear requirements, investigation |
+| `osc-new-change` | Create change folder | Beginning any new work |
+| `osc-continue-change` | Create next artifact incrementally | Step-by-step control, complex changes |
+| `osc-ff-change` | Create all artifacts at once | Clear scope, ready to build |
+| `osc-apply-change` | Implement tasks from tasks.md | Ready to write code |
+| `osc-verify-change` | Validate implementation | Before archiving (optional) |
+| `osc-sync-specs` | Merge delta specs into main | Optional—archive prompts if needed |
+| `osc-archive-change` | Complete the change | All work finished |
+| `osc-bulk-archive-change` | Archive multiple changes | Parallel work completed |
+
+### 2.2 Extended Skills (osx-*)
+
+Local enhancements that augment core workflow with quality assurance, tracking, and documentation.
+
+| Skill | Purpose | Augments | When to Use |
+|-------|---------|----------|-------------|
+| `osx-review-artifacts` | Pre-implementation quality check | `osc-ff-change` | After creating artifacts, before `osc-apply` |
+| `osx-modify-artifacts` | Edit artifacts with dependency tracking | Any artifact edit | Review feedback, requirement changes |
+| `osx-review-test-compliance` | Spec-to-test alignment analysis | `osc-apply-change` | After/during implementation |
+| `osx-maintain-ai-docs` | Update AGENTS.md | Before `osc-archive` | After implementation, before archive |
+| `osx-generate-changelog` | Generate CHANGELOG.md | After `osc-archive` | Before release, after archiving |
+
+### 2.3 Enhancement Patterns
+
+How extended skills augment core workflow:
+
+**Planning Phase**:
+```
+osc-ff-change → osx-review-artifacts → (issues found?) → osx-modify-artifacts → osc-apply-change
+```
+
+**Implementation Phase**:
+```
+osc-apply-change → osx-review-test-compliance → (gaps found?) → implement tests → continue
+```
+
+**Completion Phase**:
+```
+osx-maintain-ai-docs → osc-archive-change → osx-generate-changelog
+```
+
+**Artifact Modification** (anytime):
+```
+osx-modify-artifacts → (tracks dependents) → auto-update affected artifacts
+```
+
+---
+
+## 3. Core Concepts
+
+### 3.1 The Big Picture
 
 ```mermaid
 graph TB
     subgraph openspec["openspec/"]
-        specs["specs/<br/>Source of truth<br/>How system currently works"]
-        changes["changes/<br/>Proposed modifications<br/>Each change = one folder"]
-        archive["changes/archive/<br/>Completed changes<br/>Preserved for history"]
+        specs["specs/<br>Source of truth<br>How system currently works"]
+        changes["changes/<br>Proposed modifications<br>Each change = one folder"]
+        archive["changes/archive/<br>Completed changes<br>Preserved for history"]
     end
-    
+
     changes -->|"merge deltas"| specs
     changes -->|"when done"| archive
-    
+
     style specs fill:#e1f5fe
     style changes fill:#fff3e0
     style archive fill:#e8f5e9
@@ -89,18 +142,9 @@ graph TB
 
 **Specs** = source of truth (current behavior). **Changes** = proposed modifications. **Archive** = completed history.
 
-### 2.2 Artifacts
+### 3.2 Artifacts
 
 Artifacts are documents within a change that guide the work:
-
-```mermaid
-graph LR
-    A[proposal.md<br/><i>why & what</i>] --> B[specs/<br/><i>requirements</i>]
-    A --> C[design.md<br/><i>how</i>]
-    B --> D[tasks.md<br/><i>checklist</i>]
-    C --> D
-    D --> E[implement]
-```
 
 | Artifact | Purpose | Contains |
 |----------|---------|----------|
@@ -109,9 +153,9 @@ graph LR
 | `design.md` | How | Context, decisions, tradeoffs |
 | `tasks.md` | Checklist | Progress-tracked `[ ]` / `[x]` items |
 
-**For detailed artifact structure and examples**, see `references/artifact-formats.md`.
+**For detailed artifact structure and examples**, read `references/artifact-formats.md`.
 
-### 2.3 Delta Specs
+### 3.3 Delta Specs
 
 Delta specs describe **what's changing** relative to current specs:
 
@@ -122,13 +166,16 @@ Delta specs describe **what's changing** relative to current specs:
 | `## REMOVED Requirements` | Deleted from main spec |
 
 **Example**:
+
 ```markdown
 ## ADDED Requirements
 
 ### Requirement: Theme Selection
+
 The system SHALL allow users to choose between light and dark themes.
 
 #### Scenario: Manual toggle
+
 - GIVEN a user on any page
 - WHEN user clicks theme toggle
 - THEN theme switches immediately
@@ -137,11 +184,12 @@ The system SHALL allow users to choose between light and dark themes.
 ## MODIFIED Requirements
 
 ### Requirement: Session Expiration
+
 The system MUST expire sessions after 15 minutes of inactivity.
 (Previously: 30 minutes)
 ```
 
-### 2.4 Artifact State Machine
+### 3.4 Artifact State Machine
 
 Every artifact exists in one of three states:
 
@@ -160,102 +208,33 @@ stateDiagram-v2
 | `DONE` | ✓ | File exists | `proposal.md` created |
 
 **Query state anytime**:
+
 ```bash
 openspec status --change "<name>" --json
 ```
 
-Returns JSON with artifact states. See `references/cli-reference.md` for full JSON schema.
-
 ---
 
-## 3. Lifecycle Overview
+## 4. Decision Guidance
 
-### Extended Workflow Phases
-
-```mermaid
-graph TB
-    subgraph Exploration["Exploration"]
-        E1[osc-explore]
-    end
-    
-    subgraph Planning["Planning"]
-        P1[osc-new-change]
-        P2[osc-continue-change<br/>or osc-ff-change]
-        P3[osx-review-artifacts]
-        P4[osx-modify-artifacts]
-    end
-    
-    subgraph Implementation["Implementation"]
-        I1[osc-apply-change]
-        I2[osx-review-test-compliance]
-    end
-    
-    subgraph Completion["Completion"]
-        C1[osc-verify-change]
-        C2[osx-maintain-ai-docs]
-        C3[osc-sync-specs]
-        C4[osc-archive-change<br/>or bulk-archive]
-        C5[osx-generate-changelog]
-    end
-    
-    E1 --> P1 --> P2 --> P3 --> I1 --> C1 --> C2 --> C4 --> C5
-    C2 -.->|optional| C3 --> C4
-    
-    P3 -.->|issues found| P4
-    P4 -.-> P3
-    I1 -.->|reality diverges| P4
-    I1 -.->|test gaps| I2
-    I2 -.->|implement tests| I1
-    C1 -.->|with| I2
-```
-
-### Skills by Phase (OpenSpec-Extended)
-
-| Phase | Skill | Purpose |
-|-------|-------|---------|
-| **Exploration** | `osc-explore` | Think through ideas without committing |
-| **Planning** | `osc-new-change` | Create change folder |
-| | `osc-continue-change` | Create one artifact at a time |
-| | `osc-ff-change` | Create all artifacts at once |
-| | `osx-review-artifacts` | Review for quality/completeness |
-| | `osx-modify-artifacts` | Update artifacts with tracking |
-| **Implementation** | `osc-apply-change` | Implement tasks from tasks.md |
-| | `osx-review-test-compliance` | Check spec→test alignment |
-| **Completion** | `osc-verify-change` | Validate implementation |
-| | `osx-maintain-ai-docs` | Update AGENTS.md |
-| | `osc-sync-specs` | Merge delta specs (usually auto) |
-| | `osc-archive-change` | Finalize single change |
-| | `osc-bulk-archive-change` | Archive multiple changes |
-| | `osx-generate-changelog` | Generate CHANGELOG.md |
-
-**Core vs Extension**:
-- **Core skills** (10): Standard osx workflow (explore, new, continue, ff, apply, verify, archive, etc.)
-- **Extension skills** (5): Enhanced utilities (modify-artifacts, review-artifacts, review-test-compliance, generate-changelog, maintain-ai-docs)
-
----
-
-## 4. Operational Guidance
-
-### 4.1 Decision: When to Use OpenSpec
+### 4.1 When to Use OpenSpec
 
 ```mermaid
 graph TB
     start["User requests change"]
-    
-    q1{"Quick fix?<br/>(1-2 lines)"}
-    skip1["Skip OpenSpec<br/>Just implement"]
-    
+
+    q1{"Quick fix?<br>(1-2 lines)"}
+    skip1["Skip OpenSpec<br>Just implement"]
+
     q2{"Emergency?"}
-    skip2["Hotfix now<br/>Document later"]
-    
+    skip2["Hotfix now<br>Document later"]
+
     q3{"Unclear scope?"}
-    use1["Use OpenSpec<br/>/osx:explore first"]
-    
-    q4{"Multi-step?<br/>(3+ tasks)"}
-    use2["Use OpenSpec<br/>/osx:new"]
-    
-    optional["Optional:<br/>Consider OpenSpec"]
-    
+    use1["Use OpenSpec<br>osc-explore first"]
+
+    q4{"Multi-step?<br>(3+ tasks)"}
+    use2["Use OpenSpec<br>osc-new-change"]
+
     start --> q1
     q1 -->|"Yes"| skip1
     q1 -->|"No"| q2
@@ -264,8 +243,8 @@ graph TB
     q3 -->|"Yes"| use1
     q3 -->|"No"| q4
     q4 -->|"Yes"| use2
-    q4 -->|"No"| optional
-    
+    q4 -->|"No"| skip1
+
     style use1 fill:#c8e6c9
     style use2 fill:#c8e6c9
 ```
@@ -274,83 +253,68 @@ graph TB
 
 **Skip OpenSpec when**: Single obvious fixes (1-2 lines), emergency hotfixes, pure debugging/investigation.
 
-### 4.2 Decision: Update vs New Change
+### 4.2 Update vs New Change
 
-```mermaid
-graph TB
-    start["Continue existing<br/>or start new?"]
-    
-    q1{"Same intent?<br/>Same problem?"}
-    new1["Start New Change"]
-    
-    q2{">50% overlap?<br/>Same scope?"}
-    new2["Start New Change"]
-    
-    q3{"Can original be<br/>done without these<br/>changes?"}
-    update["Update Existing<br/>Change"]
-    new3["Start New Change"]
-    
-    start --> q1
-    q1 -->|"No"| new1
-    q1 -->|"Yes"| q2
-    q2 -->|"No"| new2
-    q2 -->|"Yes"| q3
-    q3 -->|"No"| update
-    q3 -->|"Yes"| new3
-    
-    style update fill:#c8e6c9
-    style new1 fill:#bbdefb
-    style new2 fill:#bbdefb
-    style new3 fill:#bbdefb
-```
-
-| Test | Update | New Change |
-|------|--------|------------|
+| Test | Update Existing | Start New Change |
+|------|-----------------|------------------|
 | **Identity** | "Same thing, refined" | "Different work" |
 | **Scope overlap** | >50% overlaps | <50% overlaps |
 | **Completion** | Can't finish original without changes | Original done, new work stands alone |
 
-### 4.3 Decision: Continue vs Fast-Forward
+**For detailed guidance**, read `references/change-guidance.md`.
+
+### 4.3 Continue vs Fast-Forward
 
 | Situation | Use |
 |-----------|-----|
-| Clear requirements, ready to build | `/osx:ff` |
-| Exploring, want to review each step | `/osx:continue` |
-| Complex change, want control | `/osx:continue` |
-| Time pressure, need to move fast | `/osx:ff` |
+| Clear requirements, ready to build | `osc-ff-change` |
+| Exploring, want to review each step | `osc-continue-change` |
+| Complex change, want control | `osc-continue-change` |
+| Time pressure, need to move fast | `osc-ff-change` |
 
-**Rule of thumb**: If you can describe the full scope upfront, use `/osx:ff`. If you're figuring it out as you go, use `/osx:continue`.
+---
 
-### 4.4 Common Patterns
+## 5. Workflow Patterns
 
-**Quick Feature Pattern**:
+### Quick Feature Pattern
+
 ```
-/osx:new → /osx:ff → /osx:apply → /osx:verify → /osx:archive
-```
-
-**Exploratory Pattern**:
-```
-/osx:explore → [investigation] → /osx:new → /osx:continue → ... → /osx:apply
+osc-new-change → osc-ff-change → osc-apply-change → osc-verify-change → osc-archive-change
 ```
 
-**Parallel Changes Pattern**:
+### Exploratory Pattern
+
 ```
-Change A: /osx:new → /osx:ff → /osx:apply (pause)
-                                     │
-                               context switch
-                                     │
-Change B: /osx:new → /osx:ff → /osx:apply → /osx:archive
-                                     │
-                               resume A
-                                     │
-Change A: /osx:apply (resume) → /osx:archive
+osc-explore → [investigation] → osc-new-change → osc-continue-change → ... → osc-apply-change
+```
+
+### Parallel Changes Pattern
+
+```
+Change A: osc-new-change → osc-ff-change → osc-apply-change (pause)
+                                              │
+                                        context switch
+                                              │
+Change B: osc-new-change → osc-ff-change → osc-apply-change → osc-archive-change
+                                              │
+                                        resume A
+                                              │
+Change A: osc-apply-change (resume) → osc-archive-change
+```
+
+### Enhanced Pattern (with extended skills)
+
+```
+osc-new-change → osc-ff-change → osx-review-artifacts → (fix issues with osx-modify-artifacts)
+  → osc-apply-change → osx-review-test-compliance → osx-maintain-ai-docs
+  → osc-archive-change → osx-generate-changelog
 ```
 
 ---
 
-## 5. AI Behavior Guide
+## 6. AI Behavior Guide
 
-### 5.1 How to Approach OpenSpec Work
+### 6.1 How to Approach OpenSpec Work
 
 1. **Always check state first** - Run `openspec status --json` before acting
 2. **Don't guess change names** - Use `openspec list --json` and AskUserQuestion tool
@@ -358,7 +322,7 @@ Change A: /osx:apply (resume) → /osx:archive
 4. **Read context before creating** - Use `openspec instructions --json` for dependencies
 5. **Mark tasks complete immediately** - Update checkboxes right after finishing each task
 
-### 5.2 Essential CLI Commands
+### 6.2 Essential CLI Commands
 
 | Command | When to Use | Key Output Fields |
 |---------|-------------|-------------------|
@@ -367,9 +331,9 @@ Change A: /osx:apply (resume) → /osx:archive
 | `openspec list --json` | When change name not specified | `changes[]` |
 | `openspec validate <name> --json` | Before archiving | `valid`, `errors[]`, `warnings[]` |
 
-**Full CLI reference with JSON schemas**: `references/cli-reference.md`
+**For full CLI reference with JSON schemas**, read `references/cli-reference.md`.
 
-### 5.3 Handling Ambiguity
+### 6.3 Handling Ambiguity
 
 | Situation | Action |
 |-----------|--------|
@@ -379,7 +343,7 @@ Change A: /osx:apply (resume) → /osx:archive
 | Tasks seem wrong | Update tasks.md to match reality, continue |
 | User changes scope | Update proposal.md, ripple to affected artifacts |
 
-### 5.4 Anti-Patterns Quick Reference
+### 6.4 Anti-Patterns Quick Reference
 
 | # | Mistake | Quick Fix |
 |---|---------|-----------|
@@ -390,71 +354,50 @@ Change A: /osx:apply (resume) → /osx:archive
 | 5 | Copying context/rules into artifacts | They're guidance for YOU, not content |
 | 6 | Skipping spec updates | Always sync before/during archive |
 
-**Comprehensive anti-patterns (16 total)**: `references/anti-patterns.md`
+**For comprehensive anti-patterns (16 total)**, read `references/anti-patterns.md`.
 
 ---
 
-## 6. Quick Reference
+## 7. Autonomous Workflow
 
-### 6.1 Slash Commands
+OpenSpec-extended includes an autonomous orchestrator (`osx-orchestrate`) that runs the 7-phase implementation loop.
 
-| Command | Purpose | When to Use |
-|---------|---------|-------------|
-| `/osx:explore` | Think through ideas | Unclear requirements, investigation |
-| `/osx:new` | Start a change | Beginning any new work |
-| `/osx:continue` | Create next artifact | Step-by-step, want control |
-| `/osx:ff` | Create all artifacts at once | Clear scope, ready to build |
-| `/osx:apply` | Implement tasks | Ready to write code |
-| `/osx:verify` | Validate implementation | Before archiving (optional) |
-| `/osx:sync` | Merge delta specs | Optional—archive prompts if needed |
-| `/osx:archive` | Complete the change | All work finished |
-| `/osx:bulk-archive` | Archive multiple changes | Parallel work completed |
+### When to Use Autonomous vs Manual
 
-### 6.2 Directory Structure
+**Use autonomous** when: Complex changes (3+ phases), want continuous execution, running full lifecycle.
 
-```
-openspec/
-├── specs/                    # Source of truth (current behavior)
-│   ├── auth/
-│   │   └── spec.md
-│   └── payments/
-│       └── spec.md
-│
-├── changes/                  # Active changes
-│   ├── add-dark-mode/        # One folder per change
-│   │   ├── proposal.md
-│   │   ├── design.md
-│   │   ├── tasks.md
-│   │   └── specs/            # Delta specs
-│   │
-│   └── archive/              # Completed changes
-│       └── 2025-01-15-add-dark-mode/
-│
-└── config.yaml               # Project configuration (optional)
-```
+**Use manual** when: Quick single-step tasks, need fine-grained control, debugging.
 
-### 6.3 Project Configuration
+### Agent/Phase Mapping
 
-The optional `openspec/config.yaml` provides project-specific context:
+| Phase | Agent | Key Skills |
+|-------|-------|------------|
+| PHASE0: Artifact Review | osx-analyzer | `osx-review-artifacts`, `osx-modify-artifacts` |
+| PHASE1: Implementation | osx-builder | `osc-apply-change`, `osx-review-test-compliance` |
+| PHASE2: Verification | osx-analyzer | `osc-verify-change` |
+| PHASE3: Maintain Docs | osx-maintainer | `osx-maintain-ai-docs` |
+| PHASE4: Sync | osx-maintainer | `osc-sync-specs` |
+| PHASE5: Self-Reflection | osx-analyzer | (autonomous reasoning) |
+| PHASE6: Archive | osx-maintainer | `osc-archive-change` |
 
-```yaml
-schema: spec-driven
+**For complete autonomous workflow reference** (agent invocation, state management, phase details, blocker handling, error recovery), read `references/autonomous-workflow.md`.
 
-context: |
-  Tech stack: TypeScript, React, Node.js
-  API conventions: RESTful, JSON responses
-  Testing: Vitest for unit tests, Playwright for e2e
+---
 
-rules:
-  proposal:
-    - Include rollback plan
-  design:
-    - Include sequence diagrams for complex flows
-```
+## 8. Tool Naming Convention
 
-**How it works**: Context/rules are injected into `openspec instructions` output automatically.
+| Prefix | Meaning | Source | Example |
+|--------|---------|--------|---------|
+| `openspec` | Core CLI tool | npm package | `openspec status`, `openspec new change` |
+| `osc-*` | Core skills | Upstream (renamed from `openspec-*`) | `osc-new-change`, `osc-apply-change` |
+| `osx-*` | Extended skills | Local extensions | `osx-review-artifacts`, `osx-modify-artifacts` |
+| `osx` | Lib tool | `.opencode/scripts/lib/osx` | `osx ctx get`, `osx state complete` |
 
-### 6.4 Glossary
+**Critical**: When executing phase commands (PHASE0-PHASE6), the tool is `osx` lib tool, not `osc`.
+
+---
+
+## 9. Glossary
 
 | Term | Definition |
 |------|------------|
@@ -469,20 +412,14 @@ rules:
 | **Spec** | Specification containing requirements and scenarios |
 | **Source of truth** | The `openspec/specs/` directory with current behavior |
 
-### 6.5 RFC 2119 Keywords
-
-| Keyword | Meaning |
-|---------|---------|
-| **MUST / SHALL** | Absolute requirement |
-| **SHOULD** | Recommended, but exceptions exist |
-| **MAY** | Optional |
-
 ---
 
-## Related Documentation
+## References
 
-- `references/artifact-formats.md` - Detailed artifact structure and examples
-- `references/cli-reference.md` - Complete CLI with JSON output schemas
-- `references/anti-patterns.md` - Comprehensive common mistakes and recovery
-- `references/osx-lifecycle.md` - Detailed workflow and state transitions
-- `references/change-guidance.md` - When to update vs. start fresh
+| File | Read When |
+|------|-----------|
+| `references/autonomous-workflow.md` | Executing PHASE0-PHASE6 commands, debugging orchestrator, understanding state management |
+| `references/anti-patterns.md` | Making mistakes, need comprehensive catalog of what to avoid |
+| `references/artifact-formats.md` | Creating artifacts, need detailed structure and examples |
+| `references/cli-reference.md` | Need JSON output schemas for status/instructions/validate |
+| `references/change-guidance.md` | Deciding whether to update existing change or start fresh |

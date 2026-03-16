@@ -49,7 +49,7 @@ openspec status --change "add-dark-mode" --json
 
 **Why it's wrong**: OpenSpec is iterative. The philosophy is "learn as you build, refine as you go."
 
-**Solution**: During `/osx:apply`, if you discover:
+**Solution**: During `/osxapply`, if you discover:
 - Design approach won't work → Update `design.md` and continue
 - Scope needs adjustment → Update `proposal.md`
 - Requirements misunderstood → Update `specs/`
@@ -62,18 +62,18 @@ openspec status --change "add-dark-mode" --json
 
 **Consequence**: Archive produces incorrect source of truth. Future changes build on wrong assumptions.
 
-**Solution**: Any code change that affects behavior should have corresponding spec updates. Use `openspec-review-test-compliance` to check alignment.
+**Solution**: Any code change that affects behavior should have corresponding spec updates. Use `osx-review-test-compliance` to check alignment.
 
 ---
 
 ### 5. Archiving Incomplete Work
 
-**Problem**: Running `/osx:archive` when tasks are incomplete or specs aren't synced.
+**Problem**: Running `/osxarchive` when tasks are incomplete or specs aren't synced.
 
 **Solution**: Before archiving:
 1. Verify all tasks are `[x]` in `tasks.md`
-2. Run `openspec-review-test-compliance` (optional but recommended)
-3. Run `/osx:verify` to validate implementation
+2. Run `osx-review-test-compliance` (optional but recommended)
+3. Run `/osxverify` to validate implementation
 4. Let archive prompt for spec sync if needed
 
 ---
@@ -201,7 +201,7 @@ The system SHALL expire sessions after 30 minutes of inactivity.
 
 **Problem**: Marking tasks complete (`[x]`) without actually implementing them.
 
-**Solution**: Only mark `[x]` after code is written and tested. During `/osx:apply`:
+**Solution**: Only mark `[x]` after code is written and tested. During `/osxapply`:
 1. Implement the task
 2. Verify it works
 3. Then update checkbox
@@ -236,7 +236,7 @@ The system SHALL expire sessions after 30 minutes of inactivity.
 
 **Problem**: Working on multiple changes that touch the same specs without considering merge order.
 
-**Solution**: Use `openspec-bulk-archive` which:
+**Solution**: Use `osc-bulk-archive` which:
 - Detects spec conflicts
 - Checks what's implemented in codebase
 - Applies changes chronologically
@@ -274,7 +274,7 @@ When you realize you've made a mistake:
 |-----------|----------|
 | Created wrong artifact | Delete file, run `/osx:continue` to recreate |
 | Wrong change name | Delete folder, create new with correct name |
-| Missing spec updates | Use `openspec-modify-artifacts` to add |
+| Missing spec updates | Use `osx-modify-artifacts` to add |
 | Archived prematurely | Can't undo - document in next change |
 | Tasks out of sync with code | Update tasks.md to match reality, not vice versa |
 

@@ -42,7 +42,7 @@ Implement tasks from the change, making logical milestone commits and validating
 
 ### 1. Load Implementation Skill
 
-Load skill: Use `osx-apply-change` skill for change "$1"
+Load skill: Use `osc-apply-change` skill for change "$1"
 
 The skill provides the implementation workflow. Follow its task execution pattern.
 

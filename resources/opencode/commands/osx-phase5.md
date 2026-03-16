@@ -7,7 +7,7 @@ agent: osx-analyzer
 
 | Tool | Usage |
 |------|-------|
-| `osc` | `.opencode/scripts/lib/osx <domain> <action> [args]` - unified OpenSpec tool |
+| `osx` | `.opencode/scripts/lib/osx <domain> <action> [args]` - unified OpenSpec tool |
 | Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
 
 # PHASE5: Self-Reflection

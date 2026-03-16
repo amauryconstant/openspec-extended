@@ -6,7 +6,7 @@
         "version": "0.1.0"
       },
       "osx-concepts": {
-        "version": "0.3.1"
+        "version": "0.4.0"
       },
       "osx-generate-changelog": {
         "version": "0.2.0"
@@ -40,22 +40,22 @@
         "version": "0.2.8"
       },
       "osx-phase1": {
-        "version": "0.3.0"
-      },
-      "osx-phase2": {
-        "version": "0.2.13"
-      },
-      "osx-phase3": {
         "version": "0.3.1"
       },
+      "osx-phase2": {
+        "version": "0.2.14"
+      },
+      "osx-phase3": {
+        "version": "0.3.2"
+      },
       "osx-phase4": {
-        "version": "0.2.8"
+        "version": "0.2.9"
       },
       "osx-phase5": {
-        "version": "0.3.0"
+        "version": "0.3.1"
       },
       "osx-phase6": {
-        "version": "0.3.0"
+        "version": "0.3.1"
       },
       "osx-modify": {
         "version": "0.1.2"
