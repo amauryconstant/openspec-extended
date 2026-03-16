@@ -5,7 +5,7 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="openspec-extended"
-readonly SCRIPT_VERSION="1.0.0"
+readonly SCRIPT_VERSION="1.0.1"
 
 readonly COLOR_GREEN='\033[0;32m'
 readonly COLOR_RED='\033[0;31m'
@@ -419,47 +419,46 @@ rename_core_resources() {
     log_info "Renaming core resources (opsx-* → osc-*, openspec-* → osc-*)..."
     
     local renamed=0
+    mkdir -p "$target_dir/commands"
     
-    if [[ -d "$target_dir/commands" ]]; then
+    for cmd_dir in "$target_dir/commands" "$target_dir/command"; do
+        if [[ ! -d "$cmd_dir" ]]; then
+            continue
+        fi
+        
         while IFS= read -r -d '' cmd_file; do
             local basename
             basename=$(basename "$cmd_file")
-            local dirname
-            dirname=$(dirname "$cmd_file")
             
             if [[ "$basename" =~ ^opsx-(.+)\.md$ ]]; then
                 local new_name="osc-${BASH_REMATCH[1]}.md"
-                mv "$cmd_file" "$dirname/$new_name"
+                mv "$cmd_file" "$target_dir/commands/$new_name"
+                renamed=$((renamed + 1))
+            elif [[ "$cmd_dir" == "$target_dir/command" ]] && [[ "$basename" =~ ^osc-(.+)\.md$ ]]; then
+                mv "$cmd_file" "$target_dir/commands/$basename"
+            fi
+        done < <(find "$cmd_dir" -maxdepth 1 -type f -name "*.md" -print0 2>/dev/null)
+        
+        for subdir_name in osx opsx; do
+            if [[ -d "$cmd_dir/$subdir_name" ]]; then
+                if [[ ! -d "$target_dir/commands/osc" ]]; then
+                    mv "$cmd_dir/$subdir_name" "$target_dir/commands/osc"
+                else
+                    mv "$cmd_dir/$subdir_name"/*.md "$target_dir/commands/osc/" 2>/dev/null || true
+                    rmdir "$cmd_dir/$subdir_name" 2>/dev/null || true
+                fi
                 renamed=$((renamed + 1))
             fi
-        done < <(find "$target_dir/commands" -type f -name "opsx-*.md" -print0 2>/dev/null)
-        
-        if [[ -d "$target_dir/commands/osx" ]]; then
-            if [[ ! -d "$target_dir/commands/osc" ]]; then
-                mv "$target_dir/commands/osx" "$target_dir/commands/osc"
-            else
-                mv "$target_dir/commands/osx"/*.md "$target_dir/commands/osc/" 2>/dev/null || true
-                rmdir "$target_dir/commands/osx" 2>/dev/null || true
-            fi
-            renamed=$((renamed + 1))
-        fi
-        
-        if [[ -d "$target_dir/commands/opsx" ]]; then
-            if [[ ! -d "$target_dir/commands/osc" ]]; then
-                mv "$target_dir/commands/opsx" "$target_dir/commands/osc"
-            else
-                mv "$target_dir/commands/opsx"/*.md "$target_dir/commands/osc/" 2>/dev/null || true
-                rmdir "$target_dir/commands/opsx" 2>/dev/null || true
-            fi
-            renamed=$((renamed + 1))
-        fi
-        
-        while IFS= read -r -d '' cmd_file; do
-            sed -i 's|/opsx-|/osc-|g' "$cmd_file"
-            sed -i 's|/opsx:|/osc:|g' "$cmd_file"
-            sed -i 's|OPSX: |OSC: |g' "$cmd_file"
-        done < <(find "$target_dir/commands" -type f -name "*.md" -print0 2>/dev/null)
-    fi
+        done
+    done
+    
+    rmdir "$target_dir/command" 2>/dev/null || true
+    
+    while IFS= read -r -d '' cmd_file; do
+        sed -i 's|/opsx-|/osc-|g' "$cmd_file"
+        sed -i 's|/opsx:|/osc:|g' "$cmd_file"
+        sed -i 's|OPSX: |OSC: |g' "$cmd_file"
+    done < <(find "$target_dir/commands" -type f -name "*.md" -print0 2>/dev/null)
     
     if [[ -d "$target_dir/skills" ]]; then
         while IFS= read -r -d '' skill_dir; do
@@ -543,36 +542,49 @@ validate_deployment() {
         return 0
     fi
     
-    local resource_names
-    resource_names=$(echo "$manifest" | jq -r '.resources | to_entries[] | .value | keys[]' 2>/dev/null | sort -u || true)
+    local types
+    types=$(echo "$manifest" | jq -r '.resources | keys[]' 2>/dev/null || true)
     
-    for name in $resource_names; do
-        local found=false
+    for type in $types; do
+        local names
+        names=$(echo "$manifest" | jq -r ".resources.$type | keys[]" 2>/dev/null || true)
         
-        if [[ -d "$target_dir/skills/$name" ]]; then
-            found=true
-        elif [[ -f "$target_dir/agents/${name}.md" ]]; then
-            found=true
-        elif [[ -f "$target_dir/commands/${name}.md" ]]; then
-            found=true
-        elif [[ -d "$target_dir/commands" ]]; then
-            local base_name="${name#osx-}"
-            for subdir in "$target_dir/commands"/*/; do
-                if [[ -f "$subdir${base_name}.md" ]]; then
-                    found=true
-                    break
-                fi
-            done
-        elif [[ -f "$target_dir/scripts/$name" ]]; then
-            found=true
-        elif [[ -f "$target_dir/scripts/lib/$name" ]]; then
-            found=true
-        fi
-        
-        if [[ "$found" == "false" ]]; then
-            log_warn "Resource '$name' in manifest but not deployed"
-            warnings=$((warnings + 1))
-        fi
+        for name in $names; do
+            local found=false
+            
+            case "$type" in
+                skills)
+                    [[ -d "$target_dir/skills/$name" ]] && found=true
+                    ;;
+                agents)
+                    [[ -f "$target_dir/agents/${name}.md" ]] && found=true
+                    ;;
+                commands)
+                    if [[ -f "$target_dir/commands/${name}.md" ]]; then
+                        found=true
+                    else
+                        local base_name="${name#osx-}"
+                        for subdir in "$target_dir/commands"/*/; do
+                            if [[ -f "$subdir${base_name}.md" ]]; then
+                                found=true
+                                break
+                            fi
+                        done
+                    fi
+                    ;;
+                scripts)
+                    [[ -f "$target_dir/scripts/$name" ]] && found=true
+                    ;;
+                lib)
+                    [[ -f "$target_dir/scripts/lib/$name" ]] && found=true
+                    ;;
+            esac
+            
+            if [[ "$found" == "false" ]]; then
+                log_warn "Resource '$name' in manifest but not deployed"
+                warnings=$((warnings + 1))
+            fi
+        done
     done
     
     if [[ $warnings -gt 0 ]]; then
