@@ -195,7 +195,8 @@ log_verbose() {
     fi
   elif [[ -n "$LOG_FILE" ]]; then
     # When not verbose but logging enabled, write directly to log file
-    echo "$msg" >> "$LOG_FILE"
+    # Strip ANSI color codes before writing to log
+    echo "$msg" | sed 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE"
   fi
 }
 
@@ -830,19 +831,32 @@ run_agent() {
     model_flag="--model=$MODEL"
   fi
   
+  local agent_log_file
+  agent_log_file=$(mktemp)
+  
   timeout --foreground "$TIMEOUT" \
     opencode run \
     --command "$cmd_name" \
     --agent "$agent_name" \
     "$CHANGE_ID" \
     --title="$title" \
-    $model_flag &
+    $model_flag \
+    > >(tee -a "$agent_log_file") \
+    2>&1 &
   
   CHILD_PID=$!
   wait "$CHILD_PID"
   exit_code=$?
   
   CHILD_PID=""
+  
+  if [[ -n "$LOG_FILE" ]] && [[ -f "$agent_log_file" ]]; then
+    echo "> $agent_name" >> "$LOG_FILE"
+    # Strip ANSI color codes from agent output before appending to log
+    sed 's/\x1b\[[0-9;]*m//g' "$agent_log_file" >> "$LOG_FILE"
+  fi
+  
+  rm -f "$agent_log_file" 2>/dev/null || true
   
   if [[ "$INTERRUPTED" == true ]]; then
     log_warning "Execution interrupted by user"
@@ -1052,35 +1066,54 @@ archive_log_file() {
     return 0
   fi
   
+  # Flush log buffers to ensure all output is written
+  sync 2>/dev/null || true
+  
   local result
-  result=$(run_osx validate archive "$CHANGE_ID") || true
+  result=$(run_osx validate archive "$CHANGE_ID" 2>/dev/null || true)
   local archive_dir
-  archive_dir=$(echo "$result" | jq -r '.archive // ""')
+  archive_dir=$(echo "$result" | jq -r '.archive // ""' 2>/dev/null)
   
   if [[ -z "$archive_dir" ]]; then
     log_error "Failed to get archive path"
+    log_error "Log file not archived: $LOG_FILE"
+    return 1
+  fi
+  
+  # Ensure archive directory exists
+  if [[ ! -d "$archive_dir" ]]; then
+    log_error "Archive directory does not exist: $archive_dir"
+    log_error "Log file not archived: $LOG_FILE"
     return 1
   fi
   
   local archive_log="$archive_dir/osx-orchestrate.log"
   
-  if mv "$LOG_FILE" "$archive_log" 2>/dev/null; then
-    log_verbose "Log moved to archive: $archive_log"
-    git add "$archive_log"
-    if git commit --amend --no-edit 2>/dev/null; then
-      log_verbose "Archive commit amended with log file"
-      return 0
-    else
-      log_error "Failed to amend archive commit with log file"
-      log_error "Log file was moved but not committed: $archive_log"
-      return 1
-    fi
-  else
-    log_error "Failed to move log file to archive"
+  # Move log file to archive
+  if ! mv "$LOG_FILE" "$archive_log" 2>/dev/null; then
+    local mv_error=$?
+    log_error "Failed to move log file to archive (exit code: $mv_error)"
     log_error "Log file: $LOG_FILE"
     log_error "Target: $archive_log"
     return 1
   fi
+  
+  log_verbose "Log moved to archive: $archive_log"
+  
+  # Add to git and amend archive commit
+  if ! git add "$archive_log" 2>/dev/null; then
+    log_warning "Failed to add log file to git: $archive_log"
+    return 0
+  fi
+  
+  if ! git commit --amend --no-edit 2>/dev/null; then
+    log_error "Failed to amend archive commit with log file"
+    log_error "Log file was moved but not committed: $archive_log"
+    return 1
+  fi
+  
+  log_verbose "Archive commit amended with log file"
+  return 0
 }
 
 cleanup() {
@@ -1368,28 +1401,24 @@ main() {
           log_error "$current_phase failed"
           exit 1
         fi
-        # Note: Don't call show_progress here because:
-        # 1. state.json was deleted before archiving
-        # 2. CHANGE_DIR now points to archive (no active state)
-        # 3. get_current_phase would try to create new state.json in archive
         
-        # PHASE6 is terminal - validate archive and exit without calling advance_phase
-        # Note: cleanup_state_files() is NOT called because PHASE6 already cleaned
-        # transient files before archiving (state.json, complete.json, baseline)
-        if validate_archive; then
-          if archive_log_file; then
-            log ""
-            log "================================"
-            log_success "Implementation completed successfully!"
-            log "================================"
-            
-            exit 0
-          else
-            log ""
+        # Archive log BEFORE validating archive (log file still exists in working dir)
+        if [[ -n "$LOG_FILE" ]] && [[ "$LOG_USER_SPECIFIED" == false ]] && [[ -f "$LOG_FILE" ]]; then
+          if ! archive_log_file; then
             log_error "Log file archiving failed"
-            log_error "Archive exists but log file was not properly saved"
+            log_error "Archive validation will not proceed without log file"
             exit 1
           fi
+        fi
+        
+        # Now validate archive (PHASE6 should have moved change directory)
+        if validate_archive; then
+          log ""
+          log "================================"
+          log_success "Implementation completed successfully!"
+          log "================================"
+          
+          exit 0
         else
           log ""
           log_error "Archive validation failed"

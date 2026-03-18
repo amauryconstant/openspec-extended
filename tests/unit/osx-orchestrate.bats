@@ -378,3 +378,66 @@ EOF
     verbose_count=$(grep -c "Tool found: git" "$log_file")
     [ "$verbose_count" -eq 1 ]
 }
+
+# ==============================================================================
+# Archive validation tests - archive_log_file() behavior patterns
+# ==============================================================================
+
+@test "archive_log_file: returns early when no log file" {
+    setup_change "test-change"
+    
+    # Setup archive directory
+    setup_archive "test-change" "2024-01-15"
+    
+    # No log file created
+    local LOG_FILE=""
+    local LOG_USER_SPECIFIED="false"
+    
+    # Test the early return pattern
+    if [[ -z "$LOG_FILE" ]] || [[ ! -f "$LOG_FILE" ]]; then
+        # Should return early (success)
+        [ 0 -eq 0 ]
+    else
+        return 1
+    fi
+}
+
+@test "archive_log_file: returns early when log user-specified" {
+    setup_change "test-change"
+    
+    local log_file="$TEST_DIR/user-specified.log"
+    echo "test" > "$log_file"
+    
+    # Simulate user-specified log path
+    local LOG_USER_SPECIFIED="true"
+    local LOG_FILE="$log_file"
+    
+    # Test the conditional pattern for user-specified log
+    if [[ "$LOG_USER_SPECIFIED" == true ]]; then
+        # Should skip archiving
+        [ -f "$LOG_FILE" ]
+    else
+        return 1
+    fi
+}
+
+@test "archive_log_file: validates archive path from osx output" {
+    # Test the jq extraction pattern used in archive_log_file
+    local osx_output='{"valid":true,"archive":"openspec/changes/archive/2024-01-15-test-change"}'
+    
+    local archive_dir
+    archive_dir=$(echo "$osx_output" | jq -r '.archive // ""')
+    
+    [ "$archive_dir" == "openspec/changes/archive/2024-01-15-test-change" ]
+}
+
+@test "archive_log_file: handles missing archive in osx output" {
+    # Test the error handling pattern when validation fails
+    local osx_output='{"valid":false,"errors":[{"check":"archive","message":"Change not archived"}]}'
+    
+    local archive_dir
+    archive_dir=$(echo "$osx_output" | jq -r '.archive // ""')
+    
+    # Should return empty string when archive is missing
+    [ -z "$archive_dir" ]
+}

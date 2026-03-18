@@ -515,3 +515,110 @@ assert_symlink_to() {
         return 1
     fi
 }
+
+# Mock opencode run command for testing
+# Usage: setup_mock_opencode <temp_dir>
+# Creates a mock opencode binary that simulates agent output
+setup_mock_opencode() {
+    local mock_dir="$1"
+    mkdir -p "$mock_dir"
+    
+    cat > "$mock_dir/opencode" << 'EOF'
+#!/bin/bash
+# Mock opencode for testing orchestration logging
+
+if [[ "$1" == "run" ]]; then
+    shift
+    
+    # Simulate successful agent run with typical output
+    echo "> osx-builder · glm-5"
+    echo "I'll process the request..."
+    echo "→ Read proposal.md"
+    echo "→ Read design.md"
+    echo "→ Glob specs/*.md"
+    echo "✓ Task complete"
+    exit 0
+elif [[ "$1" == "version" ]]; then
+    echo "opencode 1.0.0-mock"
+    exit 0
+elif [[ "$1" == "help" ]] || [[ "$1" == "--help" ]]; then
+    echo "Mock opencode for testing"
+    exit 0
+else
+    # For other commands, just exit success
+    exit 0
+fi
+EOF
+    chmod +x "$mock_dir/opencode"
+    
+    # Prepend to PATH so mock is found first
+    export PATH="$mock_dir:$PATH"
+}
+
+# Mock git for testing archive operations
+# Usage: setup_mock_git <temp_dir>
+# Creates a minimal git mock that handles essential operations
+setup_mock_git() {
+    local mock_dir="$1"
+    mkdir -p "$mock_dir"
+    
+    cat > "$mock_dir/git" << 'EOF'
+#!/bin/bash
+# Minimal git mock for testing orchestration logging
+
+# Handle essential git operations
+case "$1" in
+    init)
+        # Git init - no-op in test env
+        exit 0
+        ;;
+    config)
+        # Git config - no-op in test env
+        shift
+        exit 0
+        ;;
+    add)
+        # Git add - no-op (files already tracked)
+        exit 0
+        ;;
+    commit|--amend)
+        # Git commit - no-op (simulate success)
+        exit 0
+        ;;
+    rev-parse)
+        # Return mock values for rev-parse
+        case "$2" in
+            --is-inside-work-tree)
+                echo "true"
+                ;;
+            HEAD)
+                echo "abc123def456"
+                ;;
+            *)
+                exit 0
+                ;;
+        esac
+        ;;
+    branch|--show-current)
+        echo "test-branch"
+        exit 0
+        ;;
+    status|--porcelain)
+        # Return clean status
+        exit 0
+        ;;
+    diff|--quiet|--cached)
+        # Return clean status (no changes)
+        exit 0
+        ;;
+    *)
+        # Other operations - minimal response
+        exit 0
+        ;;
+esac
+EOF
+    chmod +x "$mock_dir/git"
+    
+    # Prepend to PATH so mock is found first
+    export PATH="$mock_dir:$PATH"
+}
