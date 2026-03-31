@@ -23,6 +23,7 @@ import sys
 import json
 import argparse
 import tempfile
+import toml
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, Any, Dict, List
@@ -79,19 +80,24 @@ COMMANDS_DIR = Path(".opencode/commands")
 
 
 def get_version() -> str:
-    """Get version from manifest.json."""
+    """Get version from manifest.toml."""
     script_dir = Path(__file__).parent
-    manifest_path = script_dir.parent.parent / "manifest.json"
-    
+    manifest_path = script_dir.parent.parent / "manifest.toml"
+
     if manifest_path.exists():
         try:
-            manifest = json.loads(manifest_path.read_text())
-            version = manifest.get("resources", {}).get("lib", {}).get("osx", {}).get("version")
+            manifest = toml.loads(manifest_path.read_text())
+            version = (
+                manifest.get("resources", {})
+                .get("lib", {})
+                .get("osx", {})
+                .get("version")
+            )
             if version:
                 return version
-        except (json.JSONDecodeError, KeyError):
+        except toml.TomlDecodeError, KeyError, AttributeError:
             pass
-    
+
     return "unknown"
 
 
@@ -136,7 +142,7 @@ def read_json(path: Path) -> Any:
         return {}
     try:
         return json.loads(path.read_text())
-    except json.JSONDecodeError as e:
+    except json.JSONDecodeError:
         error("invalid_json", f"Invalid JSON in {path}", path=str(path))
 
 
@@ -184,7 +190,7 @@ def read_stdin_json() -> Optional[Dict]:
             has_data, _, _ = select.select([sys.stdin], [], [], 0)
             if not has_data:
                 return None
-        except (ValueError, OSError):
+        except ValueError, OSError:
             return None
 
     try:
@@ -284,7 +290,10 @@ def cmd_state_transition(args):
     state["last_updated"] = get_timestamp()
     write_json(state_file, state)
 
-    result = {"success": True, "transition": {"target": args.target, "reason": args.reason}}
+    result = {
+        "success": True,
+        "transition": {"target": args.target, "reason": args.reason},
+    }
     if args.details:
         result["transition"]["details"] = args.details
     output(result)
@@ -460,7 +469,7 @@ def cmd_log_append(args):
     entry["entry"] = entry_num
     entry["timestamp"] = timestamp
 
-    total = append_to_json_array(log_file, entry)
+    append_to_json_array(log_file, entry)
     output(
         {
             "success": True,
@@ -552,7 +561,9 @@ def cmd_validate_json(args):
         output(
             {
                 "valid": False,
-                "errors": [{"check": "json", "message": f"File not found: {args.file}"}],
+                "errors": [
+                    {"check": "json", "message": f"File not found: {args.file}"}
+                ],
             }
         )
         sys.exit(1)
@@ -774,9 +785,7 @@ def cmd_validate_completion(args):
 
     iterations_file = change_dir / "iterations.json"
     if not iterations_file.exists():
-        errors.append(
-            {"check": "completion", "message": "iterations.json not found"}
-        )
+        errors.append({"check": "completion", "message": "iterations.json not found"})
     else:
         try:
             json.loads(iterations_file.read_text())
@@ -790,9 +799,7 @@ def cmd_validate_completion(args):
 
     log_file = change_dir / "decision-log.json"
     if not log_file.exists():
-        errors.append(
-            {"check": "completion", "message": "decision-log.json not found"}
-        )
+        errors.append({"check": "completion", "message": "decision-log.json not found"})
 
     archive_dir = Path("openspec/changes/archive")
     archives = []
@@ -802,9 +809,7 @@ def cmd_validate_completion(args):
                 archives.append(d)
 
     if len(archives) == 0:
-        errors.append(
-            {"check": "completion", "message": "Archive validation failed"}
-        )
+        errors.append({"check": "completion", "message": "Archive validation failed"})
 
     if errors:
         output({"valid": False, "errors": errors})
@@ -822,18 +827,22 @@ def cmd_git_get(args):
     result = {"modified": [], "added": [], "untracked": [], "clean": True}
 
     try:
-        branch = subprocess.check_output(
-            ["git", "branch", "--show-current"], stderr=subprocess.DEVNULL, text=True
-        ).strip() or "unknown"
+        branch = (
+            subprocess.check_output(
+                ["git", "branch", "--show-current"],
+                stderr=subprocess.DEVNULL,
+                text=True,
+            ).strip()
+            or "unknown"
+        )
         result["branch"] = branch
 
-        cmd = [
-            "git", "status", "--porcelain",
-            "--", str(change_dir)
-        ]
-        output_lines = subprocess.check_output(
-            cmd, stderr=subprocess.DEVNULL, text=True
-        ).strip().split("\n")
+        cmd = ["git", "status", "--porcelain", "--", str(change_dir)]
+        output_lines = (
+            subprocess.check_output(cmd, stderr=subprocess.DEVNULL, text=True)
+            .strip()
+            .split("\n")
+        )
 
         for line in output_lines:
             if not line:
@@ -854,7 +863,7 @@ def cmd_git_get(args):
                 result["modified"].append(filepath)
                 result["clean"] = False
 
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except subprocess.CalledProcessError, FileNotFoundError:
         result["branch"] = "unknown"
 
     output(result)
@@ -888,12 +897,15 @@ def cmd_ctx_get(args):
 
     def get_git():
         import subprocess
+
         result = {"modified": [], "added": [], "untracked": [], "clean": True}
         try:
             cmd = ["git", "status", "--porcelain", "--", str(change_dir)]
-            output_lines = subprocess.check_output(
-                cmd, stderr=subprocess.DEVNULL, text=True
-            ).strip().split("\n")
+            output_lines = (
+                subprocess.check_output(cmd, stderr=subprocess.DEVNULL, text=True)
+                .strip()
+                .split("\n")
+            )
             for line in output_lines:
                 if not line:
                     continue
@@ -911,7 +923,7 @@ def cmd_ctx_get(args):
                 elif status.strip():
                     result["modified"].append(filepath)
                     result["clean"] = False
-        except (subprocess.CalledProcessError, FileNotFoundError):
+        except subprocess.CalledProcessError, FileNotFoundError:
             pass
         return result
 
@@ -923,21 +935,23 @@ def cmd_ctx_get(args):
     decision_log = read_json_array(change_dir / "decision-log.json")
     iterations = read_json_array(change_dir / "iterations.json")
 
-    output({
-        "change": args.change,
-        "state": get_state(),
-        "git": get_git(),
-        "artifacts": {
-            "proposal": proposal,
-            "specs": specs,
-            "design": design,
-            "tasks": tasks,
-        },
-        "history": {
-            "decision_log_entries": len(decision_log),
-            "iterations_recorded": len(iterations),
-        },
-    })
+    output(
+        {
+            "change": args.change,
+            "state": get_state(),
+            "git": get_git(),
+            "artifacts": {
+                "proposal": proposal,
+                "specs": specs,
+                "design": design,
+                "tasks": tasks,
+            },
+            "history": {
+                "decision_log_entries": len(decision_log),
+                "iterations_recorded": len(iterations),
+            },
+        }
+    )
 
 
 def cmd_instructions(args):
@@ -967,19 +981,25 @@ def cmd_baseline_record(args):
     try:
         subprocess.check_output(
             ["git", "rev-parse", "--is-inside-work-tree"],
-            stderr=subprocess.DEVNULL, text=True
+            stderr=subprocess.DEVNULL,
+            text=True,
         )
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except subprocess.CalledProcessError, FileNotFoundError:
         error("not_git_repo", "Current directory is not a git repository")
 
     try:
         commit = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL, text=True
         ).strip()
-        branch = subprocess.check_output(
-            ["git", "branch", "--show-current"], stderr=subprocess.DEVNULL, text=True
-        ).strip() or "unknown"
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        branch = (
+            subprocess.check_output(
+                ["git", "branch", "--show-current"],
+                stderr=subprocess.DEVNULL,
+                text=True,
+            ).strip()
+            or "unknown"
+        )
+    except subprocess.CalledProcessError, FileNotFoundError:
         error("git_error", "Failed to get git info")
 
     timestamp = get_timestamp()
@@ -1117,12 +1137,14 @@ def cmd_phase_advance(args):
     write_json(state_file, state)
 
     next_next = get_next_phase(next_phase)
-    output({
-        "phase": next_phase,
-        "previous": current_phase,
-        "next": next_next,
-        "iteration": 1,
-    })
+    output(
+        {
+            "phase": next_phase,
+            "previous": current_phase,
+            "next": next_next,
+            "iteration": 1,
+        }
+    )
 
 
 def create_parser():
@@ -1155,9 +1177,13 @@ def create_parser():
     instructions_parser = subparsers.add_parser(
         "instructions", help="Get artifact instructions (proxies to openspec CLI)"
     )
-    instructions_parser.add_argument("artifact", help="Artifact type (e.g., specs, apply)")
+    instructions_parser.add_argument(
+        "artifact", help="Artifact type (e.g., specs, apply)"
+    )
     instructions_parser.add_argument("--change", help="Change name")
-    instructions_parser.add_argument("--json", action="store_true", help="Output as JSON")
+    instructions_parser.add_argument(
+        "--json", action="store_true", help="Output as JSON"
+    )
     instructions_parser.set_defaults(func=cmd_instructions)
 
     git_parser = subparsers.add_parser("git", help="Git status for change directory")
@@ -1170,7 +1196,9 @@ def create_parser():
     phase_parser = subparsers.add_parser("phase", help="Phase advancement management")
     phase_subparsers = phase_parser.add_subparsers(dest="action", help="Action")
 
-    phase_current = phase_subparsers.add_parser("current", help="Get current phase info")
+    phase_current = phase_subparsers.add_parser(
+        "current", help="Get current phase info"
+    )
     phase_current.add_argument("change", help="Change name")
     phase_current.set_defaults(func=cmd_phase_current)
 
@@ -1182,14 +1210,18 @@ def create_parser():
     phase_advance.add_argument("change", help="Change name")
     phase_advance.set_defaults(func=cmd_phase_advance)
 
-    state_parser = subparsers.add_parser("state", help="Phase and iteration state management")
+    state_parser = subparsers.add_parser(
+        "state", help="Phase and iteration state management"
+    )
     state_subparsers = state_parser.add_subparsers(dest="action", help="Action")
 
     state_get = state_subparsers.add_parser("get", help="Get current state")
     state_get.add_argument("change", help="Change name")
     state_get.set_defaults(func=cmd_state_get)
-    
-    state_show = state_subparsers.add_parser("show", help="Get current state (alias for get)")
+
+    state_show = state_subparsers.add_parser(
+        "show", help="Get current state (alias for get)"
+    )
     state_show.add_argument("change", help="Change name")
     state_show.set_defaults(func=cmd_state_get)
 
@@ -1198,8 +1230,10 @@ def create_parser():
     state_set_phase.add_argument("phase", help="Phase to set")
     state_set_phase.add_argument("--iteration", type=int, help="Iteration number")
     state_set_phase.set_defaults(func=cmd_state_set_phase)
-    
-    state_set = state_subparsers.add_parser("set", help="Set current phase (alias for set-phase)")
+
+    state_set = state_subparsers.add_parser(
+        "set", help="Set current phase (alias for set-phase)"
+    )
     state_set.add_argument("change", help="Change name")
     state_set.add_argument("phase", help="Phase to set")
     state_set.add_argument("--iteration", type=int, help="Iteration number")
@@ -1215,7 +1249,9 @@ def create_parser():
     state_transition.add_argument("change", help="Change name")
     state_transition.add_argument("target", help="Target phase")
     state_transition.add_argument("reason", help="Transition reason")
-    state_transition.add_argument("details", nargs="?", default=None, help="Optional details")
+    state_transition.add_argument(
+        "details", nargs="?", default=None, help="Optional details"
+    )
     state_transition.set_defaults(func=cmd_state_transition)
 
     state_clear = state_subparsers.add_parser(
@@ -1267,10 +1303,14 @@ def create_parser():
     log_append.add_argument("--extra", help="Additional fields (JSON object)")
     log_append.set_defaults(func=cmd_log_append)
 
-    complete_parser = subparsers.add_parser("complete", help="Completion status tracking")
+    complete_parser = subparsers.add_parser(
+        "complete", help="Completion status tracking"
+    )
     complete_subparsers = complete_parser.add_subparsers(dest="action", help="Action")
 
-    complete_check = complete_subparsers.add_parser("check", help="Check if complete.json exists")
+    complete_check = complete_subparsers.add_parser(
+        "check", help="Check if complete.json exists"
+    )
     complete_check.add_argument("change", help="Change name")
     complete_check.set_defaults(func=cmd_complete_check)
 
@@ -1295,7 +1335,9 @@ def create_parser():
     validate_json.add_argument("file", help="File path")
     validate_json.set_defaults(func=cmd_validate_json)
 
-    validate_skills = validate_subparsers.add_parser("skills", help="Validate required skills")
+    validate_skills = validate_subparsers.add_parser(
+        "skills", help="Validate required skills"
+    )
     validate_skills.set_defaults(func=cmd_validate_skills)
 
     validate_commands = validate_subparsers.add_parser(
@@ -1309,7 +1351,9 @@ def create_parser():
     validate_change_dir.add_argument("change", help="Change name")
     validate_change_dir.set_defaults(func=cmd_validate_change_dir)
 
-    validate_archive = validate_subparsers.add_parser("archive", help="Validate change is archived")
+    validate_archive = validate_subparsers.add_parser(
+        "archive", help="Validate change is archived"
+    )
     validate_archive.add_argument("change", help="Change name")
     validate_archive.set_defaults(func=cmd_validate_archive)
 
