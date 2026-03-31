@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-OpenSpec Extended Autonomous Workflow Orchestrator
-Version is read from manifest.toml at runtime
-Usage: osx-orchestrate.py <change-name> [options]
+OpenSpec Extended Autonomous Workflow Orchestrator - Core Engine
+
+This module contains the orchestrator logic, migrated from osx-orchestrate.
+It can be called directly via run_orchestrator() function.
 """
 
 import json
@@ -13,18 +14,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import toml
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-import typer
-
-SCRIPT_DIR = Path(__file__).parent.resolve()
-MANIFEST_PATH = SCRIPT_DIR.parent.parent / "manifest.toml"
-
-DEFAULT_TIMEOUT = 1800
-DEFAULT_MAX_PHASE_ITERATIONS = 10
+import toml
 
 PHASES = ["PHASE0", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "PHASE5", "PHASE6"]
 
@@ -58,39 +53,34 @@ PHASE_AGENTS = {
     "PHASE6": "osx-maintainer",
 }
 
-VALID_TRANSITION_REASONS = [
-    "implementation_incorrect",
-    "artifacts_modified",
-    "retry_requested",
-]
-
-REQUIRED_SKILLS = [
-    "osx-concepts",
-    "osx-review-artifacts",
-    "osx-modify-artifacts",
-    "osc-apply-change",
-    "osx-review-test-compliance",
-    "osc-verify-change",
-    "osx-maintain-ai-docs",
-    "osc-sync-specs",
-    "osc-archive-change",
-]
-
-REQUIRED_SKILLS_ORIGINAL_NAMES = {
-    "osc-apply-change": "openspec-apply-change",
-    "osc-verify-change": "openspec-verify-change",
-    "osc-sync-specs": "openspec-sync-specs",
-    "osc-archive-change": "openspec-archive-change",
-}
-
-app = typer.Typer()
-
-lib_osx_path = SCRIPT_DIR / "lib" / "osx"
+DEFAULT_TIMEOUT = 1800
+DEFAULT_MAX_PHASE_ITERATIONS = 10
 
 
-class State:
-    """Global state holder."""
+def get_resources_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", "")) / "resources"
+    return Path(__file__).parent.parent / "resources"
 
+
+def get_version() -> str:
+    manifest_path = get_resources_dir() / "opencode" / "manifest.toml"
+    if manifest_path.exists():
+        try:
+            manifest = toml.loads(manifest_path.read_text())
+            return (
+                manifest.get("resources", {})
+                .get("scripts", {})
+                .get("osx-orchestrate", {})
+                .get("version", "unknown")
+            )
+        except (toml.TomlDecodeError, KeyError, AttributeError):
+            pass
+    return "unknown"
+
+
+@dataclass
+class OrchestratorState:
     change_id: str = ""
     change_dir: Optional[Path] = None
     max_phase_iterations: int = DEFAULT_MAX_PHASE_ITERATIONS
@@ -108,34 +98,14 @@ class State:
     interrupted: bool = False
     child_pid: Optional[int] = None
     model: str = ""
-
-
-state = State()
-
-
-def get_version() -> str:
-    """Get version from manifest.toml."""
-    if MANIFEST_PATH.exists():
-        try:
-            manifest = toml.loads(MANIFEST_PATH.read_text())
-            return (
-                manifest.get("resources", {})
-                .get("scripts", {})
-                .get("osx-orchestrate", {})
-                .get("version", "unknown")
-            )
-        except (toml.TomlDecodeError, KeyError, AttributeError):
-            pass
-    return "unknown"
+    list_changes: bool = False
 
 
 def get_timestamp() -> str:
-    """Get current UTC timestamp in ISO format."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def find_change_dir(change: str) -> Optional[Path]:
-    """Find change directory (primary or archived)."""
     primary = Path(f"openspec/changes/{change}")
     if primary.is_dir():
         return primary
@@ -151,8 +121,7 @@ def find_change_dir(change: str) -> Optional[Path]:
     return None
 
 
-def log(msg: str) -> None:
-    """Log info message."""
+def log(state: OrchestratorState, msg: str) -> None:
     timestamp = get_timestamp()
     output = f"{timestamp} [INFO] {msg}"
     if state.no_color:
@@ -161,8 +130,7 @@ def log(msg: str) -> None:
         print(f"[blue]{output}[/blue]")
 
 
-def log_success(msg: str) -> None:
-    """Log success message."""
+def log_success(state: OrchestratorState, msg: str) -> None:
     timestamp = get_timestamp()
     output = f"{timestamp} [OK] {msg}"
     if state.no_color:
@@ -171,8 +139,7 @@ def log_success(msg: str) -> None:
         print(f"[green]{output}[/green]")
 
 
-def log_warning(msg: str) -> None:
-    """Log warning message."""
+def log_warning(state: OrchestratorState, msg: str) -> None:
     timestamp = get_timestamp()
     output = f"{timestamp} [WARN] {msg}"
     if state.no_color:
@@ -181,8 +148,7 @@ def log_warning(msg: str) -> None:
         print(f"[yellow]{output}[/yellow]", file=sys.stderr)
 
 
-def log_error(msg: str) -> None:
-    """Log error message."""
+def log_error(state: OrchestratorState, msg: str) -> None:
     timestamp = get_timestamp()
     output = f"{timestamp} [ERROR] {msg}"
     if state.no_color:
@@ -191,8 +157,7 @@ def log_error(msg: str) -> None:
         print(f"[red]{output}[/red]", file=sys.stderr)
 
 
-def log_verbose(msg: str) -> None:
-    """Log verbose message."""
+def log_verbose(state: OrchestratorState, msg: str) -> None:
     timestamp = get_timestamp()
     output = f"{timestamp} [VERBOSE] {msg}"
     if state.verbose:
@@ -206,14 +171,12 @@ def log_verbose(msg: str) -> None:
 
 
 def run_osx_command(args: list) -> tuple[str, int]:
-    """Run osx lib command and return output + exit code."""
-    cmd = [sys.executable, str(lib_osx_path)] + args
+    cmd = [sys.executable, "-m", "source.lib.osx"] + args
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     return result.stdout.strip(), result.returncode
 
 
 def is_valid_json_result(result: str) -> bool:
-    """Check if result is valid JSON with valid=true."""
     if not result:
         return False
     try:
@@ -223,55 +186,51 @@ def is_valid_json_result(result: str) -> bool:
         return False
 
 
-def print_validation_errors(result: str) -> None:
-    """Print validation errors from JSON result."""
+def print_validation_errors(state: OrchestratorState, result: str) -> None:
     try:
         data = json.loads(result)
         errors = data.get("errors", [])
         for err in errors:
             msg = err.get("message", "")
             if msg:
-                log_error(msg)
+                log_error(state, msg)
     except json.JSONDecodeError:
         pass
 
 
-def validate_skills() -> None:
-    """Validate required skills exist."""
-    log("Validating required skills...")
+def validate_skills(state: OrchestratorState) -> None:
+    log(state, "Validating required skills...")
 
     stdout, exit_code = run_osx_command(["validate", "skills"])
     if exit_code != 0 or not is_valid_json_result(stdout):
-        log_error("Required skills validation failed")
-        print_validation_errors(stdout)
-        log_error("Run: openspec-extended install opencode")
+        log_error(state, "Required skills validation failed")
+        print_validation_errors(state, stdout)
+        log_error(state, "Run: openspec-extended install opencode")
         raise SystemExit(1)
 
-    log_verbose("All required skills found")
+    log_verbose(state, "All required skills found")
 
 
-def validate_commands() -> None:
-    """Validate required commands exist."""
-    log("Validating required commands...")
+def validate_commands(state: OrchestratorState) -> None:
+    log(state, "Validating required commands...")
 
     stdout, exit_code = run_osx_command(["validate", "commands"])
     if exit_code != 0 or not is_valid_json_result(stdout):
-        log_error("Required commands validation failed")
-        print_validation_errors(stdout)
-        log_error("Run: openspec-extended install opencode")
+        log_error(state, "Required commands validation failed")
+        print_validation_errors(state, stdout)
+        log_error(state, "Run: openspec-extended install opencode")
         raise SystemExit(1)
 
-    log_verbose("All required commands found")
+    log_verbose(state, "All required commands found")
 
 
-def validate_git() -> None:
-    """Validate git repository."""
-    log("Validating git repository...")
+def validate_git(state: OrchestratorState) -> None:
+    log(state, "Validating git repository...")
 
     try:
         subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        log_error("Not in a git repository")
+        log_error(state, "Not in a git repository")
         raise SystemExit(1)
 
     result = subprocess.run(["git", "diff", "--quiet"], capture_output=True)
@@ -280,8 +239,8 @@ def validate_git() -> None:
     )
 
     if result.returncode != 0 or result_cached.returncode != 0:
-        log_warning("Git working directory is dirty")
-        log_warning("Uncommitted changes detected")
+        log_warning(state, "Git working directory is dirty")
+        log_warning(state, "Uncommitted changes detected")
 
         if not state.force and os.isatty(0):
             print("")
@@ -292,30 +251,30 @@ def validate_git() -> None:
             reply = input("Continue? [y/N] ")
             print("")
             if not reply.lower().startswith("y"):
-                log_error("Aborted due to dirty git state")
+                log_error(state, "Aborted due to dirty git state")
                 raise SystemExit(1)
         else:
-            log_warning("Continuing with dirty git state (non-interactive or --force)")
+            log_warning(
+                state, "Continuing with dirty git state (non-interactive or --force)"
+            )
 
-    log_verbose("Git repository is ready")
+    log_verbose(state, "Git repository is ready")
 
 
-def validate_change_dir() -> None:
-    """Validate change directory structure."""
-    log("Validating change directory...")
+def validate_change_dir(state: OrchestratorState) -> None:
+    log(state, "Validating change directory...")
 
     stdout, exit_code = run_osx_command(["validate", "change-dir", state.change_id])
     if exit_code != 0 or not is_valid_json_result(stdout):
-        log_error("Change directory validation failed")
-        print_validation_errors(stdout)
-        log_error(f"Change directory: {state.change_dir}")
+        log_error(state, "Change directory validation failed")
+        print_validation_errors(state, stdout)
+        log_error(state, f"Change directory: {state.change_dir}")
         raise SystemExit(1)
 
-    log_verbose("Change directory validated")
+    log_verbose(state, "Change directory validated")
 
 
-def validate_archive() -> tuple[bool, str]:
-    """Validate change is archived. Returns (success, archive_path)."""
+def validate_archive(state: OrchestratorState) -> tuple[bool, str]:
     stdout, exit_code = run_osx_command(["validate", "archive", state.change_id])
     if exit_code != 0 or not is_valid_json_result(stdout):
         return False, ""
@@ -328,29 +287,27 @@ def validate_archive() -> tuple[bool, str]:
         return False, ""
 
 
-def record_baseline() -> None:
-    """Record baseline (current commit/branch)."""
-    log("Recording baseline...")
+def record_baseline(state: OrchestratorState) -> None:
+    log(state, "Recording baseline...")
 
     stdout, exit_code = run_osx_command(["baseline", "record"])
     if exit_code != 0:
-        log_error("Failed to record baseline")
+        log_error(state, "Failed to record baseline")
         raise SystemExit(1)
 
     try:
         data = json.loads(stdout)
         commit = data.get("commit", "")
         if not commit:
-            log_error("Failed to record baseline")
+            log_error(state, "Failed to record baseline")
             raise SystemExit(1)
-        log_verbose(f"Baseline recorded: {commit}")
+        log_verbose(state, f"Baseline recorded: {commit}")
     except json.JSONDecodeError:
-        log_error("Failed to record baseline")
+        log_error(state, "Failed to record baseline")
         raise SystemExit(1)
 
 
-def read_state() -> Optional[dict]:
-    """Read state.json if exists and is valid."""
+def read_state(state: OrchestratorState) -> Optional[dict]:
     if state.change_dir is None:
         return None
 
@@ -364,21 +321,25 @@ def read_state() -> Optional[dict]:
         iteration = data.get("iteration", None)
 
         if not phase or iteration is None:
-            log_error("State file missing required fields")
+            log_error(state, "State file missing required fields")
             return None
 
         if phase not in PHASES and phase != "COMPLETE":
-            log_error(f"State file has invalid phase value: {phase}")
+            log_error(state, f"State file has invalid phase value: {phase}")
             return None
 
         return data
     except json.JSONDecodeError:
-        log_error("State file is corrupted, cannot resume")
+        log_error(state, "State file is corrupted, cannot resume")
         return None
 
 
-def write_state(phase: str, iteration: int = 1, phase_complete: bool = False) -> None:
-    """Write state.json."""
+def write_state(
+    state: OrchestratorState,
+    phase: str,
+    iteration: int = 1,
+    phase_complete: bool = False,
+) -> None:
     if state.change_dir is None:
         return
 
@@ -410,36 +371,33 @@ def write_state(phase: str, iteration: int = 1, phase_complete: bool = False) ->
 
     state_file.write_text(json.dumps(state_data, indent=2))
     log_verbose(
-        f"State updated: {phase} (iteration {iteration}, complete: {phase_complete})"
+        state,
+        f"State updated: {phase} (iteration {iteration}, complete: {phase_complete})",
     )
 
 
-def get_current_phase() -> Optional[str]:
-    """Get current phase from state.json."""
-    data = read_state()
+def get_current_phase(state: OrchestratorState) -> Optional[str]:
+    data = read_state(state)
     if data:
         return data.get("phase")
     return None
 
 
-def get_phase_iteration() -> int:
-    """Get current phase iteration from state.json."""
-    data = read_state()
+def get_phase_iteration(state: OrchestratorState) -> int:
+    data = read_state(state)
     if data:
         return data.get("iteration", 0)
     return 0
 
 
-def check_phase_complete() -> bool:
-    """Check if phase_complete is true in state.json."""
-    data = read_state()
+def check_phase_complete(state: OrchestratorState) -> bool:
+    data = read_state(state)
     if data:
         return data.get("phase_complete", False) is True
     return False
 
 
-def clear_phase_complete() -> None:
-    """Clear phase_complete flag in state.json."""
+def clear_phase_complete(state: OrchestratorState) -> None:
     if state.change_dir is None:
         return
 
@@ -455,9 +413,8 @@ def clear_phase_complete() -> None:
         pass
 
 
-def check_transition() -> tuple[bool, str]:
-    """Check for explicit transition target. Returns (has_transition, target)."""
-    data = read_state()
+def check_transition(state: OrchestratorState) -> tuple[bool, str]:
+    data = read_state(state)
     if data and "transition" in data:
         target = data["transition"].get("target", "")
         if target:
@@ -465,35 +422,30 @@ def check_transition() -> tuple[bool, str]:
     return False, ""
 
 
-def get_transition_reason() -> str:
-    """Get transition reason from state.json."""
-    data = read_state()
+def get_transition_reason(state: OrchestratorState) -> str:
+    data = read_state(state)
     if data and "transition" in data:
         return data["transition"].get("reason", "unknown")
     return "unknown"
 
 
-def get_transition_details() -> str:
-    """Get transition details from state.json."""
-    data = read_state()
+def get_transition_details(state: OrchestratorState) -> str:
+    data = read_state(state)
     if data and "transition" in data:
         return data["transition"].get("details", "")
     return ""
 
 
-def clear_transition() -> None:
-    """Clear transition field in state.json."""
+def clear_transition(state: OrchestratorState) -> None:
     run_osx_command(["state", "clear-transition", state.change_id])
 
 
-def check_complete() -> bool:
-    """Check if complete.json exists."""
+def check_complete(state: OrchestratorState) -> bool:
     stdout, exit_code = run_osx_command(["complete", "check", state.change_id])
     return exit_code == 0 and is_valid_json_result(stdout)
 
 
-def read_completion() -> Optional[str]:
-    """Read completion status."""
+def read_completion(state: OrchestratorState) -> Optional[str]:
     stdout, exit_code = run_osx_command(["complete", "get", state.change_id])
     if exit_code != 0:
         return None
@@ -506,7 +458,6 @@ def read_completion() -> Optional[str]:
 
 
 def advance_phase(current: str) -> str:
-    """Compute next phase from current phase."""
     order = {
         "PHASE0": "PHASE1",
         "PHASE1": "PHASE2",
@@ -520,21 +471,20 @@ def advance_phase(current: str) -> str:
     return order.get(current, "COMPLETE")
 
 
-def run_agent(phase: str) -> bool:
-    """Run agent for given phase."""
+def run_agent(state: OrchestratorState, phase: str) -> bool:
     if state.dry_run:
-        log("[DRY RUN] Would run command for " + phase)
+        log(state, "[DRY RUN] Would run command for " + phase)
         return True
 
-    log(f"Agent invocation #{state.total_invocations} for {phase}")
+    log(state, f"Agent invocation #{state.total_invocations} for {phase}")
 
     cmd_name = PHASE_COMMANDS.get(phase, "")
     agent_name = PHASE_AGENTS.get(phase, "")
     title = f"OpenSpec: {state.change_id} - {PHASE_NAMES.get(phase, '')}"
 
-    log_verbose(f"Using command: /{cmd_name}")
-    log_verbose(f"Using agent: {agent_name}")
-    log_verbose(f"Session title: {title}")
+    log_verbose(state, f"Using command: /{cmd_name}")
+    log_verbose(state, f"Using agent: {agent_name}")
+    log_verbose(state, f"Session title: {title}")
 
     agent_log_file = Path(tempfile.mkstemp()[1])
 
@@ -575,56 +525,58 @@ def run_agent(phase: str) -> bool:
         agent_log_file.unlink(missing_ok=True)
 
         if state.interrupted:
-            log_warning("Execution interrupted by user")
+            log_warning(state, "Execution interrupted by user")
             raise SystemExit(130)
 
         if exit_code == 124:
-            log_error(f"Agent iteration timed out after {state.timeout // 60} minutes")
+            log_error(
+                state, f"Agent iteration timed out after {state.timeout // 60} minutes"
+            )
             return False
         elif exit_code != 0:
-            log_error(f"Agent execution failed with exit code {exit_code}")
+            log_error(state, f"Agent execution failed with exit code {exit_code}")
             return False
 
         return True
 
     except Exception as e:
-        log_error(f"Agent execution failed: {e}")
+        log_error(state, f"Agent execution failed: {e}")
         return False
 
 
-def run_phase(phase: str) -> bool:
-    """Run a phase with iterations."""
-    log(PHASE_NAMES.get(phase, phase))
+def run_phase(state: OrchestratorState, phase: str) -> bool:
+    log(state, PHASE_NAMES.get(phase, phase))
     iteration = 1
 
     while iteration <= state.max_phase_iterations or state.max_phase_iterations == -1:
         state.total_invocations += 1
-        write_state(phase, iteration)
+        write_state(state, phase, iteration)
 
-        if not run_agent(phase):
+        if not run_agent(state, phase):
             return False
 
         if state.dry_run:
             return True
 
         if phase == "PHASE6":
-            success, _ = validate_archive()
+            success, _ = validate_archive(state)
             if success:
-                log_success(f"{phase} completed in {iteration} iteration(s)")
+                log_success(state, f"{phase} completed in {iteration} iteration(s)")
                 return True
-        elif check_phase_complete():
-            log_success(f"{phase} completed in {iteration} iteration(s)")
-            clear_phase_complete()
+        elif check_phase_complete(state):
+            log_success(state, f"{phase} completed in {iteration} iteration(s)")
+            clear_phase_complete(state)
             return True
 
         iteration += 1
 
-    log_warning(f"{phase} reached max phase iterations ({state.max_phase_iterations})")
+    log_warning(
+        state, f"{phase} reached max phase iterations ({state.max_phase_iterations})"
+    )
     return False
 
 
-def show_progress() -> None:
-    """Display progress summary."""
+def show_progress(state: OrchestratorState) -> None:
     print("================================")
     print("Progress Summary")
     print("================================")
@@ -633,12 +585,12 @@ def show_progress() -> None:
     if state.change_dir:
         print(f"Change directory: {state.change_dir}")
 
-    current_phase = get_current_phase()
+    current_phase = get_current_phase(state)
     if current_phase:
         print(
             f"Current phase: {current_phase} - {PHASE_NAMES.get(current_phase, 'UNKNOWN')}"
         )
-        iteration = get_phase_iteration()
+        iteration = get_phase_iteration(state)
         print(f"Phase iteration: {iteration}")
     else:
         print("Current phase: Not started")
@@ -673,14 +625,13 @@ def show_progress() -> None:
     print("================================")
 
 
-def archive_log_file() -> bool:
-    """Archive log file to archive directory."""
+def archive_log_file(state: OrchestratorState) -> bool:
     if not state.log_file or not state.log_file.exists():
-        log_verbose("No log file to archive")
+        log_verbose(state, "No log file to archive")
         return True
 
     if state.log_user_specified:
-        log_verbose("User-specified log path, not moving to archive")
+        log_verbose(state, "User-specified log path, not moving to archive")
         return True
 
     try:
@@ -688,18 +639,18 @@ def archive_log_file() -> bool:
     except (AttributeError, OSError):
         pass
 
-    success, archive_dir = validate_archive()
+    success, archive_dir = validate_archive(state)
     if not success or not archive_dir:
-        log_error("Failed to get archive path")
+        log_error(state, "Failed to get archive path")
         if state.log_file:
-            log_error(f"Log file not archived: {state.log_file}")
+            log_error(state, f"Log file not archived: {state.log_file}")
         return False
 
     archive_path = Path(archive_dir)
     if not archive_path.is_dir():
-        log_error(f"Archive directory does not exist: {archive_path}")
+        log_error(state, f"Archive directory does not exist: {archive_path}")
         if state.log_file:
-            log_error(f"Log file not archived: {state.log_file}")
+            log_error(state, f"Log file not archived: {state.log_file}")
         return False
 
     archive_log = archive_path / "osx-orchestrate.log"
@@ -707,17 +658,17 @@ def archive_log_file() -> bool:
     try:
         shutil.move(str(state.log_file), str(archive_log))
     except Exception as e:
-        log_error(f"Failed to move log file to archive: {e}")
+        log_error(state, f"Failed to move log file to archive: {e}")
         return False
 
-    log_verbose(f"Log moved to archive: {archive_log}")
+    log_verbose(state, f"Log moved to archive: {archive_log}")
 
     try:
         subprocess.run(
             ["git", "add", str(archive_log)], capture_output=True, check=True
         )
     except subprocess.CalledProcessError:
-        log_warning("Failed to add log file to git")
+        log_warning(state, "Failed to add log file to git")
         return True
 
     try:
@@ -725,15 +676,14 @@ def archive_log_file() -> bool:
             ["git", "commit", "--amend", "--no-edit"], capture_output=True, check=True
         )
     except subprocess.CalledProcessError:
-        log_error("Failed to amend archive commit with log file")
+        log_error(state, "Failed to amend archive commit with log file")
         return False
 
-    log_verbose("Archive commit amended with log file")
+    log_verbose(state, "Archive commit amended with log file")
     return True
 
 
-def handle_interrupt(signum, frame) -> None:
-    """Handle SIGINT/SIGTERM signals."""
+def handle_interrupt(signum, frame, state: OrchestratorState) -> None:
     state.interrupted = True
     if state.child_pid:
         try:
@@ -742,8 +692,7 @@ def handle_interrupt(signum, frame) -> None:
             pass
 
 
-def cleanup(exit_code: int) -> None:
-    """Cleanup on exit."""
+def cleanup(state: OrchestratorState, exit_code: int) -> None:
     if state.child_pid:
         try:
             os.kill(state.child_pid, signal.SIGTERM)
@@ -751,9 +700,9 @@ def cleanup(exit_code: int) -> None:
             pass
 
     if state.interrupted:
-        log("")
-        log_warning("Execution interrupted by user")
-        log("State files preserved for resumption:")
+        log(state, "")
+        log_warning(state, "Execution interrupted by user")
+        log(state, "State files preserved for resumption:")
         if state.change_dir:
             for fname in [
                 "state.json",
@@ -763,15 +712,15 @@ def cleanup(exit_code: int) -> None:
             ]:
                 fp = state.change_dir / fname
                 if fp.exists():
-                    log(f"  {fp}")
-        log("")
-        log("To resume: Run script again with same change-id")
+                    log(state, f"  {fp}")
+        log(state, "")
+        log(state, "To resume: Run script again with same change-id")
         raise SystemExit(130)
 
     if exit_code != 0:
-        log("")
-        log_error(f"Script exited with error (code {exit_code})")
-        log("State files preserved for investigation:")
+        log(state, "")
+        log_error(state, f"Script exited with error (code {exit_code})")
+        log(state, "State files preserved for investigation:")
         if state.change_dir:
             for fname in [
                 "state.json",
@@ -781,9 +730,9 @@ def cleanup(exit_code: int) -> None:
             ]:
                 fp = state.change_dir / fname
                 if fp.exists():
-                    log(f"  {fp}")
-        log("")
-        log("To resume: Run script again with same change-id")
+                    log(state, f"  {fp}")
+        log(state, "")
+        log(state, "To resume: Run script again with same change-id")
     else:
         if state.change_dir:
             for fname in ["state.json", "complete.json"]:
@@ -792,24 +741,23 @@ def cleanup(exit_code: int) -> None:
                     try:
                         fp.unlink()
                     except OSError:
-                        log_warning(f"Failed to remove {fname}")
+                        log_warning(state, f"Failed to remove {fname}")
 
         baseline = Path(".openspec-baseline.json")
         if baseline.exists():
             try:
                 baseline.unlink()
             except OSError:
-                log_warning("Failed to remove .openspec-baseline.json")
+                log_warning(state, "Failed to remove .openspec-baseline.json")
 
         if state.log_file and not state.log_user_specified and state.log_file.exists():
             try:
                 state.log_file.unlink()
             except OSError:
-                log_warning(f"Failed to remove {state.log_file}")
+                log_warning(state, f"Failed to remove {state.log_file}")
 
 
-def _list_changes() -> None:
-    """List available changes."""
+def list_changes() -> None:
     print("Available OpenSpec changes:")
     print("")
 
@@ -837,85 +785,38 @@ def _list_changes() -> None:
     if changes_dir.is_dir():
         for d in sorted(changes_dir.iterdir()):
             if d.is_dir() and d.name != "archive":
-                valid_marker = " \u2713"
+                valid_marker = " ✓"
                 required = ["tasks.md", "proposal.md", "design.md"]
                 specs_dir = d / "specs"
                 if (
                     not all((d / f).exists() for f in required)
                     or not specs_dir.is_dir()
                 ):
-                    valid_marker = " \u2717"
+                    valid_marker = " ✗"
                 print(f"  {d.name}{valid_marker}")
 
     print("")
-    print("Legend: \u2713 = valid structure, \u2717 = missing required files")
+    print("Legend: ✓ = valid structure, ✗ = missing required files")
 
 
-@app.command()
-def main(
-    change_name: str = typer.Argument(
-        ..., help="OpenSpec change ID (e.g., reverse-transformation)"
-    ),
-    timeout: int = typer.Option(
-        DEFAULT_TIMEOUT, "--timeout", "-t", help="Timeout per iteration in seconds"
-    ),
-    model: str = typer.Option(
-        "", "--model", "-m", help="Model to use for AI assistant"
-    ),
-    log_file_path: Optional[Path] = typer.Option(
-        None, "--log-file", "-l", help="Log output file"
-    ),
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Show detailed progress information"
-    ),
-    dry_run: bool = typer.Option(
-        False, "--dry-run", "-d", help="Show what would be done without executing"
-    ),
-    force: bool = typer.Option(
-        False, "--force", "-f", help="Continue without prompts (for CI/CD)"
-    ),
-    clean: bool = typer.Option(
-        False, "--clean", "-c", help="Clean up state files for fresh start"
-    ),
-    no_color: bool = typer.Option(
-        False, "--no-color", "-n", help="Disable colored output"
-    ),
-    max_phase_iterations: int = typer.Option(
-        DEFAULT_MAX_PHASE_ITERATIONS,
-        "--max-phase-iterations",
-        help="Max retries per phase",
-    ),
-    from_phase: str = typer.Option(
-        "", "--from-phase", help="Resume from specific phase (PHASE0-PHASE6)"
-    ),
-    list_changes: bool = typer.Option(
-        False, "--list", help="List available changes and exit"
-    ),
-) -> None:
-    """
-    OpenSpec Extended Autonomous Workflow Orchestrator.
-    """
-    state.change_id = change_name
-    state.max_phase_iterations = max_phase_iterations
-    state.timeout = timeout
-    state.verbose = verbose
-    state.dry_run = dry_run
-    state.force = force
-    state.clean = clean
-    state.from_phase = from_phase
-    state.no_color = no_color
-    state.model = model
+def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
+    if state is None:
+        state = OrchestratorState()
 
-    if list_changes:
-        _list_changes()
+    signal.signal(signal.SIGINT, lambda s, f: handle_interrupt(s, f, state))
+    signal.signal(signal.SIGTERM, lambda s, f: handle_interrupt(s, f, state))
+
+    if state.list_changes:
+        list_changes()
         raise SystemExit(0)
 
-    signal.signal(signal.SIGINT, handle_interrupt)
-    signal.signal(signal.SIGTERM, handle_interrupt)
+    if not state.change_id:
+        log_error(state, "No change ID specified")
+        raise SystemExit(1)
 
     state.change_dir = find_change_dir(state.change_id)
     if not state.change_dir:
-        log_error(f"Change not found: {state.change_id}")
+        log_error(state, f"Change not found: {state.change_id}")
         print("")
         print("Tried:")
         print(f"  - Direct path: openspec/changes/{state.change_id}")
@@ -925,41 +826,43 @@ def main(
         except FileNotFoundError:
             pass
         print("")
-        print("Run 'osx-orchestrate.py --list' to see available changes")
+        print("Run 'openspec-extended orchestrate --list' to see available changes")
         raise SystemExit(1)
 
     if (
         "archive" in str(state.change_dir)
         and not (state.change_dir / "state.json").exists()
     ):
-        log_success(f"Change '{state.change_id}' is already archived and complete")
-        log(f"Archive location: {state.change_dir}")
+        log_success(
+            state, f"Change '{state.change_id}' is already archived and complete"
+        )
+        log(state, f"Archive location: {state.change_dir}")
         raise SystemExit(0)
 
-    if log_file_path:
-        state.log_file = log_file_path
+    if state.log_file:
+        state.log_file = Path(state.log_file)
         state.log_user_specified = True
 
     state.start_time = int(datetime.now(timezone.utc).timestamp())
 
-    log("")
-    log("================================")
-    log("OpenSpec Autonomous Implementation")
-    log("================================")
-    log(f"Version: {get_version()}")
-    log(f"Change ID: {state.change_id}")
-    log(f"Change directory: {state.change_dir}")
+    log(state, "")
+    log(state, "================================")
+    log(state, "OpenSpec Autonomous Implementation")
+    log(state, "================================")
+    log(state, f"Version: {get_version()}")
+    log(state, f"Change ID: {state.change_id}")
+    log(state, f"Change directory: {state.change_dir}")
     if state.model:
-        log(f"Model: {state.model}")
-    log(f"Max phase iterations: {state.max_phase_iterations}")
-    log(f"Timeout: {state.timeout} seconds")
+        log(state, f"Model: {state.model}")
+    log(state, f"Max phase iterations: {state.max_phase_iterations}")
+    log(state, f"Timeout: {state.timeout} seconds")
     if state.log_file:
-        log(f"Log file: {state.log_file}")
-    log("================================")
-    log("")
+        log(state, f"Log file: {state.log_file}")
+    log(state, "================================")
+    log(state, "")
 
     if state.clean:
-        log_verbose("Cleaning up state files for fresh start...")
+        log_verbose(state, "Cleaning up state files for fresh start...")
         if state.change_dir:
             for fname in ["state.json", "complete.json", "iterations.json"]:
                 fp = state.change_dir / fname
@@ -980,7 +883,7 @@ def main(
                 log_file_unset.unlink()
             except OSError:
                 pass
-        log_verbose("State files cleaned, starting fresh")
+        log_verbose(state, "State files cleaned, starting fresh")
 
         if not state.from_phase:
             try:
@@ -988,43 +891,44 @@ def main(
                     ["git", "rev-parse", "HEAD"], capture_output=True, check=True
                 )
             except (subprocess.CalledProcessError, FileNotFoundError):
-                log_error("Required tool not found: git")
+                log_error(state, "Required tool not found: git")
                 raise SystemExit(1)
 
             try:
                 subprocess.run(["jq", "--version"], capture_output=True)
             except FileNotFoundError:
-                log_error("Required tool not found: jq")
+                log_error(state, "Required tool not found: jq")
                 raise SystemExit(1)
 
             try:
                 subprocess.run(["openspec", "--version"], capture_output=True)
             except FileNotFoundError:
-                log_error("Required tool not found: openspec")
+                log_error(state, "Required tool not found: openspec")
                 raise SystemExit(1)
 
             try:
                 subprocess.run(["opencode", "--version"], capture_output=True)
             except FileNotFoundError:
-                log_error("Required tool not found: opencode")
+                log_error(state, "Required tool not found: opencode")
                 raise SystemExit(1)
 
-            validate_skills()
-            validate_commands()
-            validate_git()
-            validate_change_dir()
+            validate_skills(state)
+            validate_commands(state)
+            validate_git(state)
+            validate_change_dir(state)
 
-            record_baseline()
+            record_baseline(state)
         else:
-            log("Skipping pre-flight validation (--from-phase specified)")
+            log(state, "Skipping pre-flight validation (--from-phase specified)")
 
     resume_phase = None
-    data = read_state()
+    data = read_state(state)
     if not state.from_phase and data:
         resume_phase = data.get("phase")
         if resume_phase:
             log(
-                f"Resuming from phase: {resume_phase} - {PHASE_NAMES.get(resume_phase, 'UNKNOWN')}"
+                state,
+                f"Resuming from phase: {resume_phase} - {PHASE_NAMES.get(resume_phase, 'UNKNOWN')}",
             )
 
             if not state.force and os.isatty(0):
@@ -1032,10 +936,10 @@ def main(
                 reply = input("Continue? [Y/n] ")
                 print("")
                 if reply.lower().startswith("n"):
-                    log_error("Aborted by user")
+                    log_error(state, "Aborted by user")
                     raise SystemExit(1)
             else:
-                log("Auto-continuing (non-interactive or --force)")
+                log(state, "Auto-continuing (non-interactive or --force)")
 
     current_phase = "PHASE0"
     started = False
@@ -1045,111 +949,114 @@ def main(
         current_phase = resume_phase
         phase_determined = True
 
-    while True:
-        if not started and state.from_phase:
-            current_phase = state.from_phase
-            log(
-                f"Starting from phase: {current_phase} - {PHASE_NAMES.get(current_phase, 'UNKNOWN')}"
-            )
-            started = True
-            phase_determined = True
-        elif not phase_determined:
-            detected = get_current_phase()
-            if detected:
-                current_phase = detected
+    try:
+        while True:
+            if not started and state.from_phase:
+                current_phase = state.from_phase
+                log(
+                    state,
+                    f"Starting from phase: {current_phase} - {PHASE_NAMES.get(current_phase, 'UNKNOWN')}",
+                )
+                started = True
                 phase_determined = True
-            else:
-                current_phase = "PHASE0"
-                phase_determined = True
+            elif not phase_determined:
+                detected = get_current_phase(state)
+                if detected:
+                    current_phase = detected
+                    phase_determined = True
+                else:
+                    current_phase = "PHASE0"
+                    phase_determined = True
 
-        if check_complete():
-            complete_file = (
-                state.change_dir / "complete.json" if state.change_dir else None
-            )
-            if complete_file and complete_file.exists():
-                try:
-                    data = json.loads(complete_file.read_text())
-                    if data.get("with_blocker", False):
-                        blocker_reason = data.get("blocker_reason", "Unknown")
-                        log("")
-                        log("================================")
-                        log_error("CRITICAL BLOCKER DETECTED")
-                        log("================================")
-                        log_warning(f"Blocker: {blocker_reason}")
-                        log("Review decision-log.json for details")
-                        show_progress()
+            if check_complete(state):
+                complete_file = (
+                    state.change_dir / "complete.json" if state.change_dir else None
+                )
+                if complete_file and complete_file.exists():
+                    try:
+                        data = json.loads(complete_file.read_text())
+                        if data.get("with_blocker", False):
+                            blocker_reason = data.get("blocker_reason", "Unknown")
+                            log(state, "")
+                            log(state, "================================")
+                            log_error(state, "CRITICAL BLOCKER DETECTED")
+                            log(state, "================================")
+                            log_warning(state, f"Blocker: {blocker_reason}")
+                            log(state, "Review decision-log.json for details")
+                            show_progress(state)
 
-                        raise SystemExit(1)
-                except json.JSONDecodeError:
-                    pass
+                            raise SystemExit(1)
+                    except json.JSONDecodeError:
+                        pass
 
-        if current_phase in PHASES:
-            if not run_phase(current_phase):
-                log_error(f"{current_phase} failed")
-                raise SystemExit(1)
-
-            show_progress()
-
-            has_transition, transition_target = check_transition()
-            if has_transition and transition_target:
-                reason = get_transition_reason()
-                details = get_transition_details()
-
-                log(f"Explicit transition: {current_phase} -> {transition_target}")
-                log_verbose(f"Reason: {reason}")
-                if details:
-                    log_verbose(f"Details: {details}")
-
-                clear_transition()
-                clear_phase_complete()
-                current_phase = transition_target
-            else:
-                next_phase = advance_phase(current_phase)
-                log(f"Phase transition: {current_phase} -> {next_phase}")
-                current_phase = next_phase
-
-        elif current_phase == "PHASE6":
-            if not run_phase(current_phase):
-                log_error(f"{current_phase} failed")
-                raise SystemExit(1)
-
-            if (
-                state.log_file
-                and not state.log_user_specified
-                and state.log_file.exists()
-            ):
-                if not archive_log_file():
-                    log_error("Log file archiving failed")
-                    log_error("Archive validation will not proceed without log file")
+            if current_phase in PHASES:
+                if not run_phase(state, current_phase):
+                    log_error(state, f"{current_phase} failed")
                     raise SystemExit(1)
 
-            success, _ = validate_archive()
-            if success:
-                log("")
-                log("================================")
-                log_success("Implementation completed successfully!")
-                log("================================")
+                show_progress(state)
 
-                raise SystemExit(0)
+                has_transition, transition_target = check_transition(state)
+                if has_transition and transition_target:
+                    reason = get_transition_reason(state)
+                    details = get_transition_details(state)
+
+                    log(
+                        state,
+                        f"Explicit transition: {current_phase} -> {transition_target}",
+                    )
+                    log_verbose(state, f"Reason: {reason}")
+                    if details:
+                        log_verbose(state, f"Details: {details}")
+
+                    clear_transition(state)
+                    clear_phase_complete(state)
+                    current_phase = transition_target
+                else:
+                    next_phase = advance_phase(current_phase)
+                    log(state, f"Phase transition: {current_phase} -> {next_phase}")
+                    current_phase = next_phase
+
+            elif current_phase == "PHASE6":
+                if not run_phase(state, current_phase):
+                    log_error(state, f"{current_phase} failed")
+                    raise SystemExit(1)
+
+                if (
+                    state.log_file
+                    and not state.log_user_specified
+                    and state.log_file.exists()
+                ):
+                    if not archive_log_file(state):
+                        log_error(state, "Log file archiving failed")
+                        log_error(
+                            state,
+                            "Archive validation will not proceed without log file",
+                        )
+                        raise SystemExit(1)
+
+                success, _ = validate_archive(state)
+                if success:
+                    log(state, "")
+                    log(state, "================================")
+                    log_success(state, "Implementation completed successfully!")
+                    log(state, "================================")
+
+                    raise SystemExit(0)
+                else:
+                    log(state, "")
+                    log_error(state, "Archive validation failed")
+                    log(state, "State files preserved for investigation")
+                    raise SystemExit(1)
+
+            elif current_phase == "COMPLETE":
+                log(state, "All phases complete, validating...")
+                break
+
             else:
-                log("")
-                log_error("Archive validation failed")
-                log("State files preserved for investigation")
+                log_error(state, f"Unknown phase: {current_phase}")
                 raise SystemExit(1)
 
-        elif current_phase == "COMPLETE":
-            log("All phases complete, validating...")
-            break
-
-        else:
-            log_error(f"Unknown phase: {current_phase}")
-            raise SystemExit(1)
-
-
-if __name__ == "__main__":
-    try:
-        app()
     except SystemExit as e:
-        sys.exit(e.code)
-    finally:
-        cleanup(0)
+        cleanup(state, int(e.code) if e.code else 0)
+        raise

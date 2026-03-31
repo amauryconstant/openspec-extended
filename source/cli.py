@@ -1,21 +1,23 @@
 #!/usr/bin/env python3
 """
-OpenSpec-extended - Installer for OpenSpec resources
-Usage: openspec-extended.py <install|update> <tool> [--with-core]
+OpenSpec-extended - Unified CLI for OpenSpec resources and autonomous workflow
 """
 
-import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import toml
 import typer
 from rich.console import Console
 
+from source import __version__
+from source.orchestrator.engine import run_orchestrator
+from source.lib.osx import app as osx_app
+
 SCRIPT_NAME = "openspec-extended"
-SCRIPT_VERSION = "2.0.0"
 
 TOOL_DIRS = {"opencode": ".opencode", "claude": ".claude"}
 
@@ -23,9 +25,16 @@ console = Console()
 
 app = typer.Typer(
     name=SCRIPT_NAME,
-    help=f"{SCRIPT_NAME} - Installer for OpenSpec resources",
+    help=f"{SCRIPT_NAME} - Installer and orchestrator for OpenSpec resources",
     add_completion=False,
 )
+app.add_typer(osx_app, name="osx")
+
+
+def get_resources_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", "")) / "resources"
+    return Path(__file__).parent.parent / "resources"
 
 
 def log_success(message: str) -> None:
@@ -42,30 +51,6 @@ def log_error(message: str) -> None:
 
 def log_warn(message: str) -> None:
     console.print(f"[yellow]![/yellow] {message}")
-
-
-def get_script_dir() -> Path:
-    script_path = Path(__file__).resolve()
-    return script_path.parent
-
-
-def resolve_resources_dir() -> Path:
-    script_dir = get_script_dir()
-    resources_dev = script_dir.parent / "resources"
-    if resources_dev.is_dir():
-        return resources_dev
-
-    xdg_data_home = os.environ.get(
-        "XDG_DATA_HOME", str(Path.home() / ".local" / "share")
-    )
-    resources_xdg = Path(xdg_data_home) / "openspec-extended" / "resources"
-    if resources_xdg.is_dir():
-        return resources_xdg
-
-    log_error("Cannot find resources directory")
-    log_error(f"  Checked: {resources_dev}")
-    log_error(f"  Checked: {resources_xdg}")
-    raise SystemExit(1)
 
 
 def get_tool_dir(tool: str) -> str:
@@ -199,24 +184,28 @@ def deploy_agents(source_base: Path, target_dir: Path, name: str) -> None:
 def deploy_scripts(source_base: Path, target_dir: Path, name: str) -> None:
     target_scripts = target_dir / "scripts"
     target_scripts.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source_base / name, target_scripts / name)
+    source_name = "engine.py" if name == "osx-orchestrate" else name
+    shutil.copy2(source_base / source_name, target_scripts / name)
     (target_scripts / name).chmod(0o755)
 
 
 def deploy_lib(source_base: Path, target_dir: Path, name: str) -> None:
     target_lib = target_dir / "scripts" / "lib"
     target_lib.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source_base / name, target_lib / name)
+    shutil.copy2(source_base / "osx.py", target_lib / name)
     (target_lib / name).chmod(0o755)
 
 
 def get_source_type_dir(source_dir: Path, resource_type: str) -> Path:
+    project_root = source_dir.parent.parent
+    if resource_type == "scripts":
+        return project_root / "source" / "orchestrator"
+    elif resource_type == "lib":
+        return project_root / "source" / "lib"
     type_map = {
         "skills": "skills",
         "commands": "commands",
         "agents": "agents",
-        "scripts": "scripts",
-        "lib": "scripts/lib",
     }
     return source_dir / type_map.get(resource_type, resource_type)
 
@@ -288,7 +277,7 @@ def deploy_type(
 
 
 def deploy_all_resources(tool: str, force: bool) -> None:
-    resources_dir = resolve_resources_dir()
+    resources_dir = get_resources_dir()
     source_dir = resources_dir / tool
     source_manifest_path = source_dir / "manifest.toml"
 
@@ -472,15 +461,6 @@ def deploy_core(tool: str) -> None:
         log_info(f"Core v{core_version} tracked in manifest")
 
 
-def run_auto(change_id: str, args: list[str]) -> None:
-    script_path = Path.cwd() / ".opencode" / "scripts" / "osx-orchestrate"
-    if not script_path.is_file():
-        log_error("osx-orchestrate not found")
-        log_error("Run: openspec-extended install opencode")
-        raise SystemExit(1)
-    os.execv(str(script_path), [str(script_path), change_id] + args)
-
-
 def validate_deployment(target_dir: Path, manifest: dict) -> None:
     warnings = 0
     if not target_dir.is_dir():
@@ -539,7 +519,7 @@ def install(
     if with_core:
         deploy_core(tool)
 
-    resources_dir = resolve_resources_dir()
+    resources_dir = get_resources_dir()
     source_manifest = resources_dir / tool / "manifest.toml"
     if source_manifest.is_file():
         manifest_data = toml.loads(source_manifest.read_text())
@@ -567,7 +547,7 @@ def update(
     if with_core:
         deploy_core(tool)
 
-    resources_dir = resolve_resources_dir()
+    resources_dir = get_resources_dir()
     source_manifest = resources_dir / tool / "manifest.toml"
     if source_manifest.is_file():
         manifest_data = toml.loads(source_manifest.read_text())
@@ -579,8 +559,58 @@ def run(
     change_id: str = typer.Argument(..., help="Change ID to run"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
 ) -> None:
-    args = ["-v"] if verbose else []
-    run_auto(change_id, args)
+    sys.argv = ["orchestrate", change_id]
+    if verbose:
+        sys.argv.append("--verbose")
+    run_orchestrator()
+
+
+@app.command()
+def orchestrate(
+    change_name: str = typer.Argument(..., help="OpenSpec change ID"),
+    timeout: int = typer.Option(
+        1800, "--timeout", "-t", help="Timeout per iteration (seconds)"
+    ),
+    model: str = typer.Option("", "--model", "-m", help="AI model to use"),
+    log_file: str = typer.Option(None, "--log-file", "-l", help="Log output file"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", "-d", help="Show what would be done"
+    ),
+    force: bool = typer.Option(False, "--force", "-f", help="Continue without prompts"),
+    clean: bool = typer.Option(
+        False, "--clean", "-c", help="Clean state for fresh start"
+    ),
+    no_color: bool = typer.Option(
+        False, "--no-color", "-n", help="Disable colored output"
+    ),
+    max_phase_iterations: int = typer.Option(
+        10, "--max-phase-iterations", help="Max retries per phase"
+    ),
+    from_phase: str = typer.Option(
+        "", "--from-phase", help="Resume from specific phase"
+    ),
+    list_changes: bool = typer.Option(False, "--list", help="List available changes"),
+) -> None:
+    from source.orchestrator.engine import OrchestratorState
+
+    state = OrchestratorState()
+    state.change_id = change_name
+    state.max_phase_iterations = max_phase_iterations
+    state.timeout = timeout
+    state.verbose = verbose
+    state.dry_run = dry_run
+    state.force = force
+    state.clean = clean
+    state.from_phase = from_phase
+    state.no_color = no_color
+    state.model = model
+    state.list_changes = list_changes
+    if log_file:
+        state.log_file = Path(log_file)
+        state.log_user_specified = True
+
+    run_orchestrator(state)
 
 
 @app.callback(invoke_without_command=True)
@@ -589,7 +619,7 @@ def main(
     version: bool = typer.Option(False, "--version", "-V", help="Show version"),
 ) -> None:
     if version:
-        console.print(f"{SCRIPT_NAME} {SCRIPT_VERSION}")
+        console.print(f"{SCRIPT_NAME} {__version__}")
         raise SystemExit(0)
     if ctx.invoked_subcommand is None:
         console.print(f"Usage: {SCRIPT_NAME} [OPTIONS] COMMAND [ARGS]...")

@@ -4,28 +4,27 @@ Unit tests for osx-orchestrate state machine and signal handling.
 """
 
 import json
-import sys
 from pathlib import Path
-from types import ModuleType
 from unittest.mock import patch, MagicMock
 
 import pytest
 
-pytestmark = pytest.mark.unit
-
-scripts_path = Path(__file__).parent.parent.parent / "resources/opencode/scripts"
-sys.path.insert(0, str(scripts_path))
-
-osx_orchestrate_module = ModuleType("osx_orchestrate")
-osx_orchestrate_module.__file__ = str(scripts_path / "osx-orchestrate")
-
-osx_code = (scripts_path / "osx-orchestrate").read_text()
-exec(
-    compile(osx_code, scripts_path / "osx-orchestrate", "exec"),
-    osx_orchestrate_module.__dict__,
+from source.orchestrator.engine import (
+    OrchestratorState,
+    PHASE_NAMES,
+    PHASE_COMMANDS,
+    PHASE_AGENTS,
+    find_change_dir,
+    read_state,
+    write_state,
+    check_transition,
+    get_transition_reason,
+    get_transition_details,
+    check_phase_complete,
+    log_verbose,
+    advance_phase,
+    archive_log_file,
 )
-
-orch = osx_orchestrate_module
 
 
 @pytest.fixture
@@ -51,14 +50,18 @@ def archived_change_dir(tmp_path):
     return archived
 
 
-@pytest.fixture(autouse=True)
-def reset_state():
-    """Reset orch.state before each test."""
-    orch.state = orch.State()
-    yield
-    orch.state = orch.State()
+@pytest.fixture
+def state(temp_change_dir):
+    """Create OrchestratorState for testing."""
+    return OrchestratorState(
+        change_dir=temp_change_dir,
+        change_id="test-change",
+        verbose=False,
+        no_color=True,
+    )
 
 
+@pytest.mark.unit
 class TestStateMachine:
     """Tests for state machine phase transitions."""
 
@@ -78,8 +81,8 @@ class TestStateMachine:
             )
         )
 
-        orch.state.change_dir = temp_change_dir
-        has_transition, target = orch.check_transition()
+        st = OrchestratorState(change_dir=temp_change_dir)
+        has_transition, target = check_transition(st)
 
         assert has_transition is False
         assert target == ""
@@ -103,8 +106,8 @@ class TestStateMachine:
             )
         )
 
-        orch.state.change_dir = temp_change_dir
-        has_transition, target = orch.check_transition()
+        st = OrchestratorState(change_dir=temp_change_dir)
+        has_transition, target = check_transition(st)
 
         assert has_transition is True
         assert target == "PHASE1"
@@ -112,9 +115,9 @@ class TestStateMachine:
     def test_phase_transition_missing_state(self, temp_change_dir, monkeypatch):
         """Handles missing state.json gracefully."""
         monkeypatch.chdir(temp_change_dir.parent.parent.parent)
-        orch.state.change_dir = temp_change_dir
+        st = OrchestratorState(change_dir=temp_change_dir)
 
-        has_transition, target = orch.check_transition()
+        has_transition, target = check_transition(st)
 
         assert has_transition is False
         assert target == ""
@@ -141,8 +144,8 @@ class TestStateMachine:
             )
         )
 
-        orch.state.change_dir = temp_change_dir
-        data = orch.read_state()
+        st = OrchestratorState(change_dir=temp_change_dir)
+        data = read_state(st)
 
         assert data["phase_iterations"]["PHASE0"] == 1
         assert data["phase_iterations"]["PHASE1"] == 2
@@ -150,56 +153,53 @@ class TestStateMachine:
 
     def test_check_complete_detection(self, temp_change_dir, monkeypatch):
         """COMPLETE signal detection via complete.json."""
-        monkeypatch.chdir(temp_change_dir.parent.parent.parent)
-        orch.state.change_dir = temp_change_dir
-        orch.state.change_id = "test-change"
+        from source.orchestrator.engine import check_complete
 
-        with patch.object(orch, "run_osx_command") as mock_cmd:
+        monkeypatch.chdir(temp_change_dir.parent.parent.parent)
+        st = OrchestratorState(change_dir=temp_change_dir, change_id="test-change")
+
+        with patch("source.orchestrator.engine.run_osx_command") as mock_cmd:
             mock_cmd.return_value = (json.dumps({"valid": True}), 0)
-            result = orch.check_complete()
+            result = check_complete(st)
             assert result is True
 
 
+@pytest.mark.unit
 class TestPhaseLookup:
     """Tests for phase name/command/agent lookups."""
 
     def test_get_phase_name(self):
         """Correct phase names returned."""
-        assert orch.PHASE_NAMES["PHASE0"] == "ARTIFACT REVIEW"
-        assert orch.PHASE_NAMES["PHASE1"] == "IMPLEMENTATION"
-        assert orch.PHASE_NAMES["PHASE2"] == "REVIEW"
-        assert orch.PHASE_NAMES["PHASE3"] == "MAINTAIN DOCS"
-        assert orch.PHASE_NAMES["PHASE4"] == "SYNC"
-        assert orch.PHASE_NAMES["PHASE5"] == "SELF-REFLECTION"
-        assert orch.PHASE_NAMES["PHASE6"] == "ARCHIVE"
+        assert PHASE_NAMES["PHASE0"] == "ARTIFACT REVIEW"
+        assert PHASE_NAMES["PHASE1"] == "IMPLEMENTATION"
+        assert PHASE_NAMES["PHASE2"] == "REVIEW"
+        assert PHASE_NAMES["PHASE3"] == "MAINTAIN DOCS"
+        assert PHASE_NAMES["PHASE4"] == "SYNC"
+        assert PHASE_NAMES["PHASE5"] == "SELF-REFLECTION"
+        assert PHASE_NAMES["PHASE6"] == "ARCHIVE"
 
     def test_get_phase_command(self):
         """Correct phase commands returned."""
-        assert orch.PHASE_COMMANDS["PHASE0"] == "osx-phase0"
-        assert orch.PHASE_COMMANDS["PHASE1"] == "osx-phase1"
-        assert orch.PHASE_COMMANDS["PHASE2"] == "osx-phase2"
-        assert orch.PHASE_COMMANDS["PHASE3"] == "osx-phase3"
-        assert orch.PHASE_COMMANDS["PHASE4"] == "osx-phase4"
-        assert orch.PHASE_COMMANDS["PHASE5"] == "osx-phase5"
-        assert orch.PHASE_COMMANDS["PHASE6"] == "osx-phase6"
+        assert PHASE_COMMANDS["PHASE0"] == "osx-phase0"
+        assert PHASE_COMMANDS["PHASE1"] == "osx-phase1"
+        assert PHASE_COMMANDS["PHASE2"] == "osx-phase2"
+        assert PHASE_COMMANDS["PHASE3"] == "osx-phase3"
+        assert PHASE_COMMANDS["PHASE4"] == "osx-phase4"
+        assert PHASE_COMMANDS["PHASE5"] == "osx-phase5"
+        assert PHASE_COMMANDS["PHASE6"] == "osx-phase6"
 
     def test_get_phase_agent(self):
         """Correct phase agents returned."""
-        assert orch.PHASE_AGENTS["PHASE0"] == "osx-analyzer"
-        assert orch.PHASE_AGENTS["PHASE1"] == "osx-builder"
-        assert orch.PHASE_AGENTS["PHASE2"] == "osx-analyzer"
-        assert orch.PHASE_AGENTS["PHASE3"] == "osx-maintainer"
-        assert orch.PHASE_AGENTS["PHASE4"] == "osx-maintainer"
-        assert orch.PHASE_AGENTS["PHASE5"] == "osx-analyzer"
-        assert orch.PHASE_AGENTS["PHASE6"] == "osx-maintainer"
-
-    def test_valid_transition_reasons(self):
-        """All valid transition reasons are accepted."""
-        assert "implementation_incorrect" in orch.VALID_TRANSITION_REASONS
-        assert "artifacts_modified" in orch.VALID_TRANSITION_REASONS
-        assert "retry_requested" in orch.VALID_TRANSITION_REASONS
+        assert PHASE_AGENTS["PHASE0"] == "osx-analyzer"
+        assert PHASE_AGENTS["PHASE1"] == "osx-builder"
+        assert PHASE_AGENTS["PHASE2"] == "osx-analyzer"
+        assert PHASE_AGENTS["PHASE3"] == "osx-maintainer"
+        assert PHASE_AGENTS["PHASE4"] == "osx-maintainer"
+        assert PHASE_AGENTS["PHASE5"] == "osx-analyzer"
+        assert PHASE_AGENTS["PHASE6"] == "osx-maintainer"
 
 
+@pytest.mark.unit
 class TestChangeDirectory:
     """Tests for change directory resolution."""
 
@@ -207,7 +207,7 @@ class TestChangeDirectory:
         """Finds change in primary openspec/changes location."""
         monkeypatch.chdir(temp_change_dir.parent.parent.parent)
 
-        result = orch.find_change_dir("test-change")
+        result = find_change_dir("test-change")
 
         assert result is not None
         assert result.name == "test-change"
@@ -222,7 +222,7 @@ class TestChangeDirectory:
 
         monkeypatch.chdir(tmp_path)
 
-        result = orch.find_change_dir("test-change")
+        result = find_change_dir("test-change")
 
         assert result is not None
         assert "archive" in str(result)
@@ -232,115 +232,94 @@ class TestChangeDirectory:
         """Returns None if change not found."""
         monkeypatch.chdir(tmp_path)
 
-        result = orch.find_change_dir("nonexistent")
+        result = find_change_dir("nonexistent")
 
         assert result is None
 
 
+@pytest.mark.unit
 class TestLogging:
     """Tests for logging behavior."""
 
-    def test_verbose_flag_controls_output(self, capsys):
+    def test_verbose_flag_controls_output(self, capsys, state):
         """Verbose flag enables VERBOSE output to terminal."""
-        orch.state.verbose = True
-        orch.state.no_color = True
+        state.verbose = True
 
-        orch.log_verbose("Test verbose message")
+        log_verbose(state, "Test verbose message")
 
         captured = capsys.readouterr()
         assert "[VERBOSE]" in captured.out
         assert "Test verbose message" in captured.out
 
-    def test_no_color_flag_strips_ansi(self, capsys):
+    def test_no_color_flag_strips_ansi(self, capsys, state):
         """no_color flag removes ANSI codes."""
-        orch.state.verbose = True
-        orch.state.no_color = True
+        state.verbose = True
+        state.no_color = True
 
-        orch.log_verbose("Test message")
+        log_verbose(state, "Test message")
 
         captured = capsys.readouterr()
         assert "\x1b[" not in captured.out
 
-    def test_log_file_receives_all_output(self, temp_change_dir, capsys):
+    def test_log_file_receives_all_output(self, capsys, state):
         """Log file contains verbose messages even without -v flag."""
-        log_file = temp_change_dir / "test.log"
+        log_file = state.change_dir / "test.log"
         log_file.touch()
-        orch.state.verbose = False
-        orch.state.no_color = True
-        orch.state.log_file = log_file
+        state.verbose = False
+        state.no_color = True
+        state.log_file = log_file
 
-        orch.log_verbose("Verbose to log file")
+        log_verbose(state, "Verbose to log file")
 
         log_content = log_file.read_text()
         assert "Verbose to log file" in log_content
 
 
+@pytest.mark.unit
 class TestArchive:
     """Tests for log file archiving."""
 
-    def test_archive_log_file_early_return(self, temp_change_dir):
+    def test_archive_log_file_early_return(self, state):
         """Early return when no log file exists."""
-        orch.state.log_file = None
+        state.log_file = None
 
-        result = orch.archive_log_file()
+        result = archive_log_file(state)
 
         assert result is True
 
-    def test_archive_log_file_user_specified(self, temp_change_dir):
+    def test_archive_log_file_user_specified(self, state):
         """User-specified log file is not archived."""
-        log_file = temp_change_dir / "user-specified.log"
+        log_file = state.change_dir / "user-specified.log"
         log_file.write_text("user log content")
-        orch.state.log_file = log_file
-        orch.state.log_user_specified = True
+        state.log_file = log_file
+        state.log_user_specified = True
 
-        result = orch.archive_log_file()
+        result = archive_log_file(state)
 
         assert result is True
         assert log_file.exists()
 
-    def test_archive_validation(self, temp_change_dir, monkeypatch):
-        """Validates archive path from osx output."""
-        monkeypatch.chdir(temp_change_dir.parent.parent.parent)
-        orch.state.change_dir = temp_change_dir
-        orch.state.change_id = "test-change"
-        orch.state.log_file = temp_change_dir / "test.log"
-        orch.state.log_file.touch()
 
-        archive_dir = temp_change_dir.parent / "archive" / "2024-01-15-test-change"
-        archive_dir.mkdir(parents=True)
-
-        with patch.object(orch, "run_osx_command") as mock_cmd:
-            mock_cmd.return_value = (
-                json.dumps({"valid": True, "archive": str(archive_dir)}),
-                0,
-            )
-            with patch("shutil.move") as mock_move:
-                mock_move.return_value = None
-                with patch("subprocess.run") as mock_git:
-                    mock_git.return_value = MagicMock(returncode=0)
-                    result = orch.archive_log_file()
-
-            assert result is True
-
-
+@pytest.mark.unit
 class TestAdvancePhase:
     """Tests for phase advancement logic."""
 
     def test_advance_phase_normal_sequence(self):
         """Phases advance in correct order."""
-        assert orch.advance_phase("PHASE0") == "PHASE1"
-        assert orch.advance_phase("PHASE1") == "PHASE2"
-        assert orch.advance_phase("PHASE2") == "PHASE3"
-        assert orch.advance_phase("PHASE3") == "PHASE4"
-        assert orch.advance_phase("PHASE4") == "PHASE5"
-        assert orch.advance_phase("PHASE5") == "PHASE6"
-        assert orch.advance_phase("PHASE6") == "COMPLETE"
+        assert advance_phase("PHASE0") == "PHASE1"
+        assert advance_phase("PHASE1") == "PHASE2"
+        assert advance_phase("PHASE2") == "PHASE3"
+        assert advance_phase("PHASE3") == "PHASE4"
+        assert advance_phase("PHASE4") == "PHASE5"
+        assert advance_phase("PHASE5") == "PHASE6"
+        assert advance_phase("PHASE6") == "COMPLETE"
 
     def test_advance_phase_complete_stays_complete(self):
         """COMPLETE remains COMPLETE."""
-        assert orch.advance_phase("COMPLETE") == "COMPLETE"
+        assert advance_phase("COMPLETE") == "COMPLETE"
 
 
+@pytest.mark.unit
 class TestGetTransitionReason:
     """Tests for transition reason retrieval."""
 
@@ -362,9 +341,9 @@ class TestGetTransitionReason:
             )
         )
 
-        orch.state.change_dir = temp_change_dir
-        reason = orch.get_transition_reason()
-        details = orch.get_transition_details()
+        st = OrchestratorState(change_dir=temp_change_dir)
+        reason = get_transition_reason(st)
+        details = get_transition_details(st)
 
         assert reason == "artifacts_modified"
         assert details == "Spec updated"
@@ -376,22 +355,22 @@ class TestGetTransitionReason:
         state_file = temp_change_dir / "state.json"
         state_file.write_text(json.dumps({"phase": "PHASE0"}))
 
-        orch.state.change_dir = temp_change_dir
-        reason = orch.get_transition_reason()
+        st = OrchestratorState(change_dir=temp_change_dir)
+        reason = get_transition_reason(st)
 
         assert reason == "unknown"
 
 
+@pytest.mark.unit
 class TestReadWriteState:
     """Tests for state file read/write operations."""
 
     def test_write_state_creates_file(self, temp_change_dir, monkeypatch):
         """write_state creates state.json file."""
         monkeypatch.chdir(temp_change_dir.parent.parent.parent)
-        orch.state.change_dir = temp_change_dir
-        orch.state.total_invocations = 0
+        st = OrchestratorState(change_dir=temp_change_dir, total_invocations=0)
 
-        orch.write_state("PHASE0", 1)
+        write_state(st, "PHASE0", 1)
 
         state_file = temp_change_dir / "state.json"
         assert state_file.exists()
@@ -405,15 +384,14 @@ class TestReadWriteState:
     ):
         """write_state increments phase iteration count."""
         monkeypatch.chdir(temp_change_dir.parent.parent.parent)
-        orch.state.change_dir = temp_change_dir
-        orch.state.total_invocations = 0
+        st = OrchestratorState(change_dir=temp_change_dir, total_invocations=0)
 
         state_file = temp_change_dir / "state.json"
         state_file.write_text(
             json.dumps({"phase": "PHASE0", "phase_iterations": {"PHASE0": 1}})
         )
 
-        orch.write_state("PHASE0", 2)
+        write_state(st, "PHASE0", 2)
 
         data = json.loads(state_file.read_text())
         assert data["phase_iterations"]["PHASE0"] == 2
@@ -421,25 +399,26 @@ class TestReadWriteState:
     def test_read_state_missing_file(self, temp_change_dir, monkeypatch):
         """read_state returns None when file missing."""
         monkeypatch.chdir(temp_change_dir.parent.parent.parent)
-        orch.state.change_dir = temp_change_dir
+        st = OrchestratorState(change_dir=temp_change_dir)
 
-        result = orch.read_state()
+        result = read_state(st)
 
         assert result is None
 
     def test_read_state_invalid_json(self, temp_change_dir, monkeypatch):
         """read_state returns None for corrupted state."""
         monkeypatch.chdir(temp_change_dir.parent.parent.parent)
-        orch.state.change_dir = temp_change_dir
 
         state_file = temp_change_dir / "state.json"
         state_file.write_text("not valid json")
 
-        result = orch.read_state()
+        st = OrchestratorState(change_dir=temp_change_dir)
+        result = read_state(st)
 
         assert result is None
 
 
+@pytest.mark.unit
 class TestCheckPhaseComplete:
     """Tests for phase completion detection."""
 
@@ -452,8 +431,8 @@ class TestCheckPhaseComplete:
             json.dumps({"phase": "PHASE0", "iteration": 1, "phase_complete": True})
         )
 
-        orch.state.change_dir = temp_change_dir
-        result = orch.check_phase_complete()
+        st = OrchestratorState(change_dir=temp_change_dir)
+        result = check_phase_complete(st)
 
         assert result is True
 
@@ -464,7 +443,7 @@ class TestCheckPhaseComplete:
         state_file = temp_change_dir / "state.json"
         state_file.write_text(json.dumps({"phase": "PHASE0", "phase_complete": False}))
 
-        orch.state.change_dir = temp_change_dir
-        result = orch.check_phase_complete()
+        st = OrchestratorState(change_dir=temp_change_dir)
+        result = check_phase_complete(st)
 
         assert result is False

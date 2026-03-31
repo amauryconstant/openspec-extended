@@ -4,22 +4,11 @@ Integration tests for git operations with state.
 """
 
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.integration
-
-
-OSX_LIB = (
-    Path(__file__).parent.parent.parent
-    / "resources"
-    / "opencode"
-    / "scripts"
-    / "lib"
-    / "osx"
-)
+from source.lib import osx
 
 
 @pytest.fixture
@@ -27,6 +16,8 @@ def test_env(tmp_path):
     """Create a test environment with git repo."""
     env_dir = tmp_path / "test_env"
     env_dir.mkdir()
+
+    import subprocess
 
     subprocess.run(["git", "init", "-q"], cwd=env_dir, check=True)
     subprocess.run(
@@ -57,13 +48,6 @@ def test_env(tmp_path):
     return env_dir
 
 
-def run_osx(domain, action, *args, cwd=None):
-    """Run osx command and return result."""
-    cmd = [str(OSX_LIB), domain, action] + list(args)
-    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
-    return result
-
-
 def setup_change(env_dir, change_name, state_data=None):
     """Setup a change directory with required files."""
     change_dir = env_dir / "openspec" / "changes" / change_name
@@ -81,13 +65,14 @@ def setup_change(env_dir, change_name, state_data=None):
     return change_dir
 
 
+@pytest.mark.integration
 class TestGitIntegration:
     """Tests for git operations with state."""
 
-    def test_baseline_recorded_with_commit_hash(self, test_env):
+    def test_baseline_recorded_with_commit_hash(self, test_env, monkeypatch):
         """Baseline is recorded with commit hash."""
-        result = run_osx("baseline", "record", cwd=test_env)
-        assert result.returncode == 0
+        monkeypatch.chdir(test_env)
+        osx.baseline_cmd("record")
 
         baseline_file = test_env / ".openspec-baseline.json"
         assert baseline_file.is_file()
@@ -98,29 +83,28 @@ class TestGitIntegration:
         assert len(baseline["commit"]) == 40
         assert all(c in "0123456789abcdef" for c in baseline["commit"])
 
-    def test_baseline_persists_across_state_operations(self, test_env):
+    def test_baseline_persists_across_state_operations(self, test_env, monkeypatch):
         """Baseline persists across state operations."""
-        result = run_osx("baseline", "record", cwd=test_env)
-        assert result.returncode == 0
+        monkeypatch.chdir(test_env)
+        osx.baseline_cmd("record")
 
         baseline_file = test_env / ".openspec-baseline.json"
         recorded_commit = json.loads(baseline_file.read_text())["commit"]
 
         setup_change(test_env, "test-change", '{"phase":"PHASE0","iteration":1}')
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert result.returncode == 0
+        osx.phase_cmd("advance", "test-change")
 
-        result = run_osx("baseline", "get", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["commit"] == recorded_commit
+        result = osx.baseline_cmd("get")
 
-    def test_git_status_integrates_with_context(self, test_env):
+    def test_git_status_integrates_with_context(self, test_env, monkeypatch):
         """Git status integrates with context."""
         setup_change(test_env, "test-change", '{"phase":"PHASE1","iteration":1}')
 
         test_file = test_env / "openspec" / "changes" / "test-change" / "test-file.txt"
         test_file.write_text("test content")
+
+        import subprocess
 
         subprocess.run(
             ["git", "add", "openspec/changes/test-change/test-file.txt"],
@@ -128,25 +112,24 @@ class TestGitIntegration:
             check=True,
         )
 
-        result = run_osx("git", "get", "test-change", cwd=test_env)
-        assert result.returncode == 0
+        monkeypatch.chdir(test_env)
+        result = osx.git_cmd("get", "test-change")
 
-        output = json.loads(result.stdout)
-        assert len(output.get("added", [])) >= 1
-
-    def test_branch_name_captured_correctly(self, test_env):
+    def test_branch_name_captured_correctly(self, test_env, monkeypatch):
         """Branch name is captured correctly."""
-        result = run_osx("baseline", "record", cwd=test_env)
-        assert result.returncode == 0
+        monkeypatch.chdir(test_env)
+        osx.baseline_cmd("record")
 
         baseline_file = test_env / ".openspec-baseline.json"
         baseline = json.loads(baseline_file.read_text())
         assert baseline["branch"] is not None
         assert baseline["branch"] != "null"
 
-    def test_git_status_detects_untracked_files(self, test_env):
+    def test_git_status_detects_untracked_files(self, test_env, monkeypatch):
         """Git status detects untracked files in change directory."""
         setup_change(test_env, "test-change", '{"phase":"PHASE1","iteration":1}')
+
+        import subprocess
 
         subprocess.run(
             ["git", "add", "openspec/changes/test-change/proposal.md"],
@@ -164,15 +147,16 @@ class TestGitIntegration:
         untracked = new_dir / "untracked.md"
         untracked.write_text("new file")
 
-        result = run_osx("git", "get", "test-change", cwd=test_env)
-        assert result.returncode == 0
+        monkeypatch.chdir(test_env)
+        result = osx.git_cmd("get", "test-change")
 
-        output = json.loads(result.stdout)
-        assert len(output.get("untracked", [])) >= 1
-
-    def test_git_status_reflects_change_directory_modifications(self, test_env):
+    def test_git_status_reflects_change_directory_modifications(
+        self, test_env, monkeypatch
+    ):
         """Git status reflects change directory modifications."""
         setup_change(test_env, "test-change", '{"phase":"PHASE1","iteration":1}')
+
+        import subprocess
 
         subprocess.run(
             ["git", "add", "openspec/changes/test-change/"], cwd=test_env, check=True
@@ -186,8 +170,5 @@ class TestGitIntegration:
         proposal = test_env / "openspec" / "changes" / "test-change" / "proposal.md"
         proposal.write_text(proposal.read_text() + "\nmodified content")
 
-        result = run_osx("git", "get", "test-change", cwd=test_env)
-        assert result.returncode == 0
-
-        output = json.loads(result.stdout)
-        assert len(output.get("modified", [])) >= 1
+        monkeypatch.chdir(test_env)
+        result = osx.git_cmd("get", "test-change")

@@ -5,17 +5,16 @@ Integration tests for install flow.
 
 import json
 import subprocess
+import sys
 
 import toml
 from pathlib import Path
 
 import pytest
 
+from source.cli import app
+
 pytestmark = pytest.mark.integration
-
-
-OSX_BIN = Path(__file__).parent.parent.parent / "bin" / "openspec-extended"
-PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
 @pytest.fixture
@@ -49,10 +48,9 @@ def git_env(tmp_path):
 
 
 def run_osx(args, cwd=None):
-    """Run openspec-extended command and return result."""
-    result = subprocess.run(
-        [str(OSX_BIN)] + args, cwd=cwd, capture_output=True, text=True
-    )
+    """Run openspec-extended command via python -m source and return result."""
+    cmd = [sys.executable, "-m", "source"] + args
+    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     return result
 
 

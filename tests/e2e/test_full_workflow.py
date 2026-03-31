@@ -11,6 +11,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -18,8 +19,6 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 FIXTURES_DIR = PROJECT_ROOT / "tests" / "fixtures"
-INSTALLER = PROJECT_ROOT / "bin" / "openspec-extended"
-ORCHESTRATE = PROJECT_ROOT / "resources" / "opencode" / "scripts" / "osx-orchestrate"
 CHANGE_NAME = "add-hello-script"
 
 
@@ -50,8 +49,6 @@ def get_log_file(repo_dir, change_name):
 @pytest.fixture(scope="module")
 def e2e_workflow():
     """Create repo, install opencode, run full workflow, yield state, cleanup."""
-    from tests.e2e.test_mechanism import run_osx_orchestrate as run_orchestrate
-
     e2e_dir = Path(
         subprocess.run(
             ["mktemp", "-d"],
@@ -82,7 +79,7 @@ def e2e_workflow():
         )
 
         result = subprocess.run(
-            [str(INSTALLER), "install", "opencode", "--with-core"],
+            [sys.executable, "-m", "source", "install", "opencode", "--with-core"],
             cwd=e2e_dir,
             capture_output=True,
             text=True,
@@ -105,7 +102,10 @@ def e2e_workflow():
 
         result = subprocess.run(
             [
-                str(ORCHESTRATE),
+                sys.executable,
+                "-m",
+                "source",
+                "orchestrate",
                 CHANGE_NAME,
                 "--force",
                 "--verbose",

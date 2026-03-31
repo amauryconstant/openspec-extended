@@ -6,13 +6,13 @@ Ensures consistent JSON output format across all osx subcommands.
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-OSX_LIB = PROJECT_ROOT / "resources/opencode/scripts/lib/osx"
 
 
 @pytest.fixture
@@ -46,14 +46,19 @@ def test_env(tmp_path):
 
 
 def run_osx(env_dir, *args):
-    """Run osx CLI tool and return result."""
+    """Run osx CLI tool via Python module and return result."""
     result = subprocess.run(
-        [str(OSX_LIB)] + list(args),
+        [sys.executable, "-m", "source.lib.osx"] + list(args),
         cwd=env_dir,
         capture_output=True,
         text=True,
     )
-    return result.returncode, result.stdout, result.stderr
+    stderr_lines = [
+        line
+        for line in result.stderr.splitlines()
+        if not line.startswith("<frozen runpy>")
+    ]
+    return result.returncode, result.stdout, "\n".join(stderr_lines)
 
 
 def setup_change(env_dir, change_name="test-change"):

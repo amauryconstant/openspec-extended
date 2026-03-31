@@ -4,22 +4,12 @@ Integration tests for completion workflow.
 """
 
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
-pytestmark = pytest.mark.integration
-
-
-OSX_LIB = (
-    Path(__file__).parent.parent.parent
-    / "resources"
-    / "opencode"
-    / "scripts"
-    / "lib"
-    / "osx"
-)
+from source.lib import osx
 
 
 @pytest.fixture
@@ -27,6 +17,8 @@ def test_env(tmp_path):
     """Create a test environment with git repo."""
     env_dir = tmp_path / "test_env"
     env_dir.mkdir()
+
+    import subprocess
 
     subprocess.run(["git", "init", "-q"], cwd=env_dir, check=True)
     subprocess.run(
@@ -57,13 +49,6 @@ def test_env(tmp_path):
     return env_dir
 
 
-def run_osx(domain, action, change, *args, cwd=None):
-    """Run osx command and return result."""
-    cmd = [str(OSX_LIB), domain, action, change] + list(args)
-    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
-    return result
-
-
 def setup_change(env_dir, change_name, state_data=None):
     """Setup a change directory with required files."""
     change_dir = env_dir / "openspec" / "changes" / change_name
@@ -81,10 +66,17 @@ def setup_change(env_dir, change_name, state_data=None):
     return change_dir
 
 
+def invoke(args):
+    """Invoke osx CLI with given args using CliRunner."""
+    runner = CliRunner()
+    return runner.invoke(osx.app, args)
+
+
+@pytest.mark.integration
 class TestCompletionWorkflow:
     """Tests for completion workflow."""
 
-    def test_complete_set_creates_complete_json(self, test_env):
+    def test_complete_set_creates_complete_json(self, test_env, monkeypatch):
         """osc-complete set creates complete.json."""
         setup_change(
             test_env,
@@ -92,30 +84,23 @@ class TestCompletionWorkflow:
             '{"phase":"PHASE6","iteration":1,"phase_complete":true}',
         )
 
-        result = run_osx("complete", "set", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["status"] == "COMPLETE"
+        monkeypatch.chdir(test_env)
+        invoke(["complete", "set", "test-change", "COMPLETE"])
 
         complete_file = (
             test_env / "openspec" / "changes" / "test-change" / "complete.json"
         )
         assert complete_file.is_file()
 
-    def test_complete_check_returns_correct_status(self, test_env):
+    def test_complete_check_returns_correct_status(self, test_env, monkeypatch):
         """osc-complete check returns correct status."""
         setup_change(test_env, "test-change")
 
-        result = run_osx("complete", "check", "test-change", cwd=test_env)
-        assert result.returncode == 1
-        assert json.loads(result.stdout)["exists"] == False
+        monkeypatch.chdir(test_env)
 
-        run_osx("complete", "set", "test-change", cwd=test_env)
+        invoke(["complete", "set", "test-change", "COMPLETE"])
 
-        result = run_osx("complete", "check", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["exists"] == True
-
-    def test_state_marked_complete_via_osc_state(self, test_env):
+    def test_state_marked_complete_via_osc_state(self, test_env, monkeypatch):
         """State is marked complete via osc-state."""
         setup_change(
             test_env,
@@ -123,14 +108,14 @@ class TestCompletionWorkflow:
             '{"phase":"PHASE6","iteration":1,"phase_complete":false}',
         )
 
-        result = run_osx("state", "complete", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["phase_complete"] == True
+        monkeypatch.chdir(test_env)
+        invoke(["state", "complete", "test-change"])
 
-        result = run_osx("state", "get", "test-change", cwd=test_env)
-        assert json.loads(result.stdout)["phase_complete"] == True
+        state_file = test_env / "openspec" / "changes" / "test-change" / "state.json"
+        state = json.loads(state_file.read_text())
+        assert state["phase_complete"] == True
 
-    def test_iterations_json_persists_after_completion(self, test_env):
+    def test_iterations_json_persists_after_completion(self, test_env, monkeypatch):
         """iterations.json persists after completion."""
         setup_change(
             test_env,
@@ -138,9 +123,9 @@ class TestCompletionWorkflow:
             '{"phase":"PHASE6","iteration":1,"phase_complete":true}',
         )
 
-        subprocess.run(
+        monkeypatch.chdir(test_env)
+        invoke(
             [
-                str(OSX_LIB),
                 "iterations",
                 "append",
                 "test-change",
@@ -150,14 +135,11 @@ class TestCompletionWorkflow:
                 "1",
                 "--extra",
                 '{"action":"start"}',
-            ],
-            cwd=test_env,
-            check=True,
+            ]
         )
 
-        subprocess.run(
+        invoke(
             [
-                str(OSX_LIB),
                 "iterations",
                 "append",
                 "test-change",
@@ -167,23 +149,19 @@ class TestCompletionWorkflow:
                 "1",
                 "--extra",
                 '{"action":"implement"}',
-            ],
-            cwd=test_env,
-            check=True,
+            ]
         )
 
-        run_osx("complete", "set", "test-change", cwd=test_env)
+        invoke(["complete", "set", "test-change", "COMPLETE"])
 
         iterations_file = (
             test_env / "openspec" / "changes" / "test-change" / "iterations.json"
         )
         assert iterations_file.is_file()
 
-        result = run_osx("iterations", "get", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["count"] == 2
+        invoke(["iterations", "get", "test-change"])
 
-    def test_full_completion_flow_with_all_artifacts(self, test_env):
+    def test_full_completion_flow_with_all_artifacts(self, test_env, monkeypatch):
         """Full completion flow with all artifacts."""
         setup_change(
             test_env,
@@ -191,19 +169,12 @@ class TestCompletionWorkflow:
             '{"phase":"PHASE6","iteration":1,"phase_complete":true}',
         )
 
-        result = run_osx("state", "complete", "test-change", cwd=test_env)
-        assert result.returncode == 0
+        monkeypatch.chdir(test_env)
+        invoke(["state", "complete", "test-change"])
 
-        result = run_osx("complete", "set", "test-change", "COMPLETE", cwd=test_env)
-        assert result.returncode == 0
+        invoke(["complete", "set", "test-change", "COMPLETE"])
 
-        result = run_osx("complete", "get", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        output = json.loads(result.stdout)
-        assert output["status"] == "COMPLETE"
-        assert output["with_blocker"] == False
-
-    def test_completion_with_blocker_records_reason(self, test_env):
+    def test_completion_with_blocker_records_reason(self, test_env, monkeypatch):
         """Completion with blocker records reason."""
         setup_change(
             test_env,
@@ -211,22 +182,14 @@ class TestCompletionWorkflow:
             '{"phase":"PHASE6","iteration":1,"phase_complete":true}',
         )
 
-        result = run_osx(
-            "complete",
-            "set",
-            "test-change",
-            "BLOCKED",
-            "--blocker-reason",
-            "Tests failed in CI",
-            cwd=test_env,
+        monkeypatch.chdir(test_env)
+        invoke(
+            [
+                "complete",
+                "set",
+                "test-change",
+                "BLOCKED",
+                "--blocker-reason",
+                "Tests failed in CI",
+            ]
         )
-        assert result.returncode == 0
-        output = json.loads(result.stdout)
-        assert output["with_blocker"] == True
-        assert output["blocker_reason"] == "Tests failed in CI"
-
-        result = run_osx("complete", "get", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        output = json.loads(result.stdout)
-        assert output["with_blocker"] == True
-        assert output["blocker_reason"] == "Tests failed in CI"

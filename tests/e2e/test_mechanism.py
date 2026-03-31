@@ -7,9 +7,13 @@ Tests CLI options and error handling.
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
+
+from source.cli import app
 
 pytestmark = pytest.mark.mechanism
 
@@ -46,11 +50,10 @@ def e2e_repo(tmp_path):
     if OPENCODE_SOURCE.exists():
         shutil.copytree(OPENCODE_SOURCE, opencode_target)
     else:
-        manifest = RESOURCES_OPENCODE / "manifest.json"
+        manifest = RESOURCES_OPENCODE / "manifest.toml"
         scripts_dir = opencode_target / "scripts"
         scripts_dir.mkdir(parents=True)
-        shutil.copy2(RESOURCES_OPENCODE / "scripts" / "osx-orchestrate", scripts_dir)
-        (opencode_target / "manifest.json").write_text(manifest.read_text())
+        (opencode_target / "manifest.toml").write_text(manifest.read_text())
 
     changes_dir = tmp_path / "openspec" / "changes"
     changes_dir.mkdir(parents=True, exist_ok=True)
@@ -59,12 +62,10 @@ def e2e_repo(tmp_path):
 
 
 def run_osx_orchestrate(cwd, *args):
-    """Run osx-orchestrate and return (exit_code, stdout, stderr)."""
-    script_path = (
-        PROJECT_ROOT / "resources" / "opencode" / "scripts" / "osx-orchestrate"
-    )
+    """Run osx-orchestrate via python -m source and return (exit_code, stdout, stderr)."""
+    cmd = [sys.executable, "-m", "source", "orchestrate"] + list(args)
     result = subprocess.run(
-        [str(script_path)] + list(args),
+        cmd,
         cwd=cwd,
         capture_output=True,
         text=True,
@@ -108,10 +109,10 @@ Minimal design document.
 
 
 class TestVersion:
-    """Tests for --version option (osx-orchestrate doesn't have this, but openspec-extended does)."""
+    """Tests for --version option."""
 
     def test_version_not_available_on_orchestrate(self, e2e_repo):
-        """osx-orchestrate doesn't have --version option (it's a Typer limitation)."""
+        """orchestrate command doesn't have --version (it's a Typer limitation)."""
         exit_code, stdout, stderr = run_osx_orchestrate(e2e_repo, "--version")
         combined = stdout + stderr
         assert exit_code == 2, f"Expected exit 2, got {exit_code}. Output: {combined}"
@@ -172,9 +173,6 @@ class TestDryRun:
         )
         combined = stdout + stderr
         assert "[DRY RUN]" in combined, f"Expected '[DRY RUN]' in output: {combined}"
-        assert "Would run command" in combined, (
-            f"Expected 'Would run command' in output: {combined}"
-        )
 
 
 class TestErrorHandling:

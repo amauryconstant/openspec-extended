@@ -10,7 +10,7 @@ ruff = "latest"
 _.python.venv = { path = ".venv" }
 
 [hooks]
-postinstall = ["mise run sync-core", "uv sync"]
+postinstall = ["mise run sync-core", "uv sync --all-extras"]
 
 [tasks.verify]
 description = "Ensure the quality of the project"
@@ -48,12 +48,16 @@ run = "uv run pytest -m e2e -q"
 
 [tasks.lint]
 description = "Lint Python files with ruff"
-run = "ruff check --fix -q bin/openspec-extended resources/opencode/scripts/osx-orchestrate resources/opencode/scripts/lib/osx .mise/tasks/version/check .mise/tasks/version/update .mise/tasks/version/lib/"
+run = "ruff check --fix -q source/ .mise/tasks/version/check .mise/tasks/version/update .mise/tasks/version/lib/"
 
 [tasks.format]
 description = "Format Python files with ruff"
-run = "ruff format -q bin/openspec-extended resources/opencode/scripts/osx-orchestrate"
+run = "ruff format -q source/"
 
 [tasks."typecheck"]
 description = "Type check Python files with ty"
-run = "ty check bin/openspec-extended resources/opencode/scripts/osx-orchestrate resources/opencode/scripts/lib/osx"
+run = "ty check source/"
+
+[tasks.build]
+description = "Build pyinstaller binary"
+run = "pyinstaller openspec.spec"

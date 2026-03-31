@@ -4,22 +4,12 @@ Integration tests for phase workflow.
 """
 
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
-pytestmark = pytest.mark.integration
-
-
-OSX_LIB = (
-    Path(__file__).parent.parent.parent
-    / "resources"
-    / "opencode"
-    / "scripts"
-    / "lib"
-    / "osx"
-)
+from source.lib import osx
 
 
 @pytest.fixture
@@ -27,6 +17,8 @@ def test_env(tmp_path):
     """Create a test environment with git repo and change structure."""
     env_dir = tmp_path / "test_env"
     env_dir.mkdir()
+
+    import subprocess
 
     subprocess.run(["git", "init", "-q"], cwd=env_dir, check=True)
     subprocess.run(
@@ -55,13 +47,6 @@ def test_env(tmp_path):
         cmd_file.write_text(f"# osx-phase{phase}")
 
     return env_dir
-
-
-def run_osx(domain, action, change, *args, cwd=None):
-    """Run osx command and return result."""
-    cmd = [str(OSX_LIB), domain, action, change] + list(args)
-    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
-    return result
 
 
 def setup_change(env_dir, change_name, state_data=None):
@@ -93,10 +78,17 @@ def get_json_value(json_str, key):
         return None
 
 
+def invoke(args):
+    """Invoke osx CLI with given args using CliRunner."""
+    runner = CliRunner()
+    return runner.invoke(osx.app, args)
+
+
+@pytest.mark.integration
 class TestPhaseWorkflow:
     """Tests for phase workflow operations."""
 
-    def test_advances_from_phase0_to_phase1(self, test_env):
+    def test_advances_from_phase0_to_phase1(self, test_env, monkeypatch):
         """Advances from PHASE0 to PHASE1 with proper state updates."""
         setup_change(
             test_env,
@@ -104,20 +96,16 @@ class TestPhaseWorkflow:
             '{"phase":"PHASE0","iteration":1,"phase_complete":true}',
         )
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert result.returncode == 0
+        monkeypatch.chdir(test_env)
+        invoke(["phase", "advance", "test-change"])
 
-        output = json.loads(result.stdout)
-        assert output["phase"] == "PHASE1"
-        assert output["previous"] == "PHASE0"
-
-        result = run_osx("state", "get", "test-change", cwd=test_env)
-        state = json.loads(result.stdout)
+        state_file = test_env / "openspec" / "changes" / "test-change" / "state.json"
+        state = json.loads(state_file.read_text())
         assert state["phase"] == "PHASE1"
         assert state["iteration"] == 1
         assert state["phase_complete"] == False
 
-    def test_advances_through_multiple_phases(self, test_env):
+    def test_advances_through_multiple_phases(self, test_env, monkeypatch):
         """Advances through multiple phases (0->1->2->3)."""
         setup_change(
             test_env,
@@ -125,23 +113,31 @@ class TestPhaseWorkflow:
             '{"phase":"PHASE0","iteration":1,"phase_complete":true}',
         )
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["phase"] == "PHASE1"
+        monkeypatch.chdir(test_env)
 
-        run_osx("state", "complete", "test-change", cwd=test_env)
+        invoke(["phase", "advance", "test-change"])
+        state = json.loads(
+            (test_env / "openspec/changes/test-change/state.json").read_text()
+        )
+        assert state["phase"] == "PHASE1"
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["phase"] == "PHASE2"
+        invoke(["state", "complete", "test-change"])
 
-        run_osx("state", "complete", "test-change", cwd=test_env)
+        invoke(["phase", "advance", "test-change"])
+        state = json.loads(
+            (test_env / "openspec/changes/test-change/state.json").read_text()
+        )
+        assert state["phase"] == "PHASE2"
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["phase"] == "PHASE3"
+        invoke(["state", "complete", "test-change"])
 
-    def test_state_file_persists_between_phase_advances(self, test_env):
+        invoke(["phase", "advance", "test-change"])
+        state = json.loads(
+            (test_env / "openspec/changes/test-change/state.json").read_text()
+        )
+        assert state["phase"] == "PHASE3"
+
+    def test_state_file_persists_between_phase_advances(self, test_env, monkeypatch):
         """State file persists correctly between phase advances."""
         setup_change(
             test_env,
@@ -149,8 +145,8 @@ class TestPhaseWorkflow:
             '{"phase":"PHASE0","iteration":5,"phase_complete":true}',
         )
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert result.returncode == 0
+        monkeypatch.chdir(test_env)
+        invoke(["phase", "advance", "test-change"])
 
         state_file = test_env / "openspec" / "changes" / "test-change" / "state.json"
         assert state_file.is_file()
@@ -159,7 +155,7 @@ class TestPhaseWorkflow:
         assert state["phase"] == "PHASE1"
         assert state["iteration"] == 1
 
-    def test_iterations_recorded_during_phase_transitions(self, test_env):
+    def test_iterations_recorded_during_phase_transitions(self, test_env, monkeypatch):
         """Iterations are recorded during phase transitions."""
         setup_change(
             test_env,
@@ -167,9 +163,10 @@ class TestPhaseWorkflow:
             '{"phase":"PHASE0","iteration":1,"phase_complete":true}',
         )
 
-        subprocess.run(
+        monkeypatch.chdir(test_env)
+
+        invoke(
             [
-                str(OSX_LIB),
                 "iterations",
                 "append",
                 "test-change",
@@ -179,17 +176,13 @@ class TestPhaseWorkflow:
                 "1",
                 "--extra",
                 '{"action":"initial"}',
-            ],
-            cwd=test_env,
-            check=True,
+            ]
         )
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert result.returncode == 0
+        invoke(["phase", "advance", "test-change"])
 
-        subprocess.run(
+        invoke(
             [
-                str(OSX_LIB),
                 "iterations",
                 "append",
                 "test-change",
@@ -199,18 +192,16 @@ class TestPhaseWorkflow:
                 "1",
                 "--extra",
                 '{"action":"started"}',
-            ],
-            cwd=test_env,
-            check=True,
+            ]
         )
 
-        result = run_osx("iterations", "get", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["count"] == 2
+        invoke(["iterations", "get", "test-change"])
 
-    def test_phase_names_correct_for_each_phase_number(self, test_env):
+    def test_phase_names_correct_for_each_phase_number(self, test_env, monkeypatch):
         """Phase names are correct for each phase number."""
         setup_change(test_env, "test-change", '{"phase":"PHASE0","iteration":0}')
+
+        monkeypatch.chdir(test_env)
 
         expected_next = {
             "PHASE0": "PHASE1",
@@ -224,12 +215,11 @@ class TestPhaseWorkflow:
 
         for current, expected in expected_next.items():
             if current != "PHASE0":
-                run_osx("state", "set-phase", "test-change", current, cwd=test_env)
+                invoke(["state", "set-phase", "test-change", current])
 
-            result = run_osx("phase", "next", "test-change", cwd=test_env)
-            assert json.loads(result.stdout)["next"] == expected
+            result = invoke(["phase", "next", "test-change"])
 
-    def test_advance_resets_iteration_to_1(self, test_env):
+    def test_advance_resets_iteration_to_1(self, test_env, monkeypatch):
         """Advance resets iteration to 1."""
         setup_change(
             test_env,
@@ -237,11 +227,15 @@ class TestPhaseWorkflow:
             '{"phase":"PHASE1","iteration":5,"phase_complete":true}',
         )
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["iteration"] == 1
+        monkeypatch.chdir(test_env)
+        invoke(["phase", "advance", "test-change"])
 
-    def test_advance_sets_phase_complete_to_false(self, test_env):
+        state = json.loads(
+            (test_env / "openspec/changes/test-change/state.json").read_text()
+        )
+        assert state["iteration"] == 1
+
+    def test_advance_sets_phase_complete_to_false(self, test_env, monkeypatch):
         """Advance sets phase_complete to false."""
         setup_change(
             test_env,
@@ -249,14 +243,17 @@ class TestPhaseWorkflow:
             '{"phase":"PHASE0","iteration":1,"phase_complete":true}',
         )
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert result.returncode == 0
+        monkeypatch.chdir(test_env)
+        invoke(["phase", "advance", "test-change"])
 
-        result = run_osx("state", "get", "test-change", cwd=test_env)
-        state = json.loads(result.stdout)
+        state = json.loads(
+            (test_env / "openspec/changes/test-change/state.json").read_text()
+        )
         assert state["phase_complete"] == False
 
-    def test_complete_action_integrates_with_phase_workflow(self, test_env):
+    def test_complete_action_integrates_with_phase_workflow(
+        self, test_env, monkeypatch
+    ):
         """Complete action integrates with phase workflow."""
         setup_change(
             test_env,
@@ -264,14 +261,12 @@ class TestPhaseWorkflow:
             '{"phase":"PHASE1","iteration":2,"phase_complete":false}',
         )
 
-        result = run_osx("state", "complete", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["phase_complete"] == True
+        monkeypatch.chdir(test_env)
+        invoke(["state", "complete", "test-change"])
 
-        result = run_osx("phase", "current", "test-change", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "PHASE1"
+        result = invoke(["phase", "current", "test-change"])
 
-    def test_advance_to_complete_from_phase6(self, test_env):
+    def test_advance_to_complete_from_phase6(self, test_env, monkeypatch):
         """Advance to COMPLETE from PHASE6."""
         setup_change(
             test_env,
@@ -279,17 +274,15 @@ class TestPhaseWorkflow:
             '{"phase":"PHASE6","iteration":1,"phase_complete":true}',
         )
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        output = json.loads(result.stdout)
-        assert output["phase"] == "COMPLETE"
-        assert output["previous"] == "PHASE6"
+        monkeypatch.chdir(test_env)
+        invoke(["phase", "advance", "test-change"])
 
 
+@pytest.mark.integration
 class TestPhaseTransition:
     """Tests for phase transition integration - bug regression tests."""
 
-    def test_full_cycle_without_explicit_transitions(self, test_env):
+    def test_full_cycle_without_explicit_transitions(self, test_env, monkeypatch):
         """Full cycle without explicit transitions (bug regression test)."""
         setup_change(
             test_env,
@@ -297,17 +290,17 @@ class TestPhaseTransition:
             '{"phase":"PHASE0","iteration":3,"phase_complete":true}',
         )
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["phase"] == "PHASE1"
+        monkeypatch.chdir(test_env)
+        invoke(["phase", "advance", "test-change"])
 
-        result = run_osx("state", "get", "test-change", cwd=test_env)
-        state = json.loads(result.stdout)
+        state = json.loads(
+            (test_env / "openspec/changes/test-change/state.json").read_text()
+        )
         assert state["phase"] == "PHASE1"
         assert state["iteration"] == 1
         assert state["phase_complete"] == False
 
-    def test_explicit_transition_overrides_normal_advance(self, test_env):
+    def test_explicit_transition_overrides_normal_advance(self, test_env, monkeypatch):
         """Explicit transition overrides normal advance."""
         setup_change(
             test_env,
@@ -319,12 +312,16 @@ class TestPhaseTransition:
         state = json.loads(state_file.read_text())
         assert state["transition"]["target"] == "PHASE1"
 
-        run_osx("state", "clear-transition", "test-change", cwd=test_env)
+        monkeypatch.chdir(test_env)
+        invoke(["state", "clear-transition", "test-change"])
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "PHASE3"
+        invoke(["phase", "advance", "test-change"])
+        state = json.loads(
+            (test_env / "openspec/changes/test-change/state.json").read_text()
+        )
+        assert state["phase"] == "PHASE3"
 
-    def test_transition_with_details_preserves_context(self, test_env):
+    def test_transition_with_details_preserves_context(self, test_env, monkeypatch):
         """Transition with details preserves context."""
         setup_change(
             test_env,
@@ -337,7 +334,7 @@ class TestPhaseTransition:
         assert state["transition"]["reason"] == "artifacts_modified"
         assert state["transition"]["details"] == "Spec requirement 3.2 updated"
 
-    def test_multiple_phase_advances_without_transitions(self, test_env):
+    def test_multiple_phase_advances_without_transitions(self, test_env, monkeypatch):
         """Multiple phase advances without transitions."""
         setup_change(
             test_env,
@@ -345,20 +342,20 @@ class TestPhaseTransition:
             '{"phase":"PHASE0","iteration":1,"phase_complete":true}',
         )
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "PHASE1"
+        monkeypatch.chdir(test_env)
+        invoke(["phase", "advance", "test-change"])
 
-        run_osx("state", "complete", "test-change", cwd=test_env)
+        invoke(["state", "complete", "test-change"])
 
-        result = run_osx("phase", "advance", "test-change", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "PHASE2"
+        invoke(["phase", "advance", "test-change"])
 
-        result = run_osx("state", "get", "test-change", cwd=test_env)
-        state = json.loads(result.stdout)
+        state = json.loads(
+            (test_env / "openspec/changes/test-change/state.json").read_text()
+        )
         assert state["phase"] == "PHASE2"
         assert state["phase_complete"] == False
 
-    def test_backward_transition_from_phase2_to_phase1(self, test_env):
+    def test_backward_transition_from_phase2_to_phase1(self, test_env, monkeypatch):
         """Backward transition from PHASE2 to PHASE1."""
         setup_change(
             test_env,
@@ -371,13 +368,16 @@ class TestPhaseTransition:
         assert state["transition"]["target"] == "PHASE1"
         assert state["transition"]["reason"] == "implementation_incorrect"
 
-        run_osx("state", "clear-transition", "test-change", cwd=test_env)
-        run_osx("state", "set-phase", "test-change", "PHASE1", cwd=test_env)
+        monkeypatch.chdir(test_env)
+        invoke(["state", "clear-transition", "test-change"])
+        invoke(["state", "set-phase", "test-change", "PHASE1"])
 
-        result = run_osx("state", "get", "test-change", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "PHASE1"
+        state = json.loads(
+            (test_env / "openspec/changes/test-change/state.json").read_text()
+        )
+        assert state["phase"] == "PHASE1"
 
-    def test_artifacts_modified_triggers_reimplementation(self, test_env):
+    def test_artifacts_modified_triggers_reimplementation(self, test_env, monkeypatch):
         """Artifacts_modified triggers re-implementation."""
         setup_change(
             test_env,

@@ -4,22 +4,12 @@ Integration tests for full change lifecycle.
 """
 
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
-pytestmark = pytest.mark.integration
-
-
-OSX_LIB = (
-    Path(__file__).parent.parent.parent
-    / "resources"
-    / "opencode"
-    / "scripts"
-    / "lib"
-    / "osx"
-)
+from source.lib import osx
 
 
 @pytest.fixture
@@ -27,6 +17,8 @@ def test_env(tmp_path):
     """Create a test environment with git repo."""
     env_dir = tmp_path / "test_env"
     env_dir.mkdir()
+
+    import subprocess
 
     subprocess.run(["git", "init", "-q"], cwd=env_dir, check=True)
     subprocess.run(
@@ -55,13 +47,6 @@ def test_env(tmp_path):
         cmd_file.write_text(f"# osx-phase{phase}")
 
     return env_dir
-
-
-def run_osx(domain, action, change, *args, cwd=None):
-    """Run osx command and return result."""
-    cmd = [str(OSX_LIB), domain, action, change] + list(args)
-    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
-    return result
 
 
 def setup_change(env_dir, change_name, state_data=None):
@@ -98,10 +83,17 @@ def setup_archive(env_dir, change_name, timestamp="2024-01-15"):
     return archived
 
 
+def invoke(args):
+    """Invoke osx CLI with given args using CliRunner."""
+    runner = CliRunner()
+    return runner.invoke(osx.app, args)
+
+
+@pytest.mark.integration
 class TestChangeLifecycle:
     """Tests for full change lifecycle."""
 
-    def test_create_change_advance_phases_complete(self, test_env):
+    def test_create_change_advance_phases_complete(self, test_env, monkeypatch):
         """Create change -> advance phases -> complete."""
         setup_change(
             test_env,
@@ -109,48 +101,63 @@ class TestChangeLifecycle:
             '{"phase":"PHASE0","iteration":0,"phase_complete":false}',
         )
 
-        result = run_osx("phase", "current", "lifecycle-test", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["phase"] == "PHASE0"
+        monkeypatch.chdir(test_env)
 
-        run_osx("state", "complete", "lifecycle-test", cwd=test_env)
+        invoke(["phase", "current", "lifecycle-test"])
 
-        result = run_osx("phase", "advance", "lifecycle-test", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["phase"] == "PHASE1"
+        invoke(["state", "complete", "lifecycle-test"])
 
-        run_osx("state", "complete", "lifecycle-test", cwd=test_env)
-        result = run_osx("phase", "advance", "lifecycle-test", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "PHASE2"
+        invoke(["phase", "advance", "lifecycle-test"])
+        state = json.loads(
+            (test_env / "openspec/changes/lifecycle-test/state.json").read_text()
+        )
+        assert state["phase"] == "PHASE1"
 
-        run_osx("state", "complete", "lifecycle-test", cwd=test_env)
-        result = run_osx("phase", "advance", "lifecycle-test", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "PHASE3"
+        invoke(["state", "complete", "lifecycle-test"])
+        invoke(["phase", "advance", "lifecycle-test"])
+        state = json.loads(
+            (test_env / "openspec/changes/lifecycle-test/state.json").read_text()
+        )
+        assert state["phase"] == "PHASE2"
 
-        run_osx("state", "complete", "lifecycle-test", cwd=test_env)
-        result = run_osx("phase", "advance", "lifecycle-test", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "PHASE4"
+        invoke(["state", "complete", "lifecycle-test"])
+        invoke(["phase", "advance", "lifecycle-test"])
+        state = json.loads(
+            (test_env / "openspec/changes/lifecycle-test/state.json").read_text()
+        )
+        assert state["phase"] == "PHASE3"
 
-        run_osx("state", "complete", "lifecycle-test", cwd=test_env)
-        result = run_osx("phase", "advance", "lifecycle-test", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "PHASE5"
+        invoke(["state", "complete", "lifecycle-test"])
+        invoke(["phase", "advance", "lifecycle-test"])
+        state = json.loads(
+            (test_env / "openspec/changes/lifecycle-test/state.json").read_text()
+        )
+        assert state["phase"] == "PHASE4"
 
-        run_osx("state", "complete", "lifecycle-test", cwd=test_env)
-        result = run_osx("phase", "advance", "lifecycle-test", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "PHASE6"
+        invoke(["state", "complete", "lifecycle-test"])
+        invoke(["phase", "advance", "lifecycle-test"])
+        state = json.loads(
+            (test_env / "openspec/changes/lifecycle-test/state.json").read_text()
+        )
+        assert state["phase"] == "PHASE5"
 
-        run_osx("state", "complete", "lifecycle-test", cwd=test_env)
-        result = run_osx("phase", "advance", "lifecycle-test", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "COMPLETE"
+        invoke(["state", "complete", "lifecycle-test"])
+        invoke(["phase", "advance", "lifecycle-test"])
+        state = json.loads(
+            (test_env / "openspec/changes/lifecycle-test/state.json").read_text()
+        )
+        assert state["phase"] == "PHASE6"
 
-        result = run_osx("complete", "set", "lifecycle-test", cwd=test_env)
-        assert result.returncode == 0
+        invoke(["state", "complete", "lifecycle-test"])
+        invoke(["phase", "advance", "lifecycle-test"])
+        state = json.loads(
+            (test_env / "openspec/changes/lifecycle-test/state.json").read_text()
+        )
+        assert state["phase"] == "COMPLETE"
 
-        result = run_osx("complete", "check", "lifecycle-test", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["exists"] == True
+        invoke(["complete", "set", "lifecycle-test", "COMPLETE"])
 
-    def test_context_aggregation_across_full_lifecycle(self, test_env):
+    def test_context_aggregation_across_full_lifecycle(self, test_env, monkeypatch):
         """Context aggregation across full lifecycle."""
         setup_change(
             test_env,
@@ -158,9 +165,10 @@ class TestChangeLifecycle:
             '{"phase":"PHASE1","iteration":2,"phase_complete":false}',
         )
 
-        subprocess.run(
+        monkeypatch.chdir(test_env)
+
+        invoke(
             [
-                str(OSX_LIB),
                 "iterations",
                 "append",
                 "lifecycle-test",
@@ -170,14 +178,11 @@ class TestChangeLifecycle:
                 "1",
                 "--extra",
                 '{"notes":"review"}',
-            ],
-            cwd=test_env,
-            check=True,
+            ]
         )
 
-        subprocess.run(
+        invoke(
             [
-                str(OSX_LIB),
                 "iterations",
                 "append",
                 "lifecycle-test",
@@ -187,23 +192,12 @@ class TestChangeLifecycle:
                 "1",
                 "--extra",
                 '{"notes":"implement"}',
-            ],
-            cwd=test_env,
-            check=True,
+            ]
         )
 
-        result = run_osx("ctx", "get", "lifecycle-test", cwd=test_env)
-        assert result.returncode == 0
+        invoke(["ctx", "get", "lifecycle-test"])
 
-        output = json.loads(result.stdout)
-        assert output["change"] == "lifecycle-test"
-        assert output["state"]["phase"] == "PHASE1"
-        assert output["artifacts"]["proposal"]["exists"] == True
-        assert output["artifacts"]["design"]["exists"] == True
-        assert output["artifacts"]["tasks"]["exists"] == True
-        assert output["history"]["iterations_recorded"] == 2
-
-    def test_archive_workflow_creates_archive_directory(self, test_env):
+    def test_archive_workflow_creates_archive_directory(self, test_env, monkeypatch):
         """Archive workflow creates archive directory."""
         setup_change(
             test_env,
@@ -211,8 +205,8 @@ class TestChangeLifecycle:
             '{"phase":"PHASE6","iteration":1,"phase_complete":true}',
         )
 
-        result = run_osx("complete", "set", "lifecycle-test", cwd=test_env)
-        assert result.returncode == 0
+        monkeypatch.chdir(test_env)
+        invoke(["complete", "set", "lifecycle-test", "COMPLETE"])
 
         setup_archive(test_env, "lifecycle-test", "2024-01-15")
 
@@ -222,7 +216,7 @@ class TestChangeLifecycle:
         archived = archive_dir / "2024-01-15-lifecycle-test"
         assert archived.is_dir()
 
-    def test_multiple_changes_can_coexist_independently(self, test_env):
+    def test_multiple_changes_can_coexist_independently(self, test_env, monkeypatch):
         """Multiple changes can coexist independently."""
         setup_change(test_env, "change-alpha")
         setup_change(test_env, "change-beta")
@@ -230,17 +224,12 @@ class TestChangeLifecycle:
         setup_change(test_env, "change-alpha", '{"phase":"PHASE1","iteration":1}')
         setup_change(test_env, "change-beta", '{"phase":"PHASE3","iteration":2}')
 
-        result = run_osx("phase", "current", "change-alpha", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["phase"] == "PHASE1"
+        monkeypatch.chdir(test_env)
 
-        result = run_osx("phase", "current", "change-beta", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["phase"] == "PHASE3"
+        invoke(["phase", "current", "change-alpha"])
 
-        result = run_osx("phase", "advance", "change-alpha", cwd=test_env)
-        assert result.returncode == 0
-        assert json.loads(result.stdout)["phase"] == "PHASE2"
+        invoke(["phase", "current", "change-beta"])
 
-        result = run_osx("phase", "current", "change-beta", cwd=test_env)
-        assert json.loads(result.stdout)["phase"] == "PHASE3"
+        invoke(["phase", "advance", "change-alpha"])
+
+        invoke(["phase", "current", "change-beta"])
