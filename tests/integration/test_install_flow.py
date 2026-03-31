@@ -5,6 +5,8 @@ Integration tests for install flow.
 
 import json
 import subprocess
+
+import toml
 from pathlib import Path
 
 import pytest
@@ -116,11 +118,11 @@ class TestInstallOpencode:
         result = run_osx(["install", "opencode"], cwd=test_env)
 
         assert result.returncode == 0
-        manifest_path = test_env / ".opencode" / "manifest.json"
+        manifest_path = test_env / ".opencode" / "manifest.toml"
         assert manifest_path.is_file()
 
         with open(manifest_path) as f:
-            manifest = json.load(f)
+            manifest = toml.load(f)
 
         assert manifest.get("version") is not None
         assert manifest.get("version") != ""
@@ -285,15 +287,15 @@ class TestVersionAwareUpgrade:
         """Install upgrades when source version > installed version."""
         run_osx(["install", "opencode"], cwd=test_env)
 
-        manifest = test_env / ".opencode" / "manifest.json"
-        manifest_data = json.loads(manifest.read_text())
+        manifest = test_env / ".opencode" / "manifest.toml"
+        manifest_data = toml.loads(manifest.read_text())
         manifest_data["resources"]["skills"]["osx-concepts"]["version"] = "0.1.0"
-        manifest.write_text(json.dumps(manifest_data))
+        manifest.write_text(toml.dumps(manifest_data))
 
         result = run_osx(["install", "opencode"], cwd=test_env)
         assert result.returncode == 0
 
-        new_manifest = json.loads(manifest.read_text())
+        new_manifest = toml.loads(manifest.read_text())
         assert new_manifest["resources"]["skills"]["osx-concepts"]["version"] != "0.1.0"
 
     def test_install_skips_when_versions_match(self, test_env):
@@ -312,8 +314,8 @@ class TestVersionAwareUpgrade:
         """Manifest tracks deployed resources with versions."""
         run_osx(["install", "opencode"], cwd=test_env)
 
-        manifest = test_env / ".opencode" / "manifest.json"
-        manifest_data = json.loads(manifest.read_text())
+        manifest = test_env / ".opencode" / "manifest.toml"
+        manifest_data = toml.loads(manifest.read_text())
 
         assert manifest_data.get("version") is not None
         assert manifest_data.get("version") != "null"

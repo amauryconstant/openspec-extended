@@ -5,6 +5,8 @@ Unit tests for openspec-extended CLI and deployment logic.
 
 import json
 import sys
+
+import toml
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
@@ -174,9 +176,9 @@ class TestDeploymentLogic:
         """Version comparison triggers upgrade."""
         target_path = temp_dir / "skills" / "osx-test"
         target_path.mkdir(parents=True)
-        target_manifest = temp_dir / "manifest.json"
+        target_manifest = temp_dir / "manifest.toml"
         target_manifest.write_text(
-            json.dumps({"resources": {"skills": {"osx-test": {"version": "0.9.0"}}}})
+            toml.dumps({"resources": {"skills": {"osx-test": {"version": "0.9.0"}}}})
         )
         result = oe.should_deploy(
             "osx-test", "1.0.0", target_path, target_manifest, "skills", False
@@ -187,9 +189,9 @@ class TestDeploymentLogic:
         """Skip downgrade when installed version is newer."""
         target_path = temp_dir / "skills" / "osx-test"
         target_path.mkdir(parents=True)
-        target_manifest = temp_dir / "manifest.json"
+        target_manifest = temp_dir / "manifest.toml"
         target_manifest.write_text(
-            json.dumps({"resources": {"skills": {"osx-test": {"version": "2.0.0"}}}})
+            toml.dumps({"resources": {"skills": {"osx-test": {"version": "2.0.0"}}}})
         )
         result = oe.should_deploy(
             "osx-test", "1.0.0", target_path, target_manifest, "skills", False
@@ -261,30 +263,30 @@ class TestGetInstalledVersion:
 
     def test_returns_empty_when_no_manifest(self, temp_dir):
         """No manifest file returns empty string."""
-        manifest = temp_dir / "manifest.json"
+        manifest = temp_dir / "manifest.toml"
         result = oe.get_installed_version(manifest, "skills", "test")
         assert result == ""
 
     def test_returns_empty_when_no_resource(self, temp_dir):
         """Manifest without resource returns empty string."""
-        manifest = temp_dir / "manifest.json"
-        manifest.write_text(json.dumps({"resources": {}}))
+        manifest = temp_dir / "manifest.toml"
+        manifest.write_text(toml.dumps({"resources": {}}))
         result = oe.get_installed_version(manifest, "skills", "test")
         assert result == ""
 
     def test_returns_version_when_found(self, temp_dir):
         """Resource with version returns that version."""
-        manifest = temp_dir / "manifest.json"
+        manifest = temp_dir / "manifest.toml"
         manifest.write_text(
-            json.dumps({"resources": {"skills": {"test": {"version": "1.2.3"}}}})
+            toml.dumps({"resources": {"skills": {"test": {"version": "1.2.3"}}}})
         )
         result = oe.get_installed_version(manifest, "skills", "test")
         assert result == "1.2.3"
 
-    def test_returns_empty_for_invalid_json(self, temp_dir):
-        """Invalid JSON returns empty string."""
-        manifest = temp_dir / "manifest.json"
-        manifest.write_text("not valid json")
+    def test_returns_empty_for_invalid_toml(self, temp_dir):
+        """Invalid TOML returns empty string."""
+        manifest = temp_dir / "manifest.toml"
+        manifest.write_text("not valid toml [")
         result = oe.get_installed_version(manifest, "skills", "test")
         assert result == ""
 

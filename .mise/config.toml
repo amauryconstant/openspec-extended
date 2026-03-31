@@ -12,6 +12,15 @@ _.python.venv = { path = ".venv" }
 [hooks]
 postinstall = ["mise run sync-core", "uv sync"]
 
+[tasks.verify]
+description = "Ensure the quality of the project"
+run = [
+    { task="typecheck"},
+    { task="format"},
+    { task="lint"},
+    { task="test"},
+]
+
 [tasks.test]
 description = "Run unit, integration and mechanism tests"
 run = [
@@ -22,29 +31,28 @@ run = [
 
 [tasks."test:unit"]
 description = "Run unit tests"
-run = "uv run pytest -m unit -v --no-header"
+run = "uv run pytest -m unit -q"
 
 [tasks."test:integration"]
 description = "Run integration tests"
-run = "uv run pytest -m integration -v --no-header"
+run = "uv run pytest -m integration -q"
 
 [tasks."test:mechanism"]
 description = "Run mechanism tests (no AI calls)"
-run = "uv run pytest -m mechanism -v --no-header"
+run = "uv run pytest -m mechanism -q"
 
 [tasks."test:e2e"]
-description = "Run E2E full workflow tests (requires E2E_CONFIRM=1)"
+description = "Run E2E full workflow tests"
 env = { "E2E_CONFIRM" = "1" }
-run = "uv run pytest -m e2e -v --no-header"
-
-[tasks."test:e2e:full"]
-description = "Run all E2E tests including mechanism tests"
-env = { "E2E_CONFIRM" = "1" }
-run = "uv run pytest -m 'e2e or mechanism' -v --no-header"
+run = "uv run pytest -m e2e -q"
 
 [tasks.lint]
 description = "Lint Python files with ruff"
-run = "ruff check bin/openspec-extended resources/opencode/scripts/osx-orchestrate tests/"
+run = "ruff check --fix -q bin/openspec-extended resources/opencode/scripts/osx-orchestrate"
+
+[tasks.format]
+description = "Format Python files with ruff"
+run = "ruff format -q bin/openspec-extended resources/opencode/scripts/osx-orchestrate"
 
 [tasks."typecheck"]
 description = "Type check Python files with ty"

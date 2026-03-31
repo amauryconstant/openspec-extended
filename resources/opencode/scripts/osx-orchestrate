@@ -826,7 +826,7 @@ def _list_changes() -> None:
                     print(f"  - {name}")
             except json.JSONDecodeError:
                 print("  (none)")
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except subprocess.CalledProcessError, FileNotFoundError:
         pass
 
     print("")
