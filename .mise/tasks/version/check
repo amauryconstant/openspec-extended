@@ -1,341 +1,267 @@
-#!/usr/bin/env bash
-#MISE description="Verify version bump when versioned files are modified"
+#!/usr/bin/env python3
+"""Verify version bump when versioned files are modified."""
 
-set -euo pipefail
+from __future__ import annotations
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=/dev/null
-source "$SCRIPT_DIR/lib/common.sh"
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Optional
 
-OUTPUT_FORMAT="table"
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --json) OUTPUT_FORMAT="json"; shift ;;
-    *) shift ;;
-  esac
-done
+sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- \
-  'resources/*/skills/*/SKILL.md' \
-  'resources/*/skills/*/references/*.md' \
-  'resources/*/skills/*/scripts/*' \
-  'resources/*/agents/*.md' \
-  'resources/*/commands/*.md' \
-  'resources/*/commands/*/*.md' \
-  'resources/*/scripts/osx-orchestrate' \
-  'resources/*/scripts/lib/osx')
+from manifest import (
+    Manifest,
+    get_platform_for_path,
+    get_resource_info_from_path,
+    validate_semver,
+)
+from detect import detect_bump_for_resource
+from state import write_version_state
 
-declare -a FILE_PATHS=()
-declare -a RESOURCE_TYPES=()
-declare -a RESOURCE_NAMES=()
-declare -a FILE_PLATFORMS=()
-declare -a FILE_CURRENT=()
-declare -a FILE_PREVIOUS=()
-declare -a FILE_STATUS=()
-declare -a FILE_ERRORS=()
 
-HAS_ERROR=0
+def get_staged_files() -> list[str]:
+    patterns = [
+        "resources/*/skills/*/SKILL.md",
+        "resources/*/skills/*/references/*.md",
+        "resources/*/skills/*/scripts/*",
+        "resources/*/agents/*.md",
+        "resources/*/commands/*.md",
+        "resources/*/commands/*/*.md",
+        "resources/*/scripts/osx-orchestrate",
+        "resources/*/scripts/lib/osx",
+    ]
 
-declare -A MANIFEST_CACHE=()
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", "--"] + patterns,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return [f for f in result.stdout.strip().split("\n") if f]
+    except subprocess.CalledProcessError:
+        return []
 
-get_or_load_manifest() {
-  local platform="$1"
-  local which="$2"
-  
-  local cache_key="$platform:$which"
-  if [[ -n "${MANIFEST_CACHE[$cache_key]:-}" ]]; then
-    echo "${MANIFEST_CACHE[$cache_key]}"
-    return
-  fi
-  
-  local manifest_file manifest_path
-  case "$platform" in
-    opencode) manifest_file="$PROJECT_ROOT/resources/opencode/manifest.json"; manifest_path="resources/opencode/manifest.json" ;;
-    claude)   manifest_file="$PROJECT_ROOT/resources/claude/manifest.json"; manifest_path="resources/claude/manifest.json" ;;
-    *) return ;;
-  esac
-  
-  if [[ "$which" == "current" ]]; then
-    MANIFEST_CACHE[$cache_key]=$(cat "$manifest_file" 2>/dev/null || echo "{}")
-  else
-    if git show "HEAD:$manifest_path" &>/dev/null; then
-      MANIFEST_CACHE[$cache_key]=$(git show "HEAD:$manifest_path")
-    else
-      MANIFEST_CACHE[$cache_key]="{}"
-    fi
-  fi
-  
-  echo "${MANIFEST_CACHE[$cache_key]}"
-}
 
-for file in $STAGED_FILES; do
-  resource_info=$(get_resource_info_from_path "$file")
-  
-  if [[ -z "$resource_info" ]]; then
-    continue
-  fi
-  
-  platform=$(get_platform_for_path "$file")
-  if [[ -z "$platform" ]]; then
-    continue
-  fi
-  
-  IFS=':' read -r resource_type resource_name <<< "$resource_info"
-  
-  CURRENT_MANIFEST=$(get_or_load_manifest "$platform" "current")
-  current_version=$(get_resource_version "$CURRENT_MANIFEST" "$resource_type" "$resource_name")
-  
-  if [[ -z "$current_version" ]]; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("$resource_type")
-    RESOURCE_NAMES+=("$resource_name")
-    FILE_PLATFORMS+=("$platform")
-    FILE_CURRENT+=("")
-    FILE_PREVIOUS+=("")
-    FILE_STATUS+=("error")
-    FILE_ERRORS+=("Resource '$resource_name' not found in $platform manifest")
-    HAS_ERROR=1
-    continue
-  fi
-  
-  if ! validate_semver "$current_version" 2>/dev/null; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("$resource_type")
-    RESOURCE_NAMES+=("$resource_name")
-    FILE_PLATFORMS+=("$platform")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("")
-    FILE_STATUS+=("error")
-    FILE_ERRORS+=("Invalid version format")
-    HAS_ERROR=1
-    continue
-  fi
-  
-  PREVIOUS_MANIFEST=$(get_or_load_manifest "$platform" "previous")
-  previous_version=$(get_resource_version "$PREVIOUS_MANIFEST" "$resource_type" "$resource_name")
-  
-  if [[ -n "$previous_version" && "$current_version" == "$previous_version" ]]; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("$resource_type")
-    RESOURCE_NAMES+=("$resource_name")
-    FILE_PLATFORMS+=("$platform")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("$previous_version")
-    FILE_STATUS+=("needs_bump")
-    FILE_ERRORS+=("")
-    HAS_ERROR=1
-  else
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("$resource_type")
-    RESOURCE_NAMES+=("$resource_name")
-    FILE_PLATFORMS+=("$platform")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("${previous_version:-}")
-    FILE_STATUS+=("ok")
-    FILE_ERRORS+=("")
-  fi
-done
+def get_script_files() -> list[str]:
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", "--", "install.sh", "bin/openspecx"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return [f for f in result.stdout.strip().split("\n") if f]
+    except subprocess.CalledProcessError:
+        return []
 
-SCRIPT_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- 'install.sh' 'bin/openspecx')
 
-for file in $SCRIPT_FILES; do
-  current_version=$(get_script_version_from_file "$PROJECT_ROOT/$file")
-  
-  if [[ -z "$current_version" ]]; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("scripts")
-    RESOURCE_NAMES+=("$(basename "$file")")
-    FILE_PLATFORMS+=("root")
-    FILE_CURRENT+=("")
-    FILE_PREVIOUS+=("")
-    FILE_STATUS+=("error")
-    FILE_ERRORS+=("SCRIPT_VERSION not found in $file")
-    HAS_ERROR=1
-    continue
-  fi
-  
-  if ! validate_semver "$current_version" 2>/dev/null; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("scripts")
-    RESOURCE_NAMES+=("$(basename "$file")")
-    FILE_PLATFORMS+=("root")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("")
-    FILE_STATUS+=("error")
-    FILE_ERRORS+=("Invalid version format")
-    HAS_ERROR=1
-    continue
-  fi
-  
-  previous_version=$(get_script_version_from_git "$file")
-  file_existed_in_git=$(git show "HEAD:$file" &>/dev/null && echo "true" || echo "false")
-  
-  if [[ "$file_existed_in_git" == "true" && ( -z "$previous_version" || "$current_version" == "$previous_version" ) ]]; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("scripts")
-    RESOURCE_NAMES+=("$(basename "$file")")
-    FILE_PLATFORMS+=("root")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("${previous_version:-}")
-    FILE_STATUS+=("needs_bump")
-    FILE_ERRORS+=("")
-    HAS_ERROR=1
-  else
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("scripts")
-    RESOURCE_NAMES+=("$(basename "$file")")
-    FILE_PLATFORMS+=("root")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("${previous_version:-}")
-    FILE_STATUS+=("ok")
-    FILE_ERRORS+=("")
-  fi
-done
+def get_git_show_content(path: str) -> Optional[str]:
+    try:
+        result = subprocess.run(
+            ["git", "show", f"HEAD:{path}"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return result.stdout
+    except subprocess.CalledProcessError:
+        pass
+    return None
 
-LOW_CONFIDENCE_INDICES=""
 
-for i in "${!FILE_PATHS[@]}"; do
-  if [[ "${FILE_STATUS[$i]}" == "needs_bump" ]]; then
-    detect_script="$SCRIPT_DIR/lib/detect-bump"
-    if [[ "${FILE_PLATFORMS[$i]}" == "root" ]]; then
-      detect_script="$SCRIPT_DIR/lib/detect-bump-script.sh"
-    fi
-    
-    DETECT_RESULT=$("$detect_script" "${FILE_PATHS[$i]}" 2>/dev/null || echo "patch:ambiguous:low")
-    
-    BUMP_TYPE=$(echo "$DETECT_RESULT" | cut -d: -f1)
-    CONFIDENCE=$(echo "$DETECT_RESULT" | cut -d: -f3)
-    
-    if [[ "$BUMP_TYPE" =~ ^(patch|minor|major)$ ]]; then
-      FILE_STATUS[i]="needs_$BUMP_TYPE"
-    else
-      FILE_STATUS[i]="needs_patch"
-      CONFIDENCE="low"
-    fi
-    
-    if [[ "$CONFIDENCE" == "low" ]]; then
-      LOW_CONFIDENCE_INDICES="$LOW_CONFIDENCE_INDICES $i"
-    fi
-  elif [[ "${FILE_STATUS[$i]}" == "new" ]]; then
-    FILE_STATUS[i]="needs_minor"
-  fi
-done
+def get_script_version_from_file(file_path: str) -> Optional[str]:
+    path = Path(file_path)
+    if not path.exists():
+        return None
+    for line in path.read_text().split("\n"):
+        if line.startswith("SCRIPT_VERSION="):
+            return line.split("=", 1)[1].strip().strip('"')
+    return None
 
-if [[ -n "$LOW_CONFIDENCE_INDICES" ]] && command -v opencode &>/dev/null; then
-  AI_FILES_JSON="["
-  first=true
-  for i in $LOW_CONFIDENCE_INDICES; do
-    if [[ "$first" == "true" ]]; then
-      first=false
-    else
-      AI_FILES_JSON+=","
-    fi
-    AI_FILES_JSON+="{\"path\":\"${FILE_PATHS[$i]}\",\"current_version\":\"${FILE_CURRENT[$i]}\"}"
-  done
-  AI_FILES_JSON+="]"
-  
-  ANALYSIS_TIMEOUT=60
-  ANALYSIS_FILE=$(mktemp)
-  
-  timeout "$ANALYSIS_TIMEOUT" opencode run --format json \
-    "Analyze these ambiguous file changes. Return JSON array with objects containing 'path' and 'status' (needs_patch, needs_minor, or needs_major). Input: $AI_FILES_JSON. Output ONLY a JSON array, no markdown, no explanation." \
-    >"$ANALYSIS_FILE" 2>/dev/null
-  
-  if [[ -s "$ANALYSIS_FILE" ]]; then
-    TEXT_OUTPUT=$(grep '"type":"text"' "$ANALYSIS_FILE" | head -1 | jq -r '.part.text // empty' 2>/dev/null || echo "")
-    
-    if [[ -n "$TEXT_OUTPUT" ]] && echo "$TEXT_OUTPUT" | jq -e 'type == "array"' >/dev/null 2>&1; then
-      for i in $LOW_CONFIDENCE_INDICES; do
-        AI_STATUS=$(echo "$TEXT_OUTPUT" | jq -r --arg path "${FILE_PATHS[$i]}" '.[] | select(.path == $path) | .status // empty' 2>/dev/null || echo "")
-        if [[ -n "$AI_STATUS" && "$AI_STATUS" =~ ^needs_(patch|minor|major)$ ]]; then
-          FILE_STATUS[i]="$AI_STATUS"
-        fi
-      done
-    fi
-  fi
-  
-  rm -f "$ANALYSIS_FILE"
-fi
 
-build_files_json() {
-  local files_json="["
-  local first=true
-  
-  for i in "${!FILE_PATHS[@]}"; do
-    if [[ "$first" == "true" ]]; then
-      first=false
-    else
-      files_json+=","
-    fi
-    
-    files_json+="{\"path\":\"${FILE_PATHS[$i]}\",\"platform\":\"${FILE_PLATFORMS[$i]}\",\"resource_type\":\"${RESOURCE_TYPES[$i]}\",\"resource_name\":\"${RESOURCE_NAMES[$i]}\",\"current_version\":\"${FILE_CURRENT[$i]}\",\"status\":\"${FILE_STATUS[$i]}\"}"
-  done
-  
-  files_json+="]"
-  echo "$files_json"
-}
+def main():
+    output_format = "table"
+    if len(sys.argv) > 1 and sys.argv[1] == "--json":
+        output_format = "json"
 
-output_json() {
-  local status="ok"
-  if [[ $HAS_ERROR -eq 1 ]]; then
-    status="error"
-  fi
-  
-  local files_json
-  files_json=$(build_files_json)
-  
-  write_version_state "$status" "$files_json"
-  
-  echo "{\"status\":\"$status\",\"files\":$files_json}"
-}
+    staged_files = get_staged_files()
+    script_files = get_script_files()
 
-output_table() {
-  local status="ok"
-  if [[ $HAS_ERROR -eq 1 ]]; then
-    status="error"
-  fi
-  
-  local files_json
-  files_json=$(build_files_json)
-  
-  write_version_state "$status" "$files_json"
-  
-  if [[ $HAS_ERROR -eq 0 ]]; then
-    return
-  fi
-  
-  echo ""
-  echo "Version Bump Required"
-  echo "====================="
-  echo ""
-  
-  printf "%-50s  %-20s  %-10s  %-15s\n" "File" "Resource" "Current" "Status"
-  printf "%-50s  %-20s  %-10s  %-15s\n" "$(printf '=%.0s' {1..50})" "$(printf '=%.0s' {1..20})" "$(printf '=%.0s' {1..10})" "$(printf '=%.0s' {1..15})"
-  
-  for i in "${!FILE_PATHS[@]}"; do
-    local display_path="${FILE_PATHS[$i]}"
-    if [[ ${#display_path} -gt 48 ]]; then
-      display_path="...${display_path: -45}"
-    fi
-    
-    local status_text="${FILE_STATUS[$i]}"
-    local resource_display="${RESOURCE_NAMES[$i]}"
-    
-    printf "%-50s  %-20s  %-10s  %-15s\n" "$display_path" "$resource_display" "${FILE_CURRENT[$i]}" "$status_text"
-  done
-  
-  echo ""
-  echo "Run: mise run version:update"
-}
+    files = []
 
-if [[ "$OUTPUT_FORMAT" == "json" ]]; then
-  output_json
-else
-  output_table
-fi
+    for file_path in staged_files:
+        resource_info = get_resource_info_from_path(file_path)
+        if not resource_info:
+            continue
 
-if [[ $HAS_ERROR -eq 1 ]]; then
-  exit 1
-fi
+        platform = get_platform_for_path(file_path)
+        if not platform:
+            continue
 
-exit 0
+        resource_type, resource_name = resource_info.split(":", 1)
+
+        try:
+            manifest = Manifest.load(platform)
+        except Exception:
+            files.append({
+                "path": file_path,
+                "platform": platform,
+                "resource_type": resource_type,
+                "resource_name": resource_name,
+                "current_version": "",
+                "status": "error",
+                "error": f"Could not load {platform} manifest",
+            })
+            continue
+
+        current_version = manifest.get_resource_version(resource_type, resource_name)
+
+        if not current_version:
+            files.append({
+                "path": file_path,
+                "platform": platform,
+                "resource_type": resource_type,
+                "resource_name": resource_name,
+                "current_version": "",
+                "status": "error",
+                "error": f"Resource '{resource_name}' not found in {platform} manifest",
+            })
+            continue
+
+        if not validate_semver(current_version):
+            files.append({
+                "path": file_path,
+                "platform": platform,
+                "resource_type": resource_type,
+                "resource_name": resource_name,
+                "current_version": current_version,
+                "status": "error",
+                "error": "Invalid version format",
+            })
+            continue
+
+        git_content = get_git_show_content(file_path)
+        if git_content:
+            files.append({
+                "path": file_path,
+                "platform": platform,
+                "resource_type": resource_type,
+                "resource_name": resource_name,
+                "current_version": current_version,
+                "status": "needs_bump",
+                "error": "",
+            })
+        else:
+            files.append({
+                "path": file_path,
+                "platform": platform,
+                "resource_type": resource_type,
+                "resource_name": resource_name,
+                "current_version": current_version,
+                "status": "ok",
+                "error": "",
+            })
+
+    for file_path in script_files:
+        current_version = get_script_version_from_file(file_path)
+
+        if not current_version:
+            files.append({
+                "path": file_path,
+                "platform": "root",
+                "resource_type": "scripts",
+                "resource_name": Path(file_path).name,
+                "current_version": "",
+                "status": "error",
+                "error": "SCRIPT_VERSION not found",
+            })
+            continue
+
+        if not validate_semver(current_version):
+            files.append({
+                "path": file_path,
+                "platform": "root",
+                "resource_type": "scripts",
+                "resource_name": Path(file_path).name,
+                "current_version": current_version,
+                "status": "error",
+                "error": "Invalid version format",
+            })
+            continue
+
+        git_content = get_git_show_content(file_path)
+        if git_content:
+            files.append({
+                "path": file_path,
+                "platform": "root",
+                "resource_type": "scripts",
+                "resource_name": Path(file_path).name,
+                "current_version": current_version,
+                "status": "needs_bump",
+                "error": "",
+            })
+        else:
+            files.append({
+                "path": file_path,
+                "platform": "root",
+                "resource_type": "scripts",
+                "resource_name": Path(file_path).name,
+                "current_version": current_version,
+                "status": "ok",
+                "error": "",
+            })
+
+    for f in files:
+        if f["status"] == "needs_bump":
+            if f["platform"] == "root":
+                result = detect_bump_for_resource(f["path"])
+            else:
+                result = detect_bump_for_resource(f["path"])
+
+            if result.bump_type in ("patch", "minor", "major"):
+                f["status"] = f"needs_{result.bump_type}"
+            else:
+                f["status"] = "needs_patch"
+
+    has_error = any(1 for f in files if f["status"].startswith("error") or f["status"].startswith("needs_"))
+    status = "error" if has_error else "ok"
+
+    files_json = json.dumps(files)
+
+    if output_format == "json":
+        write_version_state(status, files_json)
+        print(json.dumps({"status": status, "files": files}))
+    else:
+        write_version_state(status, files_json)
+
+        if not has_error:
+            return
+
+        print("")
+        print("Version Bump Required")
+        print("=====================")
+        print("")
+
+        header = f"{'File':<50}  {'Resource':<20}  {'Current':<10}  {'Status':<15}"
+        print(header)
+        print("=" * len(header))
+
+        for f in files:
+            display_path = f["path"]
+            if len(display_path) > 48:
+                display_path = "..." + display_path[-45:]
+
+            print(f"{display_path:<50}  {f['resource_name']:<20}  {f['current_version']:<10}  {f['status']:<15}")
+
+        print("")
+        print("Run: mise run version:update")
+
+    if has_error:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

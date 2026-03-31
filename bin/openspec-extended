@@ -4,13 +4,13 @@ OpenSpec-extended - Installer for OpenSpec resources
 Usage: openspec-extended.py <install|update> <tool> [--with-core]
 """
 
-import json
 import os
 import re
 import shutil
 import subprocess
 from pathlib import Path
 
+import toml
 import typer
 from rich.console import Console
 
@@ -99,14 +99,14 @@ def get_installed_version(manifest: Path, resource_type: str, name: str) -> str:
     if not manifest.is_file():
         return ""
     try:
-        data = json.loads(manifest.read_text())
+        data = toml.loads(manifest.read_text())
         return (
             data.get("resources", {})
             .get(resource_type, {})
             .get(name, {})
             .get("version", "")
         )
-    except (json.JSONDecodeError, KeyError):
+    except (toml.TomlDecodeError, KeyError):
         return ""
 
 
@@ -290,17 +290,17 @@ def deploy_type(
 def deploy_all_resources(tool: str, force: bool) -> None:
     resources_dir = resolve_resources_dir()
     source_dir = resources_dir / tool
-    source_manifest_path = source_dir / "manifest.json"
+    source_manifest_path = source_dir / "manifest.toml"
 
     if not source_manifest_path.is_file():
         log_error(f"Manifest not found: {source_manifest_path}")
         raise SystemExit(1)
 
-    source_manifest = json.loads(source_manifest_path.read_text())
+    source_manifest = toml.loads(source_manifest_path.read_text())
     source_version = source_manifest.get("version", "unknown")
 
     target_dir = Path.cwd() / TOOL_DIRS[tool]
-    target_manifest = target_dir / "manifest.json"
+    target_manifest = target_dir / "manifest.toml"
 
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -322,9 +322,9 @@ def deploy_all_resources(tool: str, force: bool) -> None:
 
     manifest_data = source_manifest.copy()
     manifest_data["version"] = source_version
-    target_manifest.write_text(json.dumps(manifest_data, indent=2))
+    target_manifest.write_text(toml.dumps(manifest_data))
     log_success(f"Manifest updated to v{source_version}")
-    console.print(f"  Target: {target_dir}/manifest.json")
+    console.print(f"  Target: {target_dir}/manifest.toml")
 
     if total_count == 0 and total_skipped == 0:
         console.print("No resources to deploy")
@@ -436,7 +436,7 @@ def rename_core_resources(tool: str) -> None:
 
 def deploy_core(tool: str) -> None:
     target_dir = Path.cwd() / get_tool_dir(tool)
-    target_manifest = target_dir / "manifest.json"
+    target_manifest = target_dir / "manifest.toml"
 
     try:
         subprocess.run(
@@ -466,9 +466,9 @@ def deploy_core(tool: str) -> None:
         core_version = "unknown"
 
     if target_manifest.is_file():
-        manifest_data = json.loads(target_manifest.read_text())
+        manifest_data = toml.loads(target_manifest.read_text())
         manifest_data["core"] = {"version": core_version, "installed": True}
-        target_manifest.write_text(json.dumps(manifest_data, indent=2))
+        target_manifest.write_text(toml.dumps(manifest_data))
         log_info(f"Core v{core_version} tracked in manifest")
 
 
@@ -540,9 +540,9 @@ def install(
         deploy_core(tool)
 
     resources_dir = resolve_resources_dir()
-    source_manifest = resources_dir / tool / "manifest.json"
+    source_manifest = resources_dir / tool / "manifest.toml"
     if source_manifest.is_file():
-        manifest_data = json.loads(source_manifest.read_text())
+        manifest_data = toml.loads(source_manifest.read_text())
         validate_deployment(target_dir, manifest_data)
 
 
@@ -568,9 +568,9 @@ def update(
         deploy_core(tool)
 
     resources_dir = resolve_resources_dir()
-    source_manifest = resources_dir / tool / "manifest.json"
+    source_manifest = resources_dir / tool / "manifest.toml"
     if source_manifest.is_file():
-        manifest_data = json.loads(source_manifest.read_text())
+        manifest_data = toml.loads(source_manifest.read_text())
         validate_deployment(target_dir, manifest_data)
 
 
