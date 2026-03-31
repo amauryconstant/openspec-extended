@@ -6,7 +6,6 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -40,10 +39,14 @@ def detect_bump(file_path: str) -> DetectResult:
         return DetectResult("patch", "bug_fix", "high")
 
     added_lines = [
-        l for l in diff.stdout.split("\n") if l.startswith("+") and len(l) > 1
+        line
+        for line in diff.stdout.split("\n")
+        if line.startswith("+") and len(line) > 1
     ]
     removed_lines = [
-        l for l in diff.stdout.split("\n") if l.startswith("-") and len(l) > 1
+        line
+        for line in diff.stdout.split("\n")
+        if line.startswith("-") and len(line) > 1
     ]
 
     if len(removed_lines) > len(added_lines) * 2:

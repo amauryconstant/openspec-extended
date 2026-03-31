@@ -106,7 +106,7 @@ def get_installed_version(manifest: Path, resource_type: str, name: str) -> str:
             .get(name, {})
             .get("version", "")
         )
-    except toml.TomlDecodeError, KeyError:
+    except (toml.TomlDecodeError, KeyError):
         return ""
 
 

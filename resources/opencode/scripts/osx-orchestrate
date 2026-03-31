@@ -124,7 +124,7 @@ def get_version() -> str:
                 .get("osx-orchestrate", {})
                 .get("version", "unknown")
             )
-        except toml.TomlDecodeError, KeyError, AttributeError:
+        except (toml.TomlDecodeError, KeyError, AttributeError):
             pass
     return "unknown"
 
@@ -270,7 +270,7 @@ def validate_git() -> None:
 
     try:
         subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, check=True)
-    except subprocess.CalledProcessError, FileNotFoundError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         log_error("Not in a git repository")
         raise SystemExit(1)
 
@@ -685,7 +685,7 @@ def archive_log_file() -> bool:
 
     try:
         os.sync()
-    except AttributeError, OSError:
+    except (AttributeError, OSError):
         pass
 
     success, archive_dir = validate_archive()
@@ -738,7 +738,7 @@ def handle_interrupt(signum, frame) -> None:
     if state.child_pid:
         try:
             os.kill(state.child_pid, signal.SIGTERM)
-        except ProcessLookupError, PermissionError:
+        except (ProcessLookupError, PermissionError):
             pass
 
 
@@ -747,7 +747,7 @@ def cleanup(exit_code: int) -> None:
     if state.child_pid:
         try:
             os.kill(state.child_pid, signal.SIGTERM)
-        except ProcessLookupError, PermissionError:
+        except (ProcessLookupError, PermissionError):
             pass
 
     if state.interrupted:
@@ -827,7 +827,7 @@ def _list_changes() -> None:
                     print(f"  - {name}")
             except json.JSONDecodeError:
                 print("  (none)")
-    except subprocess.CalledProcessError, FileNotFoundError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         pass
 
     print("")
@@ -987,7 +987,7 @@ def main(
                 subprocess.run(
                     ["git", "rev-parse", "HEAD"], capture_output=True, check=True
                 )
-            except subprocess.CalledProcessError, FileNotFoundError:
+            except (subprocess.CalledProcessError, FileNotFoundError):
                 log_error("Required tool not found: git")
                 raise SystemExit(1)
 

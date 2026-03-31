@@ -59,7 +59,7 @@ def bump_resource_version(platform: str, resource_type: str, resource_name: str,
     return True
 
 
-def get_script_file_for_name(script_name: str) -> Path:
+def get_script_file_for_name(script_name: str) -> Path | None:
     project_root = Path(__file__).resolve().parents[3]
     if script_name == "install.sh":
         return project_root / "install.sh"

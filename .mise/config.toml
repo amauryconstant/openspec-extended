@@ -48,7 +48,7 @@ run = "uv run pytest -m e2e -q"
 
 [tasks.lint]
 description = "Lint Python files with ruff"
-run = "ruff check --fix -q bin/openspec-extended resources/opencode/scripts/osx-orchestrate"
+run = "ruff check --fix -q bin/openspec-extended resources/opencode/scripts/osx-orchestrate resources/opencode/scripts/lib/osx .mise/tasks/version/check .mise/tasks/version/update .mise/tasks/version/lib/"
 
 [tasks.format]
 description = "Format Python files with ruff"
@@ -56,4 +56,4 @@ run = "ruff format -q bin/openspec-extended resources/opencode/scripts/osx-orche
 
 [tasks."typecheck"]
 description = "Type check Python files with ty"
-run = "ty check bin/openspec-extended resources/opencode/scripts/osx-orchestrate"
+run = "ty check bin/openspec-extended resources/opencode/scripts/osx-orchestrate resources/opencode/scripts/lib/osx"
