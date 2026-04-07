@@ -8,6 +8,8 @@
 
 **Scope**: Minimal project - no deep infrastructure, CI, or complex install scripts.
 
+---
+
 ## Naming Convention
 
 | Resource        | Core (upstream) | Extended (local)    |
@@ -18,77 +20,75 @@
 | **Agents**      | N/A             | `osx-*`             |
 | **Lib scripts** | N/A             | `osx`               |
 
-**Extension Skills** (core skills in `openspec-core/AGENTS.md`):
-
-| Skill                        | Purpose                                                  |
-| ---------------------------- | -------------------------------------------------------- |
-| `osx-concepts`               | Teaches AI agents about OpenSpec framework               |
-| `osx-modify-artifacts`       | Modifies OpenSpec artifacts with dependency tracking     |
-| `osx-review-artifacts`       | Reviews artifacts for quality, completeness, consistency |
-| `osx-maintain-ai-docs`       | Maintain AGENTS.md and CLAUDE.md documentation           |
-| `osx-generate-changelog`     | Generate changelogs in Keep a Changelog format           |
-| `osx-review-test-compliance` | Review test coverage for OpenSpec changes                |
-
----
-
-## Quick Reference
-
-| Command                              | Purpose                                               |
-| ------------------------------------ | ----------------------------------------------------- |
-| `openspec-extended install opencode` | Add skills, commands, agents, scripts to `.opencode/` |
-| `openspec-extended install claude`   | Add skills, commands to `.claude/`                    |
-| `openspec-extended update opencode`  | Force update all resources in `.opencode/`            |
-| `openspec-extended update claude`    | Force update all resources in `.claude/`              |
-
-**Verify**: `ls .opencode/{skills,agents,commands,scripts}/`
+**Extension Skills** (core skills tracked in `openspec-core/AGENTS.md`)
 
 ---
 
 ## Code Style
 
-### Bash Requirements
+### Python Requirements
 
-| Rule        | Format                                |
-| ----------- | ------------------------------------- |
-| Header      | `#!/bin/bash` (Bash 4.0+)             |
-| Strict mode | `set -euo pipefail` at top            |
-| Constants   | `readonly UPPER_CASE`                 |
-| Variables   | `snake_case`, always quoted: `"$VAR"` |
-| Functions   | `snake_case()`                        |
-| Arrays      | `UPPER_CASE`                          |
+| Rule     | Format                                |
+| -------- | ------------------------------------- |
+| Style    | PEP 8 + ruff formatting               |
+| Imports  | Standard library, typer, rich, toml   |
+| Testing  | pytest with markers (unit/integration/mechanism/e2e) |
 
 ### Key Patterns
 
-```bash
-# Associative arrays
-declare -A TOOL_DIRS=(["opencode"]=".opencode")
+```python
+# Typer CLI (source/cli.py)
+from typer import Typer
+app = Typer()
 
-# Logging
-log_success() { echo -e "${COLOR_GREEN}✓${COLOR_RESET} $*"; }
-log_error() { echo -e "${COLOR_RED}✗${COLOR_RESET} $*" >&2; }
+# State management via toml (source/lib/osx.py)
+import toml
+from pathlib import Path
 
-# Error handling: exit 1 (error), exit 0 (success), messages to >&2
+# Rich console output
+from rich.console import Console
+console = Console()
 ```
 
-### Script Structure
+### Testing
 
-1. Shebang + description 2. `set -euo pipefail` 3. readonly constants 4. Logging functions 5. Argument validation 6. Main logic 7. Exit codes only on errors
+```bash
+# Run unit tests
+pytest -m unit
+
+# Run integration tests
+pytest -m integration
+
+# E2E tests (requires AI calls)
+E2E_CONFIRM=1 pytest -m e2e
+
+# Run with verbose output
+pytest -v
+```
 
 ---
 
 ## Project Structure
 
 ```
-bin/openspec-extended       # Main executable
-openspec-core/              # Official OpenSpec workflows (read-only, sync from upstream)
-resources/opencode/         # Extended resources (maintained locally)
-  ├── skills/               # Extension skills (osx-*)
-  ├── agents/               # Agent definitions (osx-*)
-  ├── commands/             # Phase commands (osx-phase*, osx-*)
-  └── scripts/
-      ├── osx-orchestrate   # Autonomous workflow orchestrator
-      └── lib/osx           # Helper CLI tool
-research/                   # Platform documentation
+source/
+├── __init__.py          # Version: 0.18.2
+├── __main__.py          # Entry: python -m source
+├── cli.py               # Typer CLI (install/update/orchestrate/run)
+├── lib/
+│   └── osx.py           # Change management (baseline, ctx, git, phase, state)
+└── orchestrator/
+    └── engine.py        # 7-phase autonomous workflow
+
+bin/                     # Empty (was Bash CLI, now in source/)
+
+resources/
+├── opencode/            # Skills, agents, commands, scripts
+└── claude/              # Same structure for Claude Code
+
+openspec-core/           # Official OpenSpec workflows (read-only)
+research/                # Platform documentation
+tests/                   # pytest suite (unit/integration/e2e)
 ```
 
 ---
@@ -111,58 +111,13 @@ license: MIT
 
 ---
 
-## Autonomous Workflow
-
-**Purpose**: 7-phase autonomous implementation loop via `osx-orchestrate`
-
-### Agents & Commands
-
-| Agent            | Tools                               | Temp | Phases                 |
-| ---------------- | ----------------------------------- | ---- | ---------------------- |
-| `osx-analyzer`   | read, grep, glob, bash              | 0.1  | PHASE0, PHASE2, PHASE5 |
-| `osx-builder`    | read, grep, glob, bash, write, edit | 0.4  | PHASE1                 |
-| `osx-maintainer` | read, grep, glob, bash, write, edit | 0.3  | PHASE3, PHASE4, PHASE6 |
-
-| Command       | Agent      | Description     |
-| ------------- | ---------- | --------------- |
-| `/osx-phase0` | analyzer   | Artifact Review |
-| `/osx-phase1` | builder    | Implementation  |
-| `/osx-phase2` | analyzer   | Verification    |
-| `/osx-phase3` | maintainer | Maintain-Docs   |
-| `/osx-phase4` | maintainer | Sync            |
-| `/osx-phase5` | analyzer   | Self-Reflection |
-| `/osx-phase6` | maintainer | Archive         |
-
-### Usage
+## Version Bumping
 
 ```bash
-.opencode/scripts/osx-orchestrate <change-name>
-.opencode/scripts/osx-orchestrate add-auth --max-phase-iterations 20 --verbose
-.opencode/scripts/osx-orchestrate add-auth --from-phase PHASE3
-.opencode/scripts/osx-orchestrate add-auth --dry-run
+mise run version
 ```
 
-### Options
-
-`--max-phase-iterations N` `--timeout N` `--model MODEL` `--verbose` `--dry-run` `--force` `--clean` `--from-phase PHASEX` `--list` `--version`
-
-### State Files (`openspec/changes/<change>/`)
-
-| File                | Purpose                      | Lifecycle                     |
-| ------------------- | ---------------------------- | ----------------------------- |
-| `state.json`        | Phase tracking + transitions | Deleted before archive commit |
-| `complete.json`     | Workflow completion (PHASE5) | Deleted before archive commit |
-| `iterations.json`   | Iteration history            | Archived (never deleted)      |
-| `decision-log.json` | Agent reasoning              | Archived (never deleted)      |
-
-Note: After PHASE6 (Archive), historical files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`. Transient files (state.json, complete.json, baseline) are deleted before the archive commit, leaving a clean git history. The `osx` lib tool automatically detects archived locations.
-
-### Manual Invocation
-
-```
-/osx-phase0 my-change-name
-@osx-analyzer  # hidden but accessible
-```
+Updates version in `source/__init__.py` and `pyproject.toml`.
 
 ---
 
