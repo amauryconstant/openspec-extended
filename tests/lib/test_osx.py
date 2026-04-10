@@ -486,7 +486,7 @@ class TestValidate:
         skills_dir = tmp_path / ".opencode/skills"
         skills_dir.mkdir(parents=True)
 
-        for skill in osx.REQUIRED_SKILLS:
+        for skill in osx.REQUIRED_SKILLS + osx.REQUIRED_CORE_SKILLS:
             skill_path = skills_dir / skill
             skill_path.mkdir()
             (skill_path / "SKILL.md").write_text(f"# {skill}")

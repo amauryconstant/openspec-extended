@@ -14,6 +14,7 @@ import typer
 from rich.console import Console
 
 from source import __version__
+from source.lib.osx import REQUIRED_CORE_SKILLS
 from source.orchestrator.engine import run_orchestrator
 
 SCRIPT_NAME = "openspec-extended"
@@ -404,7 +405,13 @@ def rename_core_resources(tool: str) -> None:
         for skill_dir in skills_dir.iterdir():
             if skill_dir.is_dir() and skill_dir.name.startswith("openspec-"):
                 new_name = skill_dir.name.replace("openspec-", "osc-", 1)
-                skill_dir.rename(skills_dir / new_name)
+                dest_dir = skills_dir / new_name
+                if dest_dir.exists():
+                    for f in skill_dir.glob("*"):
+                        f.rename(dest_dir / f.name)
+                    skill_dir.rmdir()
+                else:
+                    skill_dir.rename(dest_dir)
                 renamed += 1
 
         for skill_file in skills_dir.rglob("*.md"):
@@ -441,7 +448,6 @@ def deploy_core(tool: str) -> None:
         raise SystemExit(1)
 
     rename_core_resources(tool)
-    log_success("Core resources installed (osc-*)")
 
     try:
         result = subprocess.run(
@@ -452,8 +458,30 @@ def deploy_core(tool: str) -> None:
     except (subprocess.CalledProcessError, FileNotFoundError):
         core_version = "unknown"
 
-    if target_manifest.is_file():
+    skills_dir = target_dir / "skills"
+    manifest_updates = {}
+    for skill_dir in skills_dir.iterdir():
+        if skill_dir.is_dir() and skill_dir.name.startswith("osc-"):
+            skill_md = skill_dir / "SKILL.md"
+            if skill_md.exists():
+                match = re.search(
+                    r'^version:\s*"([^"]+)"', skill_md.read_text(), re.MULTILINE
+                )
+                version = match.group(1) if match else core_version
+                manifest_updates[skill_dir.name] = {"version": version}
+
+    for skill in REQUIRED_CORE_SKILLS:
+        if not (skills_dir / skill).is_dir():
+            log_error(f"Core skill not installed: {skill}")
+            raise SystemExit(1)
+
+    log_success("Core resources installed (osc-*)")
+
+    if manifest_updates and target_manifest.is_file():
         manifest_data = toml.loads(target_manifest.read_text())
+        manifest_data.setdefault("resources", {}).setdefault("skills", {}).update(
+            manifest_updates
+        )
         manifest_data["core"] = {"version": core_version, "installed": True}
         target_manifest.write_text(toml.dumps(manifest_data))
         log_info(f"Core v{core_version} tracked in manifest")

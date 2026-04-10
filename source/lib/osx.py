@@ -63,10 +63,13 @@ REQUIRED_SKILLS = [
     "osx-concepts",
     "osx-review-artifacts",
     "osx-modify-artifacts",
-    "osc-apply-change",
     "osx-review-test-compliance",
-    "osc-verify-change",
     "osx-maintain-ai-docs",
+]
+
+REQUIRED_CORE_SKILLS = [
+    "osc-apply-change",
+    "osc-verify-change",
     "osc-sync-specs",
     "osc-archive-change",
 ]
@@ -918,14 +921,18 @@ def validate_cmd(
 
     elif action == "skills":
         errors = []
+        missing_skills = []
 
-        for skill in REQUIRED_SKILLS:
+        for skill in REQUIRED_SKILLS + REQUIRED_CORE_SKILLS:
             skill_path = SKILLS_DIR / skill / "SKILL.md"
             if not skill_path.exists():
                 errors.append({"check": "skills", "message": f"Missing skill: {skill}"})
+                missing_skills.append(skill)
 
         if errors:
-            osx_output({"valid": False, "errors": errors})
+            osx_output(
+                {"valid": False, "errors": errors, "missing_skills": missing_skills}
+            )
             raise typer.Exit(1)
 
         osx_output({"valid": True})

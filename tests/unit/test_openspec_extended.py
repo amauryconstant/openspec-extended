@@ -91,9 +91,9 @@ class TestCLIParsing:
         assert result.exit_code == 2
         assert "Missing argument" in result.output
 
-    def test_run_command_requires_change_id(self):
-        """run without change_id shows error and exits 2 (Typer exit code)."""
-        result = runner.invoke(app, ["run"])
+    def test_orchestrate_command_requires_change_id(self):
+        """orchestrate without change_id shows error and exits 2 (Typer exit code)."""
+        result = runner.invoke(app, ["orchestrate"])
         assert result.exit_code == 2
         assert "Missing argument" in result.output
 
@@ -103,12 +103,12 @@ class TestCLIParsing:
         assert result.exit_code == 1
 
     def test_help_shows_commands(self):
-        """--help displays install, update, and run commands."""
+        """--help displays install, update, and orchestrate commands."""
         result = runner.invoke(app, ["--help"])
         assert result.exit_code == 0
         assert "install" in result.output
         assert "update" in result.output
-        assert "run" in result.output
+        assert "orchestrate" in result.output
 
 
 @pytest.mark.unit
