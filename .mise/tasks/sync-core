@@ -34,7 +34,14 @@ main() {
     
     log_info "Cloning OpenSpec repository..."
     git clone --depth 1 "$UPSTREAM_REPO" "$temp_dir/openspec"
-    
+
+    # pnpm 10.26+ blocks dependency build scripts by default; allow esbuild
+    # (required for the OpenSpec TypeScript build to fetch its native binary)
+    cat > "$temp_dir/openspec/pnpm-workspace.yaml" << 'EOF'
+allowBuilds:
+  esbuild: true
+EOF
+
     log_info "Installing dependencies..."
     cd "$temp_dir/openspec"
     pnpm install --frozen-lockfile 2>/dev/null || pnpm install
