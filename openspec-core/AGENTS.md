@@ -2,7 +2,7 @@
 
 **Source**: Official OpenSpec workflow skills - track upstream, do not modify locally.
 
-**Version**: v1.2.0 (custom profile with all 11 workflows)
+**Version**: v1.4.1 (custom profile with all 11 workflows)
 
 ---
 
