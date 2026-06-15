@@ -75,8 +75,14 @@ are bumped independently when skills, agents, or commands change.
 ### Testing
 
 ```bash
+# Run all default tests (unit, integration, mechanism, including bats)
+mise run test
+
 # Run unit tests
 pytest -m unit
+
+# Run install.sh unit tests (bats, hermetic via local HTTP server)
+mise run test:unit:bats
 
 # Run integration tests
 pytest -m integration
@@ -84,11 +90,11 @@ pytest -m integration
 # Run mechanism tests (CLI validation, no AI calls)
 pytest -m mechanism
 
+# Run bats mechanism tests against the built binary (no AI calls)
+mise run test:mechanism:bats
+
 # Run e2e full workflow tests (requires built binary + E2E_CONFIRM=1)
 E2E_CONFIRM=1 mise run test:e2e
-
-# Run install.sh unit tests (bats, hermetic via local HTTP server)
-bats tests/unit/install.bats
 
 # Run all checks
 mise run verify
@@ -104,8 +110,8 @@ behavior in ways that the source-only path can't reproduce.
 - `tests/e2e/mechanism.bats` — bats, runs by default. Same coverage as the pytest mechanism suite, executed against the built binary.
 - `tests/e2e/full-workflow.bats` — bats, requires `E2E_CONFIRM=1`. Runs the full workflow end-to-end against the built binary.
 
-The `test:eunit` and `test:e2e` mise tasks call `build` first so the binary
-is always current.
+The `test:mechanism:bats` and `test:e2e` mise tasks call `build` first so
+the binary is always current.
 
 ---
 

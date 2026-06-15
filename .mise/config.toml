@@ -26,13 +26,19 @@ run = [
 description = "Run unit, integration and mechanism tests"
 run = [
     { task = "test:unit" },
+    { task = "test:unit:bats" },
     { task = "test:integration" },
     { task = "test:mechanism" },
+    { task = "test:mechanism:bats" },
 ]
 
 [tasks."test:unit"]
 description = "Run unit tests"
 run = "uv run pytest -m unit -q"
+
+[tasks."test:unit:bats"]
+description = "Run bats unit tests for install.sh"
+run = "bats tests/unit/install.bats"
 
 [tasks."test:integration"]
 description = "Run integration tests"
@@ -41,6 +47,11 @@ run = "uv run pytest -m integration -q"
 [tasks."test:mechanism"]
 description = "Run mechanism tests (no AI calls)"
 run = "uv run pytest -m mechanism -q"
+
+[tasks."test:mechanism:bats"]
+description = "Run bats mechanism tests against built binary (no AI calls)"
+depends = "build"
+run = "bats tests/e2e/mechanism.bats"
 
 [tasks."test:e2e"]
 description = "Run E2E full workflow tests"
