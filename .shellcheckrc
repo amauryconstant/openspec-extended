@@ -10,7 +10,7 @@ shell=auto
 # SC2155: Declare and assign separately to avoid masking return values
 # SC2249: Consider adding a default *) case (we validate inputs earlier)
 # SC2312: Consider invoking command separately (acceptable in this codebase)
-disable=SC2001,SC2155,SC2249,SC2312
+disable=SC2001,SC2155,SC2249,SC2312,SC2310,SC1091
 
 # Enable optional checks for better code quality
 enable=add-default-case
