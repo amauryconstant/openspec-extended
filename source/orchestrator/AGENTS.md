@@ -23,7 +23,7 @@ Drives a change through seven autonomous phases by spawning AI processes per pha
 
 ## Phase Transitions
 
-A phase advances when the AI process exits 0 and reports completion via the `osx state` / `osx complete` subcommands. Failed phases transition backward using one of three reasons:
+A phase advances when the AI process exits 0 and reports completion. The orchestrator detects completion by reading `state.json` (via `osx.state_get`) or by checking the archive directory for PHASE6. Failed phases transition backward using one of three reasons:
 
 | Reason | Trigger |
 |--------|---------|
@@ -31,7 +31,7 @@ A phase advances when the AI process exits 0 and reports completion via the `osx
 | `artifacts_modified` | Artifacts changed since the last iteration |
 | `retry_requested` | Manual or self-reflection request |
 
-Defined in `source/lib/osx.py:VALID_TRANSITION_REASONS`.
+Defined in `source/lib/osx.py:VALID_TRANSITION_REASONS`. Set on `state.json` by the AI agent and read by the orchestrator.
 
 ## Loop Shape
 
@@ -44,19 +44,20 @@ Each phase may iterate up to `DEFAULT_MAX_PHASE_ITERATIONS` times before the orc
 
 ## Conventions
 
-- The orchestrator is a **driver**, not a decision-maker. It shells out to the AI CLI and reads JSON back from `osx` subcommands.
-- State persists under the change directory (typically `.openspec/changes/<id>/state.json`); the orchestrator never mutates state directly — it calls `osx state` / `osx phase`.
+- The orchestrator is a **driver**, not a decision-maker. It calls the AI CLI and reads dicts back from in-process `osx` library functions (`osx.state_get`, `osx.phase_advance`, etc.).
+- State persists under the change directory (typically `openspec/changes/<id>/state.json`); the orchestrator never mutates state directly — it calls `osx.state_*` library functions.
 - Cancellation is via SIGINT/SIGTERM: the orchestrator kills the AI child and records the partial state.
+- After PHASE6, the orchestrator runs `archive_log_file()` to move the per-invocation log into the archive directory and amend the archive commit.
 
 ## Entry Point
 
-- `run_orchestrator(...)` — async function in `engine.py`, exposed via `source.orchestrator.__init__`.
-- Mounted under the main CLI as `openspec-extended orchestrate`.
+- `run_orchestrator(state)` — synchronous function in `engine.py`, exposed via `source.orchestrator.__init__`.
+- Mounted under the main CLI as `openspec-extended orchestrate` (defined in `source/cli.py:orchestrate`).
 
 ## See Also
 
 - Root `AGENTS.md` — Code Style, Versioning
 - `source/AGENTS.md` — Module roles
-- `source/lib/AGENTS.md` — `osx` subcommand contract (state I/O)
+- `source/lib/AGENTS.md` — `osx` library contract (state I/O)
 - `resources/opencode/commands/AGENTS.md` — Phase command definitions
 - `resources/opencode/agents/AGENTS.md` — Phase agent definitions

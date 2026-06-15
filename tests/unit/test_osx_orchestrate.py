@@ -154,12 +154,13 @@ class TestStateMachine:
     def test_check_complete_detection(self, temp_change_dir, monkeypatch):
         """COMPLETE signal detection via complete.json."""
         from source.orchestrator.engine import check_complete
+        from source.lib import osx
 
         monkeypatch.chdir(temp_change_dir.parent.parent.parent)
         st = OrchestratorState(change_dir=temp_change_dir, change_id="test-change")
 
-        with patch("source.orchestrator.engine.run_osx_command") as mock_cmd:
-            mock_cmd.return_value = (json.dumps({"valid": True}), 0)
+        with patch("source.lib.osx.complete_check") as mock_check:
+            mock_check.return_value = {"exists": True}
             result = check_complete(st)
             assert result is True
 

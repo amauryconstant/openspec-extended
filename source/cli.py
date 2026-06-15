@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 import toml
 import typer
@@ -15,9 +16,9 @@ from rich.console import Console
 
 from source import __version__
 from source.lib.osx import REQUIRED_CORE_SKILLS
-from source.orchestrator.engine import run_orchestrator
+from source.orchestrator.engine import OrchestratorState, run_orchestrator
 
-SCRIPT_VERSION = "0.19.0"
+SCRIPT_VERSION = "0.19.1"
 SCRIPT_NAME = "openspec-extended"
 
 TOOL_DIRS = {"opencode": ".opencode", "claude": ".claude"}
@@ -589,7 +590,8 @@ def update(
 
 @app.command("orchestrate", help="Run the 7-phase autonomous change workflow")
 def orchestrate(
-    change_name: str = typer.Argument(..., help="OpenSpec change ID"),
+    ctx: typer.Context,
+    change_name: Optional[str] = typer.Argument(None, help="OpenSpec change ID"),
     timeout: int = typer.Option(
         1800, "--timeout", "-t", help="Timeout per iteration (seconds)"
     ),
@@ -614,10 +616,12 @@ def orchestrate(
     ),
     list_changes: bool = typer.Option(False, "--list", help="List available changes"),
 ) -> None:
-    from source.orchestrator.engine import OrchestratorState
+    if not list_changes and not change_name:
+        log_error("orchestrate: missing change ID (or pass --list)")
+        raise typer.Exit(code=2)
 
     state = OrchestratorState()
-    state.change_id = change_name
+    state.change_id = change_name or ""
     state.max_phase_iterations = max_phase_iterations
     state.timeout = timeout
     state.verbose = verbose

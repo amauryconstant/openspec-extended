@@ -92,10 +92,10 @@ class TestCLIParsing:
         assert "Missing argument" in result.output
 
     def test_orchestrate_command_requires_change_id(self):
-        """orchestrate without change_id shows error and exits 2 (Typer exit code)."""
+        """orchestrate without change_id shows error and exits 2."""
         result = runner.invoke(app, ["orchestrate"])
         assert result.exit_code == 2
-        assert "Missing argument" in result.output
+        assert "missing change ID" in result.output
 
     def test_install_unknown_tool_shows_error(self):
         """install with invalid tool exits 1."""
