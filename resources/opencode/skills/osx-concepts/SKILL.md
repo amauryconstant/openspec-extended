@@ -393,9 +393,25 @@ OpenSpec-extended includes an autonomous orchestrator (`osx-orchestrate`) that r
 | `openspec` | Core CLI tool | npm package | `openspec status`, `openspec new change` |
 | `osc-*` | Core skills | Upstream (installer renames `openspec-*` → `osc-*`) | `osc-new-change` (was `openspec-new-change`), `osc-apply-change` (was `openspec-apply-change`) |
 | `osx-*` | Extended skills | Local extensions | `osx-review-artifacts`, `osx-modify-artifacts` |
-| `osx` | Lib tool | `.opencode/scripts/lib/osx` | `osx ctx get`, `osx state complete` |
+| `osx` | Lib tool | `.opencode/scripts/lib/osx` | `osx ctx get`, `osx state complete` (see full vocabulary below) |
 
 **Critical**: When executing phase commands (PHASE0-PHASE6), the tool is `osx` lib tool, not `osc`.
+
+**`osx` lib tool vocabulary** (every valid action per domain — use exactly these verbs):
+
+| Domain | Read | Write / Mutate |
+|--------|------|----------------|
+| `ctx` | `get` | — |
+| `git` | `get` | — |
+| `baseline` | `get` | `record` |
+| `state` | `get` | `complete`, `set-phase`, `transition`, `clear-transition` |
+| `iterations` | `get` | `append` |
+| `log` | `get` | `append` |
+| `complete` | `check`, `get` | `set` |
+| `validate` | `json`, `skills`, `commands`, `change-dir`, `archive`, `iterations`, `completion` | — |
+| `instructions` | `instructions <artifact> [--change <name>] [--json]` | — |
+
+The only canonical read verb is `get`. There is no `show` or `list` — use `get`. The only canonical write verbs are `append`, `complete`, `set-phase`, `transition`, `clear-transition`, `record`, and `set` (for `complete`).
 
 ---
 

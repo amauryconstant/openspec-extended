@@ -2,7 +2,7 @@
 version = "0.1.0"
 
 [resources.skills.osx-concepts]
-version = "0.5.0"
+version = "0.5.1"
 
 [resources.skills.osx-generate-changelog]
 version = "0.2.1"

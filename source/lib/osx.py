@@ -1244,7 +1244,7 @@ def baseline_cmd(
 ) -> None:
     if action == "record":
         data = _call_library(baseline_record)
-    elif action == "get":
+    elif action == "get" or action == "show":
         data = _call_library(baseline_get)
     else:
         osx_error("invalid_action", f"Unknown action: {action}", valid="record, get")
@@ -1257,10 +1257,11 @@ def ctx_cmd(
     action: str = typer.Argument(..., help="Action: get"),
     change: str = typer.Argument(..., help="Change name"),
 ) -> None:
-    if action != "get":
+    if action == "get" or action == "show":
+        data = _call_library(ctx_get, change)
+    else:
         osx_error("invalid_action", f"Unknown action: {action}", valid="get")
         return
-    data = _call_library(ctx_get, change)
     osx_output(data)
 
 
@@ -1269,10 +1270,11 @@ def git_cmd(
     action: str = typer.Argument(..., help="Action: get"),
     change: str = typer.Argument(..., help="Change name"),
 ) -> None:
-    if action != "get":
+    if action == "get" or action == "show":
+        data = _call_library(git_get, change)
+    else:
         osx_error("invalid_action", f"Unknown action: {action}", valid="get")
         return
-    data = _call_library(git_get, change)
     osx_output(data)
 
 
@@ -1315,15 +1317,15 @@ def state_cmd(
         None, "--iteration", help="Iteration number"
     ),
 ) -> None:
-    if action == "get":
+    if action == "get" or action == "show":
         data = _call_library(state_get, change)
     elif action == "complete":
         data = _call_library(state_complete, change)
     elif action == "transition":
         data = _call_library(state_transition, change, target, reason, details)
-    elif action == "clear-transition":
+    elif action == "clear-transition" or action == "clear":
         data = _call_library(state_clear_transition, change)
-    elif action == "set-phase":
+    elif action == "set-phase" or action == "set":
         data = _call_library(state_set_phase, change, phase, iteration)
     else:
         osx_error(
@@ -1361,7 +1363,7 @@ def iterations_cmd(
         None, "--extra", help="Additional fields (JSON object)"
     ),
 ) -> None:
-    if action == "get":
+    if action == "get" or action == "show" or action == "list":
         data = _call_library(iterations_get, change)
     elif action == "append":
         data = _call_library(
@@ -1410,7 +1412,7 @@ def log_cmd(
         None, "--extra", help="Additional fields (JSON object)"
     ),
 ) -> None:
-    if action == "get":
+    if action == "get" or action == "show" or action == "list":
         data = _call_library(log_get, change)
     elif action == "append":
         data = _call_library(

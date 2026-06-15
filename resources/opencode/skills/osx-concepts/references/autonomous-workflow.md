@@ -157,7 +157,6 @@ Location: `.opencode/scripts/lib/osx` (Python script)
 | `log` | `append` | Record decision in decision-log.json |
 | `iterations` | `append` | Record iteration in iterations.json |
 | `complete` | `set BLOCKED` | Signal unrecoverable blocker |
-| `validate` | `changes` | Validate state file integrity |
 
 **Examples**:
 ```bash
@@ -177,6 +176,20 @@ Location: `.opencode/scripts/lib/osx` (Python script)
 .opencode/scripts/lib/osx complete set "$CHANGE_ID" BLOCKED \
   --blocker-reason "Third-party API unavailable"
 ```
+
+**Complete vocabulary** (every valid action per domain — canonical form):
+
+| Domain | Read | Write / Mutate |
+|--------|------|----------------|
+| `ctx` | `get` | — |
+| `git` | `get` | — |
+| `baseline` | `get` | `record` |
+| `state` | `get` | `complete`, `set-phase`, `transition`, `clear-transition` |
+| `iterations` | `get` | `append` |
+| `log` | `get` | `append` |
+| `complete` | `check`, `get` | `set` |
+| `validate` | `json`, `skills`, `commands`, `change-dir`, `archive`, `iterations`, `completion` | — |
+| `instructions` | `instructions <artifact> [--change <name>] [--json]` | — |
 
 ---
 
@@ -279,7 +292,7 @@ graph TD
 
 **State update**:
 ```bash
-.osx/scripts/lib/osx state complete "$1"
+.opencode/scripts/lib/osx state complete "$1"
 ```
 
 ### 5.2 PHASE1: Implementation
@@ -321,16 +334,16 @@ graph TD
 **State updates**:
 ```bash
 # Normal: all good
-.osx/scripts/lib/osx state complete "$1"
+.opencode/scripts/lib/osx state complete "$1"
 
 # Explicit transition: artifacts wrong
-.osx/scripts/lib/osx state transition "$1" PHASE1 artifacts_modified "Updated unclear specs"
+.opencode/scripts/lib/osx state transition "$1" PHASE1 artifacts_modified "Updated unclear specs"
 
 # Explicit transition: implementation wrong
-.osx/scripts/lib/osx state transition "$1" PHASE1 implementation_incorrect "Missing validation"
+.opencode/scripts/lib/osx state transition "$1" PHASE1 implementation_incorrect "Missing validation"
 
 # Explicit transition: retry
-.osx/scripts/lib/osx state transition "$1" PHASE2 retry_requested "Alternative strategy"
+.opencode/scripts/lib/osx state transition "$1" PHASE2 retry_requested "Alternative strategy"
 ```
 
 ### 5.4 PHASE3: Maintain Documentation
@@ -508,7 +521,7 @@ Orchestrator enforces limits to prevent infinite loops:
 Always log decisions with context:
 
 ```bash
-.osx/scripts/lib/osx log append "$1" \
+.opencode/scripts/lib/osx log append "$1" \
   --phase IMPLEMENTATION \
   --iteration 3 \
   --summary "Completed authentication tasks 1.1-1.5" \
