@@ -5,7 +5,7 @@
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPTS_DIR="$PROJECT_ROOT/resources/opencode/scripts"
 FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures"
-INSTALLER="$PROJECT_ROOT/bin/openspec-extended"
+OPENSPEC_BIN="$PROJECT_ROOT/dist/openspec-extended"
 
 require_e2e_confirm() {
     if [[ "${E2E_CONFIRM:-}" != "1" ]]; then
@@ -25,7 +25,7 @@ setup_e2e_repo() {
     git add README.md
     git commit -q -m "Initial commit"
 
-    "$INSTALLER" install opencode --with-core >/dev/null 2>&1
+    "$OPENSPEC_BIN" install opencode --with-core >/dev/null 2>&1
 
     mkdir -p openspec/changes
 
@@ -52,7 +52,7 @@ copy_fixture() {
 }
 
 run_osx_orchestrate() {
-    run .opencode/scripts/osx-orchestrate "$@"
+    run "$OPENSPEC_BIN" orchestrate "$@"
 }
 
 run_streaming() {
@@ -65,10 +65,8 @@ run_streaming() {
         output_fd=3
     fi
 
+    # Execute command directly - bash handles multi-word commands correctly
     # Stream to terminal via FD 3 (BATS) or stdout, while capturing to file
-    # IMPORTANT: Orchestrate script already uses exec > >(tee ...) for logging
-    # So we must avoid nested tee which breaks exit code capture
-    # Solution: Redirect to file and terminal without additional tee layer
     "$@" 2>&1 | tee "$tmp_file" >&$output_fd
     local exit_code=${PIPESTATUS[0]}
 
@@ -88,7 +86,7 @@ run_streaming() {
 }
 
 run_osx_orchestrate_streaming() {
-    run_streaming .opencode/scripts/osx-orchestrate "$@"
+    run_streaming "$OPENSPEC_BIN" orchestrate "$@"
 }
 
 wait_for_file() {
