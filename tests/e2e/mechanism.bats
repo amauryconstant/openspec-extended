@@ -61,3 +61,46 @@ teardown() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"Unknown option"* ]] || [[ "$output" == *"invalid"* ]]
 }
+
+# ========== Bundled resource deployment ==========
+#
+# These tests run against the built binary (built fresh by
+# test:mechanism:bats) and assert the resources PyInstaller embeds
+# actually reach the filesystem when the user runs `install <tool>`.
+# The `setup_e2e_repo` helper pre-installs opencode for the
+# orchestrator tests above, so these cases use a fresh tmpdir to
+# observe a real install from a clean state.
+
+@test "mechanism: install opencode deploys bundled resources" {
+    local fresh_dir
+    fresh_dir=$(mktemp -d)
+    cd "$fresh_dir" || exit 1
+
+    run "$OPENSPEC_BIN" install opencode
+    echo "STATUS=$status"
+    echo "OUTPUT=$output"
+    [ "$status" -eq 0 ]
+    [ -d .opencode/skills/osx-workflow ]
+    [ -d .opencode/skills/osx-concepts ]
+    [ -f .opencode/manifest.toml ]
+    [ -f .opencode/skills/osx-workflow/SKILL.md ]
+
+    rm -rf "$fresh_dir"
+}
+
+@test "mechanism: install claude deploys bundled resources" {
+    local fresh_dir
+    fresh_dir=$(mktemp -d)
+    cd "$fresh_dir" || exit 1
+
+    run "$OPENSPEC_BIN" install claude
+    echo "STATUS=$status"
+    echo "OUTPUT=$output"
+    [ "$status" -eq 0 ]
+    [ -d .claude/skills/osx-workflow ]
+    [ -d .claude/skills/osx-concepts ]
+    [ -f .claude/manifest.toml ]
+    [ -f .claude/skills/osx-workflow/SKILL.md ]
+
+    rm -rf "$fresh_dir"
+}

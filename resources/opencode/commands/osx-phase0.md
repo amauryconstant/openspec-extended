@@ -20,7 +20,7 @@ Change: $1
   !`.opencode/scripts/lib/osx ctx get "$1"`
 2. Confirm `phase` is PHASE0
 3. Review `history.iterations_recorded` for previous attempts
-4. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
+4. Load skills: `osx-concepts` and `osx-workflow` (both reference only)
 
 ## PURPOSE
 
@@ -51,9 +51,9 @@ Ensure OpenSpec artifacts are excellent before implementation. Validate:
     b. Mark phase complete via `osx state`
     c. Script will advance to PHASE1
 
-6. IF MAX ITERATIONS (5) reached without clean review:
+6. IF MAX ITERATIONS (10) reached without clean review:
     a. Document all remaining CRITICAL issues via `osx log`
-   b. Create `complete.json` with CRITICAL BLOCKER status (workflow stops)
+   b. Create `complete.json` with BLOCKED status (workflow stops)
 
 ## MANDATORY END
 
@@ -111,7 +111,7 @@ Append entry:
 ## GUARDRAILS
 
 - Must fix CRITICAL issues before proceeding
-- Max 5 review iterations
+- Max 10 review iterations
 - One commit at end of phase if artifacts were modified
 - Early exit if first review returns clean
 

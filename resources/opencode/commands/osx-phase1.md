@@ -21,7 +21,7 @@ Change: $1
   !`.opencode/scripts/lib/osx ctx get "$1"`
 2. Confirm `phase` is PHASE1
 3. Review `history.iterations_recorded` for previous attempts
-4. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
+4. Load skills: `osx-concepts` and `osx-workflow` (both reference only)
 5. Read context files: `openspec/changes/$1/proposal.md`, `openspec/changes/$1/specs/`, `openspec/changes/$1/design.md`, `openspec/changes/$1/tasks.md`
 6. Determine which tasks to implement this iteration
 

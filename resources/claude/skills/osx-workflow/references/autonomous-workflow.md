@@ -4,7 +4,7 @@ Complete reference for the OpenSpec-extended autonomous orchestrator system.
 
 **Purpose**: Guide AI agents working with the 7-phase autonomous implementation workflow.
 
-**When to read this**: When executing `/osx-phase0` through `/osx-phase6` commands or debugging orchestrator issues.
+**When to read this**: When executing `osx-phase0` through `osx-phase6` commands, when the orchestrator dispatches you, or when debugging orchestrator issues.
 
 ---
 
@@ -25,17 +25,19 @@ Complete reference for the OpenSpec-extended autonomous orchestrator system.
 
 ### 1.1 What Is the Orchestrator?
 
-The orchestrator (`osx-orchestrate`) is a Python script that manages autonomous implementation of OpenSpec changes through 7 phases:
+The orchestrator is the Python engine in `source/orchestrator/engine.py`, exposed via the `openspec-extended orchestrate <change>` command (the entry point users run). A copy is also deployed as `.opencode/scripts/osx-orchestrate` for environments where the binary isn't on `PATH`. The engine manages autonomous implementation of OpenSpec changes through 7 phases:
 
 ```
-PHASE0: Artifact Review   → osx-analyzer
-PHASE1: Implementation   → osx-builder
-PHASE2: Verification    → osx-analyzer
-PHASE3: Maintain Docs   → osx-maintainer
-PHASE4: Sync           → osx-maintainer
-PHASE5: Self-Reflection → osx-analyzer
-PHASE6: Archive         → osx-maintainer
+PHASE0: ARTIFACT_REVIEW  → osx-analyzer
+PHASE1: IMPLEMENTATION   → osx-builder
+PHASE2: REVIEW           → osx-analyzer
+PHASE3: MAINTAIN_DOCS    → osx-maintainer
+PHASE4: SYNC             → osx-maintainer
+PHASE5: SELF_REFLECTION  → osx-analyzer
+PHASE6: ARCHIVE          → osx-maintainer
 ```
+
+> **PHASE2 name disambiguation**: the engine's canonical phase name is `REVIEW`. The skill it loads is `osc-verify-change` ("Verification"). Both refer to the same phase; you'll see `--phase REVIEW` in `decision-log.json` and the skill name as `osc-verify-change` in the phase command. See the main skill (§2) for the full cross-reference.
 
 ### 1.2 Orchestrator Loop
 
@@ -72,21 +74,24 @@ After archive: Historical files move to `openspec/changes/archive/YYYY-MM-DD-<ch
 
 ### 2.1 How Agents Are Invoked
 
-The orchestrator uses OpenCode's `opencode run` command:
+The orchestrator spawns per-phase AI processes via OpenCode's `opencode run` command:
 
 ```bash
 opencode run \
   --command "osx-phase0" \
   --agent "osx-analyzer" \
   "$CHANGE_ID" \
-  --title="PHASE0: Artifact Review for $CHANGE_ID" \
-  --model="claude-sonnet-4"
+  --title="OpenSpec: $CHANGE_ID - ARTIFACT REVIEW" \
+  --model="$MODEL"
 ```
 
+The model defaults to the platform's configured default; override with `openspec-extended orchestrate --model <name>`.
+
 **Key points**:
-- CHANGE_ID is passed as **positional argument** (not a flag)
-- Commands reference it as `$1` in their markdown
+- `$CHANGE_ID` is passed as **positional argument** (not a flag)
+- Phase commands reference it as `$1` in their markdown
 - Agent receives full context including state files and history
+- Each iteration is a **fresh subprocess**; per-subprocess timeout is `--timeout` (default 1800s)
 
 ### 2.2 Agent's Responsibilities
 
@@ -127,7 +132,7 @@ Phase commands instruct agents to "load and use" skills:
 
 | Prefix | Meaning | Source | Example |
 |--------|----------|---------|---------|
-| `openspec-*` (renamed to `osc-*`) | OpenSpec Core | Upstream npm package | `openspec-new-change`, `openspec-apply-change` |
+| `osc-*` (renamed from `openspec-*`) | OpenSpec Core | Upstream npm package, renamed by installer | `osc-new-change` (was `openspec-new-change`), `osc-apply-change` (was `openspec-apply-change`) |
 | `osx-*` | OpenSpec eXtended | Local extensions | `osx-review-artifacts`, `osx-modify-artifacts` |
 | `openspec` | Core CLI | npm installed tool | `openspec status`, `openspec new change` |
 
@@ -150,13 +155,20 @@ Location: `.opencode/scripts/lib/osx` (Python script)
 **Domains and Actions**:
 
 | Domain | Action | Purpose |
-|--------|---------|---------|
+|--------|--------|---------|
 | `ctx` | `get` | Load aggregate context (state, history, config) |
 | `state` | `complete` | Mark current phase as complete |
 | `state` | `transition` | Explicit phase transition (PHASE2 uses this) |
+| `state` | `set-phase` | Force-set phase (use `--from-phase` instead when possible) |
+| `state` | `clear-transition` | Clear a pending transition |
+| `phase` | `current` | Read current phase from state |
+| `phase` | `next` | Read next phase in sequence |
+| `phase` | `advance` | Force-advance to next phase (rare; use with care) |
 | `log` | `append` | Record decision in decision-log.json |
 | `iterations` | `append` | Record iteration in iterations.json |
 | `complete` | `set BLOCKED` | Signal unrecoverable blocker |
+| `baseline` | `record` / `get` | Starting commit snapshot |
+| `validate` | `json` / `skills` / `commands` / `change-dir` / `archive` / `iterations` / `completion` | Pre-flight checks |
 
 **Examples**:
 ```bash
@@ -185,11 +197,14 @@ Location: `.opencode/scripts/lib/osx` (Python script)
 | `git` | `get` | — |
 | `baseline` | `get` | `record` |
 | `state` | `get` | `complete`, `set-phase`, `transition`, `clear-transition` |
+| `phase` | `current`, `next` | `advance` |
 | `iterations` | `get` | `append` |
 | `log` | `get` | `append` |
 | `complete` | `check`, `get` | `set` |
 | `validate` | `json`, `skills`, `commands`, `change-dir`, `archive`, `iterations`, `completion` | — |
 | `instructions` | `instructions <artifact> [--change <name>] [--json]` | — |
+
+The only canonical read verb is `get`. There is no `show` or `list` — use `get`. The only canonical write verbs are `append`, `complete`, `set-phase`, `transition`, `clear-transition`, `record`, `advance`, and `set` (for `complete`).
 
 ---
 
@@ -209,7 +224,7 @@ Location: `.opencode/scripts/lib/osx` (Python script)
 
 ### 4.2 PHASE2 Transition Logic
 
-PHASE2 (Verification) has complex decision logic:
+PHASE2 (REVIEW) has complex decision logic:
 
 ```mermaid
 graph TD
@@ -318,7 +333,7 @@ graph TD
 
 **State update**: `osx state complete "$1"`
 
-### 5.3 PHASE2: Verification
+### 5.3 PHASE2: Review
 
 **Agent**: `osx-analyzer`
 **Tool**: `osc-verify-change` skill
@@ -484,8 +499,10 @@ A blocker is an **unrecoverable issue** that prevents workflow progress.
 User can resume workflow from any phase:
 
 ```bash
-.opencode/scripts/osx-orchestrate "$CHANGE_ID" --from-phase PHASE2
+openspec-extended orchestrate "$CHANGE_ID" --from-phase PHASE2
 ```
+
+Or, when the binary is not on `PATH`, the deployed wrapper at `.opencode/scripts/osx-orchestrate` accepts the same arguments.
 
 **Use cases**:
 - Fix blocker in PHASE1, resume from PHASE2
@@ -497,10 +514,11 @@ User can resume workflow from any phase:
 Orchestrator enforces limits to prevent infinite loops:
 
 | Setting | Default | Purpose |
-|----------|-----------|----------|
-| `--max-phase-iterations` | 5 | Maximum iterations per phase |
-| `--timeout` | 30 min | Timeout per phase (seconds) |
-| `--max-total-iterations` | 50 | Total iterations across all phases |
+|----------|-----------|---------|
+| `--max-phase-iterations` | 10 | Maximum iterations per phase; `-1` = unlimited |
+| `--timeout` | 1800 | Per agent subprocess timeout in seconds |
+
+> **There is no `--max-total-iterations` flag.** Only `--max-phase-iterations`. If you've seen that flag mentioned elsewhere, it is stale documentation.
 
 **When limit reached**:
 - Orchestrator halts workflow
@@ -643,7 +661,3 @@ openspec instructions apply --change "$CHANGE_ID" --json
 | PHASE4 | osx-maintainer | sync-specs | Merge deltas into main specs |
 | PHASE5 | osx-analyzer | None | Analyze workflow history |
 | PHASE6 | osx-maintainer | archive-change, bulk-archive | **ATOMIC EXECUTION** - all steps in one call |
-
----
-
-See `../SKILL.md` for fundamental OpenSpec concepts and mental models.

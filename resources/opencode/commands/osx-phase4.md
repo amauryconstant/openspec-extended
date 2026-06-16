@@ -20,7 +20,7 @@ Change: $1
   !`.opencode/scripts/lib/osx ctx get "$1"`
 2. Confirm `phase` is PHASE4
 3. Review `history.iterations_recorded` for previous attempts
-4. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
+4. Load skills: `osx-concepts` and `osx-workflow` (both reference only)
 
 ## PURPOSE
 
@@ -89,7 +89,7 @@ Append entry:
   --iteration N \
   --summary "Specs synced successfully" \
   --commit-hash "<hash or null>" \
-  --next-steps "Proceeding to PHASE5 (ARCHIVE)" \
+  --next-steps "Proceeding to PHASE5 (SELF_REFLECTION)" \
   --extra '{"delta_specs_found":["spec1.md","spec2.md"],"sync_operations":{"added":N,"modified":N,"removed":N,"renamed":N}}'
 ```
 

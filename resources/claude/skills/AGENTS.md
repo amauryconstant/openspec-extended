@@ -29,7 +29,7 @@ metadata:
 
 ## Naming
 
-Same rules as OpenCode (`osx-` prefix, lowercase-hyphenated, must match directory name). The 7 skills mirror their OpenCode counterparts.
+Same rules as OpenCode (`osx-` prefix, lowercase-hyphenated, must match directory name). The 8 skills mirror their OpenCode counterparts.
 
 ## Authoring Workflow
 

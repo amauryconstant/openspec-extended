@@ -29,7 +29,7 @@ Change: $1
    !`.opencode/scripts/lib/osx ctx get "$1"`
 2. Confirm `phase` is PHASE6
 3. Review `history.iterations_recorded` for previous attempts
-4. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
+4. Load skills: `osx-concepts` and `osx-workflow` (both reference only)
 
 ## PURPOSE
 

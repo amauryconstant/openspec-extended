@@ -21,7 +21,7 @@ Change: $1
 2. Confirm `phase` is PHASE5
 3. Review full history via `osx log get "$1"` to understand entire workflow
 4. Review `history.iterations_recorded` for iteration counts per phase
-5. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
+5. Load skills: `osx-concepts` and `osx-workflow` (both reference only)
 
 ## PURPOSE
 
@@ -33,7 +33,7 @@ Answer each with 2-4 sentences minimum, including specific examples:
 
 **1. How well did the artifact review process work?**
    - Were CRITICAL issues identified accurately?
-   - Did the iteration limit (5) constrain fixing important issues?
+   - Did the iteration limit (10) constrain fixing important issues?
    - Should any issues have been raised earlier or later?
 
 **2. How effective was the implementation phase?**

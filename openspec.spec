@@ -5,7 +5,8 @@ from pathlib import Path
 block_cipher = None
 
 project_root = Path.cwd()
-resources_path = project_root / "resources" / "opencode"
+opencode_resources_path = project_root / "resources" / "opencode"
+claude_resources_path = project_root / "resources" / "claude"
 package_path = project_root / "source"
 
 
@@ -27,7 +28,12 @@ a = Analysis(
     pathex=[str(project_root)],
     binaries=[],
     datas=(
-        _collect_files_excluding_agents_md(resources_path, "resources/opencode")
+        _collect_files_excluding_agents_md(
+            opencode_resources_path, "resources/opencode"
+        )
+        + _collect_files_excluding_agents_md(
+            claude_resources_path, "resources/claude"
+        )
         + _collect_files_excluding_agents_md(
             project_root / "source" / "orchestrator", "source/orchestrator"
         )
