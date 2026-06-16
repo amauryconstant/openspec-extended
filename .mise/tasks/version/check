@@ -31,11 +31,6 @@ get_script_files() {
         "install.sh" "source/cli.py" 2>/dev/null || true
 }
 
-get_git_show_content() {
-    local path="$1"
-    git show "HEAD:${path}" 2>/dev/null || true
-}
-
 # Extract the SCRIPT_VERSION value from a script file.
 # Handles both `SCRIPT_VERSION = "x"` (Python) and `SCRIPT_VERSION="x"` (bash).
 get_script_version_from_file() {
@@ -98,17 +93,12 @@ check_resource_file() {
         return 0
     fi
 
-    local git_content
-    git_content=$(get_git_show_content "$file_path")
-    if [[ -n "$git_content" ]]; then
-        append_entry "$(jq -n \
-            --arg path "$file_path" \
-            --arg platform "$platform" \
-            --arg rt "$resource_type" \
-            --arg rn "$resource_name" \
-            --arg v "$current_version" \
-            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"needs_bump", error:""}')"
-    else
+    # No content change → nothing to bump. The file is staged but the
+    # staged content matches HEAD byte-for-byte (e.g. a no-op re-stage
+    # or chmod-only change), so no version bump is required.
+    local diff_text
+    diff_text=$(git diff --cached -- "$file_path" 2>/dev/null || true)
+    if [[ -z "$diff_text" ]]; then
         append_entry "$(jq -n \
             --arg path "$file_path" \
             --arg platform "$platform" \
@@ -116,6 +106,41 @@ check_resource_file() {
             --arg rn "$resource_name" \
             --arg v "$current_version" \
             '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"ok", error:""}')"
+        return 0
+    fi
+
+    # The version for a resource lives in resources/<platform>/manifest.toml,
+    # not in the file itself. Compare the working-tree version to the
+    # version in HEAD's manifest: a bump is "done" iff the two differ.
+    # `manifest` is an absolute filesystem path; `git show` needs a path
+    # relative to the repo root, so strip the project root prefix.
+    local repo_root manifest_relpath head_version
+    repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+    if [[ -n "$repo_root" && "$manifest" == "${repo_root}/"* ]]; then
+        manifest_relpath="${manifest#"${repo_root}"/}"
+    else
+        manifest_relpath="$manifest"
+    fi
+    head_version=$(git show "HEAD:${manifest_relpath}" 2>/dev/null \
+        | parse_resource_version_from_stdin "$resource_type" "$resource_name" \
+        || true)
+
+    if [[ "$current_version" != "$head_version" ]]; then
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg platform "$platform" \
+            --arg rt "$resource_type" \
+            --arg rn "$resource_name" \
+            --arg v "$current_version" \
+            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"ok", error:""}')"
+    else
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg platform "$platform" \
+            --arg rt "$resource_type" \
+            --arg rn "$resource_name" \
+            --arg v "$current_version" \
+            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"needs_bump", error:""}')"
     fi
 }
 

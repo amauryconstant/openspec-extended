@@ -64,7 +64,18 @@ get_resource_version() {
     if [[ ! -f "$manifest" ]]; then
         return 1
     fi
-    awk -v section="[resources.${resource_type}.${resource_name}]" '
+    parse_resource_version_from_stdin "$resource_type" "$resource_name" < "$manifest"
+}
+
+# Parse a version value from a resource section in manifest content on stdin.
+# Lets callers feed `git show HEAD:<manifest>` or any other stream through
+# the same parser that get_resource_version uses on a file path.
+# Echoes version on success, returns 1 if not found.
+parse_resource_version_from_stdin() {
+    local resource_type="$1"
+    local resource_name="$2"
+    local section="[resources.${resource_type}.${resource_name}]"
+    awk -v section="$section" '
         $0 == section { in_section = 1; next }
         in_section && /^[[:space:]]*$/ { in_section = 0 }
         in_section && /^version[[:space:]]*=/ {
@@ -73,7 +84,7 @@ get_resource_version() {
             print
             exit
         }
-    ' "$manifest"
+    '
 }
 
 # Set the version of a resource in a platform manifest, in place.
