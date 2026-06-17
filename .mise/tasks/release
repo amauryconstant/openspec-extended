@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+#MISE description="Create a release: update version in README, pyproject.toml, source, commit, and push git tag"
+#USAGE arg "<bump>" help="Version bump type" {
+#USAGE   choices "patch" "minor" "major"
+#USAGE }
+#USAGE flag "--dry-run" help="Show what would change without modifying"
+#USAGE flag "--no-commit" help="Update README but don't commit or tag"
+
+set -euo pipefail
+
+BUMP_TYPE="${usage_bump?}"
+DRY_RUN="${usage_dry_run:-false}"
+NO_COMMIT="${usage_no_commit:-false}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=version/lib/bump.sh
+source "$SCRIPT_DIR/version/lib/bump.sh"
+
+PROJECT_ROOT="${MISE_PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || ".")}"
+RELEASE_CLI="$PROJECT_ROOT/source/cli.py"
+
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+  echo "Error: Not in a git repository"
+  exit 1
+fi
+
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+if [[ "$CURRENT_BRANCH" != "main" ]] && [[ "${RELEASE_ALLOW_BRANCH:-false}" != "true" ]]; then
+  echo "Error: mise run release must be invoked from 'main' (current: '$CURRENT_BRANCH')."
+  echo "Set RELEASE_ALLOW_BRANCH=true to override."
+  exit 1
+fi
+
+# Compute NEW_VERSION from the latest tag + requested bump type.
+LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+if [[ -z "$LATEST_TAG" ]]; then
+  echo "No tags found, initializing at v0.1.0"
+  NEW_VERSION="0.1.0"
+else
+  if [[ ! "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Error: Invalid latest tag format: $LATEST_TAG (expected vX.Y.Z)"
+    exit 1
+  fi
+
+  VERSION=${LATEST_TAG#v}
+  IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+
+  case "$BUMP_TYPE" in
+    patch) NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+    minor) NEW_VERSION="${MAJOR}.$((MINOR + 1)).0" ;;
+    major) NEW_VERSION="$((MAJOR + 1)).0.0" ;;
+  esac
+fi
+
+NEW_TAG="v${NEW_VERSION}"
+
+echo "Current tag: ${LATEST_TAG:-none}"
+echo "Bumping $BUMP_TYPE version"
+echo "New tag: $NEW_TAG"
+echo ""
+
+if git tag -l "$NEW_TAG" | grep -q "$NEW_TAG"; then
+  echo "Error: Tag $NEW_TAG already exists"
+  exit 1
+fi
+
+if [[ "$DRY_RUN" == "true" ]]; then
+  echo "[DRY-RUN] Would update version to $NEW_VERSION in:"
+  echo "  - README.md (badge + examples)"
+  echo "  - pyproject.toml"
+  echo "  - source/cli.py (SCRIPT_VERSION)"
+  echo "  - source/__init__.py (__version__)"
+  echo ""
+  echo "[DRY-RUN] Would commit with message: Release version $NEW_VERSION"
+  echo "[DRY-RUN] Would create and push tag: $NEW_TAG"
+  exit 0
+fi
+
+echo "Updating version in README.md:"
+update_readme_version "$NEW_VERSION" "$DRY_RUN"
+echo ""
+echo "Updating version in source/cli.py:"
+bump_script_version_in_file "$RELEASE_CLI" "$NEW_VERSION" "$DRY_RUN"
+echo ""
+echo "Updating version in source/__init__.py:"
+bump_py_init_version "$NEW_VERSION" "$DRY_RUN"
+echo ""
+echo "Updating version in pyproject.toml:"
+bump_pyproject_version "$NEW_VERSION" "$DRY_RUN"
+echo ""
+
+if ! git diff --quiet; then
+  if [[ "$NO_COMMIT" == "true" ]]; then
+    echo "Files updated. Skipping commit and tag (--no-commit)"
+    git status --short
+    exit 0
+  fi
+
+  git add -A
+  git commit -m "Release version $NEW_VERSION"
+  echo "✓ Committed changes"
+else
+  echo "No files changed"
+fi
+
+if [[ "$NO_COMMIT" == "true" ]]; then
+  echo "Skipping tag creation (--no-commit)"
+  exit 0
+fi
+
+git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
+git push origin "$CURRENT_BRANCH"
+git push origin "$NEW_TAG"
+
+echo ""
+echo "✓ Tag $NEW_TAG created and pushed"

@@ -21,7 +21,7 @@ Change: $1
 2. Confirm `phase` is PHASE5
 3. Review full history via `osx log get "$1"` to understand entire workflow
 4. Review `history.iterations_recorded` for iteration counts per phase
-5. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
+5. Load skills: `osx-concepts` and `osx-workflow` (both reference only)
 
 ## PURPOSE
 
@@ -33,7 +33,7 @@ Answer each with 2-4 sentences minimum, including specific examples:
 
 **1. How well did the artifact review process work?**
    - Were CRITICAL issues identified accurately?
-   - Did the iteration limit (5) constrain fixing important issues?
+   - Did the iteration limit (10) constrain fixing important issues?
    - Should any issues have been raised earlier or later?
 
 **2. How effective was the implementation phase?**
@@ -160,3 +160,17 @@ The orchestrator will detect this and halt the workflow.
 1. Log: "Self-reflection complete, proceeding to ARCHIVE"
 2. Mark phase complete via `osx state`
 3. Script will advance to PHASE6 (ARCHIVE)
+
+
+## SHELL ARGUMENT SAFETY
+
+When passing free-text to `--summary`, `--next-steps`, or any other shell argument, **DO NOT use backticks** (`` `like this` ``) for inline code references. Backticks are interpreted as command substitution by bash/zsh — the shell will execute whatever is inside the backticks and substitute its output. In zsh, `` `local` `` dumps the entire shell environment (PATH, tokens, internal variables) into your string, which then gets stored verbatim in `decision-log.json`.
+
+**Use instead:**
+
+- Single quotes: `'local'`
+- Double quotes: `"local"`
+- Plain text: `local`
+- Markdown `code` (which uses backticks in raw form, NOT shell backticks) — fine only when the argument is not passed through a shell
+
+If `osx log append` returns `input_too_long` or `input_tainted`, remove the backticks from the offending argument and retry.

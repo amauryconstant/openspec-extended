@@ -1,43 +1,36 @@
 # Tasks: Hello Script
 
-## Implementation Checklist
+## 1. Setup
 
-### Setup
-- [ ] Create `scripts/` directory if it does not exist
+- [ ] 1.1 Create `scripts/` directory if it does not exist
 
-### Core Implementation
-- [ ] Create `scripts/hello.sh` with proper shebang (`#!/usr/bin/env bash`)
-- [ ] Add `set -euo pipefail` for strict mode
-- [ ] Define `SCRIPT_NAME` and `DEFAULT_NAME` constants using `readonly`
-- [ ] Implement `usage()` function that prints help to stdout
+## 2. Core Implementation
 
-### Argument Handling
-- [ ] Parse `--name` flag with following argument
-- [ ] Parse `--help` flag to show usage and exit 0
-- [ ] Handle unknown flags gracefully (optional: show error)
+- [ ] 2.1 Create `scripts/hello.sh` with proper shebang (`#!/usr/bin/env bash`)
+- [ ] 2.2 Add `set -euo pipefail` for strict mode
+- [ ] 2.3 Define `SCRIPT_NAME` and `DEFAULT_NAME` constants using `readonly`
+- [ ] 2.4 Implement `usage()` function that prints help to stdout
 
-### Output
-- [ ] Print greeting in format: `Hello, {NAME}!`
-- [ ] Use `DEFAULT_NAME` ("World") when no `--name` provided
+## 3. Argument Handling
 
-### Finalization
-- [ ] Make script executable: `chmod +x scripts/hello.sh`
-- [ ] Add `main "$@"` call at end of script
+- [ ] 3.1 Parse `--name` flag with following argument
+- [ ] 3.2 Parse `--help` flag to show usage and exit 0
+- [ ] 3.3 Handle unknown flags (exit 1 with error to stderr)
 
-## Verification Checklist
+## 4. Output
 
-- [ ] Test: `./scripts/hello.sh` outputs `Hello, World!`
-- [ ] Test: `./scripts/hello.sh --name Alice` outputs `Hello, Alice!`
-- [ ] Test: `./scripts/hello.sh --help` shows usage and exits 0
-- [ ] Test: Script is executable without explicit bash command
-- [ ] Test: Script exits with code 0 on success
+- [ ] 4.1 Print greeting in format: `Hello, {NAME}!`
+- [ ] 4.2 Use `DEFAULT_NAME` ("World") when no `--name` provided
 
-## Files to Create
+## 5. Finalization
 
-| File | Purpose |
-|------|---------|
-| `scripts/hello.sh` | Main greeting script |
+- [ ] 5.1 Make script executable: `chmod +x scripts/hello.sh`
+- [ ] 5.2 Add `main "$@"` call at end of script
 
-## Estimated Effort
+## 6. Verification
 
-Small change - single file, ~30-50 lines of code.
+- [ ] 6.1 Test: `./scripts/hello.sh` outputs `Hello, World!`
+- [ ] 6.2 Test: `./scripts/hello.sh --name Alice` outputs `Hello, Alice!`
+- [ ] 6.3 Test: `./scripts/hello.sh --help` shows usage and exits 0
+- [ ] 6.4 Test: Script is executable without explicit `bash` command
+- [ ] 6.5 Test: Script exits with code 0 on success

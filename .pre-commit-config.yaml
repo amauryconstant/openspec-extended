@@ -6,18 +6,18 @@ repos:
         entry: mise exec -- shellcheck -s bash --rcfile=.shellcheckrc
         language: system
         types: [shell]
-        files: ^(bin/openspecx-extended|\.mise/tasks/)
+        files: install.sh
 
       - id: check-version-bump
         name: Check version bump in versioned files
         entry: mise run version:check
         language: system
-        files: ^(resources/(opencode|claude)/(skills/.*/(SKILL\.md|references/.*\.md)|agents/.*\.md|commands/.*\.md|scripts/(osx-orchestrate|lib/osx))|install\.sh|bin/openspecx-extended)$
+        files: ^(resources/(opencode|claude)/(skills/.*/(SKILL\.md|references/.*\.md)|agents/.*\.md|commands/.*\.md)|source/(cli|lib/osx|orchestrator/engine)\.py|install\.sh|pyproject\.toml)$
         pass_filenames: false
 
       - id: test
-        name: Test the osx-orchestrate script and its dependencies
-        entry: mise run test
+        name: Verify source code and tests
+        entry: mise run verify
         language: system
-        files: ^(resources/opencode/scripts/|tests/)
+        files: ^(source/|tests/|pyproject\.toml|openspec\.spec)$
         pass_filenames: false

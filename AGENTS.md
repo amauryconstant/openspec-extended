@@ -8,6 +8,8 @@
 
 **Scope**: Minimal project - no deep infrastructure, CI, or complex install scripts.
 
+---
+
 ## Naming Convention
 
 | Resource        | Core (upstream) | Extended (local)    |
@@ -18,78 +20,151 @@
 | **Agents**      | N/A             | `osx-*`             |
 | **Lib scripts** | N/A             | `osx`               |
 
-**Extension Skills** (core skills in `openspec-core/AGENTS.md`):
-
-| Skill                        | Purpose                                                  |
-| ---------------------------- | -------------------------------------------------------- |
-| `osx-concepts`               | Teaches AI agents about OpenSpec framework               |
-| `osx-modify-artifacts`       | Modifies OpenSpec artifacts with dependency tracking     |
-| `osx-review-artifacts`       | Reviews artifacts for quality, completeness, consistency |
-| `osx-maintain-ai-docs`       | Maintain AGENTS.md and CLAUDE.md documentation           |
-| `osx-generate-changelog`     | Generate changelogs in Keep a Changelog format           |
-| `osx-review-test-compliance` | Review test coverage for OpenSpec changes                |
-
----
-
-## Quick Reference
-
-| Command                              | Purpose                                               |
-| ------------------------------------ | ----------------------------------------------------- |
-| `openspec-extended install opencode` | Add skills, commands, agents, scripts to `.opencode/` |
-| `openspec-extended install claude`   | Add skills, commands to `.claude/`                    |
-| `openspec-extended update opencode`  | Force update all resources in `.opencode/`            |
-| `openspec-extended update claude`    | Force update all resources in `.claude/`              |
-
-**Verify**: `ls .opencode/{skills,agents,commands,scripts}/`
+**Extension Skills** (core skills tracked in `openspec-core/AGENTS.md`)
 
 ---
 
 ## Code Style
 
-### Bash Requirements
+### Python Requirements
 
-| Rule        | Format                                |
-| ----------- | ------------------------------------- |
-| Header      | `#!/bin/bash` (Bash 4.0+)             |
-| Strict mode | `set -euo pipefail` at top            |
-| Constants   | `readonly UPPER_CASE`                 |
-| Variables   | `snake_case`, always quoted: `"$VAR"` |
-| Functions   | `snake_case()`                        |
-| Arrays      | `UPPER_CASE`                          |
+| Rule     | Format                                |
+| -------- | ------------------------------------- |
+| Style    | PEP 8 + ruff formatting               |
+| Imports  | Standard library, typer, rich, toml   |
+| Testing  | pytest with markers (unit/integration/mechanism/e2e) |
+| Version  | Python 3.12 or higher                 |
+
+### Tooling Languages
+
+- Project source (`source/`, `install.sh`, `openspec.spec`) is **Python**
+  except where bash is more natural.
+- `install.sh` is bash: it must run with no Python dependency when
+  bootstrapping a fresh machine.
+- All `mise` tasks are **bash**; the project content can be Python, but
+  build/release/version tooling is bash + `jq`.
 
 ### Key Patterns
 
-```bash
-# Associative arrays
-declare -A TOOL_DIRS=(["opencode"]=".opencode")
+```python
+# Typer CLI (source/cli.py)
+from typer import Typer
+app = Typer()
 
-# Logging
-log_success() { echo -e "${COLOR_GREEN}✓${COLOR_RESET} $*"; }
-log_error() { echo -e "${COLOR_RED}✗${COLOR_RESET} $*" >&2; }
+# State management via toml (source/lib/osx.py)
+import toml
+from pathlib import Path
 
-# Error handling: exit 1 (error), exit 0 (success), messages to >&2
+# Rich console output
+from rich.console import Console
+console = Console()
 ```
 
-### Script Structure
+### Versioning
 
-1. Shebang + description 2. `set -euo pipefail` 3. readonly constants 4. Logging functions 5. Argument validation 6. Main logic 7. Exit codes only on errors
+The tool version lives in three synchronized places:
+- `source/__init__.py` — `__version__`
+- `source/cli.py` — `SCRIPT_VERSION` (alias of `__version__`)
+- `pyproject.toml` — `version`
+
+`mise run version:update` is the **single source of truth** for these
+three files. The `mise run release` task delegates to `version:update`
+for source-file bumps. Per-resource versions in `resources/*/manifest.toml`
+are bumped independently when skills, agents, or commands change.
+
+### Testing
+
+```bash
+# Run all default tests (unit, integration, mechanism, including bats)
+mise run test
+
+# Run unit tests
+pytest -m unit
+
+# Run install.sh unit tests (bats, hermetic via local HTTP server)
+mise run test:unit:bats
+
+# Run integration tests
+pytest -m integration
+
+# Run mechanism tests (CLI validation, no AI calls)
+pytest -m mechanism
+
+# Run bats mechanism tests against the built binary (no AI calls)
+mise run test:mechanism:bats
+
+# Run e2e full workflow tests (requires built binary + E2E_CONFIRM=1)
+E2E_CONFIRM=1 mise run test:e2e
+
+# Run all checks
+mise run verify
+```
+
+### E2E Test Strategy
+
+The full workflow runs against the **built binary** (`dist/openspec-extended`).
+There is no pytest equivalent because PyInstaller freeze changes runtime
+behavior in ways that the source-only path can't reproduce.
+
+- `tests/e2e/test_mechanism.py` — pytest, `@pytest.mark.mechanism`, runs by default. Tests CLI options without AI calls.
+- `tests/e2e/mechanism.bats` — bats, runs by default. Same coverage as the pytest mechanism suite, executed against the built binary.
+- `tests/e2e/full-workflow.bats` — bats, requires `E2E_CONFIRM=1`. Runs the full workflow end-to-end against the built binary.
+
+The `test:mechanism:bats` and `test:e2e` mise tasks call `build` first so
+the binary is always current.
 
 ---
 
 ## Project Structure
 
 ```
-bin/openspec-extended       # Main executable
-openspec-core/              # Official OpenSpec workflows (read-only, sync from upstream)
-resources/opencode/         # Extended resources (maintained locally)
-  ├── skills/               # Extension skills (osx-*)
-  ├── agents/               # Agent definitions (osx-*)
-  ├── commands/             # Phase commands (osx-phase*, osx-*)
-  └── scripts/
-      ├── osx-orchestrate   # Autonomous workflow orchestrator
-      └── lib/osx           # Helper CLI tool
-research/                   # Platform documentation
+source/
+├── __init__.py          # __version__
+├── __main__.py          # Entry: python -m source
+├── cli.py               # Typer CLI (install/update/orchestrate) + SCRIPT_VERSION
+├── lib/
+│   └── osx.py           # Change management (baseline, ctx, git, phase, state)
+└── orchestrator/
+    └── engine.py        # 7-phase autonomous workflow
+
+install.sh              # Bash installer (downloads PyInstaller binary)
+openspec.spec           # PyInstaller spec
+pyproject.toml          # Project metadata + entry point
+
+resources/
+├── opencode/            # Skills, agents, commands
+└── claude/              # Same structure for Claude Code
+
+openspec-core/           # Official OpenSpec workflows (read-only)
+research/                # Platform documentation
+tests/                   # pytest + bats suite
+.mise/tasks/             # sync-core, release, version/{check,update,lib/*} (all bash)
 ```
+
+---
+
+## Build & Release
+
+```bash
+# Build the binary locally (PyInstaller)
+mise run build
+# Output: dist/openspec-extended
+
+# Cut a release (from main, no API tokens needed locally)
+mise run release patch
+# → bumps versions, commits, tags, pushes the tag
+# → GitHub Actions then builds + uploads the platform tarballs
+```
+
+Releases are published by the `.github/workflows/release.yml` workflow on
+`vX.Y.Z` tag push. The workflow matrix builds `linux-x86_64`,
+`linux-arm64`, `darwin-x86_64`, and `darwin-arm64`, packages each binary
+into `openspec-extended-v$VERSION-{platform}.tar.gz` (with a `bin/openspec-extended`
+layout), combines per-platform `SHA256SUMS` into a single file, and
+uploads everything to the matching GitHub release.
+
+`install.sh` fetches this tarball from the release matching `VERSION` (or
+`latest`/`main` if not pinned).
 
 ---
 
@@ -111,58 +186,29 @@ license: MIT
 
 ---
 
-## Autonomous Workflow
-
-**Purpose**: 7-phase autonomous implementation loop via `osx-orchestrate`
-
-### Agents & Commands
-
-| Agent            | Tools                               | Temp | Phases                 |
-| ---------------- | ----------------------------------- | ---- | ---------------------- |
-| `osx-analyzer`   | read, grep, glob, bash              | 0.1  | PHASE0, PHASE2, PHASE5 |
-| `osx-builder`    | read, grep, glob, bash, write, edit | 0.4  | PHASE1                 |
-| `osx-maintainer` | read, grep, glob, bash, write, edit | 0.3  | PHASE3, PHASE4, PHASE6 |
-
-| Command       | Agent      | Description     |
-| ------------- | ---------- | --------------- |
-| `/osx-phase0` | analyzer   | Artifact Review |
-| `/osx-phase1` | builder    | Implementation  |
-| `/osx-phase2` | analyzer   | Verification    |
-| `/osx-phase3` | maintainer | Maintain-Docs   |
-| `/osx-phase4` | maintainer | Sync            |
-| `/osx-phase5` | analyzer   | Self-Reflection |
-| `/osx-phase6` | maintainer | Archive         |
-
-### Usage
+## Version Bumping
 
 ```bash
-.opencode/scripts/osx-orchestrate <change-name>
-.opencode/scripts/osx-orchestrate add-auth --max-phase-iterations 20 --verbose
-.opencode/scripts/osx-orchestrate add-auth --from-phase PHASE3
-.opencode/scripts/osx-orchestrate add-auth --dry-run
+# Check what needs bumping (pre-commit hook)
+mise run version:check
+
+# Auto-bump versions in resources/*/manifest.toml, source/cli.py,
+# source/__init__.py, and pyproject.toml
+mise run version:update
+
+# Cut a release: bump version everywhere, commit, tag, push
+mise run release patch
 ```
 
-### Options
+`version:update` is the single source of truth for the three locked
+tool-version fields (`source/cli.py`, `source/__init__.py`, `pyproject.toml`).
+It detects bumps on any of the three and mirrors the highest target to
+the others so they stay in lockstep. The `release` task shares the same
+helpers via `.mise/tasks/version/lib/bump.sh`, so `README.md` is the
+only file the release task updates that `version:update` does not.
 
-`--max-phase-iterations N` `--timeout N` `--model MODEL` `--verbose` `--dry-run` `--force` `--clean` `--from-phase PHASEX` `--list` `--version`
-
-### State Files (`openspec/changes/<change>/`)
-
-| File                | Purpose                      | Lifecycle                     |
-| ------------------- | ---------------------------- | ----------------------------- |
-| `state.json`        | Phase tracking + transitions | Deleted before archive commit |
-| `complete.json`     | Workflow completion (PHASE5) | Deleted before archive commit |
-| `iterations.json`   | Iteration history            | Archived (never deleted)      |
-| `decision-log.json` | Agent reasoning              | Archived (never deleted)      |
-
-Note: After PHASE6 (Archive), historical files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`. Transient files (state.json, complete.json, baseline) are deleted before the archive commit, leaving a clean git history. The `osx` lib tool automatically detects archived locations.
-
-### Manual Invocation
-
-```
-/osx-phase0 my-change-name
-@osx-analyzer  # hidden but accessible
-```
+`install.sh` tracks its own installer version (`SCRIPT_VERSION`) in the
+`install.sh` file itself, separate from the tool version above.
 
 ---
 

@@ -1,341 +1,346 @@
 #!/usr/bin/env bash
-#MISE description="Verify version bump when versioned files are modified"
+# Verify version bump when versioned files are modified.
+# Run via: mise run version:check
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=/dev/null
-source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/manifest.sh
+source "$SCRIPT_DIR/lib/manifest.sh"
+# shellcheck source=lib/detect.sh
+source "$SCRIPT_DIR/lib/detect.sh"
+# shellcheck source=lib/state.sh
+source "$SCRIPT_DIR/lib/state.sh"
 
-OUTPUT_FORMAT="table"
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --json) OUTPUT_FORMAT="json"; shift ;;
-    *) shift ;;
-  esac
-done
+# Global accumulator; we build it with jq one entry at a time.
+FILES_JSON="[]"
 
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- \
-  'resources/*/skills/*/SKILL.md' \
-  'resources/*/skills/*/references/*.md' \
-  'resources/*/skills/*/scripts/*' \
-  'resources/*/agents/*.md' \
-  'resources/*/commands/*.md' \
-  'resources/*/commands/*/*.md' \
-  'resources/*/scripts/osx-orchestrate' \
-  'resources/*/scripts/lib/osx')
-
-declare -a FILE_PATHS=()
-declare -a RESOURCE_TYPES=()
-declare -a RESOURCE_NAMES=()
-declare -a FILE_PLATFORMS=()
-declare -a FILE_CURRENT=()
-declare -a FILE_PREVIOUS=()
-declare -a FILE_STATUS=()
-declare -a FILE_ERRORS=()
-
-HAS_ERROR=0
-
-declare -A MANIFEST_CACHE=()
-
-get_or_load_manifest() {
-  local platform="$1"
-  local which="$2"
-  
-  local cache_key="$platform:$which"
-  if [[ -n "${MANIFEST_CACHE[$cache_key]:-}" ]]; then
-    echo "${MANIFEST_CACHE[$cache_key]}"
-    return
-  fi
-  
-  local manifest_file manifest_path
-  case "$platform" in
-    opencode) manifest_file="$PROJECT_ROOT/resources/opencode/manifest.json"; manifest_path="resources/opencode/manifest.json" ;;
-    claude)   manifest_file="$PROJECT_ROOT/resources/claude/manifest.json"; manifest_path="resources/claude/manifest.json" ;;
-    *) return ;;
-  esac
-  
-  if [[ "$which" == "current" ]]; then
-    MANIFEST_CACHE[$cache_key]=$(cat "$manifest_file" 2>/dev/null || echo "{}")
-  else
-    if git show "HEAD:$manifest_path" &>/dev/null; then
-      MANIFEST_CACHE[$cache_key]=$(git show "HEAD:$manifest_path")
-    else
-      MANIFEST_CACHE[$cache_key]="{}"
-    fi
-  fi
-  
-  echo "${MANIFEST_CACHE[$cache_key]}"
+get_staged_files() {
+    git diff --cached --name-only --diff-filter=ACMR -- \
+        "resources/*/skills/*/SKILL.md" \
+        "resources/*/skills/*/references/*.md" \
+        "resources/*/skills/*/scripts/*" \
+        "resources/*/agents/*.md" \
+        "resources/*/commands/*.md" \
+        "resources/*/commands/*/*.md" 2>/dev/null \
+        | grep -v "/AGENTS\.md$" || true
 }
 
-for file in $STAGED_FILES; do
-  resource_info=$(get_resource_info_from_path "$file")
-  
-  if [[ -z "$resource_info" ]]; then
-    continue
-  fi
-  
-  platform=$(get_platform_for_path "$file")
-  if [[ -z "$platform" ]]; then
-    continue
-  fi
-  
-  IFS=':' read -r resource_type resource_name <<< "$resource_info"
-  
-  CURRENT_MANIFEST=$(get_or_load_manifest "$platform" "current")
-  current_version=$(get_resource_version "$CURRENT_MANIFEST" "$resource_type" "$resource_name")
-  
-  if [[ -z "$current_version" ]]; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("$resource_type")
-    RESOURCE_NAMES+=("$resource_name")
-    FILE_PLATFORMS+=("$platform")
-    FILE_CURRENT+=("")
-    FILE_PREVIOUS+=("")
-    FILE_STATUS+=("error")
-    FILE_ERRORS+=("Resource '$resource_name' not found in $platform manifest")
-    HAS_ERROR=1
-    continue
-  fi
-  
-  if ! validate_semver "$current_version" 2>/dev/null; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("$resource_type")
-    RESOURCE_NAMES+=("$resource_name")
-    FILE_PLATFORMS+=("$platform")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("")
-    FILE_STATUS+=("error")
-    FILE_ERRORS+=("Invalid version format")
-    HAS_ERROR=1
-    continue
-  fi
-  
-  PREVIOUS_MANIFEST=$(get_or_load_manifest "$platform" "previous")
-  previous_version=$(get_resource_version "$PREVIOUS_MANIFEST" "$resource_type" "$resource_name")
-  
-  if [[ -n "$previous_version" && "$current_version" == "$previous_version" ]]; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("$resource_type")
-    RESOURCE_NAMES+=("$resource_name")
-    FILE_PLATFORMS+=("$platform")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("$previous_version")
-    FILE_STATUS+=("needs_bump")
-    FILE_ERRORS+=("")
-    HAS_ERROR=1
-  else
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("$resource_type")
-    RESOURCE_NAMES+=("$resource_name")
-    FILE_PLATFORMS+=("$platform")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("${previous_version:-}")
-    FILE_STATUS+=("ok")
-    FILE_ERRORS+=("")
-  fi
-done
+get_script_files() {
+    git diff --cached --name-only --diff-filter=ACMR -- \
+        "install.sh" "source/cli.py" "source/__init__.py" "pyproject.toml" 2>/dev/null || true
+}
 
-SCRIPT_FILES=$(git diff --cached --name-only --diff-filter=ACMR -- 'install.sh' 'bin/openspecx')
+# Extract the SCRIPT_VERSION value from a script file.
+# Handles both `SCRIPT_VERSION = "x"` (Python) and `SCRIPT_VERSION="x"` (bash).
+get_script_version_from_file() {
+    local file_path="$1"
+    [[ -f "$file_path" ]] || return 1
+    grep -E '(readonly[[:space:]]+)?SCRIPT_VERSION[[:space:]]*=' "$file_path" \
+        | head -n1 \
+        | sed -E 's/^[[:space:]]*(readonly[[:space:]]+)?SCRIPT_VERSION[[:space:]]*=[[:space:]]*"?([^"]*)"?$/\2/'
+}
 
-for file in $SCRIPT_FILES; do
-  current_version=$(get_script_version_from_file "$PROJECT_ROOT/$file")
-  
-  if [[ -z "$current_version" ]]; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("scripts")
-    RESOURCE_NAMES+=("$(basename "$file")")
-    FILE_PLATFORMS+=("root")
-    FILE_CURRENT+=("")
-    FILE_PREVIOUS+=("")
-    FILE_STATUS+=("error")
-    FILE_ERRORS+=("SCRIPT_VERSION not found in $file")
-    HAS_ERROR=1
-    continue
-  fi
-  
-  if ! validate_semver "$current_version" 2>/dev/null; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("scripts")
-    RESOURCE_NAMES+=("$(basename "$file")")
-    FILE_PLATFORMS+=("root")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("")
-    FILE_STATUS+=("error")
-    FILE_ERRORS+=("Invalid version format")
-    HAS_ERROR=1
-    continue
-  fi
-  
-  previous_version=$(get_script_version_from_git "$file")
-  file_existed_in_git=$(git show "HEAD:$file" &>/dev/null && echo "true" || echo "false")
-  
-  if [[ "$file_existed_in_git" == "true" && ( -z "$previous_version" || "$current_version" == "$previous_version" ) ]]; then
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("scripts")
-    RESOURCE_NAMES+=("$(basename "$file")")
-    FILE_PLATFORMS+=("root")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("${previous_version:-}")
-    FILE_STATUS+=("needs_bump")
-    FILE_ERRORS+=("")
-    HAS_ERROR=1
-  else
-    FILE_PATHS+=("$file")
-    RESOURCE_TYPES+=("scripts")
-    RESOURCE_NAMES+=("$(basename "$file")")
-    FILE_PLATFORMS+=("root")
-    FILE_CURRENT+=("$current_version")
-    FILE_PREVIOUS+=("${previous_version:-}")
-    FILE_STATUS+=("ok")
-    FILE_ERRORS+=("")
-  fi
-done
+# Extract the [project] version from pyproject.toml.
+get_pyproject_version_from_file() {
+    local file_path="$1"
+    [[ -f "$file_path" ]] || return 1
+    python3 - "$file_path" <<'PY'
+import re, sys
+from pathlib import Path
+text = Path(sys.argv[1]).read_text()
+m = re.search(r'\[project\](.*?)(?=\n\[|\Z)', text, re.DOTALL)
+if not m:
+    sys.exit(1)
+v = re.search(r'^version\s*=\s*"([^"]+)"', m.group(1), re.MULTILINE)
+if not v:
+    sys.exit(1)
+print(v.group(1))
+PY
+}
 
-LOW_CONFIDENCE_INDICES=""
+# Extract the __version__ from source/__init__.py.
+get_py_init_version_from_file() {
+    local file_path="$1"
+    [[ -f "$file_path" ]] || return 1
+    grep -E '^__version__[[:space:]]*=' "$file_path" \
+        | head -n1 \
+        | sed -E 's/^__version__[[:space:]]*=[[:space:]]*"([^"]*)"$/\1/'
+}
 
-for i in "${!FILE_PATHS[@]}"; do
-  if [[ "${FILE_STATUS[$i]}" == "needs_bump" ]]; then
-    detect_script="$SCRIPT_DIR/lib/detect-bump"
-    if [[ "${FILE_PLATFORMS[$i]}" == "root" ]]; then
-      detect_script="$SCRIPT_DIR/lib/detect-bump-script.sh"
+append_entry() {
+    FILES_JSON=$(jq --argjson e "$1" '. + [$e]' <<< "$FILES_JSON")
+}
+
+check_resource_file() {
+    local file_path="$1"
+    local resource_info platform resource_type resource_name manifest
+
+    if ! resource_info=$(resource_info_from_path "$file_path"); then
+        return 0
     fi
-    
-    DETECT_RESULT=$("$detect_script" "${FILE_PATHS[$i]}" 2>/dev/null || echo "patch:ambiguous:low")
-    
-    BUMP_TYPE=$(echo "$DETECT_RESULT" | cut -d: -f1)
-    CONFIDENCE=$(echo "$DETECT_RESULT" | cut -d: -f3)
-    
-    if [[ "$BUMP_TYPE" =~ ^(patch|minor|major)$ ]]; then
-      FILE_STATUS[i]="needs_$BUMP_TYPE"
+    if ! platform=$(platform_for_path "$file_path"); then
+        return 0
+    fi
+
+    resource_type="${resource_info%%:*}"
+    resource_name="${resource_info##*:}"
+    manifest=$(manifest_path_for_platform "$platform")
+
+    if [[ ! -f "$manifest" ]]; then
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg platform "$platform" \
+            --arg rt "$resource_type" \
+            --arg rn "$resource_name" \
+            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:"", status:"error", error:("Could not load " + $platform + " manifest")}')"
+        return 0
+    fi
+
+    local current_version
+    current_version=$(get_resource_version "$manifest" "$resource_type" "$resource_name" || true)
+    if [[ -z "$current_version" ]]; then
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg platform "$platform" \
+            --arg rt "$resource_type" \
+            --arg rn "$resource_name" \
+            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:"", status:"error", error:("Resource \"" + $rn + "\" not found in " + $platform + " manifest")}')"
+        return 0
+    fi
+
+    if ! validate_semver "$current_version"; then
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg platform "$platform" \
+            --arg rt "$resource_type" \
+            --arg rn "$resource_name" \
+            --arg v "$current_version" \
+            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"error", error:"Invalid version format"}')"
+        return 0
+    fi
+
+    # No content change → nothing to bump. The file is staged but the
+    # staged content matches HEAD byte-for-byte (e.g. a no-op re-stage
+    # or chmod-only change), so no version bump is required.
+    local diff_text
+    diff_text=$(git diff --cached -- "$file_path" 2>/dev/null || true)
+    if [[ -z "$diff_text" ]]; then
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg platform "$platform" \
+            --arg rt "$resource_type" \
+            --arg rn "$resource_name" \
+            --arg v "$current_version" \
+            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"ok", error:""}')"
+        return 0
+    fi
+
+    # The version for a resource lives in resources/<platform>/manifest.toml,
+    # not in the file itself. Compare the working-tree version to the
+    # version in HEAD's manifest: a bump is "done" iff the two differ.
+    # `manifest` is an absolute filesystem path; `git show` needs a path
+    # relative to the repo root, so strip the project root prefix.
+    local repo_root manifest_relpath head_version
+    repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+    if [[ -n "$repo_root" && "$manifest" == "${repo_root}/"* ]]; then
+        manifest_relpath="${manifest#"${repo_root}"/}"
     else
-      FILE_STATUS[i]="needs_patch"
-      CONFIDENCE="low"
+        manifest_relpath="$manifest"
     fi
-    
-    if [[ "$CONFIDENCE" == "low" ]]; then
-      LOW_CONFIDENCE_INDICES="$LOW_CONFIDENCE_INDICES $i"
-    fi
-  elif [[ "${FILE_STATUS[$i]}" == "new" ]]; then
-    FILE_STATUS[i]="needs_minor"
-  fi
-done
+    head_version=$(git show "HEAD:${manifest_relpath}" 2>/dev/null \
+        | parse_resource_version_from_stdin "$resource_type" "$resource_name" \
+        || true)
 
-if [[ -n "$LOW_CONFIDENCE_INDICES" ]] && command -v opencode &>/dev/null; then
-  AI_FILES_JSON="["
-  first=true
-  for i in $LOW_CONFIDENCE_INDICES; do
-    if [[ "$first" == "true" ]]; then
-      first=false
+    if [[ "$current_version" != "$head_version" ]]; then
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg platform "$platform" \
+            --arg rt "$resource_type" \
+            --arg rn "$resource_name" \
+            --arg v "$current_version" \
+            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"ok", error:""}')"
     else
-      AI_FILES_JSON+=","
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg platform "$platform" \
+            --arg rt "$resource_type" \
+            --arg rn "$resource_name" \
+            --arg v "$current_version" \
+            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"needs_bump", error:""}')"
     fi
-    AI_FILES_JSON+="{\"path\":\"${FILE_PATHS[$i]}\",\"current_version\":\"${FILE_CURRENT[$i]}\"}"
-  done
-  AI_FILES_JSON+="]"
-  
-  ANALYSIS_TIMEOUT=60
-  ANALYSIS_FILE=$(mktemp)
-  
-  timeout "$ANALYSIS_TIMEOUT" opencode run --format json \
-    "Analyze these ambiguous file changes. Return JSON array with objects containing 'path' and 'status' (needs_patch, needs_minor, or needs_major). Input: $AI_FILES_JSON. Output ONLY a JSON array, no markdown, no explanation." \
-    >"$ANALYSIS_FILE" 2>/dev/null
-  
-  if [[ -s "$ANALYSIS_FILE" ]]; then
-    TEXT_OUTPUT=$(grep '"type":"text"' "$ANALYSIS_FILE" | head -1 | jq -r '.part.text // empty' 2>/dev/null || echo "")
-    
-    if [[ -n "$TEXT_OUTPUT" ]] && echo "$TEXT_OUTPUT" | jq -e 'type == "array"' >/dev/null 2>&1; then
-      for i in $LOW_CONFIDENCE_INDICES; do
-        AI_STATUS=$(echo "$TEXT_OUTPUT" | jq -r --arg path "${FILE_PATHS[$i]}" '.[] | select(.path == $path) | .status // empty' 2>/dev/null || echo "")
-        if [[ -n "$AI_STATUS" && "$AI_STATUS" =~ ^needs_(patch|minor|major)$ ]]; then
-          FILE_STATUS[i]="$AI_STATUS"
+}
+
+check_script_file() {
+    local file_path="$1"
+    local current_version marker error_label
+
+    case "$file_path" in
+        pyproject.toml)
+            if ! current_version=$(get_pyproject_version_from_file "$file_path"); then
+                append_entry "$(jq -n \
+                    --arg path "$file_path" \
+                    --arg rn "$(basename "$file_path")" \
+                    '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:"", status:"error", error:"[project] version not found"}')"
+                return 0
+            fi
+            marker='^\+version[[:space:]]*='
+            error_label="[project] version"
+            ;;
+        source/__init__.py)
+            if ! current_version=$(get_py_init_version_from_file "$file_path"); then
+                append_entry "$(jq -n \
+                    --arg path "$file_path" \
+                    --arg rn "$(basename "$file_path")" \
+                    '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:"", status:"error", error:"__version__ not found"}')"
+                return 0
+            fi
+            marker='^\+__version__'
+            error_label="__version__"
+            ;;
+        *)
+            if ! current_version=$(get_script_version_from_file "$file_path"); then
+                append_entry "$(jq -n \
+                    --arg path "$file_path" \
+                    --arg rn "$(basename "$file_path")" \
+                    '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:"", status:"error", error:"SCRIPT_VERSION not found"}')"
+                return 0
+            fi
+            marker='^\+.*SCRIPT_VERSION'
+            error_label="SCRIPT_VERSION"
+            ;;
+    esac
+
+    if ! validate_semver "$current_version"; then
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg rn "$(basename "$file_path")" \
+            --arg v "$current_version" \
+            --arg label "$error_label" \
+            '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:$v, status:"error", error:($label + " has invalid version format")}')"
+        return 0
+    fi
+
+    local diff_text version_bumped
+    diff_text=$(git diff --cached -- "$file_path" 2>/dev/null || true)
+    if [[ -z "$diff_text" ]]; then
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg rn "$(basename "$file_path")" \
+            --arg v "$current_version" \
+            '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:$v, status:"ok", error:""}')"
+        return 0
+    fi
+
+    version_bumped=$(grep -E "$marker" <<< "$diff_text" || true)
+    if [[ -n "$version_bumped" ]]; then
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg rn "$(basename "$file_path")" \
+            --arg v "$current_version" \
+            '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:$v, status:"ok", error:""}')"
+    else
+        append_entry "$(jq -n \
+            --arg path "$file_path" \
+            --arg rn "$(basename "$file_path")" \
+            --arg v "$current_version" \
+            '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:$v, status:"needs_bump", error:""}')"
+    fi
+}
+
+upgrade_needs_bump() {
+    local entry="$1"
+    local path
+    path=$(jq -r '.path' <<< "$entry")
+    local bump_type
+    bump_type=$(detect_bump_type "$path")
+    case "$bump_type" in
+        major|minor|patch) jq --arg s "needs_${bump_type}" '.status = $s' <<< "$entry" ;;
+        *) jq --arg s "needs_patch" '.status = $s' <<< "$entry" ;;
+    esac
+}
+
+print_table() {
+    printf '\nVersion Bump Required\n'
+    printf '=====================\n\n'
+
+    local header
+    header=$(printf '%-50s  %-20s  %-10s  %-15s' "File" "Resource" "Current" "Status")
+    printf '%s\n' "$header"
+    printf '%*s\n' "${#header}" '' | tr ' ' '='
+
+    while IFS= read -r f; do
+        local display_path
+        display_path=$(jq -r '.path' <<< "$f")
+        if (( ${#display_path} > 48 )); then
+            display_path="...${display_path: -45}"
         fi
-      done
-    fi
-  fi
-  
-  rm -f "$ANALYSIS_FILE"
-fi
+        printf '%-50s  %-20s  %-10s  %-15s\n' \
+            "$display_path" \
+            "$(jq -r '.resource_name' <<< "$f")" \
+            "$(jq -r '.current_version' <<< "$f")" \
+            "$(jq -r '.status' <<< "$f")"
+    done < <(jq -c '.[]' <<< "$FILES_JSON")
 
-build_files_json() {
-  local files_json="["
-  local first=true
-  
-  for i in "${!FILE_PATHS[@]}"; do
-    if [[ "$first" == "true" ]]; then
-      first=false
+    printf '\nRun: mise run version:update\n'
+}
+
+main() {
+    local output_format="table"
+    if [[ "${1:-}" == "--json" ]]; then
+        output_format="json"
+    fi
+
+    local f
+    while IFS= read -r f; do
+        [[ -n "$f" ]] || continue
+        check_resource_file "$f"
+    done < <(get_staged_files)
+
+    while IFS= read -r f; do
+        [[ -n "$f" ]] || continue
+        check_script_file "$f"
+    done < <(get_script_files)
+
+    # Upgrade needs_bump -> needs_{major|minor|patch} by inspecting the diff.
+    local upgraded="[]"
+    while IFS= read -r f; do
+        local status
+        status=$(jq -r '.status' <<< "$f")
+        if [[ "$status" == "needs_bump" ]]; then
+            f=$(upgrade_needs_bump "$f")
+        fi
+        upgraded=$(jq --argjson e "$f" '. + [$e]' <<< "$upgraded")
+    done < <(jq -c '.[]' <<< "$FILES_JSON")
+    FILES_JSON="$upgraded"
+
+    local has_error=0
+    while IFS= read -r f; do
+        local s
+        s=$(jq -r '.status' <<< "$f")
+        if [[ "$s" == error* || "$s" == needs_* ]]; then
+            has_error=1
+            break
+        fi
+    done < <(jq -c '.[]' <<< "$FILES_JSON")
+
+    local overall_status="ok"
+    [[ $has_error -eq 1 ]] && overall_status="error"
+
+    if [[ "$output_format" == "json" ]]; then
+        write_version_state "$overall_status" "$FILES_JSON"
+        jq -n --arg status "$overall_status" --argjson files "$FILES_JSON" \
+            '{status: $status, files: $files}'
     else
-      files_json+=","
+        write_version_state "$overall_status" "$FILES_JSON"
+        if [[ $has_error -eq 0 ]]; then
+            exit 0
+        fi
+        print_table
     fi
-    
-    files_json+="{\"path\":\"${FILE_PATHS[$i]}\",\"platform\":\"${FILE_PLATFORMS[$i]}\",\"resource_type\":\"${RESOURCE_TYPES[$i]}\",\"resource_name\":\"${RESOURCE_NAMES[$i]}\",\"current_version\":\"${FILE_CURRENT[$i]}\",\"status\":\"${FILE_STATUS[$i]}\"}"
-  done
-  
-  files_json+="]"
-  echo "$files_json"
+
+    [[ $has_error -eq 1 ]] && exit 1
+    exit 0
 }
 
-output_json() {
-  local status="ok"
-  if [[ $HAS_ERROR -eq 1 ]]; then
-    status="error"
-  fi
-  
-  local files_json
-  files_json=$(build_files_json)
-  
-  write_version_state "$status" "$files_json"
-  
-  echo "{\"status\":\"$status\",\"files\":$files_json}"
-}
-
-output_table() {
-  local status="ok"
-  if [[ $HAS_ERROR -eq 1 ]]; then
-    status="error"
-  fi
-  
-  local files_json
-  files_json=$(build_files_json)
-  
-  write_version_state "$status" "$files_json"
-  
-  if [[ $HAS_ERROR -eq 0 ]]; then
-    return
-  fi
-  
-  echo ""
-  echo "Version Bump Required"
-  echo "====================="
-  echo ""
-  
-  printf "%-50s  %-20s  %-10s  %-15s\n" "File" "Resource" "Current" "Status"
-  printf "%-50s  %-20s  %-10s  %-15s\n" "$(printf '=%.0s' {1..50})" "$(printf '=%.0s' {1..20})" "$(printf '=%.0s' {1..10})" "$(printf '=%.0s' {1..15})"
-  
-  for i in "${!FILE_PATHS[@]}"; do
-    local display_path="${FILE_PATHS[$i]}"
-    if [[ ${#display_path} -gt 48 ]]; then
-      display_path="...${display_path: -45}"
-    fi
-    
-    local status_text="${FILE_STATUS[$i]}"
-    local resource_display="${RESOURCE_NAMES[$i]}"
-    
-    printf "%-50s  %-20s  %-10s  %-15s\n" "$display_path" "$resource_display" "${FILE_CURRENT[$i]}" "$status_text"
-  done
-  
-  echo ""
-  echo "Run: mise run version:update"
-}
-
-if [[ "$OUTPUT_FORMAT" == "json" ]]; then
-  output_json
-else
-  output_table
-fi
-
-if [[ $HAS_ERROR -eq 1 ]]; then
-  exit 1
-fi
-
-exit 0
+main "$@"

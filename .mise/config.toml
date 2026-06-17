@@ -1,47 +1,79 @@
 [tools]
 shellcheck = "latest"
-pre-commit = {version = "latest", postinstall = "pre-commit install"}
+pre-commit = { version = "latest", postinstall = "pre-commit install" }
 bats = "latest"
 uv = "latest"
+ty = "latest"
+ruff = "latest"
+jq = "latest"
 
 [env]
 _.python.venv = { path = ".venv" }
 
 [hooks]
-postinstall = ["mise run sync-core", "uv sync"]
+postinstall = ["mise run sync-core", "uv sync --all-extras"]
+
+[tasks.verify]
+description = "Ensure the quality of the project"
+run = [
+    { task = "typecheck" },
+    { task = "format" },
+    { task = "lint" },
+    { task = "test" },
+]
 
 [tasks.test]
-description = "Run unit and integration tests"
+description = "Run unit, integration and mechanism tests"
 run = [
-    { task="test:unit"},
-    { task="test:integration"},
-    { task="test:mechanism"},
+    { task = "test:unit" },
+    { task = "test:unit:bats" },
+    { task = "test:integration" },
+    { task = "test:mechanism" },
+    { task = "test:mechanism:bats" },
 ]
 
 [tasks."test:unit"]
 description = "Run unit tests"
-run = [
-    { task="test:unit:bash"},
-    { task="test:unit:python"},
-]
+run = "uv run pytest -m unit -q"
 
-[tasks."test:unit:bash"]
-description = "Run bash unit tests"
-run = "bats tests/unit"
-
-[tasks."test:unit:python"]
-description = "Run Python unit tests (osc tool)"
-run = "uv run pytest tests/lib -v"
+[tasks."test:unit:bats"]
+description = "Run bats unit tests for install.sh"
+run = "bats tests/unit/install.bats"
 
 [tasks."test:integration"]
 description = "Run integration tests"
-run = "bats tests/integration"
+run = "uv run pytest -m integration -q"
 
 [tasks."test:mechanism"]
-description = "Run E2E mechanism tests (no AI calls)"
+description = "Run mechanism tests (no AI calls)"
+run = "uv run pytest -m mechanism -q"
+
+[tasks."test:mechanism:bats"]
+description = "Run bats mechanism tests against built binary (no AI calls)"
+depends = "build"
 run = "bats tests/e2e/mechanism.bats"
 
 [tasks."test:e2e"]
-description = "Run all E2E tests (requires E2E_CONFIRM=1)"
-run = "E2E_CONFIRM=1 bats tests/e2e/full-workflow.bats"
+description = "Run E2E full workflow tests"
+env = { "E2E_CONFIRM" = "1" }
+depends = "build"
+run = "bats tests/e2e/full-workflow.bats"
 
+[tasks.lint]
+description = "Lint Python files with ruff, shellcheck on bash tasks"
+run = [
+    "ruff check --fix -q source/",
+    "shellcheck -x .mise/tasks/release .mise/tasks/sync-core .mise/tasks/version/check .mise/tasks/version/update .mise/tasks/version/lib/*.sh install.sh",
+]
+
+[tasks.format]
+description = "Format Python files with ruff"
+run = "ruff format -q source/"
+
+[tasks."typecheck"]
+description = "Type check Python files with ty"
+run = "ty check source/"
+
+[tasks.build]
+description = "Build pyinstaller binary"
+run = "pyinstaller openspec.spec"

@@ -8,7 +8,7 @@ license: MIT
 | Tool | Type | Usage |
 |------|------|-------|
 | `openspec` | Upstream CLI | `openspec <command> [options]` - npm package |
-| `osc ctx` | Local script | `.opencode/scripts/lib/osx ctx get <change>` - load change context |
+| `osx ctx` | Local script | `.opencode/scripts/lib/osx ctx get <change>` - load change context |
 
 Modify existing artifacts in an OpenSpec change, automatically tracking and updating dependent artifacts.
 

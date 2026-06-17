@@ -1,203 +1,289 @@
 #!/usr/bin/env bash
-#MISE description="Bump version in manifest for resources needing updates"
-#USAGE flag "--dry-run" help="Show what would be updated without making changes"
+# Bump versions in manifests and source files based on .mise/version-state.json.
+# Run via: mise run version:update
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=/dev/null
-source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/manifest.sh
+source "$SCRIPT_DIR/lib/manifest.sh"
+# shellcheck source=lib/detect.sh
+source "$SCRIPT_DIR/lib/detect.sh"
+# shellcheck source=lib/state.sh
+source "$SCRIPT_DIR/lib/state.sh"
+# shellcheck source=lib/bump.sh
+source "$SCRIPT_DIR/lib/bump.sh"
 
-DRY_RUN=false
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --dry-run) DRY_RUN=true; shift ;;
-    *) shift ;;
-  esac
-done
-
-get_manifest_file_for_platform() {
-  local platform="$1"
-  case "$platform" in
-    opencode) echo "$PROJECT_ROOT/resources/opencode/manifest.json" ;;
-    claude)   echo "$PROJECT_ROOT/resources/claude/manifest.json" ;;
-    *) echo "" ;;
-  esac
-}
+DRY_RUN="false"
+[[ "${1:-}" == "--dry-run" ]] && DRY_RUN="true"
 
 bump_resource_version() {
-  local platform="$1"
-  local resource_type="$2"
-  local resource_name="$3"
-  local bump_type="$4"
-  
-  local manifest_file
-  manifest_file=$(get_manifest_file_for_platform "$platform")
-  
-  if [[ -z "$manifest_file" || ! -f "$manifest_file" ]]; then
-    echo "Error: Manifest not found for platform '$platform'" >&2
-    return 1
-  fi
-  
-  local current_version
-  current_version=$(get_resource_version "$(cat "$manifest_file")" "$resource_type" "$resource_name")
-  
-  if [[ -z "$current_version" ]]; then
-    echo "Error: Resource '$resource_name' not found in $platform manifest" >&2
-    return 1
-  fi
-  
-  if ! validate_semver "$current_version"; then
-    return 1
-  fi
-  
-  local new_version
-  new_version=$(bump_version "$current_version" "$bump_type")
-  
-  echo "  [$platform] $resource_name: $current_version → $new_version"
-  
-  if [[ "$DRY_RUN" == "true" ]]; then
-    echo "    ✓ $resource_type/$resource_name (dry-run)"
-    return 0
-  fi
-  
-  set_resource_version "$manifest_file" "$resource_type" "$resource_name" "$new_version"
-  echo "    ✓ $resource_type/$resource_name"
-  
-  return 0
+    local platform="$1"
+    local resource_type="$2"
+    local resource_name="$3"
+    local bump_type="$4"
+
+    local manifest
+    manifest=$(manifest_path_for_platform "$platform")
+    if [[ ! -f "$manifest" ]]; then
+        printf 'Error: Manifest not found for platform "%s"\n' "$platform" >&2
+        return 1
+    fi
+
+    local current_version
+    current_version=$(get_resource_version "$manifest" "$resource_type" "$resource_name" || true)
+    if [[ -z "$current_version" ]]; then
+        printf 'Error: Resource "%s" not found in %s manifest\n' "$resource_name" "$platform" >&2
+        return 1
+    fi
+
+    if ! validate_semver "$current_version"; then
+        return 1
+    fi
+
+    local new_version
+    new_version=$(bump_semver "$current_version" "$bump_type")
+    printf '  [%s] %s: %s -> %s\n' "$platform" "$resource_name" "$current_version" "$new_version"
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        printf '    [DRY-RUN] %s/%s\n' "$resource_type" "$resource_name"
+        return 0
+    fi
+
+    set_resource_version "$manifest" "$resource_type" "$resource_name" "$new_version"
+    printf '    OK %s/%s\n' "$resource_type" "$resource_name"
 }
 
-if [[ ! -f "$VERSION_STATE_FILE" ]]; then
-  echo "Error: No state file found. Run 'mise run version:check' first." >&2
-  exit 1
-fi
+# Group resource entries by platform+type+name. Echoes "plat:type:name=bump" lines.
+# Excludes script-bump entries (platform == "root") which are handled by
+# group_script_bumps.
+group_resource_bumps() {
+    jq -r '.[] | select(.status | startswith("needs_")) |
+        select(.platform != "root") |
+        "\(.platform):\(.resource_type):\(.resource_name)=\(.status | sub("needs_"; ""))"' \
+        <<< "$1"
+}
 
-STATE_STATUS=$(get_state_status)
-if [[ "$STATE_STATUS" != "error" ]]; then
-  echo "No version bumps required (status: $STATE_STATUS)"
-  exit 0
-fi
+group_script_bumps() {
+    jq -r '.[] | select(.status | startswith("needs_")) |
+        select(.platform == "root") |
+        "\(.resource_name)=\(.status | sub("needs_"; ""))"' \
+        <<< "$1"
+}
 
-STATE_FILES=$(get_state_files)
-if [[ "$STATE_FILES" == "[]" ]]; then
-  echo "No files in state. Run 'mise run version:check' first."
-  exit 1
-fi
+# Merge multiple bump types for the same key into the highest one.
+# Input: lines of "key=bump_type". Output: lines of "key=highest_bump_type".
+dedupe_bumps() {
+    declare -A highest
+    local line key btype
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        key="${line%%=*}"
+        btype="${line#*=}"
+        local current="${highest[$key]:-}"
+        if [[ -z "$current" ]]; then
+            highest[$key]="$btype"
+        else
+            highest[$key]=$(highest_bump_type "$current" "$btype")
+        fi
+    done
+    for key in "${!highest[@]}"; do
+        printf '%s=%s\n' "$key" "${highest[$key]}"
+    done
+}
 
-declare -A RESOURCE_BUMPS=()
-
-while IFS= read -r file_entry; do
-  [[ -z "$file_entry" ]] && continue
-  
-  platform=$(echo "$file_entry" | jq -r '.platform // empty')
-  resource_type=$(echo "$file_entry" | jq -r '.resource_type // empty')
-  resource_name=$(echo "$file_entry" | jq -r '.resource_name // empty')
-  status=$(echo "$file_entry" | jq -r '.status // empty')
-  
-  if [[ -z "$platform" || -z "$resource_type" || -z "$resource_name" ]]; then
-    continue
-  fi
-  
-  if [[ "$platform" == "root" && "$resource_type" == "scripts" ]]; then
-    continue
-  fi
-  
-  if [[ ! "$status" =~ ^needs_(patch|minor|major)$ ]]; then
-    continue
-  fi
-  
-  bump_type=$(echo "$status" | sed 's/needs_//')
-  
-  resource_key="$platform:$resource_type:$resource_name"
-  existing="${RESOURCE_BUMPS[$resource_key]:-}"
-  
-  if [[ -z "$existing" ]]; then
-    RESOURCE_BUMPS[$resource_key]="$bump_type"
-  else
-    RESOURCE_BUMPS[$resource_key]=$(highest_bump_type "$existing $bump_type")
-  fi
-done < <(echo "$STATE_FILES" | jq -c '.[]')
-
-declare -A SCRIPT_BUMPS=()
-
-while IFS= read -r file_entry; do
-  [[ -z "$file_entry" ]] && continue
-  
-  platform=$(echo "$file_entry" | jq -r '.platform // empty')
-  resource_type=$(echo "$file_entry" | jq -r '.resource_type // empty')
-  resource_name=$(echo "$file_entry" | jq -r '.resource_name // empty')
-  status=$(echo "$file_entry" | jq -r '.status // empty')
-  
-  if [[ "$platform" != "root" || "$resource_type" != "scripts" ]]; then
-    continue
-  fi
-  
-  if [[ ! "$status" =~ ^needs_(patch|minor|major)$ ]]; then
-    continue
-  fi
-  
-  bump_type=$(echo "$status" | sed 's/needs_//')
-  SCRIPT_BUMPS[$resource_name]="$bump_type"
-done < <(echo "$STATE_FILES" | jq -c '.[]')
-
-if [[ ${#RESOURCE_BUMPS[@]} -eq 0 && ${#SCRIPT_BUMPS[@]} -eq 0 ]]; then
-  echo "No version bumps required"
-  exit 0
-fi
-
-if [[ ${#RESOURCE_BUMPS[@]} -gt 0 ]]; then
-  echo "Executing version bumps in manifests:"
-  echo ""
-
-  for resource_key in "${!RESOURCE_BUMPS[@]}"; do
-    IFS=':' read -r platform resource_type resource_name <<< "$resource_key"
-    bump_type="${RESOURCE_BUMPS[$resource_key]}"
-    bump_resource_version "$platform" "$resource_type" "$resource_name" "$bump_type"
-  done
-  
-  echo ""
-fi
-
-if [[ ${#SCRIPT_BUMPS[@]} -gt 0 ]]; then
-  echo "Executing version bumps in scripts:"
-  echo ""
-  
-  for script_name in "${!SCRIPT_BUMPS[@]}"; do
-    bump_type="${SCRIPT_BUMPS[$script_name]}"
-    
-    script_file=""
-    case "$script_name" in
-      install.sh)  script_file="$PROJECT_ROOT/install.sh" ;;
-      openspecx)   script_file="$PROJECT_ROOT/bin/openspecx" ;;
-      *) continue ;;
-    esac
-    
-    if [[ ! -f "$script_file" ]]; then
-      echo "  Warning: Script not found: $script_file" >&2
-      continue
+main() {
+    local status
+    status=$(get_state_status)
+    if [[ "$status" != "error" ]]; then
+        printf 'No version bumps required (status: %s)\n' "$status"
+        exit 0
     fi
-    
-    current_version=$(get_script_version_from_file "$script_file")
-    
-    if [[ -z "$current_version" ]]; then
-      echo "  Error: SCRIPT_VERSION not found in $script_file" >&2
-      continue
-    fi
-    
-    new_version=$(bump_version "$current_version" "$bump_type")
-    
-    echo "  [root] $script_name: $current_version → $new_version"
-    
-    if [[ "$DRY_RUN" == "true" ]]; then
-      echo "    ✓ scripts/$script_name (dry-run)"
-    else
-      bump_script_version_in_file "$script_file" "$new_version"
-      echo "    ✓ scripts/$script_name"
-    fi
-  done
-  
-  echo ""
-fi
 
-echo "Done. Commit the changes."
+    local files_json
+    files_json=$(get_state_files)
+    if [[ "$files_json" == "[]" ]]; then
+        printf 'No files in state. Run "mise run version:check" first.\n' >&2
+        exit 1
+    fi
+
+    local resource_bumps script_bumps
+    resource_bumps=$(group_resource_bumps "$files_json" | dedupe_bumps || true)
+    script_bumps=$(group_script_bumps "$files_json" | dedupe_bumps || true)
+
+    if [[ -z "$resource_bumps" && -z "$script_bumps" ]]; then
+        printf 'No version bumps required\n'
+        exit 0
+    fi
+
+    if [[ -n "$resource_bumps" ]]; then
+        printf 'Executing version bumps in manifests:\n\n'
+        local line key btype plat rtype rname
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            key="${line%%=*}"
+            btype="${line#*=}"
+            IFS=':' read -r plat rtype rname <<< "$key"
+            bump_resource_version "$plat" "$rtype" "$rname" "$btype"
+        done <<< "$resource_bumps"
+        printf '\n'
+    fi
+
+    if [[ -n "$script_bumps" ]]; then
+        printf 'Executing version bumps in scripts:\n\n'
+        local line key btype tool_new_version=""
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            key="${line%%=*}"
+            btype="${line#*=}"
+            case "$key" in
+                install.sh)
+                    local file_path="$MANIFEST_PROJECT_ROOT/$key"
+                    if [[ ! -f "$file_path" ]]; then
+                        printf '  Warning: Script not found: %s\n' "$key" >&2
+                        continue
+                    fi
+                    local current_version new_version_for_file
+                    current_version=$(get_script_version_from_file_for_path "$file_path" || true)
+                    if [[ -z "$current_version" ]]; then
+                        printf '  Error: SCRIPT_VERSION not found in %s\n' "$key" >&2
+                        continue
+                    fi
+                    if ! validate_semver "$current_version"; then
+                        continue
+                    fi
+                    new_version_for_file=$(bump_semver "$current_version" "$btype")
+                    printf '  [root] %s: %s -> %s\n' "$key" "$current_version" "$new_version_for_file"
+                    bump_script_version_in_file "$file_path" "$new_version_for_file" "$DRY_RUN"
+                    ;;
+                cli.py|__init__.py|pyproject.toml)
+                    local rel_path file_path
+                    case "$key" in
+                        cli.py) rel_path="source/cli.py" ;;
+                        __init__.py) rel_path="source/__init__.py" ;;
+                        pyproject.toml) rel_path="pyproject.toml" ;;
+                    esac
+                    file_path="$MANIFEST_PROJECT_ROOT/$rel_path"
+                    if [[ ! -f "$file_path" ]]; then
+                        printf '  Warning: File not found: %s\n' "$rel_path" >&2
+                        continue
+                    fi
+                    local current_version new_version_for_file
+                    case "$key" in
+                        pyproject.toml)
+                            current_version=$(get_pyproject_version_for_path "$file_path" || true)
+                            if [[ -z "$current_version" ]]; then
+                                printf '  Error: [project] version not found in %s\n' "$rel_path" >&2
+                                continue
+                            fi
+                            ;;
+                        __init__.py)
+                            current_version=$(get_py_init_version_for_path "$file_path" || true)
+                            if [[ -z "$current_version" ]]; then
+                                printf '  Error: __version__ not found in %s\n' "$rel_path" >&2
+                                continue
+                            fi
+                            ;;
+                        *)
+                            current_version=$(get_script_version_from_file_for_path "$file_path" || true)
+                            if [[ -z "$current_version" ]]; then
+                                printf '  Error: SCRIPT_VERSION not found in %s\n' "$rel_path" >&2
+                                continue
+                            fi
+                            ;;
+                    esac
+                    if ! validate_semver "$current_version"; then
+                        continue
+                    fi
+                    new_version_for_file=$(bump_semver "$current_version" "$btype")
+                    printf '  [root] %s: %s -> %s\n' "$rel_path" "$current_version" "$new_version_for_file"
+                    case "$key" in
+                        pyproject.toml)
+                            bump_pyproject_version "$new_version_for_file" "$DRY_RUN"
+                            ;;
+                        __init__.py)
+                            bump_py_init_version "$new_version_for_file" "$DRY_RUN"
+                            ;;
+                        *)
+                            bump_script_version_in_file "$file_path" "$new_version_for_file" "$DRY_RUN"
+                            ;;
+                    esac
+                    if [[ -z "$tool_new_version" ]] || [[ "$new_version_for_file" > "$tool_new_version" ]]; then
+                        tool_new_version="$new_version_for_file"
+                    fi
+                    ;;
+                *)
+                    printf '  Warning: Unknown script: %s\n' "$key" >&2
+                    ;;
+            esac
+        done <<< "$script_bumps"
+
+        # The three tool-version files (source/cli.py, source/__init__.py,
+        # pyproject.toml) must always stay in lockstep. After individual
+        # bumps above, mirror the highest target version to whichever
+        # files weren't already bumped to it.
+        if [[ -n "$tool_new_version" ]]; then
+            local cli_path="$MANIFEST_PROJECT_ROOT/source/cli.py"
+            local init_path="$MANIFEST_PROJECT_ROOT/source/__init__.py"
+            local pyproject_path="$MANIFEST_PROJECT_ROOT/pyproject.toml"
+
+            local cli_current init_current pyproject_current
+            cli_current=$(get_script_version_from_file_for_path "$cli_path" 2>/dev/null || echo "")
+            init_current=$(get_py_init_version_for_path "$init_path" 2>/dev/null || echo "")
+            pyproject_current=$(get_pyproject_version_for_path "$pyproject_path" 2>/dev/null || echo "")
+
+            if [[ "$cli_current" != "$tool_new_version" ]]; then
+                bump_script_version_in_file "$cli_path" "$tool_new_version" "$DRY_RUN"
+            fi
+            if [[ "$init_current" != "$tool_new_version" ]]; then
+                bump_py_init_version "$tool_new_version" "$DRY_RUN"
+            fi
+            if [[ "$pyproject_current" != "$tool_new_version" ]]; then
+                bump_pyproject_version "$tool_new_version" "$DRY_RUN"
+            fi
+        fi
+        printf '\n'
+    fi
+
+    printf 'Done. Commit the changes.\n'
+}
+
+# Read SCRIPT_VERSION from a specific file path. This is a small wrapper
+# used only inside this script to keep the local "current_version" lookup
+# explicit.
+get_script_version_from_file_for_path() {
+    local file_path="$1"
+    [[ -f "$file_path" ]] || return 1
+    grep -E '^[[:space:]]*SCRIPT_VERSION[[:space:]]*=' "$file_path" \
+        | head -n1 \
+        | sed -E 's/^[[:space:]]*SCRIPT_VERSION[[:space:]]*=[[:space:]]*"?([^"]*)"?$/\1/'
+}
+
+# Read the [project] version from a pyproject.toml at a specific path.
+get_pyproject_version_for_path() {
+    local file_path="$1"
+    [[ -f "$file_path" ]] || return 1
+    python3 - "$file_path" <<'PY'
+import re, sys
+from pathlib import Path
+text = Path(sys.argv[1]).read_text()
+m = re.search(r'\[project\](.*?)(?=\n\[|\Z)', text, re.DOTALL)
+if not m:
+    sys.exit(1)
+v = re.search(r'^version\s*=\s*"([^"]+)"', m.group(1), re.MULTILINE)
+if not v:
+    sys.exit(1)
+print(v.group(1))
+PY
+}
+
+# Read __version__ from a source/__init__.py at a specific path.
+get_py_init_version_for_path() {
+    local file_path="$1"
+    [[ -f "$file_path" ]] || return 1
+    grep -E '^__version__[[:space:]]*=' "$file_path" \
+        | head -n1 \
+        | sed -E 's/^__version__[[:space:]]*=[[:space:]]*"([^"]*)"$/\1/'
+}
+
+main "$@"

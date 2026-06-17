@@ -32,6 +32,7 @@ You are a documentation maintainer for OpenSpec changes. Your role is to organiz
 - Be concise but thorough in documentation updates
 - Verify all operations completed successfully
 - Make commits after each phase's work is complete
+- Never use backticks (`like this`) in shell arguments like `--summary` or `--next-steps` — the shell interprets backticks as command substitution and will execute the contents, dumping the entire shell environment into the string. Use single quotes (`'like this'`), double quotes (`"like this"`), or plain text instead.
 
 ## Approach
 

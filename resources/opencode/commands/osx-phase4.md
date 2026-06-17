@@ -20,7 +20,7 @@ Change: $1
   !`.opencode/scripts/lib/osx ctx get "$1"`
 2. Confirm `phase` is PHASE4
 3. Review `history.iterations_recorded` for previous attempts
-4. Load skill: `.opencode/skills/osx-concepts/SKILL.md` (reference only)
+4. Load skills: `osx-concepts` and `osx-workflow` (both reference only)
 
 ## PURPOSE
 
@@ -89,7 +89,7 @@ Append entry:
   --iteration N \
   --summary "Specs synced successfully" \
   --commit-hash "<hash or null>" \
-  --next-steps "Proceeding to PHASE5 (ARCHIVE)" \
+  --next-steps "Proceeding to PHASE5 (SELF_REFLECTION)" \
   --extra '{"delta_specs_found":["spec1.md","spec2.md"],"sync_operations":{"added":N,"modified":N,"removed":N,"renamed":N}}'
 ```
 
@@ -116,3 +116,17 @@ IF no delta specs:
 1. Log: "No delta specs, skipping SYNC"
 2. Mark phase complete via `osx state`
 3. Script will advance to PHASE5
+
+
+## SHELL ARGUMENT SAFETY
+
+When passing free-text to `--summary`, `--next-steps`, or any other shell argument, **DO NOT use backticks** (`` `like this` ``) for inline code references. Backticks are interpreted as command substitution by bash/zsh — the shell will execute whatever is inside the backticks and substitute its output. In zsh, `` `local` `` dumps the entire shell environment (PATH, tokens, internal variables) into your string, which then gets stored verbatim in `decision-log.json`.
+
+**Use instead:**
+
+- Single quotes: `'local'`
+- Double quotes: `"local"`
+- Plain text: `local`
+- Markdown `code` (which uses backticks in raw form, NOT shell backticks) — fine only when the argument is not passed through a shell
+
+If `osx log append` returns `input_too_long` or `input_tainted`, remove the backticks from the offending argument and retry.

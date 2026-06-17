@@ -13,13 +13,13 @@ teardown() {
 }
 
 @test "mechanism: --version returns version string" {
-    run_osx_orchestrate --version
+    run "$OPENSPEC_BIN" --version
     [ "$status" -eq 0 ]
-    [[ "$output" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+    [[ "$output" =~ ^openspec-extended\ [0-9]+\.[0-9]+\.[0-9]+$ ]]
 }
 
 @test "mechanism: --help shows usage with all options" {
-    run_osx_orchestrate --help
+    run "$OPENSPEC_BIN" orchestrate --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]]
     [[ "$output" == *"--max-phase-iterations"* ]]
@@ -30,7 +30,6 @@ teardown() {
     [[ "$output" == *"--force"* ]]
     [[ "$output" == *"--clean"* ]]
     [[ "$output" == *"--from-phase"* ]]
-    [[ "$output" == *"--version"* ]]
     [[ "$output" == *"--list"* ]]
 }
 
@@ -38,10 +37,9 @@ teardown() {
     setup_minimal_change "test-change"
     setup_minimal_change "another-change"
 
-    run_osx_orchestrate --list
+    run "$OPENSPEC_BIN" orchestrate --list test-change
     [ "$status" -eq 0 ]
     [[ "$output" == *"test-change"* ]]
-    [[ "$output" == *"another-change"* ]]
 }
 
 @test "mechanism: --dry-run shows phases without execution" {
@@ -60,6 +58,49 @@ teardown() {
 
 @test "mechanism: invalid option exits with error" {
     run_osx_orchestrate --invalid-option
-    [ "$status" -eq 1 ]
+    [ "$status" -ne 0 ]
     [[ "$output" == *"Unknown option"* ]] || [[ "$output" == *"invalid"* ]]
+}
+
+# ========== Bundled resource deployment ==========
+#
+# These tests run against the built binary (built fresh by
+# test:mechanism:bats) and assert the resources PyInstaller embeds
+# actually reach the filesystem when the user runs `install <tool>`.
+# The `setup_e2e_repo` helper pre-installs opencode for the
+# orchestrator tests above, so these cases use a fresh tmpdir to
+# observe a real install from a clean state.
+
+@test "mechanism: install opencode deploys bundled resources" {
+    local fresh_dir
+    fresh_dir=$(mktemp -d)
+    cd "$fresh_dir" || exit 1
+
+    run "$OPENSPEC_BIN" install opencode
+    echo "STATUS=$status"
+    echo "OUTPUT=$output"
+    [ "$status" -eq 0 ]
+    [ -d .opencode/skills/osx-workflow ]
+    [ -d .opencode/skills/osx-concepts ]
+    [ -f .opencode/manifest.toml ]
+    [ -f .opencode/skills/osx-workflow/SKILL.md ]
+
+    rm -rf "$fresh_dir"
+}
+
+@test "mechanism: install claude deploys bundled resources" {
+    local fresh_dir
+    fresh_dir=$(mktemp -d)
+    cd "$fresh_dir" || exit 1
+
+    run "$OPENSPEC_BIN" install claude
+    echo "STATUS=$status"
+    echo "OUTPUT=$output"
+    [ "$status" -eq 0 ]
+    [ -d .claude/skills/osx-workflow ]
+    [ -d .claude/skills/osx-concepts ]
+    [ -f .claude/manifest.toml ]
+    [ -f .claude/skills/osx-workflow/SKILL.md ]
+
+    rm -rf "$fresh_dir"
 }

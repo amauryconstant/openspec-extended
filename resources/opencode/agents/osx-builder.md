@@ -32,6 +32,7 @@ You are an implementer for OpenSpec changes. Your role is to execute tasks and w
 - Document ALL assumptions explicitly via `osc log`
 - Prefer incremental commits over big-bang changes
 - Never assume previous iterations were correct - always verify
+- Never use backticks (`like this`) in shell arguments like `--summary` or `--next-steps` — the shell interprets backticks as command substitution and will execute the contents, dumping the entire shell environment into the string. Use single quotes (`'like this'`), double quotes (`"like this"`), or plain text instead.
 
 ## Approach
 

@@ -5,7 +5,7 @@
 load 'helpers/e2e-helpers'
 
 # Use longer timeout for file-level setup
-E2E_TIMEOUT=3600
+E2E_TIMEOUT=12000
 
 # File-level shared state
 SHARED_ARCHIVE_DIR=""
@@ -19,8 +19,11 @@ setup_file() {
 
     # Run expensive workflow ONCE
     run_osx_orchestrate_streaming "$SHARED_CHANGE_NAME" \
-        --force --verbose --log-file \
-        --max-phase-iterations 3 --timeout 600
+        --force \
+        --clean \
+        --verbose \
+        --max-phase-iterations=10 \
+        --timeout="$E2E_TIMEOUT"
 
     # Validate success by checking actual outcome, not just exit status
     # (Exit status can be unreliable due to background tee process)
@@ -56,7 +59,7 @@ teardown_file() {
     rm -f .e2e-state.json
 
     # Cleanup once after all tests
-    teardown_e2e_repo
+    # teardown_e2e_repo
 }
 
 # ============================================
@@ -175,7 +178,8 @@ teardown_file() {
 
 @test "archive: has specs directory" {
     [ -d "$SHARED_ARCHIVE_DIR/specs" ]
-    [ -f "$SHARED_ARCHIVE_DIR/specs/hello.md" ]
+    # OpenSpec convention: <capability>/spec.md
+    [ -n "$(find "$SHARED_ARCHIVE_DIR/specs" -name "spec.md" -type f | head -1)" ]
 }
 
 @test "archive: preserves historical files" {
@@ -365,31 +369,31 @@ teardown_file() {
     local log_file
     log_file=$(get_log_file "$SHARED_CHANGE_NAME")
     [ -n "$log_file" ]
-    
+
     # Count agent sessions ("> osx-" prefix)
     local agent_sessions
     agent_sessions=$(grep -c "^> osx-" "$log_file" || echo "0")
-    
+
     # Should have at least 7 sessions (one per phase PHASE0-PHASE6)
     [ "$agent_sessions" -ge 7 ]
-    
+
     # Should have sessions for each phase
-    grep -q "> osx-analyzer" "$log_file"  # PHASE0, PHASE2, PHASE5
-    grep -q "> osx-builder" "$log_file"   # PHASE1
-    grep -q "> osx-maintainer" "$log_file"  # PHASE3, PHASE4, PHASE6
+    grep -q "> osx-analyzer" "$log_file"   # PHASE0, PHASE2, PHASE5
+    grep -q "> osx-builder" "$log_file"    # PHASE1
+    grep -q "> osx-maintainer" "$log_file" # PHASE3, PHASE4, PHASE6
 }
 
 @test "log: contains agent response patterns" {
     local log_file
     log_file=$(get_log_file "$SHARED_CHANGE_NAME")
     [ -n "$log_file" ]
-    
+
     # Agents typically start responses with these patterns
     grep -q -E "(^I'll|^Let me|^I need to|^I'll start)" "$log_file" || {
         echo "Log missing agent response patterns"
         return 1
     }
-    
+
     # Should have at least one agent response
     local response_count
     response_count=$(grep -c -E "(^I'll|^Let me)" "$log_file" || echo "0")

@@ -1,7 +1,47 @@
 #!/usr/bin/env bats
-# Unit tests for install.sh
+# Unit tests for install.sh (binary install flow).
+#
+# These tests start a local HTTP server in setup_file that serves a
+# fixture tarball and SHA256SUMS file. install.sh is pointed at the
+# server via BASE_URL, so tests are hermetic and don't touch GitHub.
 
 load '../helpers/test-helpers'
+
+# ========== File-level fixture: local HTTP server ==========
+
+SERVER_PORT=18181
+SERVER_PID=""
+TARBALL_NAME="openspec-extended-v0.19.0-linux-x86_64.tar.gz"
+
+setup_file() {
+    FIXTURE_DIR="$FIXTURES_DIR/install"
+    bash "$FIXTURE_DIR/pack.sh" 0.19.0 linux-x86_64
+    TARBALL_PATH="$FIXTURE_DIR/releases/download/v0.19.0/$TARBALL_NAME"
+    [[ -f "$TARBALL_PATH" ]]
+    [[ -f "$FIXTURE_DIR/releases/download/v0.19.0/SHA256SUMS" ]]
+
+    python3 -m http.server "$SERVER_PORT" --directory "$FIXTURE_DIR" \
+        >/dev/null 2>&1 &
+    SERVER_PID=$!
+
+    # Wait briefly for the server to start accepting connections.
+    local i
+    for i in {1..50}; do
+        if curl -sf "http://127.0.0.1:${SERVER_PORT}/releases/download/v0.19.0/SHA256SUMS" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 0.1
+    done
+    echo "Could not start local HTTP server on port $SERVER_PORT" >&2
+    return 1
+}
+
+teardown_file() {
+    if [[ -n "$SERVER_PID" ]]; then
+        kill "$SERVER_PID" 2>/dev/null || true
+        wait "$SERVER_PID" 2>/dev/null || true
+    fi
+}
 
 setup() {
     setup_test_env
@@ -11,105 +51,179 @@ teardown() {
     teardown_test_env
 }
 
-# ========== Argument parsing ==========
+# Stripped env passed to install.sh. Forces the script to fetch from
+# the local server. The `env` prefix in callers keeps the test
+# hermetic: we only pass through what install.sh actually needs.
+BASE_URL_LOCAL="http://127.0.0.1:${SERVER_PORT}"
+TEST_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+TEST_HOME="${HOME:-/tmp}"
 
-@test "install: --help shows usage and exits 0" {
+# Run install.sh with a minimal env. Caller passes additional args.
+run_install() {
+    env -i \
+        HOME="$TEST_HOME" \
+        PATH="$TEST_PATH" \
+        BASE_URL="$BASE_URL_LOCAL" \
+        BASE_URL_GITHUB="$BASE_URL_LOCAL" \
+        REPO=test/test \
+        VERSION=v0.19.0 \
+        bash "$INSTALL_SCRIPT" "$@"
+}
+
+# ========== Help / version ==========
+
+@test "install: --help shows usage" {
     run bash "$INSTALL_SCRIPT" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage"* ]]
-    [[ "$output" == *"Examples"* ]]
+    [[ "$output" == *"BASE_URL"* ]]
 }
 
-@test "install: -h shows usage and exits 0" {
-    run bash "$INSTALL_SCRIPT" -h
+@test "install: --version shows installer version" {
+    run bash "$INSTALL_SCRIPT" --version
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Usage"* ]]
+    [[ "$output" == *"OpenSpec-extended installer"* ]]
 }
 
-@test "install: --uninstall option recognized" {
-    # Should not error on --uninstall even if nothing installed
-    # Provide 'n' input to skip confirmation if installation exists
-    run bash -c "echo 'n' | bash '$INSTALL_SCRIPT' --uninstall"
-    # May fail if nothing to uninstall, but should not show usage error
+@test "install: --uninstall is recognized and exits cleanly" {
+    run bash "$INSTALL_SCRIPT" --uninstall <<< "n"
+    [ "$status" -eq 0 ]
     [[ "$output" != *"Unknown option"* ]]
 }
 
-@test "install: unknown option shows error" {
-    run bash "$INSTALL_SCRIPT" --invalid-option
-    [ "$status" -eq 1 ]
+@test "install: unknown option shows --help hint" {
+    run bash "$INSTALL_SCRIPT" --bogus-flag
+    [ "$status" -ne 0 ]
     [[ "$output" == *"Unknown option"* ]]
+    [[ "$output" == *"--help"* ]]
 }
 
 # ========== PREFIX handling ==========
 
-@test "install: respects PREFIX environment variable" {
-    local custom_prefix="$TEST_DIR/custom-prefix"
-    
-    # Source and test the variable is used
-    export PREFIX="$custom_prefix"
-    
-    # Just verify the script uses the variable by checking help doesn't fail
-    run bash -c "PREFIX='$custom_prefix' bash '$INSTALL_SCRIPT' --help"
+@test "install: rejects PREFIX with path traversal" {
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" PREFIX='../../../tmp' \
+        bash "$INSTALL_SCRIPT" 2>&1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid PREFIX"* ]]
+}
+
+@test "install: rejects system directory /etc" {
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" PREFIX=/etc \
+        bash "$INSTALL_SCRIPT" 2>&1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid PREFIX"* ]]
+}
+
+@test "install: rejects system directory /bin" {
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" PREFIX=/bin \
+        bash "$INSTALL_SCRIPT" 2>&1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid PREFIX"* ]]
+}
+
+@test "install: accepts home directory PREFIX" {
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" PREFIX="$HOME/.local" \
+        bash "$INSTALL_SCRIPT" --help
     [ "$status" -eq 0 ]
 }
 
 # ========== VERSION handling ==========
 
-@test "install: respects VERSION environment variable" {
-    export VERSION=v0.9.0
-    
-    # Verify script accepts VERSION variable
-    run bash -c "VERSION=v0.9.0 bash '$INSTALL_SCRIPT' --help"
-    [ "$status" -eq 0 ]
+@test "install: rejects VERSION without patch" {
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" VERSION='1.2' \
+        bash "$INSTALL_SCRIPT" 2>&1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid VERSION"* ]]
+}
+
+@test "install: rejects VERSION with non-numeric parts" {
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" VERSION='1.2.x' \
+        bash "$INSTALL_SCRIPT" 2>&1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid VERSION"* ]]
+}
+
+@test "install: accepts VERSION with prerelease" {
+    # Will fail to download (no v1.2.3-alpha fixture), but must pass
+    # validation. The error must NOT be about VERSION format.
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" PREFIX="$TEST_DIR/.local" \
+        REPO=test/test VERSION='v1.2.3-alpha.1' BASE_URL="$BASE_URL_LOCAL" \
+        bash "$INSTALL_SCRIPT" 2>&1
+    [[ "$output" != *"Invalid VERSION"* ]]
+}
+
+@test "install: accepts VERSION with build metadata" {
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" PREFIX="$TEST_DIR/.local" \
+        REPO=test/test VERSION='v1.2.3+build.42' BASE_URL="$BASE_URL_LOCAL" \
+        bash "$INSTALL_SCRIPT" 2>&1
+    [[ "$output" != *"Invalid VERSION"* ]]
+}
+
+@test "install: accepts latest and main keywords" {
+    for keyword in latest main; do
+        run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" VERSION="$keyword" \
+            bash "$INSTALL_SCRIPT" 2>&1
+        [[ "$output" != *"Invalid VERSION"* ]]
+    done
 }
 
 # ========== REPO handling ==========
 
-@test "install: respects REPO environment variable" {
-    export REPO="test/repo"
-    
-    # Verify script accepts REPO variable
-    run bash -c "REPO='test/repo' bash '$INSTALL_SCRIPT' --help"
-    [ "$status" -eq 0 ]
+@test "install: rejects REPO with path traversal" {
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" REPO='../../etc/passwd' \
+        bash "$INSTALL_SCRIPT" 2>&1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid REPO format"* ]]
 }
 
-# ========== Directory creation ==========
-
-@test "install: creates PREFIX/share/openspec-extended directory" {
-    local prefix="$TEST_DIR/.local"
-    
-    # The install function should create directories
-    # We test this indirectly by verifying uninstall works
-    mkdir -p "$prefix/share/openspec-extended"
-    mkdir -p "$prefix/bin"
-    
-    assert_dir_exists "$prefix/share/openspec-extended"
+@test "install: rejects REPO with command injection" {
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" REPO='repo; rm -rf /tmp' \
+        bash "$INSTALL_SCRIPT" 2>&1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid REPO format"* ]]
 }
 
-# ========== Uninstall functionality ==========
-
-@test "install: uninstall removes install directory" {
-    skip "Requires interactive confirmation"
+@test "install: rejects REPO with too many parts" {
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" REPO='repo/extra/parts' \
+        bash "$INSTALL_SCRIPT" 2>&1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Invalid REPO format"* ]]
 }
 
-@test "install: uninstall removes symlink" {
-    skip "Requires interactive confirmation"
-}
-
-@test "install: uninstall handles missing installation gracefully" {
-    local prefix="$TEST_DIR/nonexistent"
-    
-    # Should not fail even if nothing to uninstall
-    PREFIX="$prefix" run bash "$INSTALL_SCRIPT" --uninstall
+@test "install: accepts valid REPO format" {
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" REPO='test/test' \
+        bash "$INSTALL_SCRIPT" --help
     [ "$status" -eq 0 ]
 }
 
 # ========== Dependencies ==========
 
 @test "install: requires curl or wget" {
-    # This test verifies the check_dependencies function exists
-    # We can't easily test it without mocking, so just verify script structure
     grep -q "curl.*wget" "$INSTALL_SCRIPT"
+}
+
+@test "install: requires tar" {
+    grep -q "command -v tar" "$INSTALL_SCRIPT"
+}
+
+# ========== Platform detection ==========
+
+@test "install: detect_platform returns supported platform on this OS" {
+    run bash -c "
+        $(sed -n '/^detect_platform()/,/^}/p' "$INSTALL_SCRIPT")
+        detect_platform
+    "
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ ^(linux|darwin)-(x86_64|arm64)$ ]]
+}
+
+@test "install: detect_platform rejects unknown OS strings" {
+    # Verify the case statement in detect_platform covers only
+    # linux/darwin. We grep the source rather than stubbing uname,
+    # which is fragile under bash function scoping.
+    grep -A3 "case \"\\\$os\" in" "$INSTALL_SCRIPT" | grep -q "linux)"
+    grep -A3 "case \"\\\$os\" in" "$INSTALL_SCRIPT" | grep -q "darwin)"
+    ! grep -A6 "case \"\\\$os\" in" "$INSTALL_SCRIPT" | grep -q "beos)"
 }
 
 # ========== Script structure ==========
@@ -123,182 +237,79 @@ teardown() {
 }
 
 @test "install: script contains required functions" {
-    grep -q "^get_latest_version" "$INSTALL_SCRIPT"
-    grep -q "^download_tarball" "$INSTALL_SCRIPT"
-    grep -q "^install()" "$INSTALL_SCRIPT"
-    grep -q "^uninstall()" "$INSTALL_SCRIPT"
+    for fn in detect_platform download_tarball verify_checksum run_install uninstall; do
+        grep -q "^${fn}()" "$INSTALL_SCRIPT"
+    done
 }
 
-# ========== Input Validation - REPO ==========
-
-@test "install: rejects REPO with path traversal" {
-    run bash -c "REPO='../../etc/passwd' bash '$INSTALL_SCRIPT' 2>&1"
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Invalid REPO format"* ]]
-}
-
-@test "install: rejects REPO with command injection" {
-    run bash -c "REPO='repo; rm -rf /tmp' bash '$INSTALL_SCRIPT' 2>&1"
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Invalid REPO format"* ]]
-}
-
-@test "install: rejects REPO with too many parts" {
-    run bash -c "REPO='repo/extra/parts' bash '$INSTALL_SCRIPT' 2>&1"
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Invalid REPO format"* ]]
-}
-
-@test "install: accepts valid REPO format" {
-    run bash -c "REPO='test/test' bash '$INSTALL_SCRIPT' --help"
-    [ "$status" -eq 0 ]
-}
-
-# ========== Input Validation - VERSION ==========
-
-@test "install: rejects VERSION without patch" {
-    run bash -c "VERSION='1.2' bash '$INSTALL_SCRIPT' 2>&1"
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Invalid VERSION format"* ]]
-}
-
-@test "install: accepts valid SemVer" {
-    run bash -c "VERSION='1.2.3' bash '$INSTALL_SCRIPT' --help"
-    [ "$status" -eq 0 ]
-}
-
-@test "install: accepts VERSION with v prefix" {
-    run bash -c "VERSION='v1.2.3' bash '$INSTALL_SCRIPT' --help"
-    [ "$status" -eq 0 ]
-}
-
-@test "install: accepts VERSION with prerelease" {
-    run bash -c "VERSION='1.2.3-alpha.1' bash '$INSTALL_SCRIPT' --help"
-    [ "$status" -eq 0 ]
-}
-
-@test "install: accepts VERSION with build" {
-    run bash -c "VERSION='1.2.3+build' bash '$INSTALL_SCRIPT' --help"
-    [ "$status" -eq 0 ]
-}
-
-@test "install: accepts VERSION keyword latest" {
-    run bash -c "VERSION='latest' bash '$INSTALL_SCRIPT' --help"
-    [ "$status" -eq 0 ]
-}
-
-@test "install: accepts VERSION keyword main" {
-    run bash -c "VERSION='main' bash '$INSTALL_SCRIPT' --help"
-    [ "$status" -eq 0 ]
-}
-
-# ========== Input Validation - PREFIX ==========
-
-@test "install: rejects PREFIX with path traversal" {
-    run bash -c "PREFIX='../../../tmp' bash '$INSTALL_SCRIPT' 2>&1"
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Invalid PREFIX"* ]]
-}
-
-@test "install: rejects system directory /etc" {
-    run bash -c "PREFIX='/etc' bash '$INSTALL_SCRIPT' 2>&1"
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Invalid PREFIX"* ]]
-}
-
-@test "install: rejects system directory /bin" {
-    run bash -c "PREFIX='/bin' bash '$INSTALL_SCRIPT' 2>&1"
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Invalid PREFIX"* ]]
-}
-
-@test "install: accepts home directory PREFIX" {
-    run bash -c "PREFIX='$HOME/.local' bash '$INSTALL_SCRIPT' --help"
-    [ "$status" -eq 0 ]
-}
-
-# ========== Error Handling ==========
-
-@test "install: unknown option shows --help hint" {
-    run bash "$INSTALL_SCRIPT" --invalid
-    [ "$status" -eq 1 ]
-    [[ "$output" == *"Run"* ]]
-    [[ "$output" == *"--help"* ]]
-}
-
-@test "install: dependency error shows macOS hint" {
-    run bash -c "OSTYPE='darwin' bash '$INSTALL_SCRIPT' 2>&1"
-    [[ "$output" == *"brew install"* ]] || true
-}
-
-@test "install: dependency error shows apt-get hint" {
-    skip "Platform-specific test"
-}
-
-@test "install: dependency error shows yum hint" {
-    skip "Platform-specific test"
-}
-
-@test "install: dependency error shows pacman hint" {
-    skip "Platform-specific test"
-}
-
-# ========== Code Quality ==========
+# ========== Code quality ==========
 
 @test "install: uses portable shebang" {
-    head -1 "$INSTALL_SCRIPT" | grep -q '#!/usr/bin/env bash'
+    head -1 "$INSTALL_SCRIPT" | grep -q "^#!/usr/bin/env bash"
 }
 
-@test "install: passes shellcheck" {
+@test "install: shellcheck passes (no errors or warnings)" {
     if ! command -v shellcheck &>/dev/null; then
         skip "shellcheck not available"
     fi
-    
-    local shellcheck_output
-    shellcheck_output=$(shellcheck "$INSTALL_SCRIPT" 2>&1 || true)
-    
-    # Check for errors or warnings (exclude info-level SC2310)
-    if echo "$shellcheck_output" | grep -v "SC2310" | grep -qE 'SC[0-9]{4} \(error|warning\)'; then
-        echo "$shellcheck_output"
+    local out
+    out=$(shellcheck "$INSTALL_SCRIPT" 2>&1 || true)
+    if echo "$out" | grep -v "SC2310" | grep -qE 'SC[0-9]{4} \(error|warning\)'; then
+        echo "$out"
         return 1
     fi
 }
 
-# ========== Integration Test ==========
+# ========== End-to-end install (the only network-free real install) ==========
 
-@test "install: full install and uninstall cycle" {
-    local prefix="/tmp/openspec-test-$$"
-    
-    # Run install
-    run bash -c "PREFIX='$prefix' bash '$INSTALL_SCRIPT' 2>&1"
+@test "install: end-to-end install via BASE_URL produces runnable binary" {
+    local prefix="$TEST_DIR/.local"
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" \
+        PREFIX="$prefix" REPO=test/test VERSION=v0.19.0 \
+        BASE_URL="$BASE_URL_LOCAL" \
+        bash "$INSTALL_SCRIPT" 2>&1
+    echo "STATUS=$status"
+    echo "OUTPUT=$output"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Installed"* ]]
-    
-    # Verify installation exists
-    assert_dir_exists "$prefix/share/openspec-extended"
-    assert_dir_exists "$prefix/share/openspec-extended/resources"
-    assert_dir_exists "$prefix/share/openspec-extended/resources/opencode"
-    assert_dir_exists "$prefix/share/openspec-extended/resources/claude"
-    assert_file_exists "$prefix/share/openspec-extended/bin/openspec-extended"
-    assert_dir_exists "$prefix/bin"
-    
-    # Verify symlink exists
-    [ -L "$prefix/bin/openspec-extended" ]
-    
-    # Verify binary is executable and works
-    assert_executable "$prefix/bin/openspec-extended"
+    [ -x "$prefix/bin/openspec-extended" ]
+
     run "$prefix/bin/openspec-extended" --version
     [ "$status" -eq 0 ]
-    
-    # Run uninstall with confirmation
-    run bash -c "echo 'y' | PREFIX='$prefix' bash '$INSTALL_SCRIPT' --uninstall 2>&1"
+    [[ "$output" == *"0.19.0"* ]]
+}
+
+@test "install: rejects tarball with bad SHA256SUMS" {
+    # Overwrite SHA256SUMS with a checksum that doesn't match the tarball.
+    echo "0000000000000000000000000000000000000000000000000000000000000000  $TARBALL_NAME" \
+        > "$FIXTURES_DIR/install/releases/download/v0.19.0/SHA256SUMS"
+
+    local prefix="$TEST_DIR/.local"
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" \
+        PREFIX="$prefix" REPO=test/test VERSION=v0.19.0 \
+        BASE_URL="$BASE_URL_LOCAL" \
+        bash "$INSTALL_SCRIPT" 2>&1
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Checksum verification failed"* ]]
+
+    # Restore the correct checksums so other tests can use the fixture.
+    bash "$FIXTURES_DIR/install/pack.sh" 0.19.0 linux-x86_64 >/dev/null
+}
+
+@test "install: --uninstall removes the installed binary" {
+    local prefix="$TEST_DIR/.local"
+
+    # First install
+    env -i HOME="$TEST_HOME" PATH="$TEST_PATH" \
+        PREFIX="$prefix" REPO=test/test VERSION=v0.19.0 \
+        BASE_URL="$BASE_URL_LOCAL" \
+        bash "$INSTALL_SCRIPT" >/dev/null 2>&1
+    [ -x "$prefix/bin/openspec-extended" ]
+
+    # Then uninstall, with confirmation
+    run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" \
+        PREFIX="$prefix" REPO=test/test VERSION=v0.19.0 \
+        BASE_URL="$BASE_URL_LOCAL" \
+        bash "$INSTALL_SCRIPT" --uninstall <<< "y" 2>&1
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Uninstall complete"* ]]
-    
-    # Verify files removed
-    [ ! -d "$prefix/share/openspec-extended" ]
     [ ! -e "$prefix/bin/openspec-extended" ]
-    
-    # Clean up empty directories
-    rm -rf "$prefix"
 }

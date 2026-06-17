@@ -1,7 +1,7 @@
 # OpenSpec-extended
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Bash](https://img.shields.io/badge/Bash-3.2+-green.svg?style=flat-square)](https://www.gnu.org/software/bash/)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg?style=flat-square)](https://www.python.org/)
 [![Version](https://img.shields.io/badge/version-v0.19.0-orange.svg?style=flat-square)](https://github.com/amauryconstant/openspec-extended)
 
 An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) that adds autonomous implementation capabilities and utility skills for AI coding assistants.
@@ -24,23 +24,24 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 ## Requirements
 
 - [OpenSpec](https://github.com/Fission-AI/OpenSpec) v1.2.0+ (recommended)
-- Bash 3.2 or higher
+- Python 3.12 or higher (only for building from source)
+- No Python needed when installing the prebuilt binary
 
 ## Installation
 
-### Quick Install
+### Quick Install (Binary)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
 ```
 
-### Specific Version
+### Specific Version (Binary)
 
 ```bash
 VERSION=v0.19.0 curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
 ```
 
-### System-wide Install
+### System-wide Install (Binary)
 
 ```bash
 PREFIX=/usr/local curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
@@ -51,14 +52,17 @@ PREFIX=/usr/local curl -sSL https://raw.githubusercontent.com/amauryconstant/ope
 ```bash
 git clone https://github.com/amauryconstant/openspec-extended.git
 cd OpenSpec-extended
-export PATH="$PWD/bin:$PATH"
+uv tool install .
+# or: pip install .
 ```
+
+The entry point `openspec-extended` is registered automatically.
 
 ### Verify
 
 ```bash
 openspec-extended --version
-# openspec-extended 0.14.0
+# openspec-extended 0.19.0
 ```
 
 ## Setup in Your Project
@@ -111,7 +115,7 @@ ls .opencode/{skills,agents,commands,scripts}/
 
 ## Autonomous Workflow
 
-7-phase loop for end-to-end implementation via `osx-orchestrate`.
+7-phase loop for end-to-end implementation via `openspec-extended orchestrate`.
 
 ### Commands
 
@@ -129,12 +133,15 @@ ls .opencode/{skills,agents,commands,scripts}/
 
 ```bash
 # Run autonomous implementation
+openspec-extended orchestrate <change-name>
+
+# Or invoke via the deployed script
 .opencode/scripts/osx-orchestrate <change-name>
 
 # With options
-.opencode/scripts/osx-orchestrate add-auth --max-phase-iterations 20 --verbose
-.opencode/scripts/osx-orchestrate add-auth --from-phase PHASE3
-.opencode/scripts/osx-orchestrate add-auth --dry-run
+openspec-extended orchestrate add-auth --max-phase-iterations 20 --verbose
+openspec-extended orchestrate add-auth --from-phase PHASE3
+openspec-extended orchestrate add-auth --dry-run
 ```
 
 ### Options
@@ -149,7 +156,7 @@ ls .opencode/{skills,agents,commands,scripts}/
 | `--force`                  | Force operation                                                      |
 | `--clean`                  | Clean state before starting                                          |
 | `--from-phase PHASEX`      | Start from specific phase                                            |
-| `--list`                   | List available phases                                                |
+| `--list`                   | List available changes                                               |
 | `--version`                | Show version                                                         |
 
 ### State Files
@@ -169,25 +176,56 @@ After PHASE6 (Archive), files move to `openspec/changes/archive/YYYY-MM-DD-<chan
 
 ```
 OpenSpec-extended/
-├── bin/openspec-extended   # CLI installer
-├── install.sh              # Installation script
-├── openspec-core/          # Core workflows (synced from upstream)
+├── source/                  # Python implementation
+│   ├── cli.py               # Typer CLI (install/update/orchestrate)
+│   ├── lib/osx.py           # Change management tool
+│   └── orchestrator/
+│       └── engine.py        # 7-phase orchestrator
+├── install.sh               # Bash binary installer
+├── openspec.spec            # PyInstaller spec
+├── openspec-core/           # Core workflows (synced from upstream)
 ├── resources/
-│   ├── opencode/           # OpenCode resources
-│   │   ├── skills/         # 6 extension skills
-│   │   ├── agents/         # 3 agent definitions
-│   │   ├── commands/       # Phase commands + osx-* utilities
-│   │   └── scripts/        # osx-orchestrate + lib/
-│   └── claude/             # Claude Code resources (same structure)
-└── research/               # Platform documentation
+│   ├── opencode/            # OpenCode resources
+│   │   ├── skills/          # 6 extension skills
+│   │   ├── agents/          # 3 agent definitions
+│   │   └── commands/        # Phase commands + osx-* utilities
+│   └── claude/              # Claude Code resources (same structure)
+├── tests/                   # pytest + bats suite (unit/integration/mechanism/e2e)
+├── .mise/tasks/             # sync-core, release, version/{check,update} (bash)
+└── research/                # Platform documentation
 ```
+
+## Development
+
+```bash
+# Install dev tools
+mise install
+
+# Verify code quality
+mise run verify
+
+# Run install.sh unit tests (hermetic — uses a local HTTP server)
+bats tests/unit/install.bats
+
+# Build the binary
+mise run build
+
+# Cut a release (from main, no API tokens needed locally)
+mise run release patch
+# → bumps versions, commits, tags, pushes the tag
+# → GitHub Actions then builds + uploads the platform tarballs
+```
+
+`install.sh` honors a `BASE_URL` env var to redirect downloads away from
+GitHub, which is how `tests/unit/install.bats` runs end-to-end install
+tests without network access.
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make changes (follow code style in AGENTS.md)
-4. Run `mise run test` before submitting
+4. Run `mise run verify` before submitting
 5. Open a pull request
 
 ## License

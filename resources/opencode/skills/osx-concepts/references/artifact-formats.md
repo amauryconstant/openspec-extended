@@ -365,5 +365,5 @@ rules:
 
 - Main skill: `../SKILL.md`
 - `references/cli-reference.md` - CLI commands for status and instructions
-- `references/osx-lifecycle.md` - Workflow lifecycle details
+- `../osx-workflow/references/autonomous-workflow.md` - Workflow lifecycle details
 - `references/change-guidance.md` - When to update vs. start fresh

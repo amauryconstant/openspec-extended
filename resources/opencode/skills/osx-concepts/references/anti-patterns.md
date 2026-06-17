@@ -236,7 +236,7 @@ The system SHALL expire sessions after 30 minutes of inactivity.
 
 **Problem**: Working on multiple changes that touch the same specs without considering merge order.
 
-**Solution**: Use `osc-bulk-archive` which:
+**Solution**: Use `osc-bulk-archive-change` which:
 - Detects spec conflicts
 - Checks what's implemented in codebase
 - Applies changes chronologically
@@ -272,7 +272,7 @@ When you realize you've made a mistake:
 
 | Situation | Recovery |
 |-----------|----------|
-| Created wrong artifact | Delete file, run `/osx:continue` to recreate |
+| Created wrong artifact | Delete file, run `osc-continue-change` to recreate |
 | Wrong change name | Delete folder, create new with correct name |
 | Missing spec updates | Use `osx-modify-artifacts` to add |
 | Archived prematurely | Can't undo - document in next change |

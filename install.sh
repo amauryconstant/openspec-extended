@@ -3,9 +3,10 @@
 # Usage: curl -sSL https://raw.githubusercontent.com/<org>/OpenSpec-extended/main/install.sh | bash
 #
 # Options (via environment variables):
-#   VERSION=v0.9.2    - Install specific version (default: latest)
+#   VERSION=v0.19.0   - Install specific version (default: latest)
 #   PREFIX=/usr/local - Install prefix (default: ~/.local)
 #   REPO=org/repo     - GitHub repository (default: amauryconstant/openspec-extended)
+#   BASE_URL=url      - Override the release host (used for testing)
 #
 # Options (via arguments):
 #   --uninstall       - Remove installation
@@ -14,7 +15,7 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="openspec-extended"
-readonly SCRIPT_VERSION="0.2.0"
+readonly SCRIPT_VERSION="0.2.1"
 
 # Configurable via environment
 PREFIX="${PREFIX:-$HOME/.local}"
@@ -66,9 +67,10 @@ Usage:
   ./install.sh [options]
 
 Environment Variables:
-  VERSION=v0.9.2    Install specific version (default: latest)
+  VERSION=v0.19.0   Install specific version (default: latest)
   PREFIX=/usr/local Install prefix (default: ~/.local)
   REPO=org/repo     GitHub repository (default: amauryconstant/openspec-extended)
+  BASE_URL=url      Override the release host (for testing)
 
 Options:
   --version         Show version
@@ -80,7 +82,7 @@ Examples:
   curl -sSL https://.../install.sh | bash
 
   # Install specific version
-  VERSION=v0.9.2 curl -sSL https://.../install.sh | bash
+  VERSION=v0.19.0 curl -sSL https://.../install.sh | bash
 
   # System-wide install
   PREFIX=/usr/local curl -sSL https://.../install.sh | bash
@@ -93,81 +95,90 @@ EOF
 # Validate GitHub repo format (owner/repo)
 validate_repo() {
     local repo="$1"
-    
-    # GitHub format: alphanumeric, underscores, hyphens, single slash
+
     if [[ ! "$repo" =~ ^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$ ]]; then
         log_error "Invalid REPO format: $repo"
         log_error "Expected format: owner/repo (e.g., amauryconstant/openspec-extended)"
         return 1
     fi
-    
+
     return 0
 }
 
-# Validate Epoch SemVer format
-# Supports: X.Y.Z, vX.Y.Z, X.Y.Z-PRERELEASE, X.Y.Z+BUILD, X.Y.Z-PRERELEASE+BUILD
+# Validate SemVer format
 validate_version() {
     local version="$1"
-    
-    # Allow special keywords
+
     if [[ "$version" == "latest" ]] || [[ "$version" == "main" ]]; then
         return 0
     fi
-    
-    # Strip optional 'v' prefix
+
     local version_without_v="${version#v}"
-    
-    # Epoch SemVer regex
-    # Core: X.Y.Z (where X, Y, Z are non-negative integers)
-    # Optional prerelease: -alphanumeric.dots.hyphens
-    # Optional build: +alphanumeric.dots.hyphens
+
     if [[ ! "$version_without_v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z\.-]+)?(\+[0-9A-Za-z\.-]+)?$ ]]; then
         log_error "Invalid VERSION format: $version"
         log_error "Expected: latest, main, or valid SemVer (e.g., 1.2.3, v1.2.3-alpha.1, 1.2.3+build)"
         return 1
     fi
-    
+
     return 0
 }
 
 # Validate PREFIX to prevent path traversal
 validate_prefix() {
     local prefix="$1"
-    
-    # Prevent path traversal attacks
+
     if [[ "$prefix" == *../* ]] || [[ "$prefix" == */.. ]] || [[ "$prefix" == *../..* ]]; then
         log_error "Invalid PREFIX: contains parent directory references"
         log_error "Prefix: $prefix"
         return 1
     fi
-    
-    # Prevent absolute paths to sensitive directories (optional warning)
+
     if [[ "$prefix" == "/etc" ]] || [[ "$prefix" == "/bin" ]] || [[ "$prefix" == "/usr/bin" ]]; then
         log_error "Invalid PREFIX: installation to system directories not recommended"
         log_error "Prefix: $prefix"
         log_error "Use your home directory: PREFIX=\$HOME/.local ./install.sh"
         return 1
     fi
-    
+
     return 0
+}
+
+# Detect the platform suffix used in release asset names
+detect_platform() {
+    local os arch
+    os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    arch="$(uname -m)"
+
+    case "$os" in
+        linux) os="linux" ;;
+        darwin) os="darwin" ;;
+        *) log_error "Unsupported OS: $os"; return 1 ;;
+    esac
+
+    case "$arch" in
+        x86_64|amd64) arch="x86_64" ;;
+        aarch64|arm64) arch="arm64" ;;
+        *) log_error "Unsupported architecture: $arch"; return 1 ;;
+    esac
+
+    echo "${os}-${arch}"
 }
 
 # Verify download integrity using SHA256 checksum
 verify_checksum() {
     local tarball="$1"
     local version="$2"
-    
-    # Skip verification for 'main' branch (no release checksums)
+
     if [[ "$version" == "main" ]]; then
         log_warn "Checksum verification skipped for 'main' branch"
         return 0
     fi
-    
-    local checksums_url="https://github.com/$REPO/releases/download/v$version/SHA256SUMS"
+
+    local checksums_url="${BASE_URL:-https://github.com/$REPO}/releases/download/v$version/SHA256SUMS"
     local checksums_file
     checksums_file=$(mktemp)
-    
-    # Download checksums file
+
     if command -v curl &>/dev/null; then
         if ! curl -sSL "$checksums_url" -o "$checksums_file" 2>/dev/null; then
             log_warn "Checksum file not found for v$version, skipping verification"
@@ -181,30 +192,33 @@ verify_checksum() {
             return 0
         fi
     fi
-    
-    # Find checksum for our tarball
+
     local tarball_name
     tarball_name=$(basename "$tarball")
+    if [[ "$tarball_name" == "openspec-extended.tar.gz" ]]; then
+        local version_no_v="${version#v}"
+        local platform
+        platform=$(detect_platform)
+        tarball_name="openspec-extended-v${version_no_v}-${platform}.tar.gz"
+    fi
     local expected_checksum
     expected_checksum=$(grep "$tarball_name" "$checksums_file" | awk '{print $1}')
-    
+
     if [[ -z "$expected_checksum" ]]; then
         log_warn "Checksum not found for $tarball_name, skipping verification"
         rm -f "$checksums_file"
         return 0
     fi
-    
-    # Calculate actual checksum
+
     if ! command -v sha256sum &>/dev/null; then
         log_warn "sha256sum command not found, skipping verification"
         rm -f "$checksums_file"
         return 0
     fi
-    
+
     local actual_checksum
     actual_checksum=$(sha256sum "$tarball" | awk '{print $1}')
-    
-    # Verify checksum matches
+
     if [[ "$actual_checksum" != "$expected_checksum" ]]; then
         log_error "Checksum verification failed!"
         log_error "  Expected: $expected_checksum"
@@ -215,7 +229,7 @@ verify_checksum() {
         rm -f "$checksums_file"
         return 1
     fi
-    
+
     log_success "Checksum verified"
     rm -f "$checksums_file"
     return 0
@@ -223,20 +237,19 @@ verify_checksum() {
 
 check_dependencies() {
     local missing=()
-    
+
     if ! command -v curl &>/dev/null && ! command -v wget &>/dev/null; then
         missing+=("curl or wget")
     fi
-    
+
     if ! command -v tar &>/dev/null; then
         missing+=("tar")
     fi
-    
+
     if [[ ${#missing[@]} -gt 0 ]]; then
         log_error "Missing dependencies: ${missing[*]}"
         echo ""
         echo "Install them with:"
-        # Detect OS and suggest commands
         if [[ "$OSTYPE" == "darwin"* ]]; then
             echo "  brew install ${missing[*]}"
         elif command -v apt-get &>/dev/null; then
@@ -261,8 +274,7 @@ suggest_path_setup() {
         echo ""
         echo "    export PATH=\"$BIN_DIR:\$PATH\""
         echo ""
-        
-        # Detect shell and provide specific instructions
+
         if [[ -n "$SHELL" ]]; then
             case "$SHELL" in
                 */bash)
@@ -294,17 +306,15 @@ suggest_path_setup() {
 }
 
 get_latest_version() {
-    local api_url="https://api.github.com/repos/$REPO/releases/latest"
+    local api_url="${BASE_URL_GITHUB:-https://api.github.com}/repos/$REPO/releases/latest"
     local version
-    
+
     if command -v curl &>/dev/null; then
-        # Extract version from GitHub API JSON: "tag_name": "v1.2.3" → "1.2.3"
-        # Pattern: .* matches prefix, "v\([^"]*\)" captures version without 'v', .* matches suffix
         version=$(curl -sSL "$api_url" 2>/dev/null | grep -m1 '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
     else
         version=$(wget -qO- "$api_url" 2>/dev/null | grep -m1 '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
     fi
-    
+
     if [[ -z "$version" ]]; then
         log_warn "Could not determine latest version, using 'main' branch"
         echo "main"
@@ -315,17 +325,23 @@ get_latest_version() {
 
 download_tarball() {
     local version="$1"
-    local output_file="$2"
+    local platform="$2"
+    local output_file="$3"
     local tarball_url
-    
+
     if [[ "$version" == "main" ]]; then
-        tarball_url="https://github.com/$REPO/archive/refs/heads/main.tar.gz"
-    else
-        tarball_url="https://github.com/$REPO/archive/refs/tags/v$version.tar.gz"
+        # Fallback: install script does not ship a main-branch binary.
+        # Use 'latest' if 'main' is requested.
+        log_warn "No binary for 'main' branch; resolving latest release instead"
+        version=$(get_latest_version)
     fi
-    
-    log_info "Downloading OpenSpec-extended ${version}..."
-    
+
+    local version_no_v="${version#v}"
+    local asset_name="openspec-extended-v${version_no_v}-${platform}.tar.gz"
+    tarball_url="${BASE_URL:-https://github.com/$REPO}/releases/download/v${version_no_v}/${asset_name}"
+
+    log_info "Downloading OpenSpec-extended ${version_no_v} (${platform})..."
+
     if command -v curl &>/dev/null; then
         if ! curl -sSL --fail "$tarball_url" -o "$output_file" 2>/dev/null; then
             log_error "Failed to download from $tarball_url"
@@ -337,147 +353,107 @@ download_tarball() {
             return 1
         fi
     fi
-    
+
     return 0
 }
 
-install() {
+run_install() {
     local version="$VERSION"
-    
-    # Resolve 'latest' to actual version
+
     if [[ "$version" == "latest" ]]; then
         version=$(get_latest_version)
     fi
-    
-    # Strip 'v' prefix if present (e.g., "v1.2.3" → "1.2.3")
+
     version="${version#v}"
-    
-    log_info "Installing OpenSpec-extended ${version} to $PREFIX"
-    
-    # Create directories
-    log_info "Creating installation directories: $INSTALL_DIR, $BIN_DIR"
-    mkdir -p "$INSTALL_DIR"
+
+    local platform
+    platform=$(detect_platform) || exit 1
+
+    log_info "Installing OpenSpec-extended ${version} (${platform}) to $PREFIX"
+
+    log_info "Creating installation directory: $BIN_DIR"
     mkdir -p "$BIN_DIR"
-    
-    # Download tarball
-    local temp_dir
-    temp_dir=$(mktemp -d)
-    chmod 700 "$temp_dir"  # Owner-only access
-    trap cleanup_temp EXIT INT TERM
+
     local tarball="$temp_dir/openspec-extended.tar.gz"
-    
-    if ! download_tarball "$version" "$tarball"; then
+
+    if ! download_tarball "$version" "$platform" "$tarball"; then
         cleanup_temp
         exit 1
     fi
-    
-    # Verify download integrity
+
     if ! verify_checksum "$tarball" "$version"; then
         cleanup_temp
         exit 1
     fi
-    
-    # Extract
+
     log_info "Extracting..."
     tar -xzf "$tarball" -C "$temp_dir" --no-same-owner
-    
-    # Find extracted directory (GitHub tarballs include a prefix)
-    local extracted_dir
-    extracted_dir=$(find "$temp_dir" -maxdepth 1 -type d ! -path "$temp_dir" | head -1)
-    
-    if [[ -z "$extracted_dir" ]]; then
-        log_error "Could not find extracted directory"
+    find "$temp_dir" -type f -name "AGENTS.md" -delete 2>/dev/null || true
+
+    # Tarball layout: openspec-extended/bin/openspec-extended
+    local extracted_bin="$temp_dir/openspec-extended/bin/openspec-extended"
+    if [[ ! -f "$extracted_bin" ]]; then
+        log_error "Binary not found in tarball: $extracted_bin"
         cleanup_temp
         exit 1
     fi
-    
-    # Remove old installation
-    if [[ -d "$INSTALL_DIR/resources" ]]; then
-        log_info "Removing previous installation..."
-        rm -rf "$INSTALL_DIR/resources"
-        rm -f "$INSTALL_DIR/bin/$SCRIPT_NAME"
-    fi
-    
-    # Copy files
-    log_info "Installing files..."
-    cp -r "$extracted_dir/resources" "$INSTALL_DIR/"
-    
-    mkdir -p "$INSTALL_DIR/bin"
-    cp "$extracted_dir/bin/$SCRIPT_NAME" "$INSTALL_DIR/bin/"
-    chmod +x "$INSTALL_DIR/bin/$SCRIPT_NAME"
-    
-    # Create symlink in bin directory
-    # Warn if overwriting regular file
+
     if [[ -e "$BIN_DIR/$SCRIPT_NAME" ]] && [[ ! -L "$BIN_DIR/$SCRIPT_NAME" ]]; then
         log_warn "Overwriting existing file: $BIN_DIR/$SCRIPT_NAME"
     fi
-    ln -sf "$INSTALL_DIR/bin/$SCRIPT_NAME" "$BIN_DIR/$SCRIPT_NAME"
-    
-    # Cleanup
+
+    install -m 0755 "$extracted_bin" "$BIN_DIR/$SCRIPT_NAME"
+
     cleanup_temp
-    
-    # Verify
+
     if [[ ! -x "$BIN_DIR/$SCRIPT_NAME" ]]; then
         log_error "Installation verification failed"
         log_error "  Binary not found or not executable: $BIN_DIR/$SCRIPT_NAME"
         log_error "  Check permissions and try running with sudo if needed"
         exit 1
     fi
-    
+
     log_success "Installed OpenSpec-extended ${version}"
     echo ""
-    
-    # Verify and suggest PATH setup
+
     suggest_path_setup
 }
 
 uninstall() {
     log_info "Uninstalling OpenSpec-extended..."
-    
-    # Check if anything to remove
+
     local has_installation=false
-    [[ -d "$INSTALL_DIR" ]] && has_installation=true
     [[ -L "$BIN_DIR/$SCRIPT_NAME" ]] && has_installation=true
     [[ -f "$BIN_DIR/$SCRIPT_NAME" ]] && has_installation=true
-    
+
     if [[ "$has_installation" == false ]]; then
         log_info "No installation found"
         exit 0
     fi
-    
-    # Show what will be removed
+
     log_warn "The following will be removed:"
-    [[ -d "$INSTALL_DIR" ]] && echo "  - $INSTALL_DIR"
     [[ -L "$BIN_DIR/$SCRIPT_NAME" ]] && echo "  - $BIN_DIR/$SCRIPT_NAME (symlink)"
     [[ -f "$BIN_DIR/$SCRIPT_NAME" ]] && echo "  - $BIN_DIR/$SCRIPT_NAME (file)"
     echo ""
-    
-    # Always require confirmation
+
     read -p "Continue? [y/N] " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         log_info "Uninstall cancelled"
         exit 0
     fi
-    
-    # Remove installation directory
-    if [[ -d "$INSTALL_DIR" ]]; then
-        rm -rf "$INSTALL_DIR"
-        log_success "Removed $INSTALL_DIR"
-    fi
-    
-    # Remove binary (symlink or file) - single check covers both cases
+
     if [[ -L "$BIN_DIR/$SCRIPT_NAME" ]] || [[ -f "$BIN_DIR/$SCRIPT_NAME" ]]; then
         rm -f "$BIN_DIR/$SCRIPT_NAME"
         log_success "Removed $BIN_DIR/$SCRIPT_NAME"
     fi
-    
+
     log_success "Uninstall complete"
 }
 
 main() {
     local action="install"
-    
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --uninstall)
@@ -500,21 +476,21 @@ main() {
                 ;;
         esac
     done
-    
-    # Set derived paths
-    INSTALL_DIR="$PREFIX/share/openspec-extended"
+
     BIN_DIR="$PREFIX/bin"
-    
+
     check_dependencies
-    
-    # Validate inputs
+
     validate_repo "$REPO" || exit 1
     validate_version "$VERSION" || exit 1
     validate_prefix "$PREFIX" || exit 1
-    
+
     case "$action" in
         install)
-            install
+            temp_dir=$(mktemp -d)
+            chmod 700 "$temp_dir"
+            trap 'cleanup_temp' EXIT INT TERM
+            run_install
             ;;
         uninstall)
             uninstall

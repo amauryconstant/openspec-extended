@@ -82,18 +82,18 @@ graph TB
     end
     
     subgraph "Change A: add-dark-mode"
-        A1["/osx:new"]
-        A2["/osx:ff"]
-        A3["/osx:apply<br/>(pause)"]
-        A4["/osx:apply<br/>(resume)"]
-        A5["/osx:archive"]
+        A1["osc-new-change"]
+        A2["osc-ff-change"]
+        A3["osc-apply-change<br/>(pause)"]
+        A4["osc-apply-change<br/>(resume)"]
+        A5["osc-archive-change"]
     end
     
     subgraph "Change B: fix-login"
-        B1["/osx:new"]
-        B2["/osx:ff"]
-        B3["/osx:apply"]
-        B4["/osx:archive"]
+        B1["osc-new-change"]
+        B2["osc-ff-change"]
+        B3["osc-apply-change"]
+        B4["osc-archive-change"]
     end
     
     T1 --> A1 --> A2 --> A3
@@ -106,27 +106,27 @@ graph TB
 ```text
 You: I'm working on add-dark-mode but need to fix a bug first
 
-You: /osx:new fix-login-redirect
+You: /osc-new-change fix-login-redirect
 
 AI:  Created openspec/changes/fix-login-redirect/
 
-You: /osx:ff
+You: /osc-ff-change
 
 AI:  ✓ Created planning artifacts
 
-You: /osx:apply
+You: /osc-apply-change
 
 AI:  Working on fix-login-redirect...
      [Implements the fix]
      All tasks complete!
 
-You: /osx:archive
+You: /osc-archive-change
 
 AI:  ✓ Archived fix-login-redirect
 
 You: Back to dark mode
 
-You: /osx:apply add-dark-mode
+You: /osc-apply-change add-dark-mode
 
 AI:  Resuming add-dark-mode...
      Picking up at task 2.3: Update Header...
@@ -137,9 +137,9 @@ AI:  Resuming add-dark-mode...
 | Practice | Why |
 |----------|-----|
 | Keep changes independent | Avoid spec conflicts |
-| Use explicit change names | `/osx:apply <name>` instead of inference |
+| Use explicit change names | `/osc-apply-change <name>` instead of inference |
 | Archive completed work | Reduces mental load |
-| Check for conflicts before archive | `/osx:bulk-archive` detects them |
+| Check for conflicts before archive | `osc-bulk-archive-change` detects them |
 
 ---
 
@@ -160,7 +160,7 @@ Bulk archive automatically detects when multiple changes touch the same specs:
 
 ```mermaid
 graph TD
-    A["/osx:bulk-archive"] --> B{Spec conflicts?}
+    A["osc-bulk-archive-change"] --> B{Spec conflicts?}
     B -->|No| C["Archive all changes"]
     B -->|Yes| D["Inspect codebase"]
     D --> E["Resolve by checking<br/>what's implemented"]
@@ -175,7 +175,7 @@ graph TD
 ### Example
 
 ```text
-You: /osx:bulk-archive
+You: /osc-bulk-archive-change
 
 AI:  Found 3 completed changes:
      - add-dark-mode (8/8 tasks complete)
@@ -220,7 +220,7 @@ This works because:
 |-----------|-------------|
 | Changes have logical dependencies | Archive in order manually |
 | One change blocks another | Archive blocking change first |
-| Uncertain about implementation | Use `/osx:verify` first |
+| Uncertain about implementation | Use `osc-verify-change` first |
 | Large number of changes (>5) | Consider batching |
 
 ---
@@ -229,5 +229,5 @@ This works because:
 
 - Main skill: `../SKILL.md`
 - `references/cli-reference.md` - CLI commands for status and instructions
-- `references/osx-lifecycle.md` - Workflow lifecycle details
+- `../osx-workflow/references/autonomous-workflow.md` - Workflow lifecycle details
 - `references/artifact-formats.md` - Artifact structure
