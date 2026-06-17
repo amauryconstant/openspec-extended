@@ -55,8 +55,11 @@ bump_resource_version() {
 }
 
 # Group resource entries by platform+type+name. Echoes "plat:type:name=bump" lines.
+# Excludes script-bump entries (platform == "root") which are handled by
+# group_script_bumps.
 group_resource_bumps() {
     jq -r '.[] | select(.status | startswith("needs_")) |
+        select(.platform != "root") |
         "\(.platform):\(.resource_type):\(.resource_name)=\(.status | sub("needs_"; ""))"' \
         <<< "$1"
 }
@@ -128,13 +131,13 @@ main() {
 
     if [[ -n "$script_bumps" ]]; then
         printf 'Executing version bumps in scripts:\n\n'
-        local line key btype new_version=""
+        local line key btype tool_new_version=""
         while IFS= read -r line; do
             [[ -z "$line" ]] && continue
             key="${line%%=*}"
             btype="${line#*=}"
             case "$key" in
-                install.sh|source/cli.py)
+                install.sh)
                     local file_path="$MANIFEST_PROJECT_ROOT/$key"
                     if [[ ! -f "$file_path" ]]; then
                         printf '  Warning: Script not found: %s\n' "$key" >&2
@@ -152,8 +155,61 @@ main() {
                     new_version_for_file=$(bump_semver "$current_version" "$btype")
                     printf '  [root] %s: %s -> %s\n' "$key" "$current_version" "$new_version_for_file"
                     bump_script_version_in_file "$file_path" "$new_version_for_file" "$DRY_RUN"
-                    if [[ "$key" == "source/cli.py" ]]; then
-                        new_version="$new_version_for_file"
+                    ;;
+                cli.py|__init__.py|pyproject.toml)
+                    local rel_path file_path
+                    case "$key" in
+                        cli.py) rel_path="source/cli.py" ;;
+                        __init__.py) rel_path="source/__init__.py" ;;
+                        pyproject.toml) rel_path="pyproject.toml" ;;
+                    esac
+                    file_path="$MANIFEST_PROJECT_ROOT/$rel_path"
+                    if [[ ! -f "$file_path" ]]; then
+                        printf '  Warning: File not found: %s\n' "$rel_path" >&2
+                        continue
+                    fi
+                    local current_version new_version_for_file
+                    case "$key" in
+                        pyproject.toml)
+                            current_version=$(get_pyproject_version_for_path "$file_path" || true)
+                            if [[ -z "$current_version" ]]; then
+                                printf '  Error: [project] version not found in %s\n' "$rel_path" >&2
+                                continue
+                            fi
+                            ;;
+                        __init__.py)
+                            current_version=$(get_py_init_version_for_path "$file_path" || true)
+                            if [[ -z "$current_version" ]]; then
+                                printf '  Error: __version__ not found in %s\n' "$rel_path" >&2
+                                continue
+                            fi
+                            ;;
+                        *)
+                            current_version=$(get_script_version_from_file_for_path "$file_path" || true)
+                            if [[ -z "$current_version" ]]; then
+                                printf '  Error: SCRIPT_VERSION not found in %s\n' "$rel_path" >&2
+                                continue
+                            fi
+                            ;;
+                    esac
+                    if ! validate_semver "$current_version"; then
+                        continue
+                    fi
+                    new_version_for_file=$(bump_semver "$current_version" "$btype")
+                    printf '  [root] %s: %s -> %s\n' "$rel_path" "$current_version" "$new_version_for_file"
+                    case "$key" in
+                        pyproject.toml)
+                            bump_pyproject_version "$new_version_for_file" "$DRY_RUN"
+                            ;;
+                        __init__.py)
+                            bump_py_init_version "$new_version_for_file" "$DRY_RUN"
+                            ;;
+                        *)
+                            bump_script_version_in_file "$file_path" "$new_version_for_file" "$DRY_RUN"
+                            ;;
+                    esac
+                    if [[ -z "$tool_new_version" ]] || [[ "$new_version_for_file" > "$tool_new_version" ]]; then
+                        tool_new_version="$new_version_for_file"
                     fi
                     ;;
                 *)
@@ -162,12 +218,29 @@ main() {
             esac
         done <<< "$script_bumps"
 
-        # source/cli.py is the canonical root version: mirror it to
-        # source/__init__.py and pyproject.toml so the three places stay
-        # in lockstep.
-        if [[ -n "$new_version" ]]; then
-            bump_py_init_version "$new_version" "$DRY_RUN"
-            bump_pyproject_version "$new_version" "$DRY_RUN"
+        # The three tool-version files (source/cli.py, source/__init__.py,
+        # pyproject.toml) must always stay in lockstep. After individual
+        # bumps above, mirror the highest target version to whichever
+        # files weren't already bumped to it.
+        if [[ -n "$tool_new_version" ]]; then
+            local cli_path="$MANIFEST_PROJECT_ROOT/source/cli.py"
+            local init_path="$MANIFEST_PROJECT_ROOT/source/__init__.py"
+            local pyproject_path="$MANIFEST_PROJECT_ROOT/pyproject.toml"
+
+            local cli_current init_current pyproject_current
+            cli_current=$(get_script_version_from_file_for_path "$cli_path" 2>/dev/null || echo "")
+            init_current=$(get_py_init_version_for_path "$init_path" 2>/dev/null || echo "")
+            pyproject_current=$(get_pyproject_version_for_path "$pyproject_path" 2>/dev/null || echo "")
+
+            if [[ "$cli_current" != "$tool_new_version" ]]; then
+                bump_script_version_in_file "$cli_path" "$tool_new_version" "$DRY_RUN"
+            fi
+            if [[ "$init_current" != "$tool_new_version" ]]; then
+                bump_py_init_version "$tool_new_version" "$DRY_RUN"
+            fi
+            if [[ "$pyproject_current" != "$tool_new_version" ]]; then
+                bump_pyproject_version "$tool_new_version" "$DRY_RUN"
+            fi
         fi
         printf '\n'
     fi
@@ -184,6 +257,33 @@ get_script_version_from_file_for_path() {
     grep -E '^[[:space:]]*SCRIPT_VERSION[[:space:]]*=' "$file_path" \
         | head -n1 \
         | sed -E 's/^[[:space:]]*SCRIPT_VERSION[[:space:]]*=[[:space:]]*"?([^"]*)"?$/\1/'
+}
+
+# Read the [project] version from a pyproject.toml at a specific path.
+get_pyproject_version_for_path() {
+    local file_path="$1"
+    [[ -f "$file_path" ]] || return 1
+    python3 - "$file_path" <<'PY'
+import re, sys
+from pathlib import Path
+text = Path(sys.argv[1]).read_text()
+m = re.search(r'\[project\](.*?)(?=\n\[|\Z)', text, re.DOTALL)
+if not m:
+    sys.exit(1)
+v = re.search(r'^version\s*=\s*"([^"]+)"', m.group(1), re.MULTILINE)
+if not v:
+    sys.exit(1)
+print(v.group(1))
+PY
+}
+
+# Read __version__ from a source/__init__.py at a specific path.
+get_py_init_version_for_path() {
+    local file_path="$1"
+    [[ -f "$file_path" ]] || return 1
+    grep -E '^__version__[[:space:]]*=' "$file_path" \
+        | head -n1 \
+        | sed -E 's/^__version__[[:space:]]*=[[:space:]]*"([^"]*)"$/\1/'
 }
 
 main "$@"

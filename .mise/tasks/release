@@ -24,6 +24,13 @@ if ! git rev-parse --git-dir > /dev/null 2>&1; then
   exit 1
 fi
 
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+if [[ "$CURRENT_BRANCH" != "main" ]] && [[ "${RELEASE_ALLOW_BRANCH:-false}" != "true" ]]; then
+  echo "Error: mise run release must be invoked from 'main' (current: '$CURRENT_BRANCH')."
+  echo "Set RELEASE_ALLOW_BRANCH=true to override."
+  exit 1
+fi
+
 # Compute NEW_VERSION from the latest tag + requested bump type.
 LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 
@@ -103,7 +110,7 @@ if [[ "$NO_COMMIT" == "true" ]]; then
 fi
 
 git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
-git push origin main
+git push origin "$CURRENT_BRANCH"
 git push origin "$NEW_TAG"
 
 echo ""

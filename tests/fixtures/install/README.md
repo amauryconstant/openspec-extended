@@ -26,8 +26,8 @@ bash tests/fixtures/install/pack.sh 0.19.0 darwin-arm64
 ```
 
 `pack.sh` writes `openspec-extended-v{VERSION}-{PLATFORM}.tar.gz` and a
-matching `SHA256SUMS` file. The tarball layout mirrors what
-`build-release` produces:
+matching `SHA256SUMS` file. The tarball layout mirrors what the
+`.github/workflows/release.yml` matrix job produces:
 
 ```
 openspec-extended/

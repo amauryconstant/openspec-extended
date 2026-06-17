@@ -191,7 +191,7 @@ OpenSpec-extended/
 │   │   └── commands/        # Phase commands + osx-* utilities
 │   └── claude/              # Claude Code resources (same structure)
 ├── tests/                   # pytest + bats suite (unit/integration/mechanism/e2e)
-├── .mise/tasks/             # sync-core, release, build-release, version/{check,update} (bash)
+├── .mise/tasks/             # sync-core, release, version/{check,update} (bash)
 └── research/                # Platform documentation
 ```
 
@@ -210,8 +210,10 @@ bats tests/unit/install.bats
 # Build the binary
 mise run build
 
-# Build + package + upload to GitHub release
-VERSION=v0.19.0 mise run build-release
+# Cut a release (from main, no API tokens needed locally)
+mise run release patch
+# → bumps versions, commits, tags, pushes the tag
+# → GitHub Actions then builds + uploads the platform tarballs
 ```
 
 `install.sh` honors a `BASE_URL` env var to redirect downloads away from

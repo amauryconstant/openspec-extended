@@ -138,7 +138,7 @@ resources/
 openspec-core/           # Official OpenSpec workflows (read-only)
 research/                # Platform documentation
 tests/                   # pytest + bats suite
-.mise/tasks/             # sync-core, release, build-release, version/{check,update,lib/*} (all bash)
+.mise/tasks/             # sync-core, release, version/{check,update,lib/*} (all bash)
 ```
 
 ---
@@ -146,18 +146,22 @@ tests/                   # pytest + bats suite
 ## Build & Release
 
 ```bash
-# Build the binary (PyInstaller)
+# Build the binary locally (PyInstaller)
 mise run build
 # Output: dist/openspec-extended
 
-# Build + package + upload to GitHub release
-VERSION=v0.19.0 mise run build-release --skip-build   # if dist/ is current
-VERSION=v0.19.0 mise run build-release                 # build, then upload
+# Cut a release (from main, no API tokens needed locally)
+mise run release patch
+# → bumps versions, commits, tags, pushes the tag
+# → GitHub Actions then builds + uploads the platform tarballs
 ```
 
-`build-release` produces a tarball named
-`openspec-extended-v$VERSION-{platform}.tar.gz` containing `bin/openspec-extended`
-plus a `SHA256SUMS` file, and uploads them to the matching GitHub release.
+Releases are published by the `.github/workflows/release.yml` workflow on
+`vX.Y.Z` tag push. The workflow matrix builds `linux-x86_64`,
+`linux-arm64`, `darwin-x86_64`, and `darwin-arm64`, packages each binary
+into `openspec-extended-v$VERSION-{platform}.tar.gz` (with a `bin/openspec-extended`
+layout), combines per-platform `SHA256SUMS` into a single file, and
+uploads everything to the matching GitHub release.
 
 `install.sh` fetches this tarball from the release matching `VERSION` (or
 `latest`/`main` if not pinned).
@@ -197,11 +201,14 @@ mise run release patch
 ```
 
 `version:update` is the single source of truth for the three locked
-version fields. It updates `source/cli.py` (canonical), then mirrors the
-same version to `source/__init__.py` and `pyproject.toml`. The `release`
-task shares the same helpers via `.mise/tasks/version/lib/bump.bash`,
-so `README.md` is the only file the release task updates that
-`version:update` does not.
+tool-version fields (`source/cli.py`, `source/__init__.py`, `pyproject.toml`).
+It detects bumps on any of the three and mirrors the highest target to
+the others so they stay in lockstep. The `release` task shares the same
+helpers via `.mise/tasks/version/lib/bump.sh`, so `README.md` is the
+only file the release task updates that `version:update` does not.
+
+`install.sh` tracks its own installer version (`SCRIPT_VERSION`) in the
+`install.sh` file itself, separate from the tool version above.
 
 ---
 

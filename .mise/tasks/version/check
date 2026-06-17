@@ -28,7 +28,7 @@ get_staged_files() {
 
 get_script_files() {
     git diff --cached --name-only --diff-filter=ACMR -- \
-        "install.sh" "source/cli.py" 2>/dev/null || true
+        "install.sh" "source/cli.py" "source/__init__.py" "pyproject.toml" 2>/dev/null || true
 }
 
 # Extract the SCRIPT_VERSION value from a script file.
@@ -39,6 +39,33 @@ get_script_version_from_file() {
     grep -E '(readonly[[:space:]]+)?SCRIPT_VERSION[[:space:]]*=' "$file_path" \
         | head -n1 \
         | sed -E 's/^[[:space:]]*(readonly[[:space:]]+)?SCRIPT_VERSION[[:space:]]*=[[:space:]]*"?([^"]*)"?$/\2/'
+}
+
+# Extract the [project] version from pyproject.toml.
+get_pyproject_version_from_file() {
+    local file_path="$1"
+    [[ -f "$file_path" ]] || return 1
+    python3 - "$file_path" <<'PY'
+import re, sys
+from pathlib import Path
+text = Path(sys.argv[1]).read_text()
+m = re.search(r'\[project\](.*?)(?=\n\[|\Z)', text, re.DOTALL)
+if not m:
+    sys.exit(1)
+v = re.search(r'^version\s*=\s*"([^"]+)"', m.group(1), re.MULTILINE)
+if not v:
+    sys.exit(1)
+print(v.group(1))
+PY
+}
+
+# Extract the __version__ from source/__init__.py.
+get_py_init_version_from_file() {
+    local file_path="$1"
+    [[ -f "$file_path" ]] || return 1
+    grep -E '^__version__[[:space:]]*=' "$file_path" \
+        | head -n1 \
+        | sed -E 's/^__version__[[:space:]]*=[[:space:]]*"([^"]*)"$/\1/'
 }
 
 append_entry() {
@@ -146,22 +173,51 @@ check_resource_file() {
 
 check_script_file() {
     local file_path="$1"
-    local current_version
+    local current_version marker error_label
 
-    if ! current_version=$(get_script_version_from_file "$file_path"); then
-        append_entry "$(jq -n \
-            --arg path "$file_path" \
-            --arg rn "$(basename "$file_path")" \
-            '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:"", status:"error", error:"SCRIPT_VERSION not found"}')"
-        return 0
-    fi
+    case "$file_path" in
+        pyproject.toml)
+            if ! current_version=$(get_pyproject_version_from_file "$file_path"); then
+                append_entry "$(jq -n \
+                    --arg path "$file_path" \
+                    --arg rn "$(basename "$file_path")" \
+                    '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:"", status:"error", error:"[project] version not found"}')"
+                return 0
+            fi
+            marker='^\+version[[:space:]]*='
+            error_label="[project] version"
+            ;;
+        source/__init__.py)
+            if ! current_version=$(get_py_init_version_from_file "$file_path"); then
+                append_entry "$(jq -n \
+                    --arg path "$file_path" \
+                    --arg rn "$(basename "$file_path")" \
+                    '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:"", status:"error", error:"__version__ not found"}')"
+                return 0
+            fi
+            marker='^\+__version__'
+            error_label="__version__"
+            ;;
+        *)
+            if ! current_version=$(get_script_version_from_file "$file_path"); then
+                append_entry "$(jq -n \
+                    --arg path "$file_path" \
+                    --arg rn "$(basename "$file_path")" \
+                    '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:"", status:"error", error:"SCRIPT_VERSION not found"}')"
+                return 0
+            fi
+            marker='^\+.*SCRIPT_VERSION'
+            error_label="SCRIPT_VERSION"
+            ;;
+    esac
 
     if ! validate_semver "$current_version"; then
         append_entry "$(jq -n \
             --arg path "$file_path" \
             --arg rn "$(basename "$file_path")" \
             --arg v "$current_version" \
-            '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:$v, status:"error", error:"Invalid version format"}')"
+            --arg label "$error_label" \
+            '{path:$path, platform:"root", resource_type:"scripts", resource_name:$rn, current_version:$v, status:"error", error:($label + " has invalid version format")}')"
         return 0
     fi
 
@@ -176,7 +232,7 @@ check_script_file() {
         return 0
     fi
 
-    version_bumped=$(grep -E '^\+.*SCRIPT_VERSION' <<< "$diff_text" || true)
+    version_bumped=$(grep -E "$marker" <<< "$diff_text" || true)
     if [[ -n "$version_bumped" ]]; then
         append_entry "$(jq -n \
             --arg path "$file_path" \
