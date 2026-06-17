@@ -18,7 +18,7 @@ from source import __version__
 from source.lib.osx import REQUIRED_CORE_SKILLS
 from source.orchestrator.engine import OrchestratorState, run_orchestrator
 
-SCRIPT_VERSION = "0.19.1"
+SCRIPT_VERSION = "1.0.0"
 SCRIPT_NAME = "openspec-extended"
 
 TOOL_DIRS = {"opencode": ".opencode", "claude": ".claude"}
