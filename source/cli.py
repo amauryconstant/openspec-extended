@@ -287,7 +287,7 @@ def deploy_all_resources(tool: str, force: bool) -> None:
         raise SystemExit(1)
 
     source_manifest = toml.loads(source_manifest_path.read_text())
-    source_version = source_manifest.get("version", "unknown")
+    source_version = __version__
 
     target_dir = Path.cwd() / TOOL_DIRS[tool]
     target_manifest = target_dir / "manifest.toml"

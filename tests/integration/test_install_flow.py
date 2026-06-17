@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from source import __version__
 from source.cli import app
 
 pytestmark = pytest.mark.integration
@@ -122,8 +123,7 @@ class TestInstallOpencode:
         with open(manifest_path) as f:
             manifest = toml.load(f)
 
-        assert manifest.get("version") is not None
-        assert manifest.get("version") != ""
+        assert manifest.get("version") == __version__
 
     def test_install_opencode_shows_deployed_message(self, test_env):
         """Install opencode shows success message."""
@@ -315,8 +315,7 @@ class TestVersionAwareUpgrade:
         manifest = test_env / ".opencode" / "manifest.toml"
         manifest_data = toml.loads(manifest.read_text())
 
-        assert manifest_data.get("version") is not None
-        assert manifest_data.get("version") != "null"
+        assert manifest_data.get("version") == __version__
 
         assert len(manifest_data["resources"]["skills"]) > 0
         assert (
