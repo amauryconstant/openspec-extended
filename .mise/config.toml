@@ -6,6 +6,7 @@ uv = "latest"
 ty = "latest"
 ruff = "latest"
 jq = "latest"
+pnpm = "latest"
 
 [env]
 _.python.venv = { path = ".venv" }

@@ -557,7 +557,12 @@ def update(
 @app.command("orchestrate", help="Run the 7-phase autonomous change workflow")
 def orchestrate(
     ctx: typer.Context,
-    change_name: Optional[str] = typer.Argument(None, help="OpenSpec change ID"),
+    change_name: Optional[str] = typer.Argument(
+        None, help="OpenSpec change ID or 'store:change'"
+    ),
+    store: Optional[str] = typer.Option(
+        None, "--store", help="OpenSpec store id (defaults to nearest openspec/ root)"
+    ),
     timeout: int = typer.Option(
         1800, "--timeout", "-t", help="Timeout per iteration (seconds)"
     ),
@@ -586,8 +591,14 @@ def orchestrate(
         log_error("orchestrate: missing change ID (or pass --list)")
         raise typer.Exit(code=2)
 
+    parsed_store: Optional[str] = None
+    parsed_change = change_name
+    if change_name and ":" in change_name and not store:
+        parsed_store, _, parsed_change = change_name.partition(":")
+
     state = OrchestratorState()
-    state.change_id = change_name or ""
+    state.change_id = parsed_change or change_name or ""
+    state.store = store or parsed_store
     state.max_phase_iterations = max_phase_iterations
     state.timeout = timeout
     state.verbose = verbose

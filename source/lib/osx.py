@@ -22,6 +22,7 @@ import select
 import subprocess
 import sys
 import tempfile
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -97,20 +98,124 @@ def get_timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _find_change_dir(change: str) -> Path:
-    primary = Path(f"openspec/changes/{change}")
+current_store: ContextVar[Optional[str]] = ContextVar("osx_current_store", default=None)
+
+_PATHS_CACHE: dict[tuple[str, Optional[str]], dict] = {}
+
+
+def _run_openspec_json(args: list, timeout: int = 10) -> dict:
+    """Run `openspec <args...> --json` and return the parsed JSON dict.
+
+    Raises:
+      OSXError("cli_not_found")  — openspec binary not on PATH
+      OSXError("cli_error")      — non-zero exit or timeout
+      OSXError("invalid_json")   — stdout is not valid JSON
+    """
+    cmd = ["openspec", *args, "--json"]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError as e:
+        raise OSXError("cli_not_found", "openspec CLI not found in PATH") from e
+    except subprocess.TimeoutExpired as e:
+        raise OSXError("cli_error", "openspec CLI timed out", timeout=timeout) from e
+    if result.returncode != 0:
+        raise OSXError(
+            "cli_error",
+            result.stderr.strip() or "openspec failed",
+            args=args,
+        )
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        raise OSXError(
+            "invalid_json",
+            "openspec returned non-JSON output",
+            stdout=result.stdout[:200],
+        ) from e
+
+
+def resolve_change_paths(change: str, store: Optional[str] = None) -> dict:
+    """Resolve where a change *would* live on disk.
+
+    Always returns a dict. The `change_root` may not exist on disk —
+    callers that need to assert existence should check `change_root.is_dir()`
+    or use `_find_change_dir` instead.
+
+    Returns:
+      {
+        "change_root":   Path,   # absolute (CLI) or repo-local
+        "planning_home": Path,   # absolute (CLI) or Path("openspec")
+        "archive_dir":   Path,   # <planning_home>/changes/archive
+        "source":        "cli" | "fallback"
+      }
+    """
+    effective_store = store if store is not None else current_store.get()
+    cache_key = (change, effective_store)
+    if cache_key in _PATHS_CACHE:
+        return _PATHS_CACHE[cache_key]
+
+    args = ["status", "--change", change]
+    if effective_store:
+        args.extend(["--store", effective_store])
+
+    cli_result = None
+    try:
+        cli_result = _run_openspec_json(args)
+    except OSXError:
+        cli_result = None
+
+    if isinstance(cli_result, dict):
+        change_root_str = cli_result.get("changeRoot")
+        planning_home_val = cli_result.get("planningHome")
+        planning_home_str: Optional[str]
+        if isinstance(planning_home_val, dict):
+            planning_home_str = planning_home_val.get("root")
+        else:
+            planning_home_str = planning_home_val
+        if change_root_str and planning_home_str:
+            change_root = Path(change_root_str)
+            planning_home = Path(planning_home_str) / "openspec"
+            return {
+                "change_root": change_root,
+                "planning_home": planning_home,
+                "archive_dir": planning_home / "changes" / "archive",
+                "source": "cli",
+            }
+
+    result = {
+        "change_root": Path(f"openspec/changes/{change}"),
+        "planning_home": Path("openspec"),
+        "archive_dir": Path("openspec/changes/archive"),
+        "source": "fallback",
+    }
+    _PATHS_CACHE[cache_key] = result
+    return result
+
+
+def _find_change_dir(change: str, store: Optional[str] = None) -> Path:
+    """Find the change directory. Checks the active path first, then the
+    archive. Backward-compatible: existing callers that omit `store` get
+    the same behavior as before (CLI consulted, then repo-local fallback).
+
+    Raises OSXError("change_not_found") if neither the active path nor any
+    archive entry matches.
+    """
+    paths = resolve_change_paths(change, store=store)
+    primary = paths["change_root"]
     if primary.is_dir():
         return primary
 
-    archive_dir = Path("openspec/changes/archive")
-    if not archive_dir.is_dir():
-        raise OSXError(
-            "change_not_found", "Change directory does not exist", change=change
-        )
+    archive_dir = paths["archive_dir"]
+    if archive_dir.is_dir():
+        for d in sorted(archive_dir.iterdir()):
+            if d.is_dir() and d.name.endswith(f"-{change}"):
+                return d
 
-    for d in sorted(archive_dir.iterdir()):
-        if d.is_dir() and d.name.endswith(f"-{change}"):
-            return d
+    archive_dir_fallback = Path("openspec/changes/archive")
+    if archive_dir_fallback.is_dir() and archive_dir_fallback != archive_dir:
+        for d in sorted(archive_dir_fallback.iterdir()):
+            if d.is_dir() and d.name.endswith(f"-{change}"):
+                return d
 
     raise OSXError("change_not_found", "Change directory does not exist", change=change)
 
@@ -277,8 +382,8 @@ def baseline_get() -> dict:
         ) from e
 
 
-def ctx_get(change: str) -> dict:
-    change_dir = _find_change_dir(change)
+def ctx_get(change: str, *, store: Optional[str] = None) -> dict:
+    change_dir = _find_change_dir(change, store=store)
 
     def check_artifact(path: Path, artifact_type: str) -> dict:
         if artifact_type == "directory":
@@ -414,8 +519,8 @@ def git_get(change: str) -> dict:
     return result
 
 
-def phase_current(change: str) -> dict:
-    change_dir = _find_change_dir(change)
+def phase_current(change: str, *, store: Optional[str] = None) -> dict:
+    change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
     if "archive" in str(change_dir) and not state_file.exists():
@@ -442,8 +547,8 @@ def phase_current(change: str) -> dict:
     return {"phase": phase, "next": next_phase, "iteration": iteration}
 
 
-def phase_next(change: str) -> dict:
-    change_dir = _find_change_dir(change)
+def phase_next(change: str, *, store: Optional[str] = None) -> dict:
+    change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
     if "archive" in str(change_dir) and not state_file.exists():
@@ -471,8 +576,8 @@ def phase_next(change: str) -> dict:
     return {"next": next_phase}
 
 
-def phase_advance(change: str) -> dict:
-    change_dir = _find_change_dir(change)
+def phase_advance(change: str, *, store: Optional[str] = None) -> dict:
+    change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
     if "archive" in str(change_dir) and not state_file.exists():
@@ -516,8 +621,8 @@ def phase_advance(change: str) -> dict:
     }
 
 
-def state_get(change: str) -> dict:
-    change_dir = _find_change_dir(change)
+def state_get(change: str, *, store: Optional[str] = None) -> dict:
+    change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
     if not state_file.exists():
@@ -534,8 +639,8 @@ def state_get(change: str) -> dict:
     }
 
 
-def state_complete(change: str) -> dict:
-    change_dir = _find_change_dir(change)
+def state_complete(change: str, *, store: Optional[str] = None) -> dict:
+    change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
     if not state_file.exists():
@@ -550,7 +655,12 @@ def state_complete(change: str) -> dict:
 
 
 def state_transition(
-    change: str, target: str, reason: str, details: Optional[str] = None
+    change: str,
+    target: str,
+    reason: str,
+    details: Optional[str] = None,
+    *,
+    store: Optional[str] = None,
 ) -> dict:
     if target not in PHASES:
         raise OSXError(
@@ -564,7 +674,7 @@ def state_transition(
             valid=VALID_TRANSITION_REASONS,
         )
 
-    change_dir = _find_change_dir(change)
+    change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
     if not state_file.exists():
@@ -587,8 +697,8 @@ def state_transition(
     return result
 
 
-def state_clear_transition(change: str) -> dict:
-    change_dir = _find_change_dir(change)
+def state_clear_transition(change: str, *, store: Optional[str] = None) -> dict:
+    change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
     if not state_file.exists():
@@ -602,11 +712,17 @@ def state_clear_transition(change: str) -> dict:
     return {"success": True, "transition_cleared": True}
 
 
-def state_set_phase(change: str, phase: str, iteration: Optional[int] = None) -> dict:
+def state_set_phase(
+    change: str,
+    phase: str,
+    iteration: Optional[int] = None,
+    *,
+    store: Optional[str] = None,
+) -> dict:
     if phase not in PHASES:
         raise OSXError("invalid_phase", f"Invalid phase: {phase}", valid=PHASES)
 
-    change_dir = _find_change_dir(change)
+    change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
     if not state_file.exists():
@@ -624,8 +740,8 @@ def state_set_phase(change: str, phase: str, iteration: Optional[int] = None) ->
     return {"success": True, "phase": phase, "previous_phase": previous}
 
 
-def iterations_get(change: str) -> dict:
-    change_dir = _find_change_dir(change)
+def iterations_get(change: str, *, store: Optional[str] = None) -> dict:
+    change_dir = _find_change_dir(change, store=store)
     iterations_file = change_dir / "iterations.json"
 
     if not iterations_file.exists():
@@ -650,8 +766,9 @@ def iterations_append(
     errors: Optional[str] = None,
     extra: Optional[str] = None,
     entry: Optional[dict] = None,
+    store: Optional[str] = None,
 ) -> dict:
-    change_dir = _find_change_dir(change)
+    change_dir = _find_change_dir(change, store=store)
     iterations_file = change_dir / "iterations.json"
 
     if entry is None:
@@ -722,8 +839,8 @@ def iterations_append(
     }
 
 
-def log_get(change: str) -> dict:
-    change_dir = _find_change_dir(change)
+def log_get(change: str, *, store: Optional[str] = None) -> dict:
+    change_dir = _find_change_dir(change, store=store)
     log_file = change_dir / "decision-log.json"
 
     if not log_file.exists():
@@ -746,8 +863,9 @@ def log_append(
     errors: Optional[str] = None,
     extra: Optional[str] = None,
     entry: Optional[dict] = None,
+    store: Optional[str] = None,
 ) -> dict:
-    change_dir = _find_change_dir(change)
+    change_dir = _find_change_dir(change, store=store)
     log_file = change_dir / "decision-log.json"
 
     if entry is None:
@@ -830,8 +948,8 @@ def log_append(
     }
 
 
-def complete_check(change: str) -> dict:
-    change_dir = _find_change_dir(change)
+def complete_check(change: str, *, store: Optional[str] = None) -> dict:
+    change_dir = _find_change_dir(change, store=store)
     complete_file = change_dir / "complete.json"
 
     if not complete_file.exists():
@@ -844,8 +962,8 @@ def complete_check(change: str) -> dict:
         return {"exists": False, "error": "invalid_json"}
 
 
-def complete_get(change: str) -> dict:
-    change_dir = _find_change_dir(change)
+def complete_get(change: str, *, store: Optional[str] = None) -> dict:
+    change_dir = _find_change_dir(change, store=store)
     complete_file = change_dir / "complete.json"
 
     if not complete_file.exists():
@@ -866,9 +984,13 @@ def complete_get(change: str) -> dict:
 
 
 def complete_set(
-    change: str, status: Optional[str] = None, blocker_reason: Optional[str] = None
+    change: str,
+    status: Optional[str] = None,
+    blocker_reason: Optional[str] = None,
+    *,
+    store: Optional[str] = None,
 ) -> dict:
-    change_dir = _find_change_dir(change)
+    change_dir = _find_change_dir(change, store=store)
     complete_file = change_dir / "complete.json"
     timestamp = get_timestamp()
     status_value = status or "COMPLETE"
@@ -894,6 +1016,35 @@ def complete_set(
     }
     write_json(complete_file, data)
     return {"status": status_value, "with_blocker": False}
+
+
+def store_list() -> dict:
+    """List registered OpenSpec stores."""
+    return {"success": True, "data": _run_openspec_json(["store", "list"])}
+
+
+def store_doctor(store_id: Optional[str] = None) -> dict:
+    """Check health of a single registered store (or all when id is None)."""
+    args = ["store", "doctor"]
+    if store_id:
+        args.append(store_id)
+    return {"success": True, "data": _run_openspec_json(args)}
+
+
+def store_register(path: str, name: Optional[str] = None) -> dict:
+    """Register an OpenSpec store at the given filesystem path."""
+    args = ["store", "register", path]
+    if name:
+        args.extend(["--name", name])
+    return {"success": True, "data": _run_openspec_json(args)}
+
+
+def store_unregister(store_id: str) -> dict:
+    """Unregister an OpenSpec store."""
+    return {
+        "success": True,
+        "data": _run_openspec_json(["store", "unregister", store_id]),
+    }
 
 
 def validate_json(target: str) -> dict:
@@ -947,8 +1098,9 @@ def validate_commands() -> dict:
     return {"valid": True}
 
 
-def validate_change_dir(target: str) -> dict:
-    change_path = Path(f"openspec/changes/{target}")
+def validate_change_dir(target: str, *, store: Optional[str] = None) -> dict:
+    paths = resolve_change_paths(target, store=store)
+    change_path = paths["change_root"]
     errors: list[dict] = []
 
     if not change_path.is_dir():
@@ -980,8 +1132,9 @@ def validate_change_dir(target: str) -> dict:
     return {"valid": True}
 
 
-def validate_archive(target: str) -> dict:
-    archive_dir = Path("openspec/changes/archive")
+def validate_archive(target: str, *, store: Optional[str] = None) -> dict:
+    paths = resolve_change_paths(target, store=store)
+    archive_dir = paths["archive_dir"]
     archives: list[Path] = []
 
     if archive_dir.is_dir():
@@ -1009,9 +1162,9 @@ def validate_archive(target: str) -> dict:
     return {"valid": True, "archive": str(archives[0])}
 
 
-def validate_iterations(target: str) -> dict:
+def validate_iterations(target: str, *, store: Optional[str] = None) -> dict:
     try:
-        change_dir = _find_change_dir(target)
+        change_dir = _find_change_dir(target, store=store)
     except OSXError:
         return {
             "valid": False,
@@ -1044,11 +1197,11 @@ def validate_iterations(target: str) -> dict:
     return {"valid": True}
 
 
-def validate_completion(target: str) -> dict:
+def validate_completion(target: str, *, store: Optional[str] = None) -> dict:
     errors: list[dict] = []
 
     try:
-        change_dir = _find_change_dir(target)
+        change_dir = _find_change_dir(target, store=store)
     except OSXError:
         return {
             "valid": False,
@@ -1103,7 +1256,7 @@ def validate_completion(target: str) -> dict:
     if not log_file.exists():
         errors.append({"check": "completion", "message": "decision-log.json not found"})
 
-    archive_dir = Path("openspec/changes/archive")
+    archive_dir = resolve_change_paths(target, store=store)["archive_dir"]
     archives: list[Path] = []
     if archive_dir.is_dir():
         for d in archive_dir.iterdir():

@@ -161,3 +161,27 @@ teardown() {
     [ "$status" -eq 0 ]
     echo "$output" | jq -e '.valid == true'
 }
+
+# ========== v1.5.0 store subapp ==========
+#
+# The `osx store` Typer subapp (from source/osx_cli.py) is the user-facing
+# CLI surface for the store_* library functions in source/lib/osx.py.
+# These tests assert that:
+#   - `osx --help` exposes the --store flag (the context-setting callback)
+#   - `osx store --help` exposes the four store_* commands
+
+@test "mechanism: osx store subapp is registered on built binary" {
+    run "$OPENSPEC_BIN" osx --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--store"* ]]
+    [[ "$output" == *"store"* ]]
+}
+
+@test "mechanism: osx store subcommands are registered" {
+    run "$OPENSPEC_BIN" osx store --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"list"* ]]
+    [[ "$output" == *"register"* ]]
+    [[ "$output" == *"unregister"* ]]
+    [[ "$output" == *"doctor"* ]]
+}

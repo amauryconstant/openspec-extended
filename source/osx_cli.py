@@ -24,6 +24,24 @@ from source.lib import osx as osx_lib
 osx_app = typer.Typer(help="OpenSpec Extended change management tool")
 
 
+@osx_app.callback()
+def _osx_app_callback(
+    ctx: typer.Context,
+    store: Optional[str] = typer.Option(
+        None,
+        "--store",
+        "-s",
+        help="OpenSpec store id (defaults to nearest openspec/ root)",
+    ),
+) -> None:
+    if store is not None:
+        token = osx_lib.current_store.set(store)
+        ctx.obj = {"store_token": token, "store": store}
+        ctx.call_on_close(lambda: osx_lib.current_store.reset(token))
+    else:
+        ctx.obj = {}
+
+
 def osx_error(code: str, message: str, **context) -> None:
     """Print an error JSON to stderr and exit non-zero."""
     result = {"error": code, "message": message}
@@ -339,3 +357,40 @@ def instructions_cmd(
             raise typer.Exit(result.returncode)
     except FileNotFoundError:
         osx_error("cli_not_found", "openspec CLI not found in PATH")
+
+
+store_app = typer.Typer(help="OpenSpec store management")
+osx_app.add_typer(store_app, name="store")
+
+
+@store_app.command("list")
+def store_list_cmd() -> None:
+    """List registered OpenSpec stores."""
+    data = _call_library(osx_lib.store_list)
+    osx_output(data)
+
+
+@store_app.command("doctor")
+def store_doctor_cmd(
+    store: Optional[str] = typer.Argument(None, help="Store id (omit to check all)"),
+) -> None:
+    """Check health of a registered store (or all when id is omitted)."""
+    data = _call_library(osx_lib.store_doctor, store)
+    osx_output(data)
+
+
+@store_app.command("register")
+def store_register_cmd(
+    path: str = typer.Argument(..., help="Filesystem path to the store repo"),
+    name: Optional[str] = typer.Option(None, "--name", help="Display name"),
+) -> None:
+    """Register a new OpenSpec store."""
+    data = _call_library(osx_lib.store_register, path, name)
+    osx_output(data)
+
+
+@store_app.command("unregister")
+def store_unregister_cmd(store: str = typer.Argument(..., help="Store id")) -> None:
+    """Unregister an OpenSpec store."""
+    data = _call_library(osx_lib.store_unregister, store)
+    osx_output(data)
