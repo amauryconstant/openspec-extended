@@ -1,6 +1,6 @@
 # CLI Reference for AI Agents
 
-Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes verified against `@fission-ai/openspec@1.4.1`, `openspec-extended@0.19.x` source, and the `osx` CLI subcommand.
+Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes verified against `@fission-ai/openspec@1.5.0`, `openspec-extended@0.19.x` source, and the `osx` CLI subcommand.
 
 > **Quick rule**: use **`openspec`** to query workflow state, **`openspec-extended`** to drive the lifecycle, and **`osx`** to mutate change state.
 
@@ -16,6 +16,7 @@ Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes v
   - [schemas](#openspec-schemas)
   - [templates](#openspec-templates)
   - [show](#openspec-show)
+  - [store and the `--store` flag *(v1.5.0)*](#openspec-store-and-the---store-flag-v150)
   - [other commands](#openspec-other-commands)
 - [B. `openspec-extended` (this project)](#b-openspec-extended-this-project)
   - [install](#openspec-extended-install)
@@ -30,6 +31,7 @@ Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes v
   - [complete](#complete)
   - [baseline](#baseline)
   - [git](#git)
+  - [store *(v1.5.0)*](#store-v150)
   - [validate](#osx-validate)
   - [instructions](#osx-instructions)
 - [Common error patterns](#common-error-patterns)
@@ -42,7 +44,7 @@ Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes v
 The `openspec` binary is installed via `npm install -g @fission-ai/openspec`. It implements the spec-driven workflow: query state, get instructions for creating artifacts, validate, list changes, etc.
 
 ```bash
-openspec --version    # 1.4.1
+openspec --version    # 1.5.0
 openspec <subcommand> [options]
 ```
 
@@ -55,7 +57,7 @@ Artifact completion state for a change. **Most commonly used command for agents.
 openspec status --change <name> --json
 ```
 
-**JSON output** (v1.4.1, verified):
+**JSON output** (v1.5.0, verified):
 ```json
 {
   "changeName": "add-dark-mode",
@@ -123,7 +125,7 @@ openspec instructions <artifact> --change <name> --json
 openspec instructions apply --change <name> --json
 ```
 
-**JSON output** (v1.4.1, verified — `proposal` example):
+**JSON output** (v1.5.0, verified — `proposal` example):
 ```json
 {
   "changeName": "add-dark-mode",
@@ -141,7 +143,7 @@ openspec instructions apply --change <name> --json
 }
 ```
 
-**Apply-mode output** (v1.4.1, verified):
+**Apply-mode output** (v1.5.0, verified):
 ```json
 {
   "changeName": "add-dark-mode",
@@ -171,7 +173,7 @@ openspec list --specs --json      # specs
 openspec list --sort name --json  # by name
 ```
 
-**JSON output** (v1.4.1, verified — changes):
+**JSON output** (v1.5.0, verified — changes):
 ```json
 {
   "changes": [
@@ -208,7 +210,7 @@ openspec validate --all --json          # all changes + specs
 openspec validate --all --strict --json # warnings become errors
 ```
 
-**JSON output** (v1.4.1, verified — empty project):
+**JSON output** (v1.5.0, verified — empty project):
 ```json
 {
   "items": [],
@@ -236,7 +238,7 @@ List available workflow schemas.
 openspec schemas --json
 ```
 
-**JSON output** (v1.4.1, verified — top-level array):
+**JSON output** (v1.5.0, verified — top-level array):
 ```json
 [
   {
@@ -267,7 +269,7 @@ Show resolved template paths for a schema.
 openspec templates --schema spec-driven --json
 ```
 
-**JSON output** (v1.4.1, verified):
+**JSON output** (v1.5.0, verified):
 ```json
 {
   "proposal": {"path": "/abs/path/to/schemas/spec-driven/templates/proposal.md", "source": "package"},
@@ -281,7 +283,7 @@ openspec templates --schema spec-driven --json
 
 ### `openspec show`
 
-Display a change or spec. **Note: in v1.4.1 this is interactive-only and takes no positional `<item-name>`.** Running `openspec show <name>` returns `Unknown item '<name>'`.
+Display a change or spec. **Note: in v1.5.0 this remains interactive-only and takes no positional `<item-name>`.** Running `openspec show <name>` returns `Unknown item '<name>'`.
 
 **Usage**:
 ```bash
@@ -291,6 +293,27 @@ openspec spec show                             # spec selector
 ```
 
 For programmatic change details, use `openspec status --change <name> --json` (gives artifact paths, deps, etc.) or `openspec list --json` (gives name + progress + last modified).
+
+**Note (v1.5.0)**: `openspec new change <name>` writes a `.openspec.yaml` file into the change folder alongside `proposal.md`. Archive (which moves the directory) preserves it automatically.
+
+---
+
+### `openspec store` and the `--store` flag (v1.5.0)
+
+A *store* is a standalone OpenSpec repo registered on this machine. Changes inside a store can live at any path the CLI reports — not necessarily under `<project>/openspec/changes/`. The following commands accept `--store <id>`: `new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`. Other commands (e.g. `apply`, `init`, `update`) do not.
+
+**Usage**:
+```bash
+openspec store list --json                       # list registered stores
+openspec store register <path> [--name <n>]      # register a new store
+openspec store unregister <id>                   # remove a store
+openspec store doctor [<id>]                     # health check (all or one)
+
+openspec status --change <name> --store <id> --json
+openspec list --store <id> --json
+```
+
+Without `--store`, the commands act on the nearest local `openspec/` root. The upstream workflow skills (`openspec-propose`, `openspec-new-change`, etc.) prepend a "store selection" step: if the user names a store, or the work lives in one, they call `openspec store list --json` first to discover ids and thread the flag through subsequent commands.
 
 ---
 
@@ -466,6 +489,17 @@ These guards exist because LLMs sometimes use markdown backticks (e.g. `` `local
 |--------|------|---------|
 | `get` | `<change>` | Git status of the change dir: `{modified, added, untracked, clean, branch}` |
 
+### `store` *(v1.5.0)*
+
+| Action | Args | Purpose |
+|--------|------|---------|
+| `list` | (none) | List registered OpenSpec stores |
+| `doctor` | `[<store-id>]` | Health check; omit id to check all |
+| `register` | `<path> [--name <n>]` | Register a new store at `<path>` |
+| `unregister` | `<store-id>` | Remove a registered store |
+
+The whole `osx` subapp also accepts `--store/-s` at the top level to set a default store for every subsequent verb in the same invocation. Threads via `current_store` `ContextVar`; reset on subapp exit.
+
 ### `osx validate`
 
 | Action | Args | Purpose |
@@ -502,7 +536,7 @@ Thin wrapper around `openspec instructions` for use from `osx` workflows.
 | `{"error":"invalid_json", ...}` | Malformed JSON passed for `--issues` / `--decisions` / etc. | Pass valid JSON strings |
 | `{"error":"input_too_long", ...}` | `log append` `--summary` or `--next-steps` exceeded 2,000 chars | Shorten the text; usually caused by backticks interpreted as command substitution |
 | `{"error":"input_tainted", ...}` | `log append` `--summary` or `--next-steps` contains a zsh/bash env-dump fingerprint | Remove backticks from the argument; use single quotes, double quotes, or plain text for inline code references |
-| `Unknown item 'X'` (from `openspec show`) | v1.4.1 `show` is interactive; no positional arg | Use `openspec status --change X --json` or `openspec list --json` instead |
+| `Unknown item 'X'` (from `openspec show`) | v1.5.0 `show` is interactive; no positional arg | Use `openspec status --change X --json` or `openspec list --json` instead |
 | `openspec: command not found` | Upstream CLI not installed | `npm install -g @fission-ai/openspec` |
 | `Not in a git repository` (from `orchestrate`) | Pre-flight requires git | `git init` first |
 

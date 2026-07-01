@@ -2,7 +2,9 @@
 
 **Source**: Official OpenSpec workflow skills - track upstream, do not modify locally.
 
-**Version**: v1.4.1 (custom profile with all 11 workflows)
+**Version**: v1.5.0 (custom profile with all 11 workflows)
+
+**v1.5.0 highlight**: introduces "stores" — standalone OpenSpec repos registered on this machine via `openspec store <subcommand>`. Workflows check `openspec store list --json` and pass `--store <id>` on `new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`. Without a store, commands act on the nearest local `openspec/` root.
 
 ---
 

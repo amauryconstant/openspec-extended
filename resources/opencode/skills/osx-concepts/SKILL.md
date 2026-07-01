@@ -81,7 +81,7 @@ openspec/
 | `READY` | ◆ | Can create now |
 | `DONE` | ✓ | File exists |
 
-Query: `openspec status --change <name> --json` returns the full state per artifact (see `references/cli-reference.md` for the verified v1.4.1 JSON shape).
+Query: `openspec status --change <name> --json` returns the full state per artifact (see `references/cli-reference.md` for the canonical JSON shape). From v1.5.0, the same status call accepts `--store <id>` when the change lives in a registered store.
 
 ### 2.5 Resource taxonomy
 
