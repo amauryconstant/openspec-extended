@@ -289,10 +289,14 @@ def complete_cmd(
 def validate_cmd(
     action: str = typer.Argument(
         ...,
-        help="Action: json, skills, commands, change-dir, archive, iterations, completion",
+        help="Action: json, skills, commands, change-dir, archive, iterations, completion, change, spec, all, changes, specs",
     ),
     target: Optional[str] = typer.Argument(
         None, help="Target (file path or change name depending on action)"
+    ),
+    strict: bool = typer.Option(False, "--strict", help="Treat warnings as failures"),
+    concurrency: int = typer.Option(
+        6, "--concurrency", help="Max parallel validations (validate all only)"
     ),
 ) -> None:
     if action == "json":
@@ -324,11 +328,50 @@ def validate_cmd(
             osx_error("missing_field", "change name required for completion validation")
             return
         data = osx_lib.validate_completion(target)
+    elif action == "change":
+        if target is None:
+            osx_error("missing_field", "change id required for validate change")
+            return
+        data = _call_library(
+            osx_lib.validate_change,
+            target,
+            store=osx_lib.current_store.get(),
+            strict=strict,
+        )
+    elif action == "spec":
+        if target is None:
+            osx_error("missing_field", "spec id required for validate spec")
+            return
+        data = _call_library(
+            osx_lib.validate_spec,
+            target,
+            store=osx_lib.current_store.get(),
+            strict=strict,
+        )
+    elif action == "all":
+        data = _call_library(
+            osx_lib.validate_all,
+            store=osx_lib.current_store.get(),
+            strict=strict,
+            concurrency=concurrency,
+        )
+    elif action == "changes":
+        data = _call_library(
+            osx_lib.validate_changes_only,
+            store=osx_lib.current_store.get(),
+            strict=strict,
+        )
+    elif action == "specs":
+        data = _call_library(
+            osx_lib.validate_specs_only,
+            store=osx_lib.current_store.get(),
+            strict=strict,
+        )
     else:
         osx_error(
             "invalid_action",
             f"Unknown action: {action}",
-            valid="json, skills, commands, change-dir, archive, iterations, completion",
+            valid="json, skills, commands, change-dir, archive, iterations, completion, change, spec, all, changes, specs",
         )
         return
 

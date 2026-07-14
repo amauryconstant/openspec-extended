@@ -477,6 +477,12 @@ def ctx_get(change: str, *, store: Optional[str] = None) -> dict:
     decision_log = _read_json_array(change_dir / "decision-log.json")
     iterations = _read_json_array(change_dir / "iterations.json")
 
+    project_root = change_dir.parent.parent.parent
+    schema_info = resolve_schema(project_root=project_root, change_dir=change_dir)
+    schema_artifacts = list_artifacts_for_schema(
+        schema_info["name"], store=current_store.get()
+    )
+
     return {
         "change": change,
         "state": get_state(),
@@ -486,6 +492,11 @@ def ctx_get(change: str, *, store: Optional[str] = None) -> dict:
             "specs": specs,
             "design": design,
             "tasks": tasks,
+        },
+        "schema": {
+            "name": schema_info["name"],
+            "source": schema_info["source"],
+            "artifacts": schema_artifacts,
         },
         "history": {
             "decision_log_entries": len(decision_log),
@@ -1145,18 +1156,22 @@ def validate_change_dir(target: str, *, store: Optional[str] = None) -> dict:
             ],
         }
 
-    required_files = ["tasks.md", "proposal.md", "design.md"]
+    schema_info = resolve_schema(change_dir=change_path)
+    schema_name = schema_info["name"]
+
+    required_files = _required_artifact_files(schema_name)
     for file in required_files:
         if not (change_path / file).exists():
             errors.append(
-                {"check": "change-dir", "message": f"Missing required file: {file}"}
+                {"check": "change-dir", "message": f"Required file missing: {file}"}
             )
 
-    specs_dir = change_path / "specs"
-    if not specs_dir.is_dir() or not list(specs_dir.rglob("*.md")):
-        errors.append(
-            {"check": "change-dir", "message": "No spec files found in specs/"}
-        )
+    if schema_name == "spec-driven":
+        specs_dir = change_path / "specs"
+        if not specs_dir.is_dir() or not list(specs_dir.rglob("*.md")):
+            errors.append(
+                {"check": "change-dir", "message": "No spec files found in specs/"}
+            )
 
     if errors:
         return {"valid": False, "errors": errors}
@@ -1300,3 +1315,372 @@ def validate_completion(target: str, *, store: Optional[str] = None) -> dict:
     if errors:
         return {"valid": False, "errors": errors}
     return {"valid": True}
+
+
+def _translate_validate_payload(payload: dict) -> dict:
+    """Translate upstream openspec validate JSON contract to our internal shape.
+
+    Upstream shape (success):
+      {"items": [{"id", "type", "valid", "issues": [{level, path, message, line?}], "durationMs"}],
+       "summary": {"totals": {items, passed, failed}, "byType": {...}}, "version": "1.0", "root": {...}}
+
+    Upstream shape (pre-validation error):
+      {"status": [{"severity", "code", "message", "fix?"}]}
+
+    Returns our internal shape:
+      {"valid": bool, "errors": [...], "warnings": [...], "info": [...],
+       "items": [{"id", "type", "valid", "issues": [...]}],
+       "summary": {...},
+       "root": {...},
+       "diagnostics": [{"code", "message", "fix"}]}  # only present on pre-validation error
+    """
+    if "status" in payload and "items" not in payload:
+        diagnostics = [
+            {
+                "code": d.get("code", "unknown"),
+                "message": d.get("message", ""),
+                "fix": d.get("fix"),
+            }
+            for d in payload.get("status", [])
+        ]
+        return {
+            "valid": False,
+            "errors": [
+                {"check": d["code"], "message": d["message"]} for d in diagnostics
+            ],
+            "warnings": [],
+            "info": [],
+            "diagnostics": diagnostics,
+        }
+
+    items_out = []
+    errors: list[dict] = []
+    warnings: list[dict] = []
+    info: list[dict] = []
+
+    for item in payload.get("items", []):
+        items_out.append(
+            {
+                "id": item.get("id"),
+                "type": item.get("type"),
+                "valid": item.get("valid", False),
+                "issues": item.get("issues", []),
+            }
+        )
+        for issue in item.get("issues", []):
+            level = issue.get("level", "ERROR")
+            entry = {
+                "check": f"{item.get('type', 'item')}:{issue.get('path', 'file')}",
+                "message": issue.get("message", ""),
+                "target": item.get("id"),
+                "line": issue.get("line"),
+            }
+            if level == "ERROR":
+                errors.append(entry)
+            elif level == "WARNING":
+                warnings.append(entry)
+            elif level == "INFO":
+                info.append(entry)
+
+    summary = payload.get("summary", {})
+    return {
+        "valid": summary.get("totals", {}).get("failed", 0) == 0,
+        "errors": errors,
+        "warnings": warnings,
+        "info": info,
+        "items": items_out,
+        "summary": summary,
+        "root": payload.get("root", {}),
+    }
+
+
+def validate_change(
+    change_id: str, *, store: Optional[str] = None, strict: bool = False
+) -> dict:
+    """Validate a single OpenSpec change via `openspec validate <id> --json`.
+
+    Args:
+      change_id: OpenSpec change id (e.g., "add-auth-feature")
+      store: Optional OpenSpec store id
+      strict: If True, warnings are treated as failures (forwarded as --strict)
+
+    Returns: see _translate_validate_payload.
+    Raises: OSXError on subprocess failures (delegated to _run_openspec_json).
+    """
+    args = ["validate", change_id, "--json", "--no-interactive"]
+    if strict:
+        args.append("--strict")
+    if store:
+        args.extend(["--store", store])
+    return _translate_validate_payload(_run_openspec_json(args))
+
+
+def validate_spec(
+    spec_id: str, *, store: Optional[str] = None, strict: bool = False
+) -> dict:
+    """Validate a single OpenSpec main spec via `openspec validate <id> --type spec --json`.
+
+    Args:
+      spec_id: Spec capability id (e.g., "authentication")
+      store: Optional OpenSpec store id
+      strict: If True, warnings are treated as failures
+
+    Returns: see _translate_validate_payload.
+    Raises: OSXError on subprocess failures.
+    """
+    args = ["validate", spec_id, "--type", "spec", "--json", "--no-interactive"]
+    if strict:
+        args.append("--strict")
+    if store:
+        args.extend(["--store", store])
+    return _translate_validate_payload(_run_openspec_json(args))
+
+
+def validate_all(
+    *,
+    store: Optional[str] = None,
+    strict: bool = False,
+    concurrency: int = 6,
+) -> dict:
+    """Validate all changes AND specs via `openspec validate --all --json`.
+
+    Args:
+      store: Optional OpenSpec store id
+      strict: If True, warnings are treated as failures
+      concurrency: Max parallel validations (default 6, per upstream default)
+
+    Returns: see _translate_validate_payload.
+    Raises: OSXError on subprocess failures.
+    """
+    args = [
+        "validate",
+        "--all",
+        "--json",
+        "--no-interactive",
+        "--concurrency",
+        str(concurrency),
+    ]
+    if strict:
+        args.append("--strict")
+    if store:
+        args.extend(["--store", store])
+    return _translate_validate_payload(_run_openspec_json(args, timeout=60))
+
+
+def validate_changes_only(*, store: Optional[str] = None, strict: bool = False) -> dict:
+    """Validate all active changes only via `openspec validate --changes --json`."""
+    args = ["validate", "--changes", "--json", "--no-interactive"]
+    if strict:
+        args.append("--strict")
+    if store:
+        args.extend(["--store", store])
+    return _translate_validate_payload(_run_openspec_json(args))
+
+
+def validate_specs_only(*, store: Optional[str] = None, strict: bool = False) -> dict:
+    """Validate all main specs only via `openspec validate --specs --json`."""
+    args = ["validate", "--specs", "--json", "--no-interactive"]
+    if strict:
+        args.append("--strict")
+    if store:
+        args.extend(["--store", store])
+    return _translate_validate_payload(_run_openspec_json(args))
+
+
+def resolve_schema(
+    *,
+    project_root: Optional[Path] = None,
+    explicit: Optional[str] = None,
+    change_dir: Optional[Path] = None,
+) -> dict:
+    """Resolve the active workflow schema with 4-level precedence.
+
+    Precedence:
+      1. Explicit override (--schema CLI flag or programmatic)
+      2. Per-change .openspec.yaml metadata
+      3. Project openspec/config.yaml (or .yml)
+      4. Default 'spec-driven'
+
+    Returns: {"name": str, "source": "explicit"|"change-metadata"|"project-config"|"default"}
+
+    Malformed YAML is logged but never raised — falls through to the next level.
+    Missing files are not an error.
+    """
+    if project_root is None:
+        project_root = Path.cwd()
+
+    if explicit:
+        return {"name": explicit, "source": "explicit"}
+
+    if change_dir is not None:
+        change_meta = change_dir / ".openspec.yaml"
+        if change_meta.exists():
+            try:
+                import yaml
+
+                data = yaml.safe_load(change_meta.read_text())
+                if (
+                    isinstance(data, dict)
+                    and isinstance(data.get("schema"), str)
+                    and data["schema"]
+                ):
+                    return {"name": data["schema"], "source": "change-metadata"}
+            except Exception:
+                pass
+
+    for config_name in ("config.yaml", "config.yml"):
+        config_path = project_root / "openspec" / config_name
+        if config_path.exists():
+            try:
+                import yaml
+
+                data = yaml.safe_load(config_path.read_text())
+                if (
+                    isinstance(data, dict)
+                    and isinstance(data.get("schema"), str)
+                    and data["schema"]
+                ):
+                    return {"name": data["schema"], "source": "project-config"}
+            except Exception:
+                pass
+
+    return {"name": "spec-driven", "source": "default"}
+
+
+def list_artifacts_for_schema(
+    schema_name: str, *, store: Optional[str] = None
+) -> list[str]:
+    """Return artifact IDs for a schema, resolved from upstream `openspec templates`.
+
+    Falls back to spec-driven artifact list on subprocess failure.
+    """
+    try:
+        args = ["templates", "--schema", schema_name, "--json"]
+        if store:
+            args.extend(["--store", store])
+        payload = _run_openspec_json(args)
+        if isinstance(payload, dict):
+            return list(payload.keys())
+    except OSXError:
+        pass
+    return ["proposal", "specs", "design", "tasks"]
+
+
+def required_core_skills(schema_name: str) -> list[str]:
+    """Return the core (osc-*) skills required for a schema.
+
+    Mapping derived from spec-driven's artifact graph. For non-spec-driven schemas,
+    callers should fall back to whatever skills the schema's instructions reference.
+    """
+    if schema_name == "spec-driven":
+        return [
+            "osc-apply-change",
+            "osc-verify-change",
+            "osc-sync-specs",
+            "osc-archive-change",
+        ]
+    return ["osc-archive-change"]
+
+
+def schema_which(
+    name: Optional[str] = None,
+    *,
+    all_schemas: bool = False,
+    store: Optional[str] = None,
+) -> dict:
+    """Resolve which schema a project uses via `openspec schema which`.
+
+    Returns the raw upstream payload (list of SchemaResolution objects if --all,
+    single object otherwise).
+    """
+    args = ["schema", "which"]
+    if name:
+        args.append(name)
+    if all_schemas:
+        args.append("--all")
+    args.append("--json")
+    if store:
+        args.extend(["--store", store])
+    return _run_openspec_json(args)
+
+
+def schema_validate(
+    name: Optional[str] = None,
+    *,
+    store: Optional[str] = None,
+) -> dict:
+    """Validate a schema via `openspec schema validate`.
+
+    Returns {"valid": bool, "schemas": [...]} or single-schema result.
+    """
+    args = ["schema", "validate"]
+    if name:
+        args.append(name)
+    args.append("--json")
+    if store:
+        args.extend(["--store", store])
+    return _run_openspec_json(args)
+
+
+def schema_fork(
+    source: str,
+    name: Optional[str] = None,
+    *,
+    force: bool = False,
+    store: Optional[str] = None,
+) -> dict:
+    """Fork a schema to project-local via `openspec schema fork`."""
+    args = ["schema", "fork", source]
+    if name:
+        args.append(name)
+    if force:
+        args.append("--force")
+    args.append("--json")
+    if store:
+        args.extend(["--store", store])
+    return _run_openspec_json(args)
+
+
+def schema_init(
+    name: str,
+    *,
+    description: Optional[str] = None,
+    artifacts: Optional[list[str]] = None,
+    set_default: bool = False,
+    force: bool = False,
+    store: Optional[str] = None,
+) -> dict:
+    """Initialize a new project-local schema via `openspec schema init`."""
+    args = ["schema", "init", name, "--json"]
+    if description:
+        args.extend(["--description", description])
+    if artifacts:
+        args.extend(["--artifacts", ",".join(artifacts)])
+    if set_default:
+        args.append("--default")
+    if force:
+        args.append("--force")
+    if store:
+        args.extend(["--store", store])
+    return _run_openspec_json(args)
+
+
+def schema_list(*, store: Optional[str] = None) -> list[dict]:
+    """List all available schemas via `openspec schemas`.
+
+    Returns the raw upstream list payload.
+    """
+    args = ["schemas", "--json"]
+    if store:
+        args.extend(["--store", store])
+    payload = _run_openspec_json(args)
+    if isinstance(payload, list):
+        return payload
+    return []
+
+
+def _required_artifact_files(schema_name: str) -> list[str]:
+    """Map schema artifact IDs to their required file paths."""
+    if schema_name == "spec-driven":
+        return ["proposal.md", "design.md", "tasks.md"]
+    return []

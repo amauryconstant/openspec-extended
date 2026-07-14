@@ -11,6 +11,10 @@ Verifies the post-refactor boundaries:
    commands (no ``[resources.scripts]`` or ``[resources.lib]``).
 5. Agent/command/skill prompts reference ``openspec-extended osx`` and
    never the legacy ``.opencode/scripts/lib/osx`` path.
+6. Schema support: yaml import permitted in the library, all 5
+   schema subprocess wrappers are exported, ``OrchestratorState`` exposes
+   schema fields, and ``_PATHS_CACHE`` documents the schema-is-not-a-key
+   audit decision.
 """
 
 import ast
@@ -19,8 +23,11 @@ from pathlib import Path
 import pytest
 import toml
 
+from source.lib import osx as osx_lib
+
 REPO_ROOT = Path(__file__).parent.parent.parent
 LIB_OSX = REPO_ROOT / "source" / "lib" / "osx.py"
+ENGINE = REPO_ROOT / "source" / "orchestrator" / "engine.py"
 OSX_CLI = REPO_ROOT / "source" / "osx_cli.py"
 MANIFEST = REPO_ROOT / "resources" / "opencode" / "manifest.toml"
 PROMPT_ROOT = REPO_ROOT / "resources" / "opencode"
@@ -130,3 +137,122 @@ class TestPromptReferencesBinary:
             f"agent/command/skill prompts should drive the osx subcommand "
             f"via the binary"
         )
+
+
+def _module_top_level_funcs(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text())
+    return {
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+
+
+def _dataclass_fields(path: Path, class_name: str) -> set[str] | None:
+    tree = ast.parse(path.read_text())
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            for stmt in node.body:
+                if isinstance(stmt, ast.AnnAssign) and isinstance(
+                    stmt.target, ast.Name
+                ):
+                    return {child.id for child in stmt.annotation.elts} if isinstance(
+                        stmt.annotation, ast.Tuple
+                    ) else {stmt.target.id}
+            return set()
+    return None
+
+
+@pytest.mark.unit
+class TestSchemaSupport:
+    """Locks in the schema-aware pre-flight code shape."""
+
+    def test_lib_osx_may_import_yaml(self):
+        """``source/lib/osx.py`` may import ``yaml`` (schema-resolution dep).
+
+        ``resolve_schema`` (``source/lib/osx.py:1490``) parses project
+        config and change metadata via PyYAML. The library is allowed to
+        depend on PyYAML; only the CLI frameworks (typer/click) are banned.
+        """
+        imports = _top_level_imports(LIB_OSX)
+        nested_yaml = "import yaml" in LIB_OSX.read_text()
+        assert "yaml" in imports or nested_yaml, (
+            f"{LIB_OSX.relative_to(REPO_ROOT)} is expected to import yaml "
+            "(resolve_schema requires it); top-level imports: "
+            f"{sorted(imports)}"
+        )
+
+    def test_lib_osx_still_has_no_typer_or_click(self):
+        """Adding yaml must not regress the CLI-framework ban."""
+        imports = _top_level_imports(LIB_OSX)
+        leaked = imports & {"typer", "click"}
+        assert not leaked, (
+            f"{LIB_OSX.relative_to(REPO_ROOT)} leaked CLI framework "
+            f"imports: {sorted(leaked)}"
+        )
+
+    def test_lib_osx_exports_schema_subprocess_wrappers(self):
+        """All 5 schema subprocess wrappers are exported.
+
+        ``source/lib/osx.py:1585-1679`` defines ``resolve_schema`` plus
+        ``schema_which``, ``schema_validate``, ``schema_fork``,
+        ``schema_init``, ``schema_list``. A future refactor that silently
+        drops one of these would break the ``openspec-extended osx schema``
+        sub-app.
+        """
+        funcs = _module_top_level_funcs(LIB_OSX)
+        required = {
+            "resolve_schema",
+            "schema_which",
+            "schema_validate",
+            "schema_fork",
+            "schema_init",
+            "schema_list",
+        }
+        missing = required - funcs
+        assert not missing, (
+            f"{LIB_OSX.relative_to(REPO_ROOT)} is missing schema wrappers: "
+            f"{sorted(missing)}"
+        )
+
+    def test_orchestrator_state_exposes_schema_fields(self):
+        """``OrchestratorState`` (``source/orchestrator/engine.py:87-110``)
+        must declare ``schema_override``, ``schema_name``, ``schema_source``.
+
+        These fields are read by the new schema-name propagation test and
+        by the orchestrator's pre-flight (``engine.py:274-305``).
+        """
+        text = ENGINE.read_text()
+        assert "schema_override" in text
+        assert "schema_name" in text
+        assert "schema_source" in text
+
+    def test_resolve_change_paths_ignores_schema_for_paths(self, tmp_path: Path):
+        """``resolve_change_paths`` keys ``_PATHS_CACHE`` on
+        ``(change, store)`` only — schema is intentionally not a key.
+
+        Audit-only decision (Tier 4): ``resolve_change_paths`` does not
+        consult schema when computing paths, so the cache serving stale
+        data after a schema change is a non-issue. This test pins the
+        behavior so a future contributor doesn't "fix" something that
+        isn't broken.
+        """
+        osx_lib._PATHS_CACHE.clear()
+
+        change = "schema-audit"
+        change_dir = tmp_path / "openspec" / "changes" / change
+        change_dir.mkdir(parents=True)
+        (change_dir / "proposal.md").write_text("# proposal\n")
+
+        config_path = tmp_path / "openspec" / "config.yaml"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text("schema: spec-driven\n")
+
+        first = osx_lib.resolve_change_paths(change)
+        config_path.write_text("schema: workspace-planning\n")
+        second = osx_lib.resolve_change_paths(change)
+
+        assert first["change_root"] == second["change_root"]
+        assert first["planning_home"] == second["planning_home"]
+
+        osx_lib._PATHS_CACHE.clear()

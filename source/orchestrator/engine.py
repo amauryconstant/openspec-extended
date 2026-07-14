@@ -105,6 +105,9 @@ class OrchestratorState:
     model: str = ""
     list_changes: bool = False
     store: Optional[str] = None
+    schema_override: Optional[str] = None
+    schema_name: Optional[str] = None
+    schema_source: Optional[str] = None
 
 
 def get_timestamp() -> str:
@@ -266,6 +269,40 @@ def validate_change_dir(state: OrchestratorState) -> None:
         raise SystemExit(1)
 
     log_verbose(state, "Change directory validated")
+
+
+def validate_schema(state: OrchestratorState) -> bool:
+    """Resolve the schema at startup, log it, cache it in state.schema_name.
+
+    Returns True if validation passes (always passes — we just log).
+    If state.schema_override is set and conflicts with .openspec.yaml or
+    openspec/config.yaml, log a warning but proceed.
+    """
+    log(state, "Resolving workflow schema...")
+
+    change_dir = state.change_dir
+    project_root = change_dir.parent.parent.parent if change_dir else Path.cwd()
+
+    schema_info = osx_lib.resolve_schema(
+        project_root=project_root,
+        explicit=state.schema_override,
+        change_dir=change_dir,
+    )
+
+    state.schema_name = schema_info["name"]
+    state.schema_source = schema_info["source"]
+
+    log(state, f"Schema: {schema_info['name']} (source: {schema_info['source']})")
+
+    if state.schema_override and schema_info["source"] != "explicit":
+        log_warning(
+            state,
+            f"--schema={state.schema_override} applied as override "
+            f"(project declares: {schema_info['name']})",
+        )
+
+    log_verbose(state, "Schema resolution complete")
+    return True
 
 
 def validate_archive(state: OrchestratorState) -> tuple[bool, str]:
@@ -935,6 +972,7 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
                 validate_commands(state)
                 validate_git(state)
                 validate_change_dir(state)
+                validate_schema(state)
 
                 record_baseline(state)
             else:
