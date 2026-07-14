@@ -5,7 +5,9 @@ set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-readonly TARGET_DIR="$PROJECT_ROOT/openspec-core"
+readonly CORE_DIR="$PROJECT_ROOT/openspec-core"
+readonly SUBTREE_PREFIX="openspec-core/source"
+readonly SUBTREE_DIR="$CORE_DIR/source"
 readonly UPSTREAM_REPO="https://github.com/Fission-AI/OpenSpec"
 
 readonly COLOR_GREEN='\033[0;32m' COLOR_YELLOW='\033[0;33m' COLOR_RESET='\033[0m'
@@ -14,79 +16,115 @@ log_info() { echo -e "${COLOR_YELLOW}→${COLOR_RESET} $*"; }
 log_success() { echo -e "${COLOR_GREEN}✓${COLOR_RESET} $*"; }
 
 check_dependencies() {
-    if ! command -v pnpm &> /dev/null; then
-        echo "Error: pnpm is required but not installed." >&2
-        echo "Install with: npm install -g pnpm" >&2
-        exit 1
-    fi
-    if ! command -v node &> /dev/null; then
-        echo "Error: node is required but not installed." >&2
+    local missing=()
+    command -v git &> /dev/null || missing+=(git)
+    command -v node &> /dev/null || missing+=(node)
+    command -v pnpm &> /dev/null || missing+=(pnpm)
+    if (( ${#missing[@]} )); then
+        echo "Error: required tools missing: ${missing[*]}" >&2
         exit 1
     fi
 }
 
-main() {
-    check_dependencies
-    
-    temp_dir=$(mktemp -d)
-    
-    trap 'rm -rf "$temp_dir"' EXIT
-    
-    log_info "Cloning OpenSpec repository..."
-    git clone --depth 1 "$UPSTREAM_REPO" "$temp_dir/openspec"
+ensure_clean_subtree() {
+    if ! git -C "$PROJECT_ROOT" diff --quiet -- "$SUBTREE_PREFIX" \
+        || ! git -C "$PROJECT_ROOT" diff --cached --quiet -- "$SUBTREE_PREFIX"; then
+        echo "Error: uncommitted changes in $SUBTREE_PREFIX." >&2
+        echo "Commit or stash them before syncing." >&2
+        exit 1
+    fi
+}
 
-    # pnpm 10.26+ blocks dependency build scripts by default; allow esbuild
-    # (required for the OpenSpec TypeScript build to fetch its native binary)
-    cat > "$temp_dir/openspec/pnpm-workspace.yaml" << 'EOF'
+discover_latest_release() {
+    local latest
+    latest=$(
+        git ls-remote --tags --refs "$UPSTREAM_REPO" \
+            | awk '{print $2}' \
+            | sed 's#refs/tags/##' \
+            | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true; } \
+            | sort -V -r \
+            | head -1
+    )
+    if [[ -z "$latest" ]]; then
+        echo "Error: no stable release tag (vMAJOR.MINOR.PATCH) found at $UPSTREAM_REPO" >&2
+        exit 1
+    fi
+    printf '%s\n' "$latest"
+}
+
+pull_subtree() {
+    local upstream_ref="$1"
+    log_info "Pulling OpenSpec subtree from $UPSTREAM_REPO@$upstream_ref..."
+    git -C "$PROJECT_ROOT" subtree pull \
+        --prefix="$SUBTREE_PREFIX" \
+        "$UPSTREAM_REPO" "$upstream_ref" --squash \
+        -m "Sync OpenSpec subtree from $UPSTREAM_REPO@$upstream_ref"
+    log_success "Subtree at $upstream_ref"
+}
+
+build_subtree() {
+    cat > "$SUBTREE_DIR/pnpm-workspace.yaml" <<'EOF'
 allowBuilds:
   esbuild: true
 EOF
 
     log_info "Installing dependencies..."
-    cd "$temp_dir/openspec"
-    pnpm install --frozen-lockfile 2>/dev/null || pnpm install
-    
-    log_info "Building OpenSpec..."
-    pnpm run build
-    
+    (
+        cd "$SUBTREE_DIR"
+        pnpm install --frozen-lockfile 2>/dev/null || pnpm install
+        log_info "Building OpenSpec..."
+        pnpm run build
+    )
+}
+
+write_custom_profile() {
     log_info "Configuring custom profile with all workflows..."
     local config_dir="$HOME/.config/openspec"
     mkdir -p "$config_dir"
-    cat > "$config_dir/config.json" << 'CONFIGEOF'
+    cat > "$config_dir/config.json" <<'CONFIGEOF'
 {
   "profile": "custom",
   "delivery": "both",
   "workflows": ["propose", "explore", "new", "continue", "apply", "ff", "sync", "archive", "bulk-archive", "verify", "onboard"]
 }
 CONFIGEOF
-    
+}
+
+generate_ai_files() {
     log_info "Generating AI assistant files..."
-    local gen_dir="$temp_dir/generated"
-    mkdir -p "$gen_dir"
-    cd "$gen_dir"
-    
-    git init -q
-    "$temp_dir/openspec/bin/openspec.js" init --tools claude,opencode --profile custom --force
-    
-    log_info "Syncing to openspec-core..."
-    mkdir -p "$TARGET_DIR"
-    
-    if [[ -d "$gen_dir/.claude" ]]; then
-        rm -rf "$TARGET_DIR/.claude"
-        cp -r "$gen_dir/.claude" "$TARGET_DIR/"
-        log_success "Synced .claude/"
+    local gen_dir
+    gen_dir=$(mktemp -d)
+    trap 'rm -rf "$gen_dir"' EXIT
+
+    git -C "$gen_dir" init -q
+    node "$SUBTREE_DIR/bin/openspec.js" \
+        init "$gen_dir" --tools claude,opencode --profile custom --force
+
+    sync_tree .claude "$gen_dir/.claude"
+    sync_tree .opencode "$gen_dir/.opencode"
+}
+
+sync_tree() {
+    local name="$1" src="$2"
+    if [[ -d "$src" ]]; then
+        rm -rf "${CORE_DIR:?}/$name"
+        cp -r "$src" "${CORE_DIR:?}/$name"
+        log_success "Synced $name/"
     else
-        echo "Warning: No .claude directory generated" >&2
+        echo "Warning: no $name directory generated" >&2
     fi
-    
-    if [[ -d "$gen_dir/.opencode" ]]; then
-        rm -rf "$TARGET_DIR/.opencode"
-        cp -r "$gen_dir/.opencode" "$TARGET_DIR/"
-        log_success "Synced .opencode/"
-    else
-        echo "Warning: No .opencode directory generated" >&2
-    fi
-    
+}
+
+main() {
+    check_dependencies
+    ensure_clean_subtree
+    local upstream_ref
+    upstream_ref="$(discover_latest_release)"
+    log_info "Resolved latest release: $upstream_ref"
+    pull_subtree "$upstream_ref"
+    build_subtree
+    write_custom_profile
+    generate_ai_files
     log_success "OpenSpec core skills synced successfully"
 }
 

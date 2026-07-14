@@ -21,6 +21,7 @@ This directory contains the official OpenSpec workflow skills for AI coding assi
 ```
 openspec-core/
 ├── AGENTS.md                    # This file
+├── source/                      # Upstream subtree (git subtree pull; do not edit locally)
 ├── .claude/
 │   ├── commands/opsx/           # Claude Code slash commands
 │   │   ├── apply.md
@@ -94,14 +95,16 @@ To update these skills from upstream OpenSpec, run:
 mise run sync-core
 ```
 
-This will:
-1. Clone the OpenSpec repository (https://github.com/Fission-AI/OpenSpec)
-2. Build the CLI from source
-3. Configure custom profile with all 11 workflows
-4. Generate .claude and .opencode files using `openspec init --tools claude,opencode --profile custom`
-5. Copy generated files to this directory
+The `source/` subtree tracks upstream directly. This will:
+1. Refuse if `source/` has uncommitted local changes
+2. Discover the latest stable release tag (e.g., `v1.6.0`) via `git ls-remote --tags`
+3. `git subtree pull` from that tag into `source/` (squashed)
+4. Build the CLI in-place from `source/`
+5. Configure custom profile with all 11 workflows
+6. Generate `.claude` and `.opencode` files via `openspec init --tools claude,opencode --profile custom`
+7. Copy generated files into this directory
 
-**Upstream**: https://github.com/Fission-AI/OpenSpec
+**Upstream**: https://github.com/Fission-AI/OpenSpec (ref: latest stable tag, e.g. `v1.6.0`)
 
 ---
 
