@@ -13,8 +13,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import tempfile
-import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,6 +23,8 @@ from rich import print as rich_print
 import toml
 
 from source.lib import osx as osx_lib
+from source.lib.osx import OSXError
+from source.orchestrator.runner import detect_runner
 
 PHASES = ["PHASE0", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "PHASE5", "PHASE6"]
 
@@ -474,80 +474,58 @@ def run_agent(state: OrchestratorState, phase: str) -> bool:
     log_verbose(state, f"Using agent: {agent_name}")
     log_verbose(state, f"Session title: {title}")
 
-    cmd = [
-        "opencode",
-        "run",
-        "--command",
-        cmd_name,
-        "--agent",
-        agent_name,
-        state.change_id,
-        "--title=" + title,
-    ]
-    if state.model:
-        cmd.append(f"--model={state.model}")
+    try:
+        project_root = (
+            state.change_dir.parent.parent.parent if state.change_dir else Path.cwd()
+        )
+        runner = detect_runner(project_root)
+    except OSXError as e:
+        log_error(state, e.message)
+        return False
+
+    log_verbose(state, f"Using runner: {runner.name}")
+
+    from source.orchestrator.runner import RunRequest
+
+    request = RunRequest(
+        command=cmd_name,
+        agent=agent_name,
+        change_id=state.change_id,
+        title=title,
+        model=state.model,
+        cwd=Path.cwd(),
+        timeout=state.timeout,
+    )
 
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w+", delete=False, suffix=".log"
-        ) as agent_log:
-            agent_log_path = Path(agent_log.name)
-
-        agent_log_file = open(agent_log_path, "w", buffering=1)
-
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
-        state.child_pid = process.pid
-
-        def _stream() -> None:
-            stdout = process.stdout
-            if stdout is None:
-                return
-            with agent_log_file:
-                for line in stdout:
-                    agent_log_file.write(re.sub(r"\x1b\[[0-9;]*m", "", line))
-                    if state.verbose:
-                        sys.stdout.write(line)
-                        sys.stdout.flush()
-
-        reader = threading.Thread(target=_stream, daemon=True)
-        reader.start()
-        process.wait()
-        reader.join()
-        exit_code = process.returncode
-        state.child_pid = None
-
-        if state.log_file:
-            with open(state.log_file, "a") as log_f:
-                log_f.write(f"> {agent_name}\n")
-                with open(agent_log_path) as agent_f:
-                    log_f.write(agent_f.read())
-
-        agent_log_path.unlink(missing_ok=True)
-
-        if state.interrupted:
-            log_warning(state, "Execution interrupted by user")
-            raise SystemExit(130)
-
-        if exit_code == 124:
-            log_error(
-                state, f"Agent iteration timed out after {state.timeout // 60} minutes"
-            )
-            return False
-        elif exit_code != 0:
-            log_error(state, f"Agent execution failed with exit code {exit_code}")
-            return False
-
-        return True
-
-    except Exception as e:
-        log_error(state, f"Agent execution failed: {e}")
+        result = runner.run(request, verbose=state.verbose)
+    except OSXError as e:
+        log_error(state, e.message)
         return False
+
+    state.child_pid = result.pid
+
+    if state.log_file and result.log_path and result.log_path.exists():
+        with open(state.log_file, "a") as log_f:
+            log_f.write(f"> {agent_name}\n")
+            with open(result.log_path) as agent_f:
+                log_f.write(agent_f.read())
+        result.log_path.unlink(missing_ok=True)
+
+    if state.interrupted:
+        log_warning(state, "Execution interrupted by user")
+        raise SystemExit(130)
+
+    if result.timed_out:
+        log_error(
+            state, f"Agent iteration timed out after {state.timeout // 60} minutes"
+        )
+        return False
+    elif result.exit_code != 0:
+        log_error(state, f"Agent execution failed with exit code {result.exit_code}")
+        return False
+
+    return True
 
 
 def run_phase(state: OrchestratorState, phase: str) -> bool:
