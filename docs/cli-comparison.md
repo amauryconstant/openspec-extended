@@ -8,7 +8,7 @@ Pick the right tool for the job. This document maps upstream `openspec` commands
 |---------|-------------|------|
 | `openspec` | Standard OpenSpec workflow | Direct CLI calls |
 | `openspec-extended` | Same workflow + extension skills/agents + autonomous loop | One binary, no switching |
-| `openspec-extended osx` | Programmatic access to change state from scripts/CI | JSON to stdout, machine-friendly |
+| `openspec-extended osx` | Programmatic access to change state from scripts/CI | JSON to stdout, machine-friendly (except `osx instructions`, which is a passthrough — use `--json` when needed) |
 
 If you are doing manual change management the way OpenSpec intends, use `openspec-extended validate`, `openspec-extended list`, etc. They pass through unchanged. If you want to drive the autonomous loop or script against change state, use the `osx` sub-app.
 
@@ -50,11 +50,11 @@ These exist only in `openspec-extended`. They have no upstream equivalent.
 | `openspec-extended update <tool>` | Force-update (overwrite) extension resources | `source/cli.py:556-580` |
 | `openspec-extended update-core [tool]` | Refresh upstream instruction files | `source/cli.py:926-938` |
 | `openspec-extended orchestrate <change>` | Run the 7-phase autonomous loop | `source/cli.py:583-645` and `source/orchestrator/engine.py` |
-| `openspec-extended osx ...` | Programmatic library access (10 domains) | `source/osx_cli.py` |
+| `openspec-extended osx ...` | Programmatic library access (12 domains) | `source/osx_cli.py` |
 
 ## `osx` Sub-App Domains
 
-`openspec-extended osx <domain> <action>` exposes 10 state/IO domains. Each command outputs JSON to stdout on success and JSON to stderr on failure (with non-zero exit). Library source: `source/lib/osx.py`.
+`openspec-extended osx <domain> <action>` exposes 12 state/IO domains. Most commands output JSON to stdout on success and JSON to stderr on failure (with non-zero exit); the `instructions` domain is a passthrough to upstream `openspec instructions` and only emits JSON when `--json` is passed. Library source: `source/lib/osx.py`.
 
 | Domain | Actions | Example |
 |--------|---------|---------|
@@ -68,7 +68,7 @@ These exist only in `openspec-extended`. They have no upstream equivalent.
 | `complete` | `check`, `get`, `set` | `osx complete check add-auth` |
 | `validate` | `json`, `skills`, `commands`, `change-dir`, `archive`, `iterations`, `completion`, `change`, `spec`, `all`, `changes`, `specs` | `osx validate change-dir add-auth` |
 | `schema` | `which`, `validate`, `fork`, `init`, `list` | `osx schema which --all` |
-| `instructions` | passthrough to `openspec instructions` | `osx instructions proposal` |
+| `instructions` | passthrough to `openspec instructions` (raw output, not JSON unless `--json`) | `osx instructions proposal --json` |
 | `store` | `list`, `doctor`, `register`, `unregister` | `osx store list` |
 
 `osx` outputs:
@@ -130,10 +130,10 @@ Use the `osx schema` sub-app or the top-level `schema` passthrough interchangeab
 
 ```bash
 # List every schema and its source
-openspec-extended schema --all --json
+openspec-extended osx schema list
 
-# Resolve which schema the project uses
-openspec-extended osx schema which
+# Resolve which schema the project uses (--all shows the upstream registry)
+openspec-extended osx schema which --all
 
 # Validate a schema definition
 openspec-extended osx schema validate spec-driven

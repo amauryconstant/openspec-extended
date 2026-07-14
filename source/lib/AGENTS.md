@@ -56,7 +56,7 @@ Keep the library and the CLI module separate so the library can be imported in-p
 | `iterations` | `iterations_get(change)`, `iterations_append(change, ...)` | `openspec-extended osx iterations ...` |
 | `log` | `log_get(change)`, `log_append(change, ...)` | `openspec-extended osx log ...` |
 | `complete` | `complete_check(change)`, `complete_get(change)`, `complete_set(change, status, blocker_reason)` | `openspec-extended osx complete ...` |
-| `validate` | `validate_json(target)`, `validate_skills()`, `validate_commands()`, `validate_change_dir(target)`, `validate_archive(target)`, `validate_iterations(target)`, `validate_completion(target)` | `openspec-extended osx validate ...` |
+| `validate` | `validate_json(target)`, `validate_skills(project_root=None)`, `validate_commands(project_root=None)`, `validate_change_dir(target)`, `validate_archive(target)`, `validate_iterations(target)`, `validate_completion(target)` | `openspec-extended osx validate ...` |
 | `instructions` | (CLI-only proxy to `openspec instructions`) | `openspec-extended osx instructions ...` |
 
 ## Constants (top of `osx.py`)

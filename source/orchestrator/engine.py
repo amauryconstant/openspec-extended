@@ -195,10 +195,20 @@ def print_validation_errors(state: OrchestratorState, data: dict) -> None:
             log_error(state, msg)
 
 
+def _project_root(state: OrchestratorState) -> Optional[Path]:
+    """Project root derived from the active change directory.
+
+    Mirrors the derivation used by ``validate_schema`` (``engine.py:284``).
+    Returns ``None`` when no change directory is set, in which case the
+    library functions fall back to ``Path.cwd()``.
+    """
+    return state.change_dir.parent.parent.parent if state.change_dir else None
+
+
 def validate_skills(state: OrchestratorState) -> None:
     log(state, "Validating required skills...")
 
-    data = osx_lib.validate_skills()
+    data = osx_lib.validate_skills(project_root=_project_root(state))
     if not data.get("valid", False):
         log_error(state, "Required skills validation failed")
         print_validation_errors(state, data)
@@ -211,7 +221,7 @@ def validate_skills(state: OrchestratorState) -> None:
 def validate_commands(state: OrchestratorState) -> None:
     log(state, "Validating required commands...")
 
-    data = osx_lib.validate_commands()
+    data = osx_lib.validate_commands(project_root=_project_root(state))
     if not data.get("valid", False):
         log_error(state, "Required commands validation failed")
         print_validation_errors(state, data)

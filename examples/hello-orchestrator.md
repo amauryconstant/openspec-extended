@@ -2,7 +2,7 @@
 
 This file was created by the [OpenSpec-extended](../README.md) 7-phase
 orchestrator running against the
-[`add-orchestrator-example`](../openspec/changes/add-orchestrator-example/)
+[`example-orchestrated`](../openspec/changes/example-orchestrated/)
 change in this repository.
 
 It exists to prove that the orchestrator works end-to-end on a real
@@ -12,7 +12,7 @@ for the [orchestrator state machine docs](../docs/orchestrator-state-machine.md)
 If you want to re-run the orchestrator yourself:
 
 ```bash
-openspec-extended orchestrate add-orchestrator-example
+openspec-extended orchestrate example-orchestrated
 ```
 
 See [`docs/orchestrator-state-machine.md`](../docs/orchestrator-state-machine.md)

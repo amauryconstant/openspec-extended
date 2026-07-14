@@ -64,7 +64,7 @@ If no transition is set, `advance_phase` (`engine.py:485`) moves to the next pha
 
 Each phase may iterate up to `DEFAULT_MAX_PHASE_ITERATIONS` times before the orchestrator halts with a non-zero exit. The default is `10` (`source/orchestrator/engine.py:62`). Override with `--max-phase-iterations N` on the `orchestrate` command, or pass `-1` for unlimited.
 
-The budget counts both forward and backward iterations. A change that flips between PHASE1 and PHASE2 ten times under `implementation_incorrect` will exhaust the budget on either phase.
+The budget is **per phase visit**, not cumulative. When a backward transition (`implementation_incorrect` → PHASE1, for example) is read in the main loop (`engine.py:1083-1102`), the orchestrator returns to the outer loop and the next visit to PHASE1 starts a fresh budget at iteration 1 (`engine.py:568-572`). A change that alternates PHASE1↔PHASE2 ten times therefore consumes 20 iterations in total, not 10 — the budget only caps *how long* you may stay on one phase during a single visit.
 
 ## Resume Semantics
 

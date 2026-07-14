@@ -12,7 +12,7 @@ Errors come from `source/lib/osx.py:OSXError` (raised by library functions and c
 
 **Cause**: `state.json` records the last completed phase. The orchestrator resumes from that phase (`source/orchestrator/engine.py:982-988`) rather than restarting from PHASE0.
 
-**Fix**: Re-run with `--from-phase PHASE0` to force a restart from the beginning, or delete `openspec/changes/<id>/state.json` and let the orchestrator re-derive the phase from the artifacts.
+**Fix**: Re-run with `--from-phase PHASE0` to force a restart from the beginning, or delete `openspec/changes/<id>/state.json` and let the orchestrator re-derive the phase from the last successfully completed phase recorded in `decision-log.json`; if neither exists, it starts at PHASE0 (`source/orchestrator/engine.py:1019-1026`).
 
 ### `phase_complete` never flips to true
 
@@ -20,13 +20,11 @@ Errors come from `source/lib/osx.py:OSXError` (raised by library functions and c
 
 **Cause**: The AI subprocess did not call `openspec-extended osx state complete <change>` before exiting. Without that, the orchestrator sees no completion signal.
 
-**Fix**: Run the phase command manually:
+**Fix**: Inspect the current state, then mark the phase complete:
 
 ```bash
-openspec-extended osx phase <name>
+openspec-extended osx phase current <change>
 ```
-
-to see what state currently looks like, then re-run:
 
 ```bash
 openspec-extended osx state complete <change>
@@ -34,7 +32,7 @@ openspec-extended osx state complete <change>
 
 If the AI is failing to call this on its own, raise `--max-phase-iterations` to give it more retries, or inspect `decision-log.json` for the last reported blocker.
 
-### `decision-log.json` is malformed or missing
+### `decision-log.json` is missing
 
 **Symptom**: `validate completion` reports `decision-log.json not found`.
 
@@ -48,6 +46,22 @@ openspec-extended orchestrate <id> --from-phase PHASE0
 ```
 
 The first iteration of PHASE0 will recreate the file.
+
+### `decision-log.json` is malformed
+
+**Symptom**: `OSXError("invalid_json", "decision-log.json contains invalid JSON")` from `source/lib/osx.py:302-311` (`_read_json_array`).
+
+**Cause**: Partial write (process killed mid-write) or hand-edited corruption.
+
+**Fix**: Validate the file with `jq` and either restore from git or delete and let the orchestrator rebuild it:
+
+```bash
+cat openspec/changes/<id>/decision-log.json | jq .
+git checkout HEAD -- openspec/changes/<id>/decision-log.json   # if committed
+# or:
+rm openspec/changes/<id>/decision-log.json
+openspec-extended orchestrate <id> --from-phase PHASE0
+```
 
 ### `state.json` contains invalid JSON
 
@@ -102,21 +116,17 @@ Non-interactive shells (`CI`, `mise run`, scripts) auto-continue with a warning.
 
 **Symptom**: Shell reports the binary is missing.
 
-**Fix**: Re-run the installer:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/.../install.sh | bash
-```
+**Fix**: Re-run the installer (see the [README install section](../README.md#installation) for the current URL):
 
 For local development use `mise run install` or activate the venv directly.
 
 ### `Required tool not found: openspec`
 
-**Symptom**: Pre-flight aborts with `Required tool not found: openspec` (`engine.py:960-963`).
+**Symptom**: Pre-flight aborts with `Required tool not found: openspec` (`engine.py:960-963`). Currently nested under the `state.clean` pre-flight branch (`engine.py:920+`) rather than running unconditionally — tracked in `research/roadmap.md` Tier 4 as a MEDIUM-severity latent issue.
 
 **Cause**: The orchestrator shells out to the upstream `openspec` CLI for schema validation. It must be on `PATH`.
 
-**Fix**: Install upstream OpenSpec first (see [README](../README.md) install section), or prepend its location:
+**Fix**: Install upstream OpenSpec first (see the [README install section](../README.md#install)), or prepend its location:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
