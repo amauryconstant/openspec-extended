@@ -29,7 +29,13 @@ resource_info_from_path() {
         return 1
     fi
     local resource_type="${parts[$idx + 2]}"
-    local resource_name="${parts[$idx + 3]%.md}"
+    local resource_name
+    if (( ${#parts[@]} > idx + 4 )) && [[ "${parts[$idx + 4]}" == *".md" ]] \
+            && [[ "${parts[$idx + 3]}" != *".md" ]]; then
+        resource_name="${parts[$idx + 3]}-${parts[$idx + 4]%.md}"
+    else
+        resource_name="${parts[$idx + 3]%.md}"
+    fi
     printf '%s\n' "$resource_type:$resource_name"
 }
 
