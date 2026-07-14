@@ -78,3 +78,7 @@ run = "ty check source/"
 [tasks.build]
 description = "Build pyinstaller binary"
 run = "pyinstaller openspec.spec"
+
+[tasks.clean]
+description = "Remove PyInstaller artifacts (build/, dist/)"
+run = "rm -rf -- build dist"
