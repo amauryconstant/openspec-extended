@@ -4,8 +4,7 @@ Unit tests for osx-orchestrate state machine and signal handling.
 """
 
 import json
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -154,7 +153,6 @@ class TestStateMachine:
     def test_check_complete_detection(self, temp_change_dir, monkeypatch):
         """COMPLETE signal detection via complete.json."""
         from source.orchestrator.engine import check_complete
-        from source.lib import osx
 
         monkeypatch.chdir(temp_change_dir.parent.parent.parent)
         st = OrchestratorState(change_dir=temp_change_dir, change_id="test-change")

@@ -6,7 +6,6 @@ Unit tests for openspec-extended CLI and deployment logic.
 import json
 
 import toml
-from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner

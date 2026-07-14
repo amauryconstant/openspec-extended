@@ -3,17 +3,14 @@
 Integration tests for install flow.
 """
 
-import json
 import subprocess
 import sys
 
 import toml
-from pathlib import Path
 
 import pytest
 
 from source import __version__
-from source.cli import app
 
 pytestmark = pytest.mark.integration
 

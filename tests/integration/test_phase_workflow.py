@@ -4,12 +4,10 @@ Integration tests for phase workflow.
 """
 
 import json
-from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
-from source.lib import osx
 
 
 @pytest.fixture

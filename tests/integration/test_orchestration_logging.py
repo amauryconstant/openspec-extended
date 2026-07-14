@@ -3,9 +3,7 @@
 Integration tests for orchestration logging.
 """
 
-import json
 import subprocess
-from pathlib import Path
 
 import pytest
 
@@ -79,7 +77,7 @@ class TestOrchestrationLogging:
         with open(log_file, "w") as f:
             for i in range(1, 4):
                 f.write(f"Agent invocation #{i}\n")
-                f.write(f"> osx-analyzer · glm-5\n")
+                f.write("> osx-analyzer · glm-5\n")
                 f.write(f"Processing phase {i}...\n")
                 f.write("---\n")
 

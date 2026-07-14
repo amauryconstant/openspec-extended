@@ -4,11 +4,9 @@ Integration tests for git operations with state.
 """
 
 import json
-from pathlib import Path
 
 import pytest
 
-from source.lib import osx
 from source import osx_cli
 
 
