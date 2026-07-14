@@ -13,13 +13,15 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 | Manual change workflows   | ✓ 11 commands | ✓ (via `--with-core`) |
 | Autonomous implementation | ✗             | ✓ 7-phase loop        |
 | Specialized agents        | ✗             | ✓ 3 agents            |
-| Utility skills            | ✗             | ✓ 6 skills            |
+| Utility skills            | ✗             | ✓ 8 skills            |
+| Unified CLI surface       | ✓             | ✓ (passthrough + ext) |
 
 **Key additions:**
 
 - **Autonomous workflow** — Run end-to-end implementation without manual intervention
 - **Specialized agents** — Analyzer (0.1 temp), Builder (0.4 temp), Maintainer (0.3 temp)
 - **Utility skills** — Concepts, modify artifacts, review artifacts, changelogs, test compliance, AI docs
+- **Unified CLI surface** — All upstream OpenSpec commands (`validate`, `list`, `show`, `status`, `instructions`, `templates`, `schemas`, `init`, `update`, `feedback`, `completion`) plus the 7-phase orchestrator under one binary.
 
 ## Requirements
 
@@ -93,6 +95,34 @@ ls .opencode/{skills,agents,commands}/
 | `openspec-extended install claude`              | Same for Claude Code                  |
 | `openspec-extended install opencode --with-core`| Include 11 core OpenSpec workflows    |
 | `openspec-extended update opencode`             | Force update all (overwrite existing) |
+| `openspec-extended update-core [opencode]`      | Refresh upstream OpenSpec instruction files |
+
+### Workflow Commands (Passthrough)
+
+All upstream OpenSpec commands are available directly through `openspec-extended`. These are thin pass-through wrappers — the binary delegates to your installed `openspec` CLI and forwards its exit code.
+
+| Command                                  | Description                              |
+| ---------------------------------------- | ---------------------------------------- |
+| `openspec-extended validate [item]`      | Validate changes/specs (--all, --strict) |
+| `openspec-extended list [--specs]`       | List active changes (or specs)           |
+| `openspec-extended show [item]`          | Show a change or spec                    |
+| `openspec-extended status [--change]`    | Show artifact completion status          |
+| `openspec-extended instructions [art]`   | Output instructions for an artifact      |
+| `openspec-extended templates [--schema]` | Show resolved template paths             |
+| `openspec-extended schemas`              | List available workflow schemas          |
+| `openspec-extended init [path]`          | Initialize OpenSpec in a project         |
+| `openspec-extended update-core [path]`   | Refresh upstream instruction files       |
+| `openspec-extended feedback <msg>`       | Submit feedback via `gh` issue           |
+| `openspec-extended completion <shell>`   | Manage shell completions (bash/zsh/fish) |
+
+Example:
+
+```bash
+openspec-extended validate --all --json --strict
+openspec-extended show my-change --deltas-only --json
+openspec-extended status --change my-change --json
+openspec-extended feedback "love the new flow" --body "Detailed description..."
+```
 
 ### Extension Skills
 
@@ -110,7 +140,7 @@ ls .opencode/{skills,agents,commands}/
 | Agent              | Purpose                 | Tools                               | Temp |
 | ------------------ | ----------------------- | ----------------------------------- | ---- |
 | `osx-analyzer`     | Review, verify, reflect | read, grep, glob, bash              | 0.1  |
-| `osx-builder`      | Implementation          | read, grep, glob, bash, write, edit | 0.4  |
+| `osx-builder`      | Implementation          | read, grep, glob, bash, write, edit, todowrite | 0.4  |
 | `osx-maintainer`   | Docs, sync, archive     | read, grep, glob, bash, write, edit | 0.3  |
 
 ## Autonomous Workflow
@@ -173,6 +203,19 @@ Located in `openspec/changes/<change>/`:
 
 After PHASE6 (Archive), files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`.
 
+## Documentation
+
+| Doc | Purpose |
+|-----|---------|
+| [docs/cli-comparison.md](docs/cli-comparison.md) | Maps upstream `openspec` commands to `openspec-extended` passthroughs and the `osx` sub-app |
+| [docs/orchestrator-state-machine.md](docs/orchestrator-state-machine.md) | Phase model, transition reasons, retry budget, schema resolution, resume semantics |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Error code to fix table for state, git, missing CLI tools, schema, orchestrator errors |
+
+The repository also dogfoods the orchestrator on itself: see
+[`openspec/changes/add-orchestrator-example/`](openspec/changes/add-orchestrator-example/)
+for a real spec-driven change that the 7-phase loop can drive end-to-end,
+producing [`examples/hello-orchestrator.md`](examples/hello-orchestrator.md).
+
 ## Project Structure
 
 ```
@@ -182,7 +225,8 @@ OpenSpec-extended/
 │   ├── lib/osx.py           # Change-management library (pure functions, no CLI)
 │   ├── osx_cli.py           # Typer app for `openspec-extended osx …`
 │   └── orchestrator/
-│       └── engine.py        # 7-phase orchestrator
+│       ├── engine.py        # 7-phase orchestrator
+│       └── runner.py        # AI-runner abstraction (opencode / claude dispatch)
 ├── install.sh               # Bash binary installer
 ├── openspec.spec            # PyInstaller spec
 ├── openspec-core/           # Core workflows (synced from upstream)
@@ -193,6 +237,7 @@ OpenSpec-extended/
 │   │   └── commands/        # Phase commands + osx-* utilities
 │   └── claude/              # Claude Code resources (same structure)
 ├── tests/                   # pytest + bats suite (unit/integration/mechanism/e2e)
+├── docs/                    # User-facing documentation
 ├── .mise/tasks/             # sync-core, release, version/{check,update} (bash)
 └── research/                # Platform documentation
 ```
