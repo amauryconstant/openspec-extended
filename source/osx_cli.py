@@ -437,3 +437,71 @@ def store_unregister_cmd(store: str = typer.Argument(..., help="Store id")) -> N
     """Unregister an OpenSpec store."""
     data = _call_library(osx_lib.store_unregister, store)
     osx_output(data)
+
+
+schema_app = typer.Typer(
+    help="Schema introspection and management (delegates to upstream `openspec schema *`)."
+)
+osx_app.add_typer(schema_app, name="schema")
+
+
+@schema_app.command("which")
+def schema_which_cmd(
+    name: Optional[str] = typer.Argument(None),
+    all_schemas: bool = typer.Option(
+        False, "--all", help="List all schemas with resolution source"
+    ),
+) -> None:
+    """Show which schema a project uses (delegates to `openspec schema which`)."""
+    data = _call_library(osx_lib.schema_which, name, all_schemas=all_schemas)
+    osx_output(data)
+
+
+@schema_app.command("list")
+def schema_list_cmd() -> None:
+    """List all available schemas (delegates to `openspec schemas`)."""
+    data = _call_library(osx_lib.schema_list)
+    osx_output(data)
+
+
+@schema_app.command("validate")
+def schema_validate_cmd(
+    name: Optional[str] = typer.Argument(None),
+) -> None:
+    """Validate a schema's structure (delegates to `openspec schema validate`)."""
+    data = _call_library(osx_lib.schema_validate, name)
+    osx_output(data)
+
+
+@schema_app.command("fork")
+def schema_fork_cmd(
+    source: str = typer.Argument(...),
+    name: Optional[str] = typer.Argument(None),
+    force: bool = typer.Option(False, "--force"),
+) -> None:
+    """Fork a schema to project-local (delegates to `openspec schema fork`)."""
+    data = _call_library(osx_lib.schema_fork, source, name, force=force)
+    osx_output(data)
+
+
+@schema_app.command("init")
+def schema_init_cmd(
+    name: str = typer.Argument(...),
+    description: Optional[str] = typer.Option(None, "--description"),
+    artifacts: Optional[str] = typer.Option(
+        None, "--artifacts", help="Comma-separated list"
+    ),
+    set_default: bool = typer.Option(False, "--default"),
+    force: bool = typer.Option(False, "--force"),
+) -> None:
+    """Initialize a new project-local schema (delegates to `openspec schema init`)."""
+    artifacts_list = [a.strip() for a in artifacts.split(",")] if artifacts else None
+    data = _call_library(
+        osx_lib.schema_init,
+        name,
+        description=description,
+        artifacts=artifacts_list,
+        set_default=set_default,
+        force=force,
+    )
+    osx_output(data)

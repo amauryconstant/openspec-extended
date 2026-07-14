@@ -4,16 +4,13 @@ E2E mechanism tests - no AI calls, safe to run anytime.
 Tests CLI options and error handling.
 """
 
-import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
 
-from source.cli import app
 
 pytestmark = pytest.mark.mechanism
 
@@ -141,6 +138,7 @@ class TestHelp:
             f"Expected '--from-phase' in output: {combined}"
         )
         assert "--list" in combined, f"Expected '--list' in output: {combined}"
+        assert "--schema" in combined, f"Expected '--schema' in output: {combined}"
 
 
 class TestList:

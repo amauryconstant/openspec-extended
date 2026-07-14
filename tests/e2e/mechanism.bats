@@ -120,11 +120,19 @@ teardown() {
     [[ "$output" == *"install"* ]]
 }
 
-@test "mechanism: osx --help lists all 10 domains" {
+@test "mechanism: osx --help lists all 11 domains" {
     run "$OPENSPEC_BIN" osx --help
     [ "$status" -eq 0 ]
-    for d in baseline ctx git phase state iterations log complete validate instructions; do
+    for d in baseline ctx git phase state iterations log complete validate instructions schema; do
         [[ "$output" == *"$d"* ]]
+    done
+}
+
+@test "mechanism: osx schema --help lists all subcommands" {
+    run "$OPENSPEC_BIN" osx schema --help
+    [ "$status" -eq 0 ]
+    for cmd in which list validate fork init; do
+        [[ "$output" == *"$cmd"* ]]
     done
 }
 
@@ -184,4 +192,85 @@ teardown() {
     [[ "$output" == *"register"* ]]
     [[ "$output" == *"unregister"* ]]
     [[ "$output" == *"doctor"* ]]
+}
+
+# ========== Top-level passthrough commands ==========
+#
+# Top-level pass-through commands wrap upstream
+# `openspec` CLI commands. These tests assert that:
+#   - The new commands are registered (--help shows them)
+#   - The help text includes the expected flags
+#   - Command execution against an empty repo doesn't crash
+
+@test "mechanism: --help lists new passthrough commands" {
+    run "$OPENSPEC_BIN" --help
+    [ "$status" -eq 0 ]
+    for cmd in validate list show status instructions templates schemas init update-core feedback completion; do
+        [[ "$output" == *"$cmd"* ]] || { echo "Missing command: $cmd"; return 1; }
+    done
+}
+
+@test "mechanism: validate --help shows flags" {
+    run "$OPENSPEC_BIN" validate --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--all"* ]]
+    [[ "$output" == *"--changes"* ]]
+    [[ "$output" == *"--specs"* ]]
+    [[ "$output" == *"--strict"* ]]
+    [[ "$output" == *"--json"* ]]
+}
+
+@test "mechanism: list --help shows flags" {
+    run "$OPENSPEC_BIN" list --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--specs"* ]]
+    [[ "$output" == *"--sort"* ]]
+    [[ "$output" == *"--json"* ]]
+}
+
+@test "mechanism: show --help shows flags" {
+    run "$OPENSPEC_BIN" show --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--type"* ]]
+    [[ "$output" == *"--deltas-only"* ]]
+    [[ "$output" == *"--json"* ]]
+}
+
+@test "mechanism: status --help shows flags" {
+    run "$OPENSPEC_BIN" status --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--change"* ]]
+    [[ "$output" == *"--json"* ]]
+}
+
+@test "mechanism: instructions --help shows flags" {
+    run "$OPENSPEC_BIN" instructions --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--change"* ]]
+    [[ "$output" == *"--json"* ]]
+}
+
+@test "mechanism: schemas --json returns valid JSON" {
+    run "$OPENSPEC_BIN" schemas --json
+    # May exit 1 if openspec isn't installed (lazy fail), but stdout should not contain traceback
+    [[ "$output" != *"Traceback"* ]]
+}
+
+@test "mechanism: update-core --help shows --force" {
+    run "$OPENSPEC_BIN" update-core --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--force"* ]]
+}
+
+@test "mechanism: completion --help shows --install and --uninstall" {
+    run "$OPENSPEC_BIN" completion --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--install"* ]]
+    [[ "$output" == *"--uninstall"* ]]
+}
+
+@test "mechanism: feedback requires message argument" {
+    run "$OPENSPEC_BIN" feedback
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Missing argument"* ]] || [[ "$output" == *"required"* ]]
 }

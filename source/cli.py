@@ -83,6 +83,31 @@ def compare_versions(v1: str, v2: str) -> int:
     return 0
 
 
+def run_openspec(args: list[str], timeout: int = 30) -> int:
+    """Run `openspec <args>` and forward stdout/stderr. Returns exit code.
+
+    Raises SystemExit(1) if openspec is not installed or times out.
+    """
+    cmd = ["openspec", *args]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError:
+        log_error("openspec CLI not found. Install it first:")
+        console.print("  npm install -g @fission-ai/openspec")
+        raise SystemExit(1)
+    except subprocess.TimeoutExpired:
+        log_error(f"openspec command timed out after {timeout}s")
+        raise SystemExit(1)
+
+    if result.stdout:
+        sys.stdout.write(result.stdout)
+        sys.stdout.flush()
+    if result.stderr:
+        sys.stderr.write(result.stderr)
+        sys.stderr.flush()
+    return result.returncode
+
+
 def get_installed_version(manifest: Path, resource_type: str, name: str) -> str:
     if not manifest.is_file():
         return ""
@@ -585,6 +610,9 @@ def orchestrate(
     from_phase: str = typer.Option(
         "", "--from-phase", help="Resume from specific phase"
     ),
+    schema: Optional[str] = typer.Option(
+        None, "--schema", help="Override schema resolution"
+    ),
     list_changes: bool = typer.Option(False, "--list", help="List available changes"),
 ) -> None:
     if not list_changes and not change_name:
@@ -609,11 +637,343 @@ def orchestrate(
     state.no_color = no_color
     state.model = model
     state.list_changes = list_changes
+    state.schema_override = schema
     if log_file:
         state.log_file = Path(log_file)
         state.log_user_specified = True
 
     run_orchestrator(state)
+
+
+@app.command(
+    "validate", help="Validate changes and specs (passthrough to openspec validate)"
+)
+def validate_cmd(
+    item_name: Optional[str] = typer.Argument(None, help="Change or spec ID"),
+    all: bool = typer.Option(False, "--all", help="Validate all changes and specs"),
+    changes: bool = typer.Option(False, "--changes", help="Validate only changes"),
+    specs: bool = typer.Option(False, "--specs", help="Validate only specs"),
+    type_: Optional[str] = typer.Option(
+        None, "--type", help="Disambiguate: change|spec"
+    ),
+    strict: bool = typer.Option(False, "--strict", help="Enable strict mode"),
+    json_output: bool = typer.Option(False, "--json", help="JSON output"),
+    concurrency: Optional[int] = typer.Option(
+        None, "--concurrency", help="Max concurrent validations"
+    ),
+    no_interactive: bool = typer.Option(
+        True, "--no-interactive/--interactive", help="Disable prompts (default: true)"
+    ),
+    store: Optional[str] = typer.Option(None, "--store", help="OpenSpec store id"),
+) -> None:
+    args: list[str] = []
+    if item_name:
+        args.append(item_name)
+    if all:
+        args.append("--all")
+    if changes:
+        args.append("--changes")
+    if specs:
+        args.append("--specs")
+    if type_:
+        args.extend(["--type", type_])
+    if strict:
+        args.append("--strict")
+    if json_output:
+        args.append("--json")
+    if concurrency is not None:
+        args.extend(["--concurrency", str(concurrency)])
+    if no_interactive:
+        args.append("--no-interactive")
+    if store:
+        args.extend(["--store", store])
+
+    code = run_openspec(["validate", *args])
+    raise typer.Exit(code=code)
+
+
+@app.command("list", help="List changes and specs (passthrough to openspec list)")
+def list_cmd(
+    specs: bool = typer.Option(False, "--specs", help="List only specs"),
+    changes: bool = typer.Option(False, "--changes", help="List only changes"),
+    sort: Optional[str] = typer.Option(None, "--sort", help="Sort field"),
+    json_output: bool = typer.Option(False, "--json", help="JSON output"),
+    store: Optional[str] = typer.Option(None, "--store", help="OpenSpec store id"),
+) -> None:
+    args: list[str] = []
+    if specs:
+        args.append("--specs")
+    if changes:
+        args.append("--changes")
+    if sort:
+        args.extend(["--sort", sort])
+    if json_output:
+        args.append("--json")
+    if store:
+        args.extend(["--store", store])
+
+    code = run_openspec(["list", *args])
+    raise typer.Exit(code=code)
+
+
+@app.command("show", help="Show change or spec (passthrough to openspec show)")
+def show_cmd(
+    item_name: Optional[str] = typer.Argument(None, help="Change or spec ID"),
+    type_: Optional[str] = typer.Option(
+        None, "--type", help="Disambiguate: change|spec"
+    ),
+    no_interactive: bool = typer.Option(
+        True, "--no-interactive/--interactive", help="Disable prompts (default: true)"
+    ),
+    deltas_only: bool = typer.Option(False, "--deltas-only", help="Show only deltas"),
+    requirements_only: bool = typer.Option(
+        False, "--requirements-only", help="Show only requirements"
+    ),
+    requirements: bool = typer.Option(
+        False, "--requirements", help="Include requirements"
+    ),
+    no_scenarios: bool = typer.Option(
+        False, "--no-scenarios", help="Exclude scenarios"
+    ),
+    requirement: Optional[str] = typer.Option(
+        None, "--requirement", "-r", help="Specific requirement id"
+    ),
+    json_output: bool = typer.Option(False, "--json", help="JSON output"),
+    store: Optional[str] = typer.Option(None, "--store", help="OpenSpec store id"),
+) -> None:
+    args: list[str] = []
+    if item_name:
+        args.append(item_name)
+    if type_:
+        args.extend(["--type", type_])
+    if no_interactive:
+        args.append("--no-interactive")
+    if deltas_only:
+        args.append("--deltas-only")
+    if requirements_only:
+        args.append("--requirements-only")
+    if requirements:
+        args.append("--requirements")
+    if no_scenarios:
+        args.append("--no-scenarios")
+    if requirement:
+        args.extend(["--requirement", requirement])
+    if json_output:
+        args.append("--json")
+    if store:
+        args.extend(["--store", store])
+
+    code = run_openspec(["show", *args])
+    raise typer.Exit(code=code)
+
+
+@app.command("status", help="Show project status (passthrough to openspec status)")
+def status_cmd(
+    change: Optional[str] = typer.Option(None, "--change", help="Specific change id"),
+    schema: bool = typer.Option(False, "--schema", help="Show JSON schema"),
+    json_output: bool = typer.Option(False, "--json", help="JSON output"),
+    store: Optional[str] = typer.Option(None, "--store", help="OpenSpec store id"),
+) -> None:
+    args: list[str] = []
+    if change:
+        args.extend(["--change", change])
+    if schema:
+        args.append("--schema")
+    if json_output:
+        args.append("--json")
+    if store:
+        args.extend(["--store", store])
+
+    code = run_openspec(["status", *args])
+    raise typer.Exit(code=code)
+
+
+@app.command(
+    "instructions",
+    help="Show change instructions (passthrough to openspec instructions)",
+)
+def instructions_cmd(
+    artifact: Optional[str] = typer.Argument(None, help="Artifact path or id"),
+    change: Optional[str] = typer.Option(None, "--change", help="Specific change id"),
+    schema: bool = typer.Option(False, "--schema", help="Show JSON schema"),
+    json_output: bool = typer.Option(False, "--json", help="JSON output"),
+    store: Optional[str] = typer.Option(None, "--store", help="OpenSpec store id"),
+) -> None:
+    args: list[str] = []
+    if artifact:
+        args.append(artifact)
+    if change:
+        args.extend(["--change", change])
+    if schema:
+        args.append("--schema")
+    if json_output:
+        args.append("--json")
+    if store:
+        args.extend(["--store", store])
+
+    code = run_openspec(["instructions", *args])
+    raise typer.Exit(code=code)
+
+
+@app.command("templates", help="List templates (passthrough to openspec templates)")
+def templates_cmd(
+    schema: Optional[str] = typer.Option(None, "--schema", help="Show JSON schema"),
+    json_output: bool = typer.Option(False, "--json", help="JSON output"),
+) -> None:
+    args: list[str] = []
+    if schema:
+        args.extend(["--schema", schema])
+    if json_output:
+        args.append("--json")
+
+    code = run_openspec(["templates", *args])
+    raise typer.Exit(code=code)
+
+
+@app.command("schemas", help="List JSON schemas (passthrough to openspec schemas)")
+def schemas_cmd(
+    json_output: bool = typer.Option(False, "--json", help="JSON output"),
+) -> None:
+    args: list[str] = []
+    if json_output:
+        args.append("--json")
+
+    code = run_openspec(["schemas", *args])
+    raise typer.Exit(code=code)
+
+
+@app.command("schema", help="`openspec schema *` passthrough")
+def schema_cmd(
+    action: str = typer.Argument(..., help="which | list | validate | fork | init"),
+    source: Optional[str] = typer.Argument(None, help="Source or target schema name"),
+    name: Optional[str] = typer.Argument(None),
+    all_schemas: bool = typer.Option(False, "--all"),
+    description: Optional[str] = typer.Option(None, "--description"),
+    artifacts: Optional[str] = typer.Option(None, "--artifacts"),
+    set_default: bool = typer.Option(False, "--default"),
+    force: bool = typer.Option(False, "--force"),
+    json_output: bool = typer.Option(False, "--json"),
+    store: Optional[str] = typer.Option(None, "--store"),
+) -> None:
+    if action == "init":
+        target = name if name is not None else source
+        if target is None:
+            log_error("schema init requires <name>")
+            raise typer.Exit(1)
+        args = ["schema", "init", target]
+    elif action == "fork":
+        if source is None:
+            log_error("schema fork requires <source>")
+            raise typer.Exit(1)
+        args = ["schema", "fork", source]
+        if name:
+            args.append(name)
+    else:
+        args = ["schema", action]
+        target = source if name is None else name
+        if target:
+            args.append(target)
+
+    if all_schemas and action == "which":
+        args.append("--all")
+    if description and action == "init":
+        args.extend(["--description", description])
+    if artifacts and action == "init":
+        args.extend(["--artifacts", artifacts])
+    if set_default and action == "init":
+        args.append("--default")
+    if force and action in ("fork", "init"):
+        args.append("--force")
+    if json_output:
+        args.append("--json")
+    if store:
+        args.extend(["--store", store])
+
+    raise typer.Exit(run_openspec(args))
+
+
+@app.command(
+    "init", help="Initialize OpenSpec in a project (passthrough to openspec init)"
+)
+def init_cmd(
+    path: Optional[str] = typer.Argument(None, help="Project path"),
+    tools: Optional[str] = typer.Option(
+        None, "--tools", help="Comma-separated tools, 'all', or 'none'"
+    ),
+    force: bool = typer.Option(False, "--force", help="Auto-cleanup legacy files"),
+    profile: Optional[str] = typer.Option(
+        None, "--profile", help="Override global config profile (core|custom)"
+    ),
+) -> None:
+    args: list[str] = []
+    if path:
+        args.append(path)
+    if tools:
+        args.extend(["--tools", tools])
+    if force:
+        args.append("--force")
+    if profile:
+        args.extend(["--profile", profile])
+
+    code = run_openspec(["init", *args], timeout=60)
+    raise typer.Exit(code=code)
+
+
+@app.command(
+    "update-core",
+    help="Update OpenSpec instruction files (passthrough to openspec update)",
+)
+def update_core_cmd(
+    path: Optional[str] = typer.Argument(None, help="Project path"),
+    force: bool = typer.Option(False, "--force", help="Force update"),
+) -> None:
+    args: list[str] = []
+    if path:
+        args.append(path)
+    if force:
+        args.append("--force")
+
+    code = run_openspec(["update", *args], timeout=60)
+    raise typer.Exit(code=code)
+
+
+@app.command(
+    "feedback", help="Submit feedback about OpenSpec (passthrough to openspec feedback)"
+)
+def feedback_cmd(
+    message: str = typer.Argument(..., help="Short feedback message"),
+    body: Optional[str] = typer.Option(None, "--body", help="Detailed description"),
+) -> None:
+    args: list[str] = [message]
+    if body:
+        args.extend(["--body", body])
+
+    code = run_openspec(["feedback", *args], timeout=60)
+    raise typer.Exit(code=code)
+
+
+@app.command("completion", help="Manage shell completions for the openspec CLI")
+def completion_cmd(
+    shell: Optional[str] = typer.Argument(None, help="Shell: bash|zsh|fish"),
+    install: bool = typer.Option(False, "--install", help="Install completion"),
+    uninstall: bool = typer.Option(False, "--uninstall", help="Uninstall completion"),
+    verbose: bool = typer.Option(False, "--verbose", help="Verbose output"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
+) -> None:
+    args: list[str] = []
+    if install:
+        args.append("install")
+    elif uninstall:
+        args.append("uninstall")
+    if shell:
+        args.append(shell)
+    if verbose:
+        args.append("--verbose")
+    if yes:
+        args.append("--yes")
+
+    code = run_openspec(["completion", *args])
+    raise typer.Exit(code=code)
 
 
 @app.callback(invoke_without_command=True)
