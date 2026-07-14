@@ -84,6 +84,33 @@ SKILLS_DIR = Path(".opencode/skills")
 COMMANDS_DIR = Path(".opencode/commands")
 
 
+def detect_platform(project_root: Path) -> str:
+    """Detect whether the project uses opencode or claude.
+
+    Mirrors `runner.detect_runner` precedence: opencode wins ties.
+    Returns "opencode" if neither is present (default).
+    """
+    if (project_root / ".opencode").exists():
+        return "opencode"
+    if (project_root / ".claude").exists():
+        return "claude"
+    return "opencode"
+
+
+def skills_dir(project_root: Path) -> Path:
+    platform = detect_platform(project_root)
+    if platform == "claude":
+        return project_root / ".claude" / "skills"
+    return project_root / ".opencode" / "skills"
+
+
+def commands_dir(project_root: Path) -> Path:
+    platform = detect_platform(project_root)
+    if platform == "claude":
+        return project_root / ".claude" / "commands" / "osx"
+    return project_root / ".opencode" / "commands"
+
+
 class OSXError(Exception):
     """Raised by library functions on error. Caught by the CLI wrappers."""
 
@@ -1066,12 +1093,14 @@ def validate_json(target: str) -> dict:
         }
 
 
-def validate_skills() -> dict:
+def validate_skills(project_root: Optional[Path] = None) -> dict:
+    root = project_root if project_root is not None else Path.cwd()
     errors: list[dict] = []
     missing_skills: list[str] = []
 
+    base = skills_dir(root)
     for skill in REQUIRED_SKILLS + REQUIRED_CORE_SKILLS:
-        skill_path = SKILLS_DIR / skill / "SKILL.md"
+        skill_path = base / skill / "SKILL.md"
         if not skill_path.exists():
             errors.append({"check": "skills", "message": f"Missing skill: {skill}"})
             missing_skills.append(skill)
@@ -1081,13 +1110,15 @@ def validate_skills() -> dict:
     return {"valid": True}
 
 
-def validate_commands() -> dict:
+def validate_commands(project_root: Optional[Path] = None) -> dict:
+    root = project_root if project_root is not None else Path.cwd()
     errors: list[dict] = []
 
+    base = commands_dir(root)
     for phase in PHASES:
         cmd_name = PHASE_COMMANDS.get(phase)
         if cmd_name:
-            cmd_path = COMMANDS_DIR / f"{cmd_name}.md"
+            cmd_path = base / f"{cmd_name}.md"
             if not cmd_path.exists():
                 errors.append(
                     {"check": "commands", "message": f"Missing command: {cmd_name}"}
