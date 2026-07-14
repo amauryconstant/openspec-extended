@@ -47,6 +47,7 @@ a = Analysis(
         "rich",
         "rich.console",
         "rich.table",
+        "yaml",
         "subprocess",
         "tempfile",
         "select",
