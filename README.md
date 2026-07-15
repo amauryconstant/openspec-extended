@@ -25,7 +25,7 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 
 ## Requirements
 
-- [OpenSpec](https://github.com/Fission-AI/OpenSpec) v1.2.0+ (recommended)
+- [OpenSpec](https://github.com/Fission-AI/OpenSpec) v1.5.0+ (recommended)
 - Python 3.12 or higher (only for building from source)
 - No Python needed when installing the prebuilt binary
 
