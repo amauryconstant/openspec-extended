@@ -211,11 +211,6 @@ After PHASE6 (Archive), files move to `openspec/changes/archive/YYYY-MM-DD-<chan
 | [docs/orchestrator-state-machine.md](docs/orchestrator-state-machine.md) | Phase model, transition reasons, retry budget, schema resolution, resume semantics |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Error code to fix table for state, git, missing CLI tools, schema, orchestrator errors |
 
-The repository also dogfoods the orchestrator on itself: see
-[`openspec/changes/example-orchestrated/`](openspec/changes/example-orchestrated/)
-for a real spec-driven change that the 7-phase loop can drive end-to-end,
-producing [`examples/hello-orchestrator.md`](examples/hello-orchestrator.md).
-
 ## Project Structure
 
 ```
