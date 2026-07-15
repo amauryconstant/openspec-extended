@@ -14,6 +14,23 @@ SHARED_WORKFLOW_RAN=false
 
 setup_file() {
     require_e2e_confirm
+
+    if [[ "${E2E_SKIP_ORCHESTRATOR:-}" == "1" ]]; then
+        E2E_DIR="${E2E_DIR:?must set E2E_DIR when E2E_SKIP_ORCHESTRATOR=1}"
+        cd "$E2E_DIR" || exit 1
+        export E2E_DIR
+
+        SHARED_CHANGE_NAME="${E2E_CHANGE_NAME:-add-hello-script}"
+        local archive_dir
+        archive_dir=$(get_archive_dir "$SHARED_CHANGE_NAME")
+        if [[ -z "$archive_dir" ]] || [[ ! -d "$archive_dir" ]]; then
+            echo "E2E_SKIP_ORCHESTRATOR=1: no archive for '$SHARED_CHANGE_NAME' in $E2E_DIR" >&2
+            exit 1
+        fi
+        save_e2e_state "$archive_dir" "$SHARED_CHANGE_NAME" "true"
+        return 0
+    fi
+
     setup_e2e_repo
     copy_fixture "$SHARED_CHANGE_NAME"
 
@@ -24,6 +41,7 @@ setup_file() {
         --verbose \
         --max-phase-iterations=10 \
         --timeout="$E2E_TIMEOUT"
+    # --model="zai-coding-plan/glm-4.7" \
 
     # Validate success by checking actual outcome, not just exit status
     # (Exit status can be unreliable due to background tee process)
@@ -59,7 +77,7 @@ teardown_file() {
     rm -f .e2e-state.json
 
     # Cleanup once after all tests
-    # teardown_e2e_repo
+    teardown_e2e_repo
 }
 
 # ============================================
