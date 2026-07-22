@@ -951,42 +951,44 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
                     pass
             log_verbose(state, "State files cleaned, starting fresh")
 
-            if not state.from_phase:
-                try:
-                    subprocess.run(
-                        ["git", "rev-parse", "HEAD"], capture_output=True, check=True
-                    )
-                except (subprocess.CalledProcessError, FileNotFoundError):
-                    log_error(state, "Required tool not found: git")
-                    raise SystemExit(1)
+        if not state.from_phase:
+            try:
+                subprocess.run(
+                    ["git", "rev-parse", "HEAD"], capture_output=True, check=True
+                )
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                log_error(state, "Required tool not found: git")
+                raise SystemExit(1)
 
-                try:
-                    subprocess.run(["jq", "--version"], capture_output=True)
-                except FileNotFoundError:
-                    log_error(state, "Required tool not found: jq")
-                    raise SystemExit(1)
+            try:
+                subprocess.run(["jq", "--version"], capture_output=True)
+            except FileNotFoundError:
+                log_error(state, "Required tool not found: jq")
+                raise SystemExit(1)
 
-                try:
-                    subprocess.run(["openspec", "--version"], capture_output=True)
-                except FileNotFoundError:
-                    log_error(state, "Required tool not found: openspec")
-                    raise SystemExit(1)
+            try:
+                subprocess.run(["openspec", "--version"], capture_output=True)
+            except FileNotFoundError:
+                log_error(state, "Required tool not found: openspec")
+                raise SystemExit(1)
 
-                try:
-                    subprocess.run(["opencode", "--version"], capture_output=True)
-                except FileNotFoundError:
-                    log_error(state, "Required tool not found: opencode")
-                    raise SystemExit(1)
+            platform = osx_lib.detect_platform(Path.cwd())
+            ai_binary = "opencode" if platform == "opencode" else "claude"
+            try:
+                subprocess.run([ai_binary, "--version"], capture_output=True)
+            except FileNotFoundError:
+                log_error(state, f"Required tool not found: {ai_binary}")
+                raise SystemExit(1)
 
-                validate_skills(state)
-                validate_commands(state)
-                validate_git(state)
-                validate_change_dir(state)
-                validate_schema(state)
+            validate_skills(state)
+            validate_commands(state)
+            validate_git(state)
+            validate_change_dir(state)
+            validate_schema(state)
 
-                record_baseline(state)
-            else:
-                log(state, "Skipping pre-flight validation (--from-phase specified)")
+            record_baseline(state)
+        else:
+            log(state, "Skipping pre-flight validation (--from-phase specified)")
 
         resume_phase = None
         data = read_state(state)

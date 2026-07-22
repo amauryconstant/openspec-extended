@@ -36,7 +36,8 @@ class TestSchemaWhich:
         result = schema_which()
         assert "schema" in mock_json["args"]
         assert "which" in mock_json["args"]
-        assert "--json" in mock_json["args"]
+        # Wrapper must NOT pass --json; the helper appends it. See test_no_double_json.
+        assert "--json" not in mock_json["args"]
         assert result["name"] == "spec-driven"
 
     def test_with_name(self, mock_json) -> None:
@@ -55,7 +56,8 @@ class TestSchemaWhich:
     def test_default_has_no_name_or_all(self, mock_json) -> None:
         schema_which()
         assert "--all" not in mock_json["args"]
-        assert mock_json["args"][-1] == "--json"
+        # Wrapper must NOT append --json itself; helper owns the flag.
+        assert "--json" not in mock_json["args"]
 
 
 @pytest.mark.unit
@@ -142,7 +144,8 @@ class TestSchemaList:
         assert isinstance(result, list)
         assert len(result) == 2
         assert "schemas" in mock_json["args"]
-        assert "--json" in mock_json["args"]
+        # Wrapper must NOT pass --json; the helper appends it. See test_no_double_json.
+        assert "--json" not in mock_json["args"]
 
     def test_handles_non_list_payload(self, mock_json) -> None:
         mock_json["payload"] = {"not": "a list"}

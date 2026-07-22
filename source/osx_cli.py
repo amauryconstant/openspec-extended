@@ -128,16 +128,22 @@ def state_cmd(
         ..., help="Action: get, complete, transition, clear-transition, set-phase"
     ),
     change: str = typer.Argument(..., help="Change name"),
-    phase: Optional[str] = typer.Argument(None, help="Phase (for set-phase)"),
-    target: Optional[str] = typer.Argument(None, help="Target phase (for transition)"),
-    reason: Optional[str] = typer.Argument(
-        None, help="Transition reason (for transition)"
+    phase: Optional[str] = typer.Argument(None, help="Phase (for set-phase only)"),
+    target: Optional[str] = typer.Option(
+        None,
+        "--target",
+        help="Target phase for transition (required)",
     ),
-    details: Optional[str] = typer.Argument(
-        None, help="Transition details (for transition)"
+    reason: Optional[str] = typer.Option(
+        None,
+        "--reason",
+        help="Transition reason (required): implementation_incorrect, artifacts_modified, retry_requested",
+    ),
+    details: Optional[str] = typer.Option(
+        None, "--details", help="Transition details (free text)"
     ),
     iteration: Optional[int] = typer.Option(
-        None, "--iteration", help="Iteration number"
+        None, "--iteration", help="Iteration number (for set-phase)"
     ),
 ) -> None:
     if action == "get" or action == "show":
@@ -145,6 +151,14 @@ def state_cmd(
     elif action == "complete":
         data = _call_library(osx_lib.state_complete, change)
     elif action == "transition":
+        if not target or not reason:
+            osx_error(
+                "missing_field",
+                "--target and --reason are required for state transition",
+                target=target,
+                reason=reason,
+            )
+            return
         data = _call_library(osx_lib.state_transition, change, target, reason, details)
     elif action == "clear-transition" or action == "clear":
         data = _call_library(osx_lib.state_clear_transition, change)
@@ -425,10 +439,12 @@ def store_doctor_cmd(
 @store_app.command("register")
 def store_register_cmd(
     path: str = typer.Argument(..., help="Filesystem path to the store repo"),
-    name: Optional[str] = typer.Option(None, "--name", help="Display name"),
+    store_id: Optional[str] = typer.Option(
+        None, "--id", help="Store id (defaults to folder name or existing metadata)"
+    ),
 ) -> None:
     """Register a new OpenSpec store."""
-    data = _call_library(osx_lib.store_register, path, name)
+    data = _call_library(osx_lib.store_register, path, store_id)
     osx_output(data)
 
 

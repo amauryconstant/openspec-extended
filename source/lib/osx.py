@@ -1069,11 +1069,18 @@ def store_doctor(store_id: Optional[str] = None) -> dict:
     return {"success": True, "data": _run_openspec_json(args)}
 
 
-def store_register(path: str, name: Optional[str] = None) -> dict:
-    """Register an OpenSpec store at the given filesystem path."""
+def store_register(path: str, store_id: Optional[str] = None) -> dict:
+    """Register an OpenSpec store at the given filesystem path.
+
+    Args:
+      path: Filesystem path to the store repo.
+      store_id: Optional explicit store id (upstream `--id` flag).
+
+    Note: prior versions used `--name`; upstream uses `--id` (v1.5+ stores).
+    """
     args = ["store", "register", path]
-    if name:
-        args.extend(["--name", name])
+    if store_id:
+        args.extend(["--id", store_id])
     return {"success": True, "data": _run_openspec_json(args)}
 
 
@@ -1407,7 +1414,7 @@ def validate_change(
     Returns: see _translate_validate_payload.
     Raises: OSXError on subprocess failures (delegated to _run_openspec_json).
     """
-    args = ["validate", change_id, "--json", "--no-interactive"]
+    args = ["validate", change_id, "--no-interactive"]
     if strict:
         args.append("--strict")
     if store:
@@ -1428,7 +1435,7 @@ def validate_spec(
     Returns: see _translate_validate_payload.
     Raises: OSXError on subprocess failures.
     """
-    args = ["validate", spec_id, "--type", "spec", "--json", "--no-interactive"]
+    args = ["validate", spec_id, "--type", "spec", "--no-interactive"]
     if strict:
         args.append("--strict")
     if store:
@@ -1455,7 +1462,6 @@ def validate_all(
     args = [
         "validate",
         "--all",
-        "--json",
         "--no-interactive",
         "--concurrency",
         str(concurrency),
@@ -1469,7 +1475,7 @@ def validate_all(
 
 def validate_changes_only(*, store: Optional[str] = None, strict: bool = False) -> dict:
     """Validate all active changes only via `openspec validate --changes --json`."""
-    args = ["validate", "--changes", "--json", "--no-interactive"]
+    args = ["validate", "--changes", "--no-interactive"]
     if strict:
         args.append("--strict")
     if store:
@@ -1479,7 +1485,7 @@ def validate_changes_only(*, store: Optional[str] = None, strict: bool = False) 
 
 def validate_specs_only(*, store: Optional[str] = None, strict: bool = False) -> dict:
     """Validate all main specs only via `openspec validate --specs --json`."""
-    args = ["validate", "--specs", "--json", "--no-interactive"]
+    args = ["validate", "--specs", "--no-interactive"]
     if strict:
         args.append("--strict")
     if store:
@@ -1555,7 +1561,7 @@ def list_artifacts_for_schema(
     Falls back to spec-driven artifact list on subprocess failure.
     """
     try:
-        args = ["templates", "--schema", schema_name, "--json"]
+        args = ["templates", "--schema", schema_name]
         if store:
             args.extend(["--store", store])
         payload = _run_openspec_json(args)
@@ -1598,7 +1604,6 @@ def schema_which(
         args.append(name)
     if all_schemas:
         args.append("--all")
-    args.append("--json")
     if store:
         args.extend(["--store", store])
     return _run_openspec_json(args)
@@ -1616,7 +1621,6 @@ def schema_validate(
     args = ["schema", "validate"]
     if name:
         args.append(name)
-    args.append("--json")
     if store:
         args.extend(["--store", store])
     return _run_openspec_json(args)
@@ -1635,7 +1639,6 @@ def schema_fork(
         args.append(name)
     if force:
         args.append("--force")
-    args.append("--json")
     if store:
         args.extend(["--store", store])
     return _run_openspec_json(args)
@@ -1651,7 +1654,7 @@ def schema_init(
     store: Optional[str] = None,
 ) -> dict:
     """Initialize a new project-local schema via `openspec schema init`."""
-    args = ["schema", "init", name, "--json"]
+    args = ["schema", "init", name]
     if description:
         args.extend(["--description", description])
     if artifacts:
@@ -1670,7 +1673,7 @@ def schema_list(*, store: Optional[str] = None) -> list[dict]:
 
     Returns the raw upstream list payload.
     """
-    args = ["schemas", "--json"]
+    args = ["schemas"]
     if store:
         args.extend(["--store", store])
     payload = _run_openspec_json(args)

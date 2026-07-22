@@ -75,8 +75,8 @@ class TestStoreDomain:
         # No store id should be appended (cmd is ["openspec","store","doctor","--json"])
         assert captured["cmd"] == ["openspec", "store", "doctor", "--json"]
 
-    def test_store_register_passes_name(self, monkeypatch):
-        """store_register includes --name when given."""
+    def test_store_register_passes_id(self, monkeypatch):
+        """store_register includes --id when given (upstream v1.5+ contract)."""
         captured = {}
 
         def _run(*args, **kwargs):
@@ -84,14 +84,15 @@ class TestStoreDomain:
             return MagicMock(returncode=0, stdout='{"id": "s1"}', stderr="")
 
         monkeypatch.setattr(osx.subprocess, "run", _run)
-        osx.store_register("/path/to/repo", name="My Store")
+        osx.store_register("/path/to/repo", store_id="My Store")
         assert "/path/to/repo" in captured["cmd"]
         assert "register" in captured["cmd"]
-        assert "--name" in captured["cmd"]
+        assert "--id" in captured["cmd"]
         assert "My Store" in captured["cmd"]
+        assert "--name" not in captured["cmd"]
 
-    def test_store_register_without_name(self, monkeypatch):
-        """store_register without name does not add --name."""
+    def test_store_register_without_id(self, monkeypatch):
+        """store_register without store_id does not add --id."""
         captured = {}
 
         def _run(*args, **kwargs):
@@ -101,7 +102,7 @@ class TestStoreDomain:
         monkeypatch.setattr(osx.subprocess, "run", _run)
         osx.store_register("/path/to/repo")
         assert "/path/to/repo" in captured["cmd"]
-        assert "--name" not in captured["cmd"]
+        assert "--id" not in captured["cmd"]
 
     def test_store_unregister(self, monkeypatch):
         """store_unregister passes the id as a CLI arg."""
