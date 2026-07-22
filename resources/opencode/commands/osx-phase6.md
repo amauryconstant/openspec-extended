@@ -20,7 +20,7 @@ Change: $1
 
 - Do NOT stop after archiving files
 - Do NOT stop after committing changes
-- Do NOT stop until step 5 (commit archive) is finished
+- Do NOT stop until step 4 (commit archive) is finished
 - Partial completion will trigger unnecessary re-execution of this phase
 
 ## MANDATORY START
@@ -39,22 +39,11 @@ Archive the completed change for historical reference.
 
 Complete ALL of these steps in order, without stopping:
 
-### Step 1: Clean Transient Files
-
-Before archiving, remove transient state files that should not be preserved:
-
-```bash
-rm -f openspec/changes/$1/state.json
-rm -f openspec/changes/$1/complete.json
-rm -f .openspec-baseline.json
-rm -f .osx-orchestrate-$1.log
-```
-
-These files are runtime artifacts that should not be archived.
+Transient state files (`state.json`, `complete.json`, `.openspec-baseline.json`, `.osx-orchestrate-<change>.log`) are removed by the orchestrator on success. Do not delete them from this phase — the orchestrator needs the auto-log to move it into the archive after the archive commit.
 
 Note: PHASE6 does NOT call `osx state complete`. The orchestrator detects completion by archive directory existence, not by state.json.
 
-### Step 2: Execute Archive
+### Step 1: Execute Archive
 
 1. Load skill: Use `osc-archive-change` (originally `openspec-archive-change`) skill
 
@@ -74,7 +63,7 @@ Note: PHASE6 does NOT call `osx state complete`. The orchestrator detects comple
    - Skill will move change to: `openspec/changes/archive/YYYY-MM-DD-$1/`
    - Verify the move completed successfully
 
-### Step 3: Update Decision Log
+### Step 2: Update Decision Log
 
 Append entry to decision log BEFORE committing:
 
@@ -89,7 +78,7 @@ openspec-extended osx log append "$1" \
 
 Note: Commit hash is captured in git history, not duplicated in logs.
 
-### Step 4: Update Iterations Log
+### Step 3: Update Iterations Log
 
 Append entry to iterations.json BEFORE committing:
 
@@ -103,7 +92,7 @@ openspec-extended osx iterations append "$1" \
 
 Note: Commit hash is captured in git history, not duplicated in logs.
 
-### Step 5: Commit Archive
+### Step 4: Commit Archive
 
 1. Invoke osx-commit skill
 2. Commit all archived files and log updates:
@@ -119,11 +108,11 @@ Note: After archiving, the change directory moves to archive/. The osc-* functio
 
 Before finishing this invocation, verify ALL items are complete:
 
-- [ ] Transient files deleted (state.json, complete.json, .openspec-baseline.json)
 - [ ] Archive directory created at `openspec/changes/archive/YYYY-MM-DD-$1/`
 - [ ] Decision log entry appended with archive path
 - [ ] Iterations log entry appended with archive path
 - [ ] Git commit created (includes all log updates in archive)
+- [ ] Transient files (state.json, complete.json, .openspec-baseline.json, .osx-orchestrate-*.log) NOT deleted by this phase (the orchestrator handles cleanup)
 
 **If ANY step is missing, the phase is incomplete and must be finished before stopping.**
 
@@ -131,10 +120,10 @@ Before finishing this invocation, verify ALL items are complete:
 
 After PHASE6 archive:
 1. The change is now in `openspec/changes/archive/YYYY-MM-DD-$1/`
-2. Transient files (state.json, complete.json, baseline) were deleted before archiving
-3. Historical files (iterations.json, decision-log.json) are preserved in archive
-4. The orchestrator detects completion by archive directory existence
-5. No cleanup needed after this phase (already clean)
+2. Historical files (iterations.json, decision-log.json, verification-report.md, reflections.md, test-compliance-report.md, suggestions.md) are preserved in archive
+3. The orchestrator detects completion by archive directory existence
+4. The orchestrator moves `.osx-orchestrate-<change>.log` into the archive and amends the archive commit on success
+5. Transient state files (state.json, complete.json, .openspec-baseline.json) are removed by the orchestrator's success path
 
 ## BLOCKER HANDLING
 
