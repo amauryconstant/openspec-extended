@@ -215,9 +215,9 @@ Write to CHANGELOG.md? [Y/n]
 No changes found in `openspec/changes/archive/`.
 
 **To archive changes:**
-1. Complete implementation: `/osx-apply <name>`
-2. Verify implementation: `/osx-verify <name>`
-3. Archive the change: `/osx-archive <name>`
+1. Complete implementation: `/osc-apply <name>`
+2. Verify implementation: `/osc-verify <name>`
+3. Archive the change: `/osc-archive <name>`
 4. Re-run changelog generation: `/osx-changelog`
 ```
 

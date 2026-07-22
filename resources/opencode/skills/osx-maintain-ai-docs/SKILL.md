@@ -213,7 +213,7 @@ Update project documentation after implementing an OpenSpec change.
 - Architecture overview from codebase
 - Conventions from recent changes
 
-**Next step**: Review and refine, then ready to archive with `/osx-archive`.
+**Next step**: Review and refine, then ready to archive with `/osc-archive`.
 ```
 
 **On updates applied**:
@@ -229,7 +229,7 @@ Update project documentation after implementing an OpenSpec change.
 - Added theme hook pattern
 - Updated architecture overview
 
-**Next step**: Ready to archive with `/osx-archive`.
+**Next step**: Ready to archive with `/osc-archive`.
 ```
 
 **On no updates needed**:
@@ -242,7 +242,7 @@ Implementation doesn't require documentation updates:
 - Existing documentation covers functionality
 - Changes are inferable from code structure
 
-Ready to archive with `/osx-archive`.
+Ready to archive with `/osc-archive`.
 ```
 
 **On length warning**:
