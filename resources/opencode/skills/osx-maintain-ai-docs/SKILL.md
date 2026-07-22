@@ -6,6 +6,10 @@ license: MIT
 
 Update project documentation after implementing an OpenSpec change.
 
+## Autonomous mode
+
+When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In that mode, skip interactive confirmation and proceed with reasonable defaults. For interactive use, the env var is unset and the skill prompts as documented.
+
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
 
 ---
@@ -31,9 +35,11 @@ Update project documentation after implementing an OpenSpec change.
 1. **Select the change**
 
    If a name is provided, use it. Otherwise:
-   - Infer from conversation context if the user mentioned a change
-   - Auto-select if only one active change exists
-   - If ambiguous, run `openspec list --json` to get available changes and use the **AskUserQuestion tool** to let the user select
+    - Infer from conversation context if the user mentioned a change
+    - Auto-select if only one active change exists
+    - If ambiguous, run `openspec list --json` to get available changes.
+      Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question and use the first candidate. Otherwise, use the **AskUserQuestion tool** to let the user select
+
 
    Always announce: "Using change: <name>" and how to override.
 
@@ -186,10 +192,10 @@ Update project documentation after implementing an OpenSpec change.
 
    **After update**: ~195 lines (within target)
 
-   Apply these updates?
-   ```
+    Apply these updates?
+    ```
 
-   Use **AskUserQuestion tool** to confirm before writing.
+    Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question and auto-accept. Otherwise, use **AskUserQuestion tool** to confirm before writing.
 
 9. **Write updates**
 
@@ -213,7 +219,7 @@ Update project documentation after implementing an OpenSpec change.
 - Architecture overview from codebase
 - Conventions from recent changes
 
-**Next step**: Review and refine, then ready to archive with `/osc-archive`.
+**Next step**: Review and refine, then ready to archive with `/osc-archive-change`.
 ```
 
 **On updates applied**:
@@ -229,7 +235,7 @@ Update project documentation after implementing an OpenSpec change.
 - Added theme hook pattern
 - Updated architecture overview
 
-**Next step**: Ready to archive with `/osc-archive`.
+**Next step**: Ready to archive with `/osc-archive-change`.
 ```
 
 **On no updates needed**:
@@ -242,7 +248,7 @@ Implementation doesn't require documentation updates:
 - Existing documentation covers functionality
 - Changes are inferable from code structure
 
-Ready to archive with `/osc-archive`.
+Ready to archive with `/osc-archive-change`.
 ```
 
 **On length warning**:

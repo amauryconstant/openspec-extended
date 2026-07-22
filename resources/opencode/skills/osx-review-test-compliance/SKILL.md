@@ -173,7 +173,7 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 ### Next Steps
 - Address gaps: Add recommended tests
 - Re-run compliance: `/osx-verify-tests <name>`
-- Verify implementation: `/opsx:verify <name>`
+- Verify implementation: `/osc-verify <name>`
 ```
 
 **Quick Summary** (for clean changes):
@@ -187,7 +187,7 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 - All scenarios have corresponding tests
 - 0 coverage gaps
 
-Ready to verify: `/opsx:verify <name>`
+Ready to verify: `/osc-verify <name>`
 ```
 
 ---

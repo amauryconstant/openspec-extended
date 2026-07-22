@@ -153,3 +153,116 @@ class TestLogCommandTerminology:
                     f"references non-existent `osc log`. "
                     f"Use `openspec-extended osx log`."
                 )
+
+
+# Abbreviated upstream slash-command forms. After ``install --with-core``
+# the wrapper renames ``openspec-*`` and ``opsx-*`` to ``osc-*`` (full skill
+# names) and the OpenCode command files keep their hyphenated prefix, so the
+# slash command becomes ``/osc-<verb>`` or ``/osc-<verb>-change``. The
+# abbreviated forms (``/osc-apply``, ``/osc-archive``, ``/osc-verify``,
+# ``/osc-sync``) are bare-verb conventions that no command file in the
+# installed tree actually exposes — skills and commands must reference the
+# full names so agents can resolve the slash form unambiguously.
+# Source files that are allowed to keep an abbreviated OpenCode form (e.g.
+# ``/osc-verify`` in osx-review-test-compliance, where the hyphenated OpenCode
+# command file maps to that exact slash form) are exempted below.
+ALLOWED_ABBREVIATED_FORMS: dict[str, set[str]] = {
+    "resources/opencode/skills/osx-review-test-compliance/SKILL.md": {"/osc-verify"},
+    "resources/claude/skills/osx-review-test-compliance/SKILL.md": {"/osc-verify"},
+}
+
+# Substring patterns of abbreviated slash commands we forbid elsewhere.
+ABBREVIATED_PATTERNS = [
+    "/osc-apply ",
+    "/osc-apply\n",
+    "/osc-verify ",
+    "/osc-verify\n",
+    "/osc-archive ",
+    "/osc-archive\n",
+    "/osc-sync ",
+    "/osc-sync\n",
+    "/osc-update ",
+    "/osc-update\n",
+    "/osc-bulk-archive ",
+    "/osc-bulk-archive\n",
+    "/osc-continue ",
+    "/osc-continue\n",
+    "/osc-explore ",
+    "/osc-explore\n",
+    "/osc-ff ",
+    "/osc-ff\n",
+    "/osc-new ",
+    "/osc-new\n",
+    "/osc-propose ",
+    "/osc-propose\n",
+]
+
+
+def _abbreviated_hits(text: str, path: Path) -> list[tuple[int, str]]:
+    """Return (line_no, line) for every abbreviated slash-command hit in text,
+    except those allowed for this file.
+    """
+    allowed = ALLOWED_ABBREVIATED_FORMS.get(
+        str(path.relative_to(REPO_ROOT)), set()
+    )
+    out: list[tuple[int, str]] = []
+    for i, line in enumerate(text.splitlines(), start=1):
+        for pat in ABBREVIATED_PATTERNS:
+            if pat in line:
+                if any(allowed_ref in line for allowed_ref in allowed):
+                    continue
+                out.append((i, line))
+                break
+    return out
+
+
+@pytest.mark.unit
+class TestFullCommandNames:
+    """Skills and commands must reference the full command names
+    (``/osc-<verb>-change`` / ``/osc-<verb>-<noun>``) rather than the bare-verb
+    abbreviations that no command file in the installed tree exposes.
+    """
+
+    @pytest.mark.parametrize(
+        "path", SCAN_TARGETS, ids=lambda p: str(p.relative_to(REPO_ROOT))
+    )
+    def test_no_abbreviated_form(self, path: Path):
+        text = path.read_text()
+        hits = _abbreviated_hits(text, path)
+        assert not hits, (
+            f"{path.relative_to(REPO_ROOT)} uses an abbreviated slash command; "
+            "use the full form (e.g. `/osc-apply-change`, `/osc-archive-change`, "
+            "`/osc-verify-change`, `/osc-sync-specs`). Hits:\n"
+            + "\n".join(f"  L{i}: {line.strip()}" for i, line in hits)
+        )
+
+    @pytest.mark.parametrize(
+        "path,expected_full_forms",
+        [
+            (
+                "resources/opencode/skills/osx-generate-changelog/SKILL.md",
+                ["/osc-apply-change", "/osc-verify-change", "/osc-archive-change"],
+            ),
+            (
+                "resources/opencode/skills/osx-maintain-ai-docs/SKILL.md",
+                ["/osc-archive-change"],
+            ),
+            (
+                "resources/opencode/commands/osx-maintain-docs.md",
+                ["/osc-archive-change", "/osc-sync-specs"],
+            ),
+            (
+                "resources/opencode/skills/osx-review-test-compliance/SKILL.md",
+                ["/osc-verify"],
+            ),
+        ],
+    )
+    def test_expected_full_forms_present(
+        self, path: str, expected_full_forms: list[str]
+    ):
+        text = (REPO_ROOT / path).read_text()
+        for form in expected_full_forms:
+            assert form in text, (
+                f"{path} is expected to mention {form!r} (the full command "
+                "name); add it or update the expected list."
+            )

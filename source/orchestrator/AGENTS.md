@@ -4,15 +4,15 @@ Drives a change through seven autonomous phases by spawning AI processes per pha
 
 ## 7-Phase State Machine
 
-| Phase | Name | Command | Agent |
-|-------|------|---------|-------|
-| PHASE0 | ARTIFACT REVIEW | `osx-phase0` | `osx-analyzer` |
-| PHASE1 | IMPLEMENTATION | `osx-phase1` | `osx-builder` |
-| PHASE2 | REVIEW | `osx-phase2` | `osx-analyzer` |
-| PHASE3 | MAINTAIN DOCS | `osx-phase3` | `osx-maintainer` |
-| PHASE4 | SYNC | `osx-phase4` | `osx-maintainer` |
-| PHASE5 | SELF-REFLECTION | `osx-phase5` | `osx-analyzer` |
-| PHASE6 | ARCHIVE | `osx-phase6` | `osx-maintainer` |
+| Phase | Name | Command | Agent | Write? |
+|-------|------|---------|-------|--------|
+| PHASE0 | ARTIFACT REVIEW | `osx-phase0` | `osx-analyzer` | no (read-only) |
+| PHASE1 | IMPLEMENTATION | `osx-phase1` | `osx-builder` | yes |
+| PHASE2 | REVIEW | `osx-phase2` | `osx-reviewer` | yes (`verification-report.md`, commit) |
+| PHASE3 | MAINTAIN DOCS | `osx-phase3` | `osx-maintainer` | yes |
+| PHASE4 | SYNC | `osx-phase4` | `osx-maintainer` | yes |
+| PHASE5 | SELF-REFLECTION | `osx-phase5` | `osx-reviewer` | yes (`reflections.md`, commit) |
+| PHASE6 | ARCHIVE | `osx-phase6` | `osx-maintainer` | yes |
 
 ## Constants
 

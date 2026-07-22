@@ -11,6 +11,10 @@ metadata:
 
 # osx-modify-artifacts
 
+## Autonomous mode
+
+When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In that mode, skip interactive confirmation and proceed with reasonable defaults. For interactive use, the env var is unset and the skill prompts as documented.
+
 Single-artifact surgical editor. Walks downstream `unlocks` for forward-only
 propagation, **never** rewrites a `dependencies` artifact (that is
 `openspec-update-change`'s job).
@@ -65,8 +69,9 @@ Without a store, commands act on the nearest local `openspec/` root.
 ### Step 1 — Select the change
 
 Adopt the `openspec-update-change` policy: **never auto-select**. If the
-argument matches multiple active changes, ask the user
-(the **`Ask`** tool) with the most-recently modified active change
+argument matches multiple active changes, mode check: if `OSX_AUTONOMOUS=1`
+is set in the environment, skip the `Ask` tool and use the most-recently
+modified active change. Otherwise, ask the user (the **`Ask`** tool) with
 marked `(Recommended)`.
 
 ### Step 2 — Load schema state
@@ -81,7 +86,9 @@ if the change's `allowedEditRoots` does not include the current project root.
 
 ### Step 3 — Select the root artifact
 
-If `<artifact-id>` was not supplied, prompt. Show for each candidate:
+If `<artifact-id>` was not supplied, mode check: if `OSX_AUTONOMOUS=1` is set
+in the environment, skip the question and select the first candidate after
+sorting. Otherwise, prompt. Show for each candidate:
 
 - artifact id
 - `status`
@@ -132,7 +139,8 @@ artifact. Compose the proposal by:
 - Composing the new content per `template` + `rules`.
 - Showing the diff (`file_path:line` ranges and the new content) inline.
 
-**Confirm with the **`Ask`** tool before writing.**
+Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question
+and auto-accept. Otherwise, confirm with the **`Ask`** tool before writing.
 
 If the user rejects, leave the file untouched and exit. Do not cascade.
 
@@ -153,7 +161,8 @@ proposal for that dependent only.
 upstream dep is `openspec-update-change`'s job; reject the request and route
 to `/opsx:update`.
 
-**Confirmation model.** Confirm every dependent proposal **individually**:
+Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question
+and auto-accept. Otherwise, confirm every dependent proposal individually:
 
 - For each dependent: show the diff, propose the change with the `Ask` tool
   / `**Ask**`, write only after confirmation.

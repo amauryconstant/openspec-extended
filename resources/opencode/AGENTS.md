@@ -21,7 +21,7 @@ resources/opencode/
 
 ## Naming
 
-All extended resources use the `osx-` prefix. The 8 skills, 3 agents, and 12 commands are listed in `manifest.toml`.
+All extended resources use the `osx-` prefix. The 8 skills, 4 agents, and 12 commands are listed in `manifest.toml`.
 
 ## See Also
 

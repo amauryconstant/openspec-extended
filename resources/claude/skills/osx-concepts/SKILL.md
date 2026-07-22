@@ -119,12 +119,13 @@ Query: `openspec status --change <name> --json` returns the full state per artif
 
 > After this skill: 8 extended skills total. The taxonomy above lists all of them.
 
-#### Agents (3 — orchestrator-dispatched)
+#### Agents (4 — orchestrator-dispatched)
 
 | Agent | Phases | Permissions | Temp |
 |-------|--------|-------------|------|
-| `osx-analyzer` | PHASE0, PHASE2, PHASE5 | read-only (`edit: deny`) | 0.1 |
+| `osx-analyzer` | PHASE0 | read-only (`edit: deny`) | 0.1 |
 | `osx-builder` | PHASE1 | full read/write | 0.4 |
+| `osx-reviewer` | PHASE2, PHASE5 | full read/write | 0.1 |
 | `osx-maintainer` | PHASE3, PHASE4, PHASE6 | full read/write | 0.3 |
 
 #### Commands (12)

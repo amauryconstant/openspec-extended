@@ -3,7 +3,7 @@ description: Update AGENTS.md and CLAUDE.md after implementing an OpenSpec chang
 license: MIT
 ---
 
-Update project documentation after implementing an OpenSpec change. Runs after `/osc-sync` and before `/osc-archive`.
+Update project documentation after implementing an OpenSpec change. Runs after `/osc-sync-specs` and before `/osc-archive-change`.
 
 **Input**: Optionally specify a change name. If omitted, infer from context or prompt for selection.
 
@@ -64,7 +64,7 @@ Update project documentation after implementing an OpenSpec change. Runs after `
 - Added "Feature X" to Quick Reference
 - Added pattern for Y
 
-**Next step**: Ready to archive with `/osc-archive`.
+**Next step**: Ready to archive with `/osc-archive-change`.
 ```
 
 **Guardrails**

@@ -6,25 +6,28 @@ license: MIT
 
 # OpenSpec-extended Autonomous Workflow
 
-Operational reference for the 7-phase loop driven by `openspec-extended orchestrate`. Covers the 4 tool layers, the phases, state files, the `osx` state I/O tool, and blocker/resume semantics.
+Operational reference for the 7-phase loop driven by `openspec-extended orchestrate`. `OSX_AUTONOMOUS=1` is set for skills invoked by that orchestrator, so interactive confirmation steps should use their documented autonomous defaults. Covers the 4 tool layers, the phases, state files, the `osx` state I/O tool, and blocker/resume semantics.
 
 ---
 
 ## TL;DR
 
 ```
-PHASE0 ARTIFACT_REVIEW → osx-analyzer  → osx-review-artifacts (audit + routing); /osx-modify or /opsx:update for fixes
-PHASE1 IMPLEMENTATION  → osx-builder   → osc-apply-change, osx-review-test-compliance
-PHASE2 REVIEW          → osx-analyzer  → osc-verify-change; Case A → /opsx:update (multi-art) or /osx-modify (single-art)
-PHASE3 MAINTAIN_DOCS   → osx-maintainer→ osx-maintain-ai-docs
-PHASE4 SYNC            → osx-maintainer→ osc-sync-specs
-PHASE5 SELF_REFLECTION → osx-analyzer  → (autonomous reasoning)
-PHASE6 ARCHIVE         → osx-maintainer→ osc-archive-change / osc-bulk-archive-change
+PHASE0 ARTIFACT_REVIEW → osx-analyzer   → osx-review-artifacts (audit + routing); /osx-modify or /opsx:update for fixes
+PHASE1 IMPLEMENTATION  → osx-builder    → osc-apply-change, osx-review-test-compliance
+PHASE2 REVIEW          → osx-reviewer   → osc-verify-change (writes verification-report.md, commits)
+PHASE3 MAINTAIN_DOCS   → osx-maintainer → osx-maintain-ai-docs
+PHASE4 SYNC            → osx-maintainer → osc-sync-specs
+PHASE5 SELF_REFLECTION → osx-reviewer   → (writes reflections.md, commits)
+PHASE6 ARCHIVE         → osx-maintainer → osc-archive-change / osc-bulk-archive-change
 ```
 
-PHASE0 and PHASE2 dispatch `osx-analyzer` (`edit: deny`), so they emit routing
-reports instead of writing files. The user invokes `/osx-modify` or
-`/opsx:update` outside the dispatched phase to apply fixes.
+PHASE0 is read-only — it dispatches `osx-analyzer` (`edit: deny`) and emits a
+routing report instead of writing files. The user invokes `/osx-modify` or
+`/opsx:update` outside the dispatched phase to apply fixes. PHASE2 and PHASE5
+are write-capable: they dispatch `osx-reviewer` (`mode: subagent`, `edit: allow`)
+and write their reports directly (`verification-report.md` / `reflections.md`)
+plus a commit.
 
 **Tool**: every state mutation goes through the `osx` subcommand: `openspec-extended osx <domain> <action>` (one surface; the CLI wrapper lives in `source/osx_cli.py`, the library in `source/lib/osx.py`).
 
@@ -101,12 +104,12 @@ For the full action set of layer 3 (`osx`), see §4 below.
 
 | Phase | Name in `state.json` | Agent | Key skills loaded | Purpose |
 |-------|----------------------|-------|-------------------|---------|
-| PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts` (audit) + `osc-update-change` (default editor) + `osx-modify-artifacts` (surgical fallback) | Schema-driven audit; emits routing report; user (or follow-up slash command) performs fixes |
+| PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts` (audit) + `osc-update-change` (default editor) + `osx-modify-artifacts` (surgical fallback) | Schema-driven audit; emits routing report; user (or follow-up slash command) performs fixes (read-only) |
 | PHASE1 | `IMPLEMENTATION` | `osx-builder` | `osc-apply-change`, `osx-review-test-compliance` | Implement `tasks.md`; milestone commits |
-| PHASE2 | `REVIEW` | `osx-analyzer` | `osc-verify-change`; Case A → `osc-update-change` (default) or `osx-modify-artifacts` (isolated single-artifact defect) | Verify implementation matches artifacts |
+| PHASE2 | `REVIEW` | `osx-reviewer` | `osc-verify-change`; Case A → `osc-update-change` (default) or `osx-modify-artifacts` (isolated single-artifact defect) | Verify implementation matches artifacts; writes `verification-report.md` and commits |
 | PHASE3 | `MAINTAIN_DOCS` | `osx-maintainer` | `osx-maintain-ai-docs` | Update `AGENTS.md` and `CLAUDE.md` |
 | PHASE4 | `SYNC` | `osx-maintainer` | `osc-sync-specs` | Merge delta specs into main specs |
-| PHASE5 | `SELF_REFLECTION` | `osx-analyzer` | (autonomous reasoning) | Evaluate the workflow; write `reflections.md` |
+| PHASE5 | `SELF_REFLECTION` | `osx-reviewer` | (autonomous reasoning) | Evaluate the workflow; writes `reflections.md` and commits |
 | PHASE6 | `ARCHIVE` | `osx-maintainer` | `osc-archive-change` or `osc-bulk-archive-change` | Archive change; clean transient files |
 
 > **PHASE2 name disambiguation**: the engine's canonical phase name is `REVIEW`. The skill it loads is `osc-verify-change` ("Verification"). Both refer to the same phase. When you see `--phase REVIEW` in `decision-log.json`, that's PHASE2. The same is true for other phases: e.g., PHASE0 = `ARTIFACT_REVIEW` (engine) = `osx-review-artifacts` (audit). The edit step belongs to `osc-update-change` (default) or `osx-modify-artifacts` (surgical fallback).
@@ -384,7 +387,7 @@ For framework-level edge cases (missing CLI on the user's machine, choosing the 
 - **Exploratory**: `osc-explore` → [investigation] → `osc-new-change` → `osc-continue-change` → ... → `osc-apply-change`
 - **Parallel changes (no orchestrator)**: switch between changes with explicit names: `osc-new-change <other>`, work it, archive, then resume the paused one. Avoids orchestrator state.
 - **Enhanced manual (with `osx-*` skills)**: `osc-new-change` → `osc-ff-change` → `/osx-review <name>` → `{/osx-modify <name> <id> | /opsx:update <name>}` → `osc-apply-change` → `osx-review-test-compliance` → `osx-maintain-ai-docs` → `osc-archive-change` → `osx-generate-changelog`
-- **Autonomous (full 7-phase loop)**: `openspec-extended orchestrate <change>`. The orchestrator dispatches per phase; each phase loads the relevant skills. PHASE0 and PHASE2 are read-only audits that emit routing reports; the user invokes the routed slash command externally.
+- **Autonomous (full 7-phase loop)**: `openspec-extended orchestrate <change>`. The orchestrator dispatches per phase; each phase loads the relevant skills. PHASE0 is read-only — it emits a routing report and the user invokes the routed slash command externally. PHASE2/PHASE5 write their reports (`verification-report.md` / `reflections.md`) and commit, dispatching `osx-reviewer` (`edit: allow`).
 
 ---
 
