@@ -3,6 +3,7 @@
 OpenSpec-extended - Unified CLI for OpenSpec resources and autonomous workflow
 """
 
+import json
 import re
 import shutil
 import subprocess
@@ -335,6 +336,7 @@ def update_gitignore() -> None:
         "",
         marker_start,
         ".openspec-baseline.json",
+        CORE_BASELINE_FILENAME,
         "openspec/changes/*/state.json",
         "openspec/changes/*/complete.json",
         "openspec/changes/*/iterations.json",
@@ -427,9 +429,122 @@ def rename_core_resources(tool: str) -> None:
         log_success(f"Renamed {renamed} core resource(s)")
 
 
-def deploy_core(tool: str) -> None:
+CORE_BASELINE_FILENAME = ".openspec-extended-baseline.json"
+
+
+def _detect_existing_core_deployment(tool: str) -> bool:
+    """Return True if a previous core deployment is detectable.
+
+    Detection sources (any one is enough):
+    - ``openspec list --json`` returns any resources.
+    - ``<target_dir>/skills/osc-*.md`` exists (post-rename marker).
+    - ``<target_dir>/manifest.toml`` declares ``[core].installed = true``.
+    """
+    target_dir = Path.cwd() / get_tool_dir(tool)
+
+    # (a) upstream CLI introspection
+    try:
+        result = subprocess.run(
+            ["openspec", "list", "--json"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+        payload = json.loads(result.stdout or "{}")
+        for key in ("skills", "specs", "changes", "items"):
+            if payload.get(key):
+                return True
+    except (
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+        ValueError,
+    ):
+        pass
+
+    # (b) post-rename marker
+    skills_dir = target_dir / "skills"
+    if skills_dir.is_dir():
+        for p in skills_dir.iterdir():
+            if p.is_dir() and p.name.startswith("osc-"):
+                return True
+
+    # (c) manifest declaration
+    manifest_path = target_dir / "manifest.toml"
+    if manifest_path.is_file():
+        try:
+            manifest_data = toml.loads(manifest_path.read_text())
+            if manifest_data.get("core", {}).get("installed"):
+                return True
+        except toml.TomlDecodeError:
+            pass
+
+    return False
+
+
+def _capture_global_config() -> dict:
+    """Snapshot the user's openspec global config.
+
+    Best-effort: missing files / unreadable / non-JSON content returns
+    an empty dict. The caller must persist whatever it can.
+    """
+    candidates = [
+        Path.home() / ".config" / "openspec" / "config.json",
+    ]
+    for path in candidates:
+        if path.is_file():
+            try:
+                return toml.loads(path.read_text())
+            except toml.TomlDecodeError:
+                try:
+                    return json.loads(path.read_text())
+                except (ValueError, OSError):
+                    return {}
+    return {}
+
+
+def _write_core_baseline(tool: str, project_root: Path | None = None) -> Path | None:
+    """Write ``.openspec-extended-baseline.json`` capturing the user's prior
+    openspec core setup. Returns the path written, or None if nothing to save.
+    """
+    project_root = project_root or Path.cwd()
+    from datetime import datetime, timezone
+
+    snapshot = {
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "tool": tool,
+        "global_config": _capture_global_config(),
+        "project_root": str(project_root),
+    }
+    path = project_root / CORE_BASELINE_FILENAME
+    try:
+        path.write_text(json.dumps(snapshot, indent=2))
+        return path
+    except OSError:
+        return None
+
+
+def deploy_core(tool: str, force: bool = False) -> None:
     target_dir = Path.cwd() / get_tool_dir(tool)
     target_manifest = target_dir / "manifest.toml"
+
+    # Non-destructive: refuse to overwrite an existing deployment without --force.
+    if _detect_existing_core_deployment(tool) and not force:
+        log_error(
+            "An existing core deployment was detected. Re-run with --force to"
+            " overwrite (a snapshot will be saved to .openspec-extended-baseline.json)."
+        )
+        console.print("  Hint: openspec-extended install <tool> --with-core --force")
+        console.print("  Restore later with: openspec-extended restore-core")
+        raise SystemExit(2)
+
+    # With --force on an existing deploy, capture a baseline first.
+    baseline_path: Path | None = None
+    if force and _detect_existing_core_deployment(tool):
+        baseline_path = _write_core_baseline(tool)
+        if baseline_path:
+            log_info(f"Saved pre-overwrite baseline to {baseline_path.name}")
 
     try:
         subprocess.run(
@@ -481,7 +596,11 @@ def deploy_core(tool: str) -> None:
         manifest_data.setdefault("resources", {}).setdefault("skills", {}).update(
             manifest_updates
         )
-        manifest_data["core"] = {"version": core_version, "installed": True}
+        manifest_data["core"] = {
+            "version": core_version,
+            "installed": True,
+            "baseline": (CORE_BASELINE_FILENAME if baseline_path else None),
+        }
         target_manifest.write_text(toml.dumps(manifest_data))
         log_info(f"Core v{core_version} tracked in manifest")
 
@@ -528,6 +647,15 @@ def install(
     with_core: bool = typer.Option(
         False, "--with-core", help="Also deploy core OpenSpec skills"
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help=(
+            "Required to overwrite an existing core deployment when "
+            "--with-core is set. A snapshot of the prior state is saved "
+            "automatically."
+        ),
+    ),
 ) -> None:
     if tool not in TOOL_DIRS:
         log_error(f"Unknown tool: {tool}")
@@ -540,7 +668,7 @@ def install(
     update_gitignore()
 
     if with_core:
-        deploy_core(tool)
+        deploy_core(tool, force=force)
 
     resources_dir = get_resources_dir()
     source_manifest = resources_dir / tool / "manifest.toml"
@@ -558,6 +686,15 @@ def update(
     with_core: bool = typer.Option(
         False, "--with-core", help="Also deploy core OpenSpec skills"
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help=(
+            "Required to overwrite an existing core deployment when "
+            "--with-core is set. A snapshot of the prior state is saved "
+            "automatically."
+        ),
+    ),
 ) -> None:
     if tool not in TOOL_DIRS:
         log_error(f"Unknown tool: {tool}")
@@ -570,7 +707,7 @@ def update(
     update_gitignore()
 
     if with_core:
-        deploy_core(tool)
+        deploy_core(tool, force=force)
 
     resources_dir = get_resources_dir()
     source_manifest = resources_dir / tool / "manifest.toml"
@@ -974,6 +1111,49 @@ def completion_cmd(
 
     code = run_openspec(["completion", *args])
     raise typer.Exit(code=code)
+
+
+@app.command(
+    "restore-core",
+    help="Restore the openspec global config from the most recent .openspec-extended-baseline.json snapshot.",
+)
+def restore_core(
+    path: Optional[Path] = typer.Option(
+        None,
+        "--from",
+        help="Path to the baseline file. Defaults to ./.openspec-extended-baseline.json",
+    ),
+) -> None:
+    """Restore the captured snapshot to ``~/.config/openspec/config.json``.
+
+    Re-applies the snapshot's ``global_config`` block and writes it back.
+    The baseline file is removed on success unless ``--keep-snapshot`` is passed.
+    """
+    baseline = path or (Path.cwd() / CORE_BASELINE_FILENAME)
+    if not baseline.is_file():
+        log_error(f"No baseline found at {baseline}")
+        raise typer.Exit(code=1)
+
+    try:
+        snapshot = json.loads(baseline.read_text())
+    except json.JSONDecodeError as e:
+        log_error(f"Baseline is not valid JSON: {e}")
+        raise typer.Exit(code=1)
+
+    cfg = snapshot.get("global_config") or {}
+    target = Path.home() / ".config" / "openspec" / "config.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        target.write_text(json.dumps(cfg, indent=2))
+    except OSError as e:
+        log_error(f"Failed to write {target}: {e}")
+        raise typer.Exit(code=1)
+
+    log_success(f"Restored {target} from {baseline}")
+    try:
+        baseline.unlink()
+    except OSError:
+        log_warn(f"Could not remove baseline {baseline}")
 
 
 @app.callback(invoke_without_command=True)
