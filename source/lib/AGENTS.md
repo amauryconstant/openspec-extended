@@ -65,7 +65,7 @@ Keep the library and the CLI module separate so the library can be imported in-p
 |----------|-------|
 | `PHASES` | `["PHASE0" ... "PHASE6"]` |
 | `VALID_TRANSITION_REASONS` | `implementation_incorrect`, `artifacts_modified`, `retry_requested` |
-| `REQUIRED_SKILLS` | 5 `osx-*` skills installed for changes |
+| `REQUIRED_SKILLS` | 7 `osx-*` skills installed for changes (`osx-generate-changelog` is intentionally excluded; it has its own `/osx-changelog` dispatch) |
 | `REQUIRED_CORE_SKILLS` | 4 `osc-*` core skills (apply, verify, sync, archive) |
 | `OSXError` | Exception class raised by library functions |
 

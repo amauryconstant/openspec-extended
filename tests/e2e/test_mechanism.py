@@ -63,6 +63,7 @@ def e2e_repo(tmp_path):
         "osx-modify-artifacts",
         "osx-review-test-compliance",
         "osx-maintain-ai-docs",
+        "osx-commit",
         "osc-apply-change",
         "osc-verify-change",
         "osc-sync-specs",

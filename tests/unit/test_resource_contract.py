@@ -167,7 +167,9 @@ class TestSchemaAgnosticContract:
         CLAUDE / "skills/osx-modify-artifacts/SKILL.md",
     ]
 
-    @pytest.mark.parametrize("skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+    @pytest.mark.parametrize(
+        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
+    )
     def test_skill_uses_status_cli(self, skill: Path):
         text = _read(skill)
         assert "openspec status --change" in text, (
@@ -175,7 +177,9 @@ class TestSchemaAgnosticContract:
             "openspec status --change ... --json"
         )
 
-    @pytest.mark.parametrize("skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+    @pytest.mark.parametrize(
+        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
+    )
     def test_skill_uses_instructions_cli(self, skill: Path):
         text = _read(skill)
         assert "openspec instructions" in text, (
@@ -183,7 +187,9 @@ class TestSchemaAgnosticContract:
             "openspec instructions <id> --change ... --json"
         )
 
-    @pytest.mark.parametrize("skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+    @pytest.mark.parametrize(
+        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
+    )
     def test_skill_references_existing_paths(self, skill: Path):
         text = _read(skill)
         assert "existingOutputPaths" in text, (
@@ -191,7 +197,9 @@ class TestSchemaAgnosticContract:
             "artifactPaths.<id>.existingOutputPaths"
         )
 
-    @pytest.mark.parametrize("skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+    @pytest.mark.parametrize(
+        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
+    )
     def test_skill_warns_against_resolved_output_path_writes(self, skill: Path):
         text = _read(skill)
         assert "resolvedOutputPath" in text, (
@@ -199,7 +207,9 @@ class TestSchemaAgnosticContract:
             "the glob hazard of resolvedOutputPath"
         )
 
-    @pytest.mark.parametrize("skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+    @pytest.mark.parametrize(
+        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
+    )
     def test_skill_disallows_code_edits(self, skill: Path):
         text = _read(skill)
         lowered = text.lower()
@@ -208,7 +218,9 @@ class TestSchemaAgnosticContract:
             "implications to /opsx:apply"
         )
 
-    @pytest.mark.parametrize("skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+    @pytest.mark.parametrize(
+        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
+    )
     def test_skill_includes_store_selection_paragraph(self, skill: Path):
         text = _read(skill)
         assert "openspec store list --json" in text, (
@@ -219,8 +231,10 @@ class TestSchemaAgnosticContract:
     def test_modify_skill_confirms_each_dependent(self):
         """Per the plan, every dependent edit is shown and confirmed
         individually — no auto-write threshold."""
-        for skill in (OPENCODE / "skills/osx-modify-artifacts/SKILL.md",
-                      CLAUDE / "skills/osx-modify-artifacts/SKILL.md"):
+        for skill in (
+            OPENCODE / "skills/osx-modify-artifacts/SKILL.md",
+            CLAUDE / "skills/osx-modify-artifacts/SKILL.md",
+        ):
             text = _read(skill)
             assert "individually" in text.lower(), (
                 f"{skill.relative_to(REPO_ROOT)} must confirm each "
@@ -237,7 +251,9 @@ class TestReviewSkillNoHardcodedNames:
         CLAUDE / "skills/osx-review-artifacts/SKILL.md",
     ]
 
-    @pytest.mark.parametrize("skill", PATHS, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+    @pytest.mark.parametrize(
+        "skill", PATHS, ids=lambda p: str(p.relative_to(REPO_ROOT))
+    )
     def test_skill_contains_no_hardcoded_artifact_names(self, skill: Path):
         text = _read(skill)
         forbidden = ["proposal.md", "design.md", "tasks.md"]
@@ -265,13 +281,17 @@ class TestRubricCleanup:
     reference directories are gone."""
 
     def test_opencode_rubric_gone(self):
-        assert not (OPENCODE / "skills/osx-review-artifacts/references/review-criteria.md").exists(), (
+        assert not (
+            OPENCODE / "skills/osx-review-artifacts/references/review-criteria.md"
+        ).exists(), (
             "resources/opencode/skills/osx-review-artifacts/references/"
             "review-criteria.md must be removed (rubric replaced by schema-driven audit)"
         )
 
     def test_claude_rubric_gone(self):
-        assert not (CLAUDE / "skills/osx-review-artifacts/references/review-criteria.md").exists(), (
+        assert not (
+            CLAUDE / "skills/osx-review-artifacts/references/review-criteria.md"
+        ).exists(), (
             "resources/claude/skills/osx-review-artifacts/references/"
             "review-criteria.md must be removed (rubric replaced by schema-driven audit)"
         )
@@ -327,8 +347,10 @@ class TestPhaseRouting:
         assert "/opsx:update" in text or "osc-update-change" in text
 
     def test_workflow_table_lists_update(self):
-        for path in (OPENCODE / "skills/osx-workflow/SKILL.md",
-                     CLAUDE / "skills/osx-workflow/SKILL.md"):
+        for path in (
+            OPENCODE / "skills/osx-workflow/SKILL.md",
+            CLAUDE / "skills/osx-workflow/SKILL.md",
+        ):
             text = _read(path)
             assert "osc-update-change" in text or "openspec-update-change" in text, (
                 f"{path.relative_to(REPO_ROOT)} must list update-change in the "
@@ -351,9 +373,13 @@ class TestManifestParity:
         "skills.osx-review-test-compliance",
         "skills.osx-workflow",
         "skills.osx-concepts",
+        "skills.osx-generate-changelog",
+        "skills.osx-maintain-ai-docs",
+        "skills.osx-commit",
         "commands.osx-review",
         "commands.osx-modify",
         "commands.osx-verify-tests",
+        "commands.osx-maintain-docs",
         "commands.osx-phase0",
         "commands.osx-phase2",
     ]
@@ -364,34 +390,31 @@ class TestManifestParity:
         cl = _manifest_versions(CLAUDE_MANIFEST).get(key)
         assert oc is not None, f"{key} missing from opencode manifest"
         assert cl is not None, f"{key} missing from claude manifest"
-        assert oc == cl, (
-            f"version drift on {key}: opencode={oc} claude={cl}"
-        )
+        assert oc == cl, f"version drift on {key}: opencode={oc} claude={cl}"
 
     @pytest.mark.parametrize(
         "key,expected",
         [
             ("skills.osx-review-artifacts", "0.3.0"),
             ("skills.osx-modify-artifacts", "0.3.0"),
-            ("skills.osx-workflow", "0.3.0"),
-            ("skills.osx-concepts", "0.9.0"),
+            ("skills.osx-workflow", "0.3.1"),
+            ("skills.osx-concepts", "0.9.1"),
             ("skills.osx-review-test-compliance", "0.2.2"),
+            ("skills.osx-generate-changelog", "0.2.2"),
+            ("skills.osx-maintain-ai-docs", "0.2.1"),
             ("commands.osx-review", "0.2.0"),
             ("commands.osx-modify", "0.2.0"),
             ("commands.osx-verify-tests", "0.1.2"),
+            ("commands.osx-maintain-docs", "0.2.1"),
             ("commands.osx-phase0", "0.3.0"),
-            ("commands.osx-phase2", "0.3.0"),
+            ("commands.osx-phase2", "0.3.1"),
         ],
     )
     def test_target_versions(self, key: str, expected: str):
         oc = _manifest_versions(OPENCODE_MANIFEST).get(key)
-        assert oc == expected, (
-            f"opencode {key} expected {expected}; got {oc}"
-        )
+        assert oc == expected, f"opencode {key} expected {expected}; got {oc}"
         cl = _manifest_versions(CLAUDE_MANIFEST).get(key)
-        assert cl == expected, (
-            f"claude {key} expected {expected}; got {cl}"
-        )
+        assert cl == expected, f"claude {key} expected {expected}; got {cl}"
 
 
 # ============================================================================

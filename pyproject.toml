@@ -56,4 +56,5 @@ markers = [
     "integration: Integration tests - test component workflows",
     "mechanism: Mechanism tests - CLI validation without AI calls",
     "e2e: E2E full tests - require AI calls (set E2E_CONFIRM=1)",
+    "contract: Contract tests against live openspec CLI (auto-skip if absent)",
 ]

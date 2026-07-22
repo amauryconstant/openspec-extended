@@ -103,7 +103,9 @@ REQUIRED_SKILLS = [
     "osx-modify-artifacts",
     "osx-review-test-compliance",
     "osx-maintain-ai-docs",
+    "osx-commit",
 ]
+# osx-generate-changelog is intentionally absent: it has its own /osx-changelog dispatch.
 
 REQUIRED_CORE_SKILLS = [
     "osc-apply-change",
