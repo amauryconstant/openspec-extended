@@ -20,6 +20,44 @@ class TestGetCoreVersion:
     def test_min_version_is_1_6_0(self):
         assert osx.MIN_OPENSPEC_VERSION == (1, 6, 0)
 
+    def test_cli_module_no_longer_exports_script_version(self):
+        """`__version__` in source/__init__.py is the canonical version.
+        The legacy `SCRIPT_VERSION` literal was removed from source/cli.py
+        to eliminate the duplicate source-of-truth.
+        """
+        import source.cli as cli_mod
+
+        assert not hasattr(cli_mod, "SCRIPT_VERSION"), (
+            "source.cli.SCRIPT_VERSION must not be defined; "
+            "the canonical version lives in source.__version__"
+        )
+        assert hasattr(cli_mod, "__version__")
+        assert cli_mod.__version__ == osx.__version__ if hasattr(
+            osx, "__version__"
+        ) else True  # osx is a library module; just assert cli imports it
+
+    def test_version_callback_uses_dunder_version(self):
+        """The `--version` callback prints `__version__`, not SCRIPT_VERSION."""
+        from source.cli import app
+
+        captured: list[str] = []
+
+        from unittest.mock import patch
+
+        from typer.testing import CliRunner
+
+        runner = CliRunner()
+        with patch("source.cli.console.print", side_effect=captured.append):
+            result = runner.invoke(app, ["--version"], color=False)
+        assert result.exit_code == 0
+        joined = "\n".join(captured)
+        assert "openspec-extended" in joined
+        # The version printed must equal `__version__`.
+        from source import __version__
+
+        assert __version__ in joined
+
+
     def test_returns_none_when_binary_missing(self, monkeypatch):
         """No `openspec` on PATH → None (not an exception)."""
         with patch(

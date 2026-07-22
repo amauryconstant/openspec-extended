@@ -28,6 +28,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from source.lib import state_io
+
 PHASES = ["PHASE0", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "PHASE5", "PHASE6"]
 
 PHASE_NAMES: dict[str, str] = {
@@ -300,6 +302,17 @@ def write_json(path: Path, data: Any) -> None:
         Path(f.name).replace(path)
 
 
+def _read_state(change_dir: Path) -> dict:
+    state = state_io.read_state(change_dir)
+    if state is not None:
+        return state
+    return _read_json(change_dir / "state.json")
+
+
+def _write_state(change_dir: Path, state: dict) -> None:
+    state_io.write_state(change_dir, state)
+
+
 def _validate_log_text_field(field: str, value: str) -> None:
     """Reject shell-tainted free-text fields in the decision log.
 
@@ -461,7 +474,7 @@ def ctx_get(change: str, *, store: Optional[str] = None) -> dict:
         state_file = change_dir / "state.json"
         if not state_file.exists():
             return {"phase": "UNKNOWN", "iteration": 0, "phase_complete": False}
-        state = _read_json(state_file)
+        state = _read_state(change_dir)
         return {
             "phase": state.get("phase", "UNKNOWN"),
             "iteration": state.get("iteration", 0),
@@ -609,9 +622,9 @@ def phase_current(change: str, *, store: Optional[str] = None) -> dict:
             "started_at": timestamp,
             "last_updated": timestamp,
         }
-        write_json(state_file, state)
+        _write_state(change_dir, state)
     else:
-        state = _read_json(state_file)
+        state = _read_state(change_dir)
 
     phase = state.get("phase", "UNKNOWN")
     iteration = state.get("iteration", 0)
@@ -637,9 +650,9 @@ def phase_next(change: str, *, store: Optional[str] = None) -> dict:
             "started_at": timestamp,
             "last_updated": timestamp,
         }
-        write_json(state_file, state)
+        _write_state(change_dir, state)
     else:
-        state = _read_json(state_file)
+        state = _read_state(change_dir)
 
     current = state.get("phase", "UNKNOWN")
     if not current:
@@ -666,9 +679,9 @@ def phase_advance(change: str, *, store: Optional[str] = None) -> dict:
             "started_at": timestamp,
             "last_updated": timestamp,
         }
-        write_json(state_file, state)
+        _write_state(change_dir, state)
     else:
-        state = _read_json(state_file)
+        state = _read_state(change_dir)
 
     current_phase = state.get("phase", "UNKNOWN")
     if not current_phase:
@@ -682,7 +695,7 @@ def phase_advance(change: str, *, store: Optional[str] = None) -> dict:
     state["iteration"] = 1
     state["phase_complete"] = False
     state["last_updated"] = timestamp
-    write_json(state_file, state)
+    _write_state(change_dir, state)
 
     next_next = get_next_phase(next_phase)
     return {
@@ -702,7 +715,7 @@ def state_get(change: str, *, store: Optional[str] = None) -> dict:
             "state_not_found", "state.json does not exist", path=str(state_file)
         )
 
-    state = _read_json(state_file)
+    state = _read_state(change_dir)
     return {
         "phase": state.get("phase", "UNKNOWN"),
         "iteration": state.get("iteration", 0),
@@ -718,10 +731,10 @@ def state_complete(change: str, *, store: Optional[str] = None) -> dict:
     if not state_file.exists():
         raise OSXError("state_not_found", "state.json does not exist")
 
-    state = _read_json(state_file)
+    state = _read_state(change_dir)
     state["phase_complete"] = True
     state["last_updated"] = get_timestamp()
-    write_json(state_file, state)
+    _write_state(change_dir, state)
 
     return {"success": True, "phase_complete": True}
 
@@ -752,13 +765,13 @@ def state_transition(
     if not state_file.exists():
         raise OSXError("state_not_found", "state.json does not exist")
 
-    state = _read_json(state_file)
+    state = _read_state(change_dir)
     state["phase_complete"] = True
     state["transition"] = {"target": target, "reason": reason}
     if details:
         state["transition"]["details"] = details
     state["last_updated"] = get_timestamp()
-    write_json(state_file, state)
+    _write_state(change_dir, state)
 
     result: dict = {
         "success": True,
@@ -776,10 +789,10 @@ def state_clear_transition(change: str, *, store: Optional[str] = None) -> dict:
     if not state_file.exists():
         raise OSXError("state_not_found", "state.json does not exist")
 
-    state = _read_json(state_file)
+    state = _read_state(change_dir)
     state.pop("transition", None)
     state["last_updated"] = get_timestamp()
-    write_json(state_file, state)
+    _write_state(change_dir, state)
 
     return {"success": True, "transition_cleared": True}
 
@@ -800,14 +813,14 @@ def state_set_phase(
     if not state_file.exists():
         raise OSXError("state_not_found", "state.json does not exist")
 
-    state = _read_json(state_file)
+    state = _read_state(change_dir)
     previous = state.get("phase", "UNKNOWN")
     state["phase"] = phase
     state["phase_name"] = PHASE_NAMES[phase] if phase in PHASE_NAMES else "UNKNOWN"
     if iteration is not None:
         state["iteration"] = iteration
     state["last_updated"] = get_timestamp()
-    write_json(state_file, state)
+    _write_state(change_dir, state)
 
     return {"success": True, "phase": phase, "previous_phase": previous}
 

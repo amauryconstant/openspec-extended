@@ -16,9 +16,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=version/lib/bump.sh
 source "$SCRIPT_DIR/version/lib/bump.sh"
 
-PROJECT_ROOT="${MISE_PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || ".")}"
-RELEASE_CLI="$PROJECT_ROOT/source/cli.py"
-
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
   echo "Error: Not in a git repository"
   exit 1
@@ -69,7 +66,6 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo "[DRY-RUN] Would update version to $NEW_VERSION in:"
   echo "  - README.md (badge + examples)"
   echo "  - pyproject.toml"
-  echo "  - source/cli.py (SCRIPT_VERSION)"
   echo "  - source/__init__.py (__version__)"
   echo "  - uv.lock (sync)"
   echo ""
@@ -80,9 +76,6 @@ fi
 
 echo "Updating version in README.md:"
 update_readme_version "$NEW_VERSION" "$DRY_RUN"
-echo ""
-echo "Updating version in source/cli.py:"
-bump_script_version_in_file "$RELEASE_CLI" "$NEW_VERSION" "$DRY_RUN"
 echo ""
 echo "Updating version in source/__init__.py:"
 bump_py_init_version "$NEW_VERSION" "$DRY_RUN"

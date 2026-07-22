@@ -20,33 +20,11 @@ from typing import Optional
 
 from rich import print as rich_print
 
-import toml
-
+from source import __version__
 from source.lib import osx as osx_lib
-from source.lib.osx import OSXError
+from source.lib import state_io
+from source.lib.osx import OSXError, PHASE_COMMANDS, PHASE_NAMES, PHASES
 from source.orchestrator.runner import detect_runner
-
-PHASES = ["PHASE0", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "PHASE5", "PHASE6"]
-
-PHASE_NAMES = {
-    "PHASE0": "ARTIFACT REVIEW",
-    "PHASE1": "IMPLEMENTATION",
-    "PHASE2": "REVIEW",
-    "PHASE3": "MAINTAIN DOCS",
-    "PHASE4": "SYNC",
-    "PHASE5": "SELF-REFLECTION",
-    "PHASE6": "ARCHIVE",
-}
-
-PHASE_COMMANDS = {
-    "PHASE0": "osx-phase0",
-    "PHASE1": "osx-phase1",
-    "PHASE2": "osx-phase2",
-    "PHASE3": "osx-phase3",
-    "PHASE4": "osx-phase4",
-    "PHASE5": "osx-phase5",
-    "PHASE6": "osx-phase6",
-}
 
 PHASE_AGENTS = {
     "PHASE0": "osx-analyzer",
@@ -69,19 +47,7 @@ def get_resources_dir() -> Path:
 
 
 def get_version() -> str:
-    manifest_path = get_resources_dir() / "opencode" / "manifest.toml"
-    if manifest_path.exists():
-        try:
-            manifest = toml.loads(manifest_path.read_text())
-            return (
-                manifest.get("resources", {})
-                .get("scripts", {})
-                .get("osx-orchestrate", {})
-                .get("version", "unknown")
-            )
-        except (toml.TomlDecodeError, KeyError, AttributeError):
-            pass
-    return "unknown"
+    return __version__
 
 
 @dataclass
@@ -342,27 +308,21 @@ def read_state(state: OrchestratorState) -> Optional[dict]:
     if state.change_dir is None:
         return None
 
-    state_file = state.change_dir / "state.json"
-    if not state_file.exists():
+    data = state_io.read_state(state.change_dir)
+    if data is None:
+        if (state.change_dir / "state.json").exists():
+            log_error(state, "State file is corrupted, cannot resume")
         return None
 
-    try:
-        data = json.loads(state_file.read_text())
-        phase = data.get("phase", "")
-        iteration = data.get("iteration", None)
-
-        if not phase or iteration is None:
-            log_error(state, "State file missing required fields")
-            return None
-
-        if phase not in PHASES and phase != "COMPLETE":
-            log_error(state, f"State file has invalid phase value: {phase}")
-            return None
-
-        return data
-    except json.JSONDecodeError:
-        log_error(state, "State file is corrupted, cannot resume")
+    phase = data.get("phase", "")
+    iteration = data.get("iteration", None)
+    if not phase or iteration is None:
+        log_error(state, "State file missing required fields")
         return None
+    if phase not in PHASES and phase != "COMPLETE":
+        log_error(state, f"State file has invalid phase value: {phase}")
+        return None
+    return data
 
 
 def write_state(
@@ -374,21 +334,12 @@ def write_state(
     if state.change_dir is None:
         return
 
-    state_file = state.change_dir / "state.json"
-    phase_iterations = {}
-
-    if state_file.exists():
-        try:
-            existing = json.loads(state_file.read_text())
-            phase_iterations = existing.get("phase_iterations", {})
-        except json.JSONDecodeError:
-            pass
-
-    current_count = phase_iterations.get(phase, 0)
-    new_count = current_count + 1
-    phase_iterations[phase] = new_count
+    existing = state_io.read_state(state.change_dir) or {}
+    phase_iterations = existing.get("phase_iterations", {})
+    phase_iterations[phase] = phase_iterations.get(phase, 0) + 1
 
     timestamp = get_timestamp()
+    existing_started_at = existing.get("started_at", timestamp)
     state_data = {
         "phase": phase,
         "phase_name": PHASE_NAMES.get(phase, "UNKNOWN"),
@@ -396,11 +347,11 @@ def write_state(
         "phase_complete": phase_complete,
         "total_invocations": state.total_invocations,
         "phase_iterations": phase_iterations,
-        "started_at": timestamp,
+        "started_at": existing_started_at,
         "last_updated": timestamp,
     }
 
-    state_file.write_text(json.dumps(state_data, indent=2))
+    state_io.write_state(state.change_dir, state_data)
     log_verbose(
         state,
         f"State updated: {phase} (iteration {iteration}, complete: {phase_complete})",
@@ -421,6 +372,23 @@ def get_phase_iteration(state: OrchestratorState) -> int:
     return 0
 
 
+def get_next_phase_iteration(state: OrchestratorState, phase: str) -> int:
+    """Return the iteration number to seed run_phase when resuming.
+
+    Reads the cumulative ``phase_iterations[phase]`` count from the
+    persisted state.json and returns ``count + 1`` so the next
+    ``write_state`` call increments into the following slot. Returns 1
+    when there is no persisted state (fresh start).
+    """
+    if state.change_dir is None:
+        return 1
+    data = state_io.read_state(state.change_dir)
+    if data is None:
+        return 1
+    phase_iterations = data.get("phase_iterations", {})
+    return phase_iterations.get(phase, 0) + 1
+
+
 def check_phase_complete(state: OrchestratorState) -> bool:
     data = read_state(state)
     if data:
@@ -429,19 +397,8 @@ def check_phase_complete(state: OrchestratorState) -> bool:
 
 
 def clear_phase_complete(state: OrchestratorState) -> None:
-    if state.change_dir is None:
-        return
-
-    state_file = state.change_dir / "state.json"
-    if not state_file.exists():
-        return
-
-    try:
-        data = json.loads(state_file.read_text())
-        data["phase_complete"] = False
-        state_file.write_text(json.dumps(data, indent=2))
-    except json.JSONDecodeError:
-        pass
+    if state.change_dir is not None:
+        state_io.clear_phase_complete(state.change_dir)
 
 
 def check_transition(state: OrchestratorState) -> tuple[bool, str]:
@@ -587,7 +544,7 @@ def run_agent(state: OrchestratorState, phase: str) -> bool:
 
 def run_phase(state: OrchestratorState, phase: str) -> bool:
     log(state, PHASE_NAMES.get(phase, phase))
-    iteration = 1
+    iteration = get_next_phase_iteration(state, phase)
 
     while iteration <= state.max_phase_iterations or state.max_phase_iterations == -1:
         state.total_invocations += 1

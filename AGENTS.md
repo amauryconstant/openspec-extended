@@ -66,7 +66,6 @@ Two distinct version domains, owned by separate tasks:
 
 **Project version** (owned by `mise run release`):
 - `source/__init__.py` — `__version__`
-- `source/cli.py` — `SCRIPT_VERSION` (alias of `__version__`)
 - `pyproject.toml` — `version`
 - `README.md` — version badge + install example
 - `uv.lock` — synced after `pyproject.toml` bump
@@ -133,7 +132,7 @@ the binary is always current.
 source/
 ├── __init__.py          # __version__
 ├── __main__.py          # Entry: python -m source
-├── cli.py               # Typer CLI (install/update/orchestrate) + SCRIPT_VERSION
+├── cli.py               # Typer CLI (install/update/orchestrate)
 ├── lib/
 │   └── osx.py           # Change management (baseline, ctx, git, phase, state)
 └── orchestrator/
@@ -203,7 +202,7 @@ license: MIT
 Two flows, separate concerns:
 
 ```bash
-# Project release (bumps source/cli.py, source/__init__.py, pyproject.toml,
+# Project release (bumps source/__init__.py, pyproject.toml,
 # README.md, uv.lock, git tag)
 mise run release patch
 
@@ -212,7 +211,7 @@ mise run version:check       # reports what needs bumping
 mise run version:update      # applies the bumps
 ```
 
-Do not edit `SCRIPT_VERSION` / `__version__` / `[project] version` by hand —
+Do not edit `__version__` / `[project] version` by hand —
 those files are owned by `mise run release` and are intentionally outside
 the scope of `version:check`/`version:update`.
 

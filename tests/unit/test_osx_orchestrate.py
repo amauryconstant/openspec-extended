@@ -20,6 +20,7 @@ from source.orchestrator.engine import (
     get_transition_reason,
     get_transition_details,
     check_phase_complete,
+    get_version,
     log_verbose,
     advance_phase,
     archive_log_file,
@@ -202,6 +203,24 @@ class TestPhaseLookup:
         assert PHASE_AGENTS["PHASE4"] == "osx-maintainer"
         assert PHASE_AGENTS["PHASE5"] == "osx-reviewer"
         assert PHASE_AGENTS["PHASE6"] == "osx-maintainer"
+
+
+@pytest.mark.unit
+class TestGetVersion:
+    """``get_version`` must return the package ``__version__``, not ``unknown``."""
+
+    def test_get_version_returns_package_version(self):
+        from source import __version__
+
+        assert get_version() == __version__
+
+    def test_get_version_is_not_unknown(self):
+        assert get_version() != "unknown"
+
+    def test_get_version_is_nonempty_string(self):
+        version = get_version()
+        assert isinstance(version, str)
+        assert version
 
 
 @pytest.mark.unit
