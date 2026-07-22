@@ -52,6 +52,34 @@ def e2e_repo(tmp_path):
         scripts_dir.mkdir(parents=True)
         (opencode_target / "manifest.toml").write_text(manifest.read_text())
 
+    # Regardless of source, ensure stub skills + phase commands exist so the
+    # orchestrator's preflight (Fix 5: always runs) can pass validate_skills
+    # and validate_commands.
+    skills_dir = opencode_target / "skills"
+    for skill in (
+        "osx-concepts",
+        "osx-workflow",
+        "osx-review-artifacts",
+        "osx-modify-artifacts",
+        "osx-review-test-compliance",
+        "osx-maintain-ai-docs",
+        "osc-apply-change",
+        "osc-verify-change",
+        "osc-sync-specs",
+        "osc-archive-change",
+    ):
+        skill_path = skills_dir / skill / "SKILL.md"
+        if not skill_path.exists():
+            (skills_dir / skill).mkdir(parents=True, exist_ok=True)
+            skill_path.write_text("# stub")
+
+    commands_dir = opencode_target / "commands"
+    commands_dir.mkdir(parents=True, exist_ok=True)
+    for phase in range(7):
+        cmd_file = commands_dir / f"osx-phase{phase}.md"
+        if not cmd_file.exists():
+            cmd_file.write_text("# stub")
+
     changes_dir = tmp_path / "openspec" / "changes"
     changes_dir.mkdir(parents=True, exist_ok=True)
 
