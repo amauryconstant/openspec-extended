@@ -4,6 +4,7 @@ Unit tests for openspec-extended CLI and deployment logic.
 """
 
 import json
+from pathlib import Path
 
 import toml
 
@@ -211,7 +212,7 @@ class TestDeploymentLogic:
         """get_resources_dir returns the correct resources path."""
         resources = get_resources_dir()
         assert resources.name == "resources"
-        assert resources.parent.name == "OpenSpec-extended"
+        assert resources.parent == Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.unit
