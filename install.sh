@@ -3,7 +3,7 @@
 # Usage: curl -sSL https://raw.githubusercontent.com/<org>/OpenSpec-extended/main/install.sh | bash
 #
 # Options (via environment variables):
-#   VERSION=v0.19.0   - Install specific version (default: latest)
+#   VERSION=v1.2.1    - Install specific version (default: latest)
 #   PREFIX=/usr/local - Install prefix (default: ~/.local)
 #   REPO=org/repo     - GitHub repository (default: amauryconstant/openspec-extended)
 #   BASE_URL=url      - Override the release host (used for testing)
@@ -67,7 +67,7 @@ Usage:
   ./install.sh [options]
 
 Environment Variables:
-  VERSION=v0.19.0   Install specific version (default: latest)
+  VERSION=v1.2.1    Install specific version (default: latest)
   PREFIX=/usr/local Install prefix (default: ~/.local)
   REPO=org/repo     GitHub repository (default: amauryconstant/openspec-extended)
   BASE_URL=url      Override the release host (for testing)
@@ -82,7 +82,7 @@ Examples:
   curl -sSL https://.../install.sh | bash
 
   # Install specific version
-  VERSION=v0.19.0 curl -sSL https://.../install.sh | bash
+  VERSION=v1.2.1 curl -sSL https://.../install.sh | bash
 
   # System-wide install
   PREFIX=/usr/local curl -sSL https://.../install.sh | bash

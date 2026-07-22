@@ -155,7 +155,7 @@ openspec-extended osx schema fork spec-driven my-flow
 | Resume from interrupted state | no | yes — `state.json` round-trip |
 | Decision log (`decision-log.json`) | no | yes — phase-by-phase audit trail |
 | Iteration budget per phase | no | yes — `DEFAULT_MAX_PHASE_ITERATIONS = 10` |
-| Extension skills and agents | no | yes — 8 skills + 3 agents |
+| Extension skills and agents | no | yes — 8 skills + 4 agents |
 | Per-phase model selection | no | planned Sprint 7 |
 | Bulk orchestration | no | planned Sprint 7 |
 | Transcript replay | no | planned Sprint 7 |

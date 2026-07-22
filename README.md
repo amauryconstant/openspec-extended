@@ -12,20 +12,20 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 | ------------------------- | ------------- | --------------------- |
 | Manual change workflows   | ✓ 11 commands | ✓ (via `--with-core`) |
 | Autonomous implementation | ✗             | ✓ 7-phase loop        |
-| Specialized agents        | ✗             | ✓ 3 agents            |
+| Specialized agents        | ✗             | ✓ 4 agents            |
 | Utility skills            | ✗             | ✓ 8 skills            |
 | Unified CLI surface       | ✓             | ✓ (passthrough + ext) |
 
 **Key additions:**
 
 - **Autonomous workflow** — Run end-to-end implementation without manual intervention
-- **Specialized agents** — Analyzer (0.1 temp), Builder (0.4 temp), Maintainer (0.3 temp)
-- **Utility skills** — Concepts, modify artifacts, review artifacts, changelogs, test compliance, AI docs
+- **Specialized agents** — Analyzer (PHASE0, read-only, 0.1 temp), Builder (PHASE1, write-capable, 0.4 temp), Reviewer (PHASE2/PHASE5, write-capable, 0.1 temp), Maintainer (PHASE3/PHASE4/PHASE6, write-capable, 0.3 temp)
+- **Utility skills** — Concepts, workflow, artifact modification and review, changelogs, test compliance, AI docs, commits
 - **Unified CLI surface** — All upstream OpenSpec commands (`validate`, `list`, `show`, `status`, `instructions`, `templates`, `schemas`, `init`, `update`, `feedback`, `completion`) plus the 7-phase orchestrator under one binary.
 
 ## Requirements
 
-- [OpenSpec](https://github.com/Fission-AI/OpenSpec) v1.5.0+ (recommended)
+- [OpenSpec](https://github.com/Fission-AI/OpenSpec) v1.6.0+ (recommended)
 - Python 3.12 or higher (only for building from source)
 - No Python needed when installing the prebuilt binary
 
@@ -64,7 +64,7 @@ The entry point `openspec-extended` is registered automatically.
 
 ```bash
 openspec-extended --version
-# openspec-extended 0.19.0
+# openspec-extended 1.2.1
 ```
 
 ## Setup in Your Project
@@ -129,19 +129,22 @@ openspec-extended feedback "love the new flow" --body "Detailed description..."
 | Skill                        | Purpose                                        |
 | ---------------------------- | ---------------------------------------------- |
 | `osx-concepts`               | Teaches AI agents about OpenSpec framework     |
+| `osx-workflow`               | Explains tool layers and autonomous workflow   |
 | `osx-modify-artifacts`       | Modifies artifacts with dependency tracking    |
 | `osx-review-artifacts`       | Reviews artifacts for quality and completeness |
 | `osx-generate-changelog`     | Generate changelogs (Keep a Changelog format)  |
 | `osx-review-test-compliance` | Review test coverage for OpenSpec changes      |
 | `osx-maintain-ai-docs`       | Maintain AGENTS.md and CLAUDE.md               |
+| `osx-commit`                 | Create commits matching project conventions    |
 
 ### Specialized Agents
 
 | Agent              | Purpose                 | Tools                               | Temp |
 | ------------------ | ----------------------- | ----------------------------------- | ---- |
-| `osx-analyzer`     | Review, verify, reflect | read, grep, glob, bash              | 0.1  |
-| `osx-builder`      | Implementation          | read, grep, glob, bash, write, edit, todowrite | 0.4  |
-| `osx-maintainer`   | Docs, sync, archive     | read, grep, glob, bash, write, edit | 0.3  |
+| `osx-analyzer`     | Read-only audit (PHASE0) | read, grep, glob, bash             | 0.1  |
+| `osx-builder`      | Implementation (PHASE1)  | read, grep, glob, bash, write, edit, todowrite | 0.4  |
+| `osx-reviewer`     | Verify + reflect (PHASE2/PHASE5) | read, grep, glob, bash, write, edit | 0.1  |
+| `osx-maintainer`   | Docs, sync, archive (PHASE3/PHASE4/PHASE6) | read, grep, glob, bash, write, edit | 0.3  |
 
 ## Autonomous Workflow
 
@@ -227,8 +230,8 @@ OpenSpec-extended/
 ├── openspec-core/           # Core workflows (synced from upstream)
 ├── resources/
 │   ├── opencode/            # OpenCode resources
-│   │   ├── skills/          # 6 extension skills
-│   │   ├── agents/          # 3 agent definitions
+│   │   ├── skills/          # 8 extension skills
+│   │   ├── agents/          # 4 agent definitions
 │   │   └── commands/        # Phase commands + osx-* utilities
 │   └── claude/              # Claude Code resources (same structure)
 ├── tests/                   # pytest + bats suite (unit/integration/mechanism/e2e)

@@ -4,6 +4,7 @@ OpenSpec-extended - Unified CLI for OpenSpec resources and autonomous workflow
 """
 
 import json
+import os
 import re
 import shutil
 import subprocess
