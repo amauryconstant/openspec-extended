@@ -16,6 +16,7 @@ postinstall = ["mise run sync-core", "uv sync --all-extras"]
 
 [tasks.verify]
 description = "Ensure the quality of the project"
+depends = ["build --log-level FATAL"]
 run = [
     { task = "typecheck" },
     { task = "format" },
@@ -39,6 +40,7 @@ run = "uv run pytest -m unit -q"
 
 [tasks."test:unit:bats"]
 description = "Run bats unit tests for install.sh"
+depends = "build --log-level FATAL"
 run = "bats tests/unit/install.bats"
 
 [tasks."test:integration"]
@@ -51,13 +53,13 @@ run = "uv run pytest -m mechanism -q"
 
 [tasks."test:mechanism:bats"]
 description = "Run bats mechanism tests against built binary (no AI calls)"
-depends = "build"
+depends = "build --log-level FATAL"
 run = "bats tests/e2e/mechanism.bats"
 
 [tasks."test:e2e"]
 description = "Run E2E full workflow tests"
 env = { "E2E_CONFIRM" = "1" }
-depends = "build"
+depends = "build --log-level FATAL"
 run = "bats tests/e2e/full-workflow.bats"
 
 [tasks.lint]

@@ -11,14 +11,15 @@ load '../helpers/test-helpers'
 
 SERVER_PORT=18181
 SERVER_PID=""
-TARBALL_NAME="openspec-extended-v0.19.0-linux-x86_64.tar.gz"
+FIXTURE_VERSION="$(cat "$FIXTURES_DIR/install/VERSION")"
+TARBALL_NAME="openspec-extended-v${FIXTURE_VERSION}-linux-x86_64.tar.gz"
 
 setup_file() {
     FIXTURE_DIR="$FIXTURES_DIR/install"
-    bash "$FIXTURE_DIR/pack.sh" 0.19.0 linux-x86_64
-    TARBALL_PATH="$FIXTURE_DIR/releases/download/v0.19.0/$TARBALL_NAME"
+    bash "$FIXTURE_DIR/pack.sh" "$FIXTURE_VERSION" linux-x86_64
+    TARBALL_PATH="$FIXTURE_DIR/releases/download/v$FIXTURE_VERSION/$TARBALL_NAME"
     [[ -f "$TARBALL_PATH" ]]
-    [[ -f "$FIXTURE_DIR/releases/download/v0.19.0/SHA256SUMS" ]]
+    [[ -f "$FIXTURE_DIR/releases/download/v$FIXTURE_VERSION/SHA256SUMS" ]]
 
     python3 -m http.server "$SERVER_PORT" --directory "$FIXTURE_DIR" \
         >/dev/null 2>&1 &
@@ -27,7 +28,7 @@ setup_file() {
     # Wait briefly for the server to start accepting connections.
     local i
     for i in {1..50}; do
-        if curl -sf "http://127.0.0.1:${SERVER_PORT}/releases/download/v0.19.0/SHA256SUMS" >/dev/null 2>&1; then
+        if curl -sf "http://127.0.0.1:${SERVER_PORT}/releases/download/v$FIXTURE_VERSION/SHA256SUMS" >/dev/null 2>&1; then
             return 0
         fi
         sleep 0.1
@@ -66,7 +67,7 @@ run_install() {
         BASE_URL="$BASE_URL_LOCAL" \
         BASE_URL_GITHUB="$BASE_URL_LOCAL" \
         REPO=test/test \
-        VERSION=v0.19.0 \
+VERSION=v$FIXTURE_VERSION \
         bash "$INSTALL_SCRIPT" "$@"
 }
 
@@ -265,7 +266,7 @@ run_install() {
 @test "install: end-to-end install via BASE_URL produces runnable binary" {
     local prefix="$TEST_DIR/.local"
     run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" \
-        PREFIX="$prefix" REPO=test/test VERSION=v0.19.0 \
+        PREFIX="$prefix" REPO=test/test VERSION=v$FIXTURE_VERSION \
         BASE_URL="$BASE_URL_LOCAL" \
         bash "$INSTALL_SCRIPT" 2>&1
     echo "STATUS=$status"
@@ -275,24 +276,24 @@ run_install() {
 
     run "$prefix/bin/openspec-extended" --version
     [ "$status" -eq 0 ]
-    [[ "$output" == *"0.19.0"* ]]
+    [[ "$output" == *"$FIXTURE_VERSION"* ]]
 }
 
 @test "install: rejects tarball with bad SHA256SUMS" {
     # Overwrite SHA256SUMS with a checksum that doesn't match the tarball.
     echo "0000000000000000000000000000000000000000000000000000000000000000  $TARBALL_NAME" \
-        > "$FIXTURES_DIR/install/releases/download/v0.19.0/SHA256SUMS"
+        > "$FIXTURES_DIR/install/releases/download/v$FIXTURE_VERSION/SHA256SUMS"
 
     local prefix="$TEST_DIR/.local"
     run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" \
-        PREFIX="$prefix" REPO=test/test VERSION=v0.19.0 \
+        PREFIX="$prefix" REPO=test/test VERSION=v$FIXTURE_VERSION \
         BASE_URL="$BASE_URL_LOCAL" \
         bash "$INSTALL_SCRIPT" 2>&1
     [ "$status" -ne 0 ]
     [[ "$output" == *"Checksum verification failed"* ]]
 
     # Restore the correct checksums so other tests can use the fixture.
-    bash "$FIXTURES_DIR/install/pack.sh" 0.19.0 linux-x86_64 >/dev/null
+    bash "$FIXTURES_DIR/install/pack.sh" "$FIXTURE_VERSION" linux-x86_64 >/dev/null
 }
 
 @test "install: --uninstall removes the installed binary" {
@@ -300,14 +301,14 @@ run_install() {
 
     # First install
     env -i HOME="$TEST_HOME" PATH="$TEST_PATH" \
-        PREFIX="$prefix" REPO=test/test VERSION=v0.19.0 \
+        PREFIX="$prefix" REPO=test/test VERSION=v$FIXTURE_VERSION \
         BASE_URL="$BASE_URL_LOCAL" \
         bash "$INSTALL_SCRIPT" >/dev/null 2>&1
     [ -x "$prefix/bin/openspec-extended" ]
 
     # Then uninstall, with confirmation
     run env -i HOME="$TEST_HOME" PATH="$TEST_PATH" \
-        PREFIX="$prefix" REPO=test/test VERSION=v0.19.0 \
+        PREFIX="$prefix" REPO=test/test VERSION=v$FIXTURE_VERSION \
         BASE_URL="$BASE_URL_LOCAL" \
         bash "$INSTALL_SCRIPT" --uninstall <<< "y" 2>&1
     [ "$status" -eq 0 ]
