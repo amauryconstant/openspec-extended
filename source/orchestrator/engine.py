@@ -534,6 +534,12 @@ def run_agent(state: OrchestratorState, phase: str) -> bool:
 
     from source.orchestrator.runner import RunRequest
 
+    # Child PID is captured *via callback* inside runner.run() before
+    # the subprocess enters wait(). This keeps the SIGINT/SIGTERM handler
+    # in handle_interrupt() able to cancel a live AI subprocess.
+    def _capture_pid(pid: int) -> None:
+        state.child_pid = pid
+
     request = RunRequest(
         command=cmd_name,
         agent=agent_name,
@@ -542,6 +548,7 @@ def run_agent(state: OrchestratorState, phase: str) -> bool:
         model=state.model,
         cwd=Path.cwd(),
         timeout=state.timeout,
+        on_pid=_capture_pid,
     )
 
     try:
@@ -550,7 +557,10 @@ def run_agent(state: OrchestratorState, phase: str) -> bool:
         log_error(state, e.message)
         return False
 
-    state.child_pid = result.pid
+    # Defensive: if the runner didn't fire the callback for any reason,
+    # still capture the post-hoc pid as a fallback.
+    if state.child_pid is None:
+        state.child_pid = result.pid
 
     if state.log_file and result.log_path and result.log_path.exists():
         with open(state.log_file, "a") as log_f:
@@ -714,21 +724,40 @@ def archive_log_file(state: OrchestratorState) -> bool:
     return True
 
 
+def _terminate_child(state: OrchestratorState) -> None:
+    """Send SIGTERM to the live AI subprocess, escalating to its whole group.
+
+    On POSIX, the runner spawns the child via ``os.setsid`` so the AI's own
+    subprocesses inherit a fresh pgid. We signal the group so the runner
+    and any spawned worker die together. On Windows (TODO), use
+    ``CREATE_NEW_PROCESS_GROUP`` + ``CTRL_BREAK_EVENT``.
+    """
+    if not state.child_pid:
+        return
+    try:
+        if sys.platform != "win32":
+            try:
+                pgid = os.getpgid(state.child_pid)
+                os.killpg(pgid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, OSError):
+                # Fall back to direct kill if pgid discovery fails (e.g. /
+                # child died between capture and signal).
+                os.kill(state.child_pid, signal.SIGTERM)
+        else:
+            # TODO(Windows follow-up): send CTRL_BREAK_EVENT via the child's
+            # process group; fall back to terminate() for now.
+            os.kill(state.child_pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
 def handle_interrupt(signum, frame, state: OrchestratorState) -> None:
     state.interrupted = True
-    if state.child_pid:
-        try:
-            os.kill(state.child_pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
-            pass
+    _terminate_child(state)
 
 
 def cleanup(state: OrchestratorState, exit_code: int) -> None:
-    if state.child_pid:
-        try:
-            os.kill(state.child_pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
-            pass
+    _terminate_child(state)
 
     if state.interrupted:
         log(state, "")

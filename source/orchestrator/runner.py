@@ -10,6 +10,7 @@ The runner is selected automatically by `detect_runner(project_root)` based
 on which tool directory (.opencode/ or .claude/) is present.
 """
 
+import os
 import re
 import shutil
 import subprocess
@@ -18,9 +19,11 @@ import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import Callable, Optional, Protocol
 
 from source.lib.osx import OSXError
+
+OnPidCallback = Callable[[int], None]
 
 
 @dataclass
@@ -34,6 +37,7 @@ class RunRequest:
     model: str = ""
     cwd: Optional[Path] = None
     timeout: int = 1800
+    on_pid: Optional[OnPidCallback] = None
 
 
 @dataclass
@@ -107,7 +111,13 @@ class OpencodeRunner:
         if request.model:
             cmd.append(f"--model={request.model}")
 
-        return _run_with_logging(cmd, request, verbose=verbose, label=request.agent)
+        return _run_with_logging(
+            cmd,
+            request,
+            verbose=verbose,
+            label=request.agent,
+            on_pid=request.on_pid,
+        )
 
 
 class ClaudeRunner:
@@ -132,7 +142,13 @@ class ClaudeRunner:
         if request.model:
             cmd.extend(["--model", request.model])
 
-        return _run_with_logging(cmd, request, verbose=verbose, label=request.agent)
+        return _run_with_logging(
+            cmd,
+            request,
+            verbose=verbose,
+            label=request.agent,
+            on_pid=request.on_pid,
+        )
 
 
 def _run_with_logging(
@@ -141,10 +157,21 @@ def _run_with_logging(
     *,
     verbose: bool,
     label: str,
+    on_pid: Optional[OnPidCallback] = None,
 ) -> RunResult:
     """Spawn a subprocess, stream output, strip ANSI, return exit code.
 
     Mirrors the opencode invocation pattern in source/orchestrator/engine.py:498-546.
+
+    If ``on_pid`` is provided, it is invoked with ``process.pid`` *immediately*
+    after ``Popen`` returns — before ``process.wait()`` — so the caller's
+    state has a live PID for cancellation. The callback fires synchronously
+    inside this function; it must not block.
+
+    On POSIX, the child is spawned in its own session via ``os.setsid`` so the
+    engine can terminate the whole process group with ``killpg`` if the child
+    becomes unresponsive. On Windows, falls back to ``CREATE_NEW_PROCESS_GROUP``
+    (``creationflags``); see TODO(Windows follow-up).
     """
     try:
         with tempfile.NamedTemporaryFile(
@@ -154,15 +181,33 @@ def _run_with_logging(
 
         agent_log_file = open(log_path, "w", buffering=1)
 
-        process = subprocess.Popen(
-            cmd,
+        popen_kwargs: dict = dict(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
             cwd=request.cwd,
         )
+        # Use a new session / process group so we can signal the whole tree
+        # if the AI runner spawns child processes of its own.
+        if sys.platform != "win32":
+            popen_kwargs["preexec_fn"] = os.setsid
+        else:
+            # TODO(Windows follow-up): add creationflags=CREATE_NEW_PROCESS_GROUP
+            # and use signal.CTRL_BREAK_EVENT when terminating.
+            popen_kwargs["creationflags"] = getattr(
+                subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+            )
+
+        process = subprocess.Popen(cmd, **popen_kwargs)
         pid = process.pid
+        # Hand the PID to the caller BEFORE waiting — so cancellation
+        # handlers (SIGINT in engine.handle_interrupt) can kill the live child.
+        if on_pid is not None:
+            try:
+                on_pid(pid)
+            except Exception:
+                pass
 
         def _stream() -> None:
             stdout = process.stdout
