@@ -1001,6 +1001,24 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
                 log_error(state, "Required tool not found: openspec")
                 raise SystemExit(1)
 
+            # Enforce the orchestrator's minimum openspec core version.
+            # The v1.5 line lacks openspec-update-change, which PHASE2
+            # Case A routes to; orchestrator would silently no-op.
+            core_version = osx_lib.get_core_version()
+            if core_version is None or core_version < osx_lib.MIN_OPENSPEC_VERSION:
+                found = (
+                    ".".join(str(n) for n in core_version)
+                    if core_version
+                    else "unknown"
+                )
+                log_error(
+                    state,
+                    f"OpenSpec >= {'.'.join(str(n) for n in osx_lib.MIN_OPENSPEC_VERSION)} "
+                    f"required for the orchestrator; found {found}. "
+                    f"Run: npm install -g @fission-ai/openspec@latest",
+                )
+                raise SystemExit(2)
+
             platform = osx_lib.detect_platform(Path.cwd())
             ai_binary = "opencode" if platform == "opencode" else "claude"
             try:

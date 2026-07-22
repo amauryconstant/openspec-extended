@@ -18,6 +18,7 @@ parsing.
 """
 
 import json
+import re
 import select
 import subprocess
 import sys
@@ -54,6 +55,37 @@ VALID_TRANSITION_REASONS = [
     "artifacts_modified",
     "retry_requested",
 ]
+
+MIN_OPENSPEC_VERSION: tuple[int, int, int] = (1, 6, 0)
+
+
+def get_core_version(timeout: int = 10) -> Optional[tuple[int, int, int]]:
+    """Parse `openspec --version` stdout into a (major, minor, patch) tuple.
+
+    Returns None if the binary is missing, errors, or the version cannot
+    be parsed. Used by the orchestrator to enforce the minimum core version
+    before relying on v1.6.0 workflows (notably ``openspec-update-change``).
+    """
+    try:
+        result = subprocess.run(
+            ["openspec", "--version"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=timeout,
+        )
+    except (
+        FileNotFoundError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        OSError,
+    ):
+        return None
+    m = re.search(r"(\d+)\.(\d+)\.(\d+)", result.stdout or "")
+    if not m:
+        return None
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
 
 LOG_TEXT_FIELD_MAX_LENGTH = 2000
 
