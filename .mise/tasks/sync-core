@@ -63,11 +63,6 @@ pull_subtree() {
 }
 
 build_subtree() {
-    cat > "$SUBTREE_DIR/pnpm-workspace.yaml" <<'EOF'
-allowBuilds:
-  esbuild: true
-EOF
-
     log_info "Installing dependencies..."
     (
         cd "$SUBTREE_DIR"
@@ -85,7 +80,7 @@ write_custom_profile() {
 {
   "profile": "custom",
   "delivery": "both",
-  "workflows": ["propose", "explore", "new", "continue", "apply", "ff", "sync", "archive", "bulk-archive", "verify", "onboard"]
+  "workflows": ["propose", "explore", "new", "continue", "apply", "update", "ff", "sync", "archive", "bulk-archive", "verify", "onboard"]
 }
 CONFIGEOF
 }
@@ -102,6 +97,7 @@ generate_ai_files() {
 
     sync_tree .claude "$gen_dir/.claude"
     sync_tree .opencode "$gen_dir/.opencode"
+    trap - EXIT
 }
 
 sync_tree() {
