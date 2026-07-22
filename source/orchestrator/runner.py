@@ -38,6 +38,7 @@ class RunRequest:
     cwd: Optional[Path] = None
     timeout: int = 1800
     on_pid: Optional[OnPidCallback] = None
+    env: dict[str, str] | None = None
 
 
 @dataclass
@@ -187,6 +188,7 @@ def _run_with_logging(
             text=True,
             bufsize=1,
             cwd=request.cwd,
+            env=os.environ | (request.env or {}),
         )
         # Use a new session / process group so we can signal the whole tree
         # if the AI runner spawns child processes of its own.
@@ -206,8 +208,11 @@ def _run_with_logging(
         if on_pid is not None:
             try:
                 on_pid(pid)
-            except Exception:
-                pass
+            except Exception as error:
+                print(
+                    f"Warning: PID callback failed for process {pid}: {error}",
+                    file=sys.stderr,
+                )
 
         def _stream() -> None:
             stdout = process.stdout

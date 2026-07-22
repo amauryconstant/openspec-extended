@@ -337,14 +337,23 @@ def update_gitignore() -> None:
         ".openspec-baseline.json",
         CORE_BASELINE_FILENAME,
         "openspec/changes/*/state.json",
+        "!openspec/changes/archive/**/state.json",
         "openspec/changes/*/complete.json",
+        "!openspec/changes/archive/**/complete.json",
         "openspec/changes/*/iterations.json",
+        "!openspec/changes/archive/**/iterations.json",
         "openspec/changes/*/decision-log.json",
+        "!openspec/changes/archive/**/decision-log.json",
         "openspec/changes/*/verification-report.md",
+        "!openspec/changes/archive/**/verification-report.md",
         "openspec/changes/*/reflections.md",
+        "!openspec/changes/archive/**/reflections.md",
         "openspec/changes/*/test-compliance-report.md",
+        "!openspec/changes/archive/**/test-compliance-report.md",
         "openspec/changes/*/suggestions.md",
+        "!openspec/changes/archive/**/suggestions.md",
         ".osx-orchestrate-*.log",
+        "!openspec/changes/archive/**/.osx-orchestrate-*.log",
         marker_end,
     ]
     gitignore.write_text(content + "\n".join(entries) + "\n")
@@ -754,6 +763,8 @@ def orchestrate(
     if not list_changes and not change_name:
         log_error("orchestrate: missing change ID (or pass --list)")
         raise typer.Exit(code=2)
+
+    os.environ["OSX_AUTONOMOUS"] = "1"
 
     parsed_store: Optional[str] = None
     parsed_change = change_name

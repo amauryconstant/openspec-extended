@@ -54,11 +54,17 @@ class TestResolveSchema:
         result = resolve_schema(project_root=tmp_path)
         assert result == {"name": "spec-driven", "source": "default"}
 
-    def test_malformed_yaml_falls_through(self, tmp_path: Path) -> None:
+    def test_malformed_yaml_falls_through(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         (tmp_path / "openspec").mkdir()
-        (tmp_path / "openspec" / "config.yaml").write_text("schema: : invalid\n")
+        config_path = tmp_path / "openspec" / "config.yaml"
+        config_path.write_text("schema: : invalid\n")
         result = resolve_schema(project_root=tmp_path)
+        captured = capsys.readouterr()
         assert result == {"name": "spec-driven", "source": "default"}
+        assert "Warning: Could not load schema configuration" in captured.err
+        assert str(config_path) in captured.err
 
     def test_empty_schema_field_falls_through(self, tmp_path: Path) -> None:
         (tmp_path / "openspec").mkdir()

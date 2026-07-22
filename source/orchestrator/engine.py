@@ -506,6 +506,7 @@ def run_agent(state: OrchestratorState, phase: str) -> bool:
         cwd=Path.cwd(),
         timeout=state.timeout,
         on_pid=_capture_pid,
+        env={"OSX_AUTONOMOUS": "1"},
     )
 
     try:

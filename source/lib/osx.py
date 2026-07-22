@@ -28,6 +28,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+import yaml
+
 from source.lib import state_io
 
 PHASES = ["PHASE0", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "PHASE5", "PHASE6"]
@@ -1080,7 +1082,12 @@ def complete_set(
     timestamp = get_timestamp()
     status_value = status or "COMPLETE"
 
-    if status_value == "BLOCKED" and blocker_reason:
+    if status_value == "BLOCKED":
+        if not blocker_reason:
+            raise OSXError(
+                "invalid_blocker",
+                "BLOCKED status requires --blocker-reason",
+            )
         data = {
             "status": status_value,
             "with_blocker": True,
@@ -1437,8 +1444,30 @@ def _translate_validate_payload(payload: dict) -> dict:
                 info.append(entry)
 
     summary = payload.get("summary", {})
+    failed = summary.get("totals", {}).get("failed")
+    if failed is None:
+        warnings.append(
+            {
+                "code": "unverifiable_envelope",
+                "severity": "warning",
+                "check": "unverifiable_envelope",
+                "message": (
+                    "Upstream validate envelope is missing summary.totals.failed; "
+                    "result is unverifiable"
+                ),
+            }
+        )
+        return {
+            "valid": None,
+            "errors": errors,
+            "warnings": warnings,
+            "info": info,
+            "items": items_out,
+            "summary": summary,
+            "root": payload.get("root", {}),
+        }
     return {
-        "valid": summary.get("totals", {}).get("failed", 0) == 0,
+        "valid": failed == 0,
         "errors": errors,
         "warnings": warnings,
         "info": info,
@@ -1569,8 +1598,6 @@ def resolve_schema(
         change_meta = change_dir / ".openspec.yaml"
         if change_meta.exists():
             try:
-                import yaml
-
                 data = yaml.safe_load(change_meta.read_text())
                 if (
                     isinstance(data, dict)
@@ -1578,15 +1605,16 @@ def resolve_schema(
                     and data["schema"]
                 ):
                     return {"name": data["schema"], "source": "change-metadata"}
-            except Exception:
-                pass
+            except (yaml.YAMLError, OSError) as error:
+                print(
+                    f"Warning: Could not load schema configuration {change_meta}: {error}",
+                    file=sys.stderr,
+                )
 
     for config_name in ("config.yaml", "config.yml"):
         config_path = project_root / "openspec" / config_name
         if config_path.exists():
             try:
-                import yaml
-
                 data = yaml.safe_load(config_path.read_text())
                 if (
                     isinstance(data, dict)
@@ -1594,8 +1622,11 @@ def resolve_schema(
                     and data["schema"]
                 ):
                     return {"name": data["schema"], "source": "project-config"}
-            except Exception:
-                pass
+            except (yaml.YAMLError, OSError) as error:
+                print(
+                    f"Warning: Could not load schema configuration {config_path}: {error}",
+                    file=sys.stderr,
+                )
 
     return {"name": "spec-driven", "source": "default"}
 

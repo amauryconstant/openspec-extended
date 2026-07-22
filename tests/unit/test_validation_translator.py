@@ -168,6 +168,55 @@ class TestTranslateValidatePayload:
         assert result["valid"] is True
         assert result["errors"] == []
 
+    def test_missing_failed_returns_unverifiable(self):
+        """A success envelope without summary.totals.failed is unverifiable.
+
+        Returns valid=None (unknown) and emits a warning diagnostic so callers
+        downstream do not silently treat a malformed upstream payload as a
+        pass. Any pre-existing per-item warnings are preserved alongside the
+        new diagnostic.
+        """
+        payload = {
+            "items": [
+                {
+                    "id": "spec-w",
+                    "type": "spec",
+                    "valid": True,
+                    "issues": [
+                        {"level": "WARNING", "path": "overview", "message": "too brief"},
+                    ],
+                }
+            ],
+            "summary": {"totals": {"items": 1, "passed": 1}},
+            "version": "1.0",
+            "root": {"path": "/tmp/proj", "source": "nearest"},
+        }
+        result = osx._translate_validate_payload(payload)
+        assert result["valid"] is None
+        codes = [w.get("code") for w in result["warnings"]]
+        assert "unverifiable_envelope" in codes
+        envelope_warning = next(
+            w for w in result["warnings"] if w.get("code") == "unverifiable_envelope"
+        )
+        assert envelope_warning["severity"] == "warning"
+        assert "summary.totals.failed" in envelope_warning["message"]
+        assert result["root"]["source"] == "nearest"
+        assert any(w.get("message") == "too brief" for w in result["warnings"])
+
+    def test_missing_totals_returns_unverifiable(self):
+        """summary present but totals absent is also unverifiable."""
+        payload = {
+            "items": [],
+            "summary": {},
+            "version": "1.0",
+            "root": {},
+        }
+        result = osx._translate_validate_payload(payload)
+        assert result["valid"] is None
+        assert any(
+            w.get("code") == "unverifiable_envelope" for w in result["warnings"]
+        )
+
 
 @pytest.mark.unit
 class TestValidateChange:

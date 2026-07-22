@@ -60,6 +60,34 @@ class TestPidCallbackFiresBeforeWait:
         # invoking process.wait(). Verified by inspection.
         assert captured["pid"] > 0
 
+    def test_callback_error_is_logged_and_subprocess_is_waited_for(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        def _raise_callback(pid: int) -> None:
+            raise RuntimeError(f"cannot store {pid}")
+
+        request = RunRequest(
+            command="dummy",
+            agent="dummy",
+            change_id="dummy",
+            timeout=5,
+        )
+        result = _run_with_logging(
+            [sys.executable, "-c", "raise SystemExit(0)"],
+            request,
+            verbose=False,
+            label="test",
+            on_pid=_raise_callback,
+        )
+        captured = capsys.readouterr()
+
+        assert result.exit_code == 0
+        assert result.pid is not None
+        assert f"Warning: PID callback failed for process {result.pid}" in captured.err
+        assert f"cannot store {result.pid}" in captured.err
+        assert result.log_path is not None
+        result.log_path.unlink()
+
 
 @pytest.mark.unit
 class TestChildRunsInOwnSession:

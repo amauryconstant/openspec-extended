@@ -187,3 +187,31 @@ class TestClaudeRunner:
         )
         idx = captured["cmd"].index("--model")
         assert captured["cmd"][idx + 1] == "claude-opus-4"
+
+    def test_env_is_merged_and_forwarded(self, monkeypatch):
+        from source.orchestrator.runner import OpencodeRunner, RunRequest
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["env"] = kwargs["env"]
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 4242
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        OpencodeRunner().run(
+            RunRequest(
+                command="osx-phase0",
+                agent="osx-analyzer",
+                change_id="my-change",
+                env={"OSX_AUTONOMOUS": "1"},
+            )
+        )
+
+        import os
+
+        assert captured["env"]["OSX_AUTONOMOUS"] == "1"
+        assert captured["env"]["PATH"] == os.environ["PATH"]
