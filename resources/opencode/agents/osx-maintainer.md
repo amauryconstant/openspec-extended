@@ -1,7 +1,7 @@
 ---
 description: Documentation and archival agent for OpenSpec completion phases
 hidden: true
-mode: all
+mode: subagent
 temperature: 0.3
 permission:
   read: allow

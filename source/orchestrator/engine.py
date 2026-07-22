@@ -51,10 +51,10 @@ PHASE_COMMANDS = {
 PHASE_AGENTS = {
     "PHASE0": "osx-analyzer",
     "PHASE1": "osx-builder",
-    "PHASE2": "osx-analyzer",
+    "PHASE2": "osx-reviewer",
     "PHASE3": "osx-maintainer",
     "PHASE4": "osx-maintainer",
-    "PHASE5": "osx-analyzer",
+    "PHASE5": "osx-reviewer",
     "PHASE6": "osx-maintainer",
 }
 

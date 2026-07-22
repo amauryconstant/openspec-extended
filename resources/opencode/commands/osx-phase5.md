@@ -1,6 +1,6 @@
 ---
 description: PHASE5 - Self-Reflection
-agent: osx-analyzer
+agent: osx-reviewer
 ---
 
 ## Tools Available

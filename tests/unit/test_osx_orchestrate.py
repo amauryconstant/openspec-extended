@@ -188,13 +188,19 @@ class TestPhaseLookup:
         assert PHASE_COMMANDS["PHASE6"] == "osx-phase6"
 
     def test_get_phase_agent(self):
-        """Correct phase agents returned."""
+        """Correct phase agents returned.
+
+        PHASE2 and PHASE5 dispatch to ``osx-reviewer`` (a write-capable
+        low-temperature reviewer) because their bodies write
+        ``verification-report.md`` / ``reflections.md`` and ``git commit``;
+        the read-only ``osx-analyzer`` would deny those operations.
+        """
         assert PHASE_AGENTS["PHASE0"] == "osx-analyzer"
         assert PHASE_AGENTS["PHASE1"] == "osx-builder"
-        assert PHASE_AGENTS["PHASE2"] == "osx-analyzer"
+        assert PHASE_AGENTS["PHASE2"] == "osx-reviewer"
         assert PHASE_AGENTS["PHASE3"] == "osx-maintainer"
         assert PHASE_AGENTS["PHASE4"] == "osx-maintainer"
-        assert PHASE_AGENTS["PHASE5"] == "osx-analyzer"
+        assert PHASE_AGENTS["PHASE5"] == "osx-reviewer"
         assert PHASE_AGENTS["PHASE6"] == "osx-maintainer"
 
 

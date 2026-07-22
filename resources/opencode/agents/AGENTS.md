@@ -6,8 +6,9 @@ OpenCode agent definitions, one file per agent. Consumed by the orchestrator's p
 
 | File | Phases |
 |------|--------|
-| `osx-analyzer.md` | PHASE0, PHASE2, PHASE5 (read-only, critical review) |
+| `osx-analyzer.md` | PHASE0 (read-only audit + routing) |
 | `osx-builder.md` | PHASE1 (write code, run tests) |
+| `osx-reviewer.md` | PHASE2, PHASE5 (verification + reflection; writes reports) |
 | `osx-maintainer.md` | PHASE3, PHASE4, PHASE6 (docs, sync, archive) |
 
 See `source/orchestrator/AGENTS.md` for the phase → agent mapping.
@@ -30,7 +31,7 @@ permission:                    # Optional
 
 ## Conventions
 
-- `osx-analyzer` is read-only (`edit: deny`); the other agents may write.
+- `osx-analyzer` is read-only (`edit: deny`); `osx-reviewer` writes verification reports / reflections (low temp); `osx-builder` and `osx-maintainer` may write freely.
 - `mode: subagent` is the default for orchestrator-dispatched agents.
 - Keep `temperature` low (≤0.2) for deterministic phase outcomes.
 

@@ -1,6 +1,6 @@
 ---
 description: PHASE2 - Review
-agent: osx-analyzer
+agent: osx-reviewer
 ---
 
 > **Phase name**: the engine's canonical phase name is `REVIEW`; the skill loaded in this phase is `osc-verify-change` (still often called "Verification"). Both names refer to PHASE2. See `osx-workflow` §2 for the full cross-reference.
