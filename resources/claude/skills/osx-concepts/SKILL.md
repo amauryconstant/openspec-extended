@@ -85,7 +85,7 @@ Query: `openspec status --change <name> --json` returns the full state per artif
 
 ### 2.5 Resource taxonomy
 
-#### Core skills (`osc-*` — 11, renamed from upstream `openspec-*` by installer)
+#### Core skills (`osc-*` — 12, renamed from upstream `openspec-*` by installer)
 
 | Skill | Purpose |
 |-------|---------|
@@ -93,6 +93,7 @@ Query: `openspec status --change <name> --json` returns the full state per artif
 | `osc-explore` | Think through ideas without committing |
 | `osc-new-change` | Create change folder |
 | `osc-continue-change` | Create next artifact incrementally |
+| `osc-update-change` | Revise existing artifacts; multi-artifact bidirectional reconciliation (v1.6.0) |
 | `osc-ff-change` | Create all artifacts at once |
 | `osc-apply-change` | Implement tasks from `tasks.md` |
 | `osc-verify-change` | Verify implementation matches artifacts |
@@ -107,12 +108,14 @@ Query: `openspec status --change <name> --json` returns the full state per artif
 |-------|---------|
 | `osx-concepts` | **This skill** — framework, repo layout, artifacts, decision guidance |
 | `osx-workflow` | 4 tool layers, 7-phase autonomous workflow (paired with this skill) |
-| `osx-review-artifacts` | Pre-implementation quality check |
-| `osx-modify-artifacts` | Edit artifacts with dependency tracking |
-| `osx-review-test-compliance` | Spec-to-test alignment analysis |
+| `osx-review-artifacts` | **Pre-implementation schema-driven audit** — validates each artifact against its schema `template` + `rules`, walks the dependency graph for cross-artifact consistency, and routes findings to the right editor |
+| `osx-modify-artifacts` | **Single-artifact surgical editor (forward-only)** — small, targeted fixes; chains with `/opsx:update` for multi-artifact cases |
+| `osx-review-test-compliance` | Spec-to-test alignment analysis (post-implementation) |
 | `osx-maintain-ai-docs` | Update `AGENTS.md` and `CLAUDE.md` |
 | `osx-generate-changelog` | Generate `CHANGELOG.md` from archive |
 | `osx-commit` | Create commits matching project style |
+
+> The pre-implementation `review`/`modify`/`update` trio replaces the older hardcoded `proposal`/`specs`/`design`/`tasks` model. Use `osx-review-artifacts` for an audit, `/opsx:update` for multi-artifact reconciliation, and `osx-modify-artifacts` for a single-artifact surgical edit.
 
 > After this skill: 8 extended skills total. The taxonomy above lists all of them.
 

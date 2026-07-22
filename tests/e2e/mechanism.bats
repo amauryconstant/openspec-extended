@@ -84,6 +84,9 @@ teardown() {
     [ -d .opencode/skills/osx-concepts ]
     [ -f .opencode/manifest.toml ]
     [ -f .opencode/skills/osx-workflow/SKILL.md ]
+    [ -f .opencode/skills/osx-review-artifacts/SKILL.md ]
+    [ -f .opencode/skills/osx-modify-artifacts/SKILL.md ]
+    [ ! -e .opencode/skills/osx-review-artifacts/references/review-criteria.md ]
 
     rm -rf "$fresh_dir"
 }
@@ -101,6 +104,9 @@ teardown() {
     [ -d .claude/skills/osx-concepts ]
     [ -f .claude/manifest.toml ]
     [ -f .claude/skills/osx-workflow/SKILL.md ]
+    [ -f .claude/skills/osx-review-artifacts/SKILL.md ]
+    [ -f .claude/skills/osx-modify-artifacts/SKILL.md ]
+    [ ! -e .claude/skills/osx-review-artifacts/references/review-criteria.md ]
 
     rm -rf "$fresh_dir"
 }

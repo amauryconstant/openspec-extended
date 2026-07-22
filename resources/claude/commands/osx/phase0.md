@@ -1,9 +1,10 @@
 ---
 name: osx-phase0
-description: PHASE0 - Artifact Review
+description: PHASE0 - Artifact Review (read-only audit + routing; do not edit here)
 category: openspec-orchestrator
 tags: [openspec-extended, autonomous, orchestrator]
 license: MIT
+allowed-tools: Bash(openspec:*)
 ---
 
 ## Tools Available
@@ -20,7 +21,7 @@ Change: $1
 ## MANDATORY START
 
 1. Load context:
-  !`openspec-extended osx ctx get "$1"`
+   !`openspec-extended osx ctx get "$1"`
 2. Confirm `phase` is PHASE0
 3. Review `history.iterations_recorded` for previous attempts
 4. Load skills: `osx-concepts` and `osx-workflow` (both reference only)
@@ -28,49 +29,55 @@ Change: $1
 ## PURPOSE
 
 Ensure OpenSpec artifacts are excellent before implementation. Validate:
-- Format (required sections, correct headers, checkbox syntax)
-- Content quality (specificity, SHALL/MUST usage, clarity)
-- Implementation readiness (dependencies, scope achievability, task specificity)
-- Cross-artifact consistency (proposal→specs, specs→design, design→tasks)
+- Schema-driven format conformance (per `openspec instructions <id> --json`'s `template` and `rules`).
+- Cross-artifact consistency across the `dependencies` / `unlocks` graph.
+- Implementation readiness (dependencies, scope achievability, task specificity).
+
+PHASE0 is dispatched as `osx-analyzer` (`edit: deny`, `question: deny`).
+**Do not edit artifacts inside this phase.** The phase produces a routing
+report; the user or another invocation performs the edits via
+`osx-modify-artifacts` or `/opsx:update`.
 
 ## PROCESS
 
 1. Load and use `osx-review-artifacts` skill for change "$1"
 2. Execute review instructions from the skill
-3. Review findings:
-   - **CRITICAL**: Must fix before implementation (blocks progress)
-   - **WARNING**: Should fix, may cause issues during implementation
-   - **SUGGESTION**: Nice to have, non-blocking
+3. Review findings bucketed as Critical / Warning / Suggestion.
 
-4. IF CRITICAL or WARNING issues found:
-    **YOU MUST FIX THEM IMMEDIATELY IN THIS SAME INVOCATION - DO NOT WAIT FOR NEXT ITERATION**
-    a. For each issue, use `osx-modify-artifacts` skill to fix it NOW
-    b. Track iteration via `osx log` and `osx iterations`
-    c. After fixing all CRITICAL/WARNING issues, re-run review to verify fixes
-    d. Only report "Recommendation: Fix issues" if you are UNABLE to fix them
+4. **Routing rule.** Produce a routing recommendation using this table:
 
-5. IF CLEAN (no CRITICAL or WARNING issues):
-    a. Log completion via `osx log`
-    b. Mark phase complete via `osx state`
-    c. Script will advance to PHASE1
+   | Finding pattern | Recommended route |
+   |---|---|
+   | All findings target a single artifact AND no coherence-level finding | `/osx-modify <name> <artifact-id>` |
+   | Findings span ≥2 artifacts OR any coherence-level finding | `/opsx:update <name>` |
+   | Missing artifacts | `/opsx:continue <name>` |
+   | All clean | mark phase complete and hand off to PHASE1 |
 
-6. IF MAX ITERATIONS (10) reached without clean review:
-    a. Document all remaining CRITICAL issues via `osx log`
+5. **Do not fix in this phase.** The dispatched agent cannot write
+   (`edit: deny`). Surface the routing to the user; they (or a follow-up
+   slash command invocation) perform the fixes.
+
+6. Track iteration via `osx log` and `osx iterations` per the §DECISION LOG /
+   §ITERATIONS.JSON sections below. Do **not** include an `artifacts-modified`
+   list unless the change's artifacts were modified by something other than
+   this phase.
+
+7. After the user has applied fixes via `/osx-modify` or `/opsx:update`, the
+   next PHASE0 iteration runs review again. Repeat up to the iteration cap
+   defined by the §GUARDRAILS.
+
+8. IF MAX ITERATIONS (10) reached without clean review:
+   a. Document all remaining Critical issues via `osx log`
    b. Create `complete.json` with BLOCKED status (workflow stops)
 
 ## MANDATORY END
 
-IF artifacts were modified during this phase:
+PHASE0 never commits artifacts because it never edits them. The user invokes
+`osx-commit` (or another workflow) after running the routed editor.
 
-1. Invoke osx-commit skill
-2. Commit changes:
-
-   ```bash
-   git add openspec/changes/$1/
-   git commit -m "Review and iterate artifacts for $1"
-   ```
-
-3. Record commit hash in decision log
+When artifacts are later modified by `/osx-modify` or `/opsx:update` and the
+PHASE0 transition log records `artifacts_modified`, record the commit hash
+in the decision log entry below.
 
 ## STATE FILE UPDATES
 
@@ -95,8 +102,7 @@ openspec-extended osx log append "$1" \
   --commit-hash "<hash or null>" \
   --next-steps "Proceed to PHASE1 or continue review" \
   --issues '{"critical":N,"warning":N,"suggestion":N}' \
-  --artifacts-modified '["proposal.md","specs/auth.md"]' \
-  --extra '{"issues_fixed":{"critical":N,"warning":N,"suggestion":N}}'
+  --extra '{"routed_to":"/osx-modify or /opsx:update or /opsx:continue"}'
 ```
 
 ## ITERATIONS.JSON
@@ -108,16 +114,19 @@ openspec-extended osx iterations append "$1" \
   --iteration N \
   --commit-hash "<hash or null>" \
   --notes "Brief summary" \
-  --extra '{"artifacts_reviewed":["proposal","specs","design","tasks"],"issues_found":{"critical":N,"warning":N,"suggestion":N},"issues_fixed":{"critical":N,"warning":N,"suggestion":N}}'
+  --extra '{"artifacts_audited":["<id>"],"issues_found":{"critical":N,"warning":N,"suggestion":N},"routed_to":"/osx-modify or /opsx:update or /opsx:continue"}'
 ```
 
 ## GUARDRAILS
 
-- Must fix CRITICAL issues before proceeding
-- Max 10 review iterations
-- One commit at end of phase if artifacts were modified
-- Early exit if first review returns clean
-
+- Read-only in this phase. Editor actions belong to `/osx-modify` (single
+  artifact) or `/opsx:update` (multi-artifact / coherence drift).
+- Max 10 review iterations.
+- Single source of artifact names: `openspec status --change <name> --json`
+  and `openspec instructions <id> --change <name> --json`. No hardcoded
+  `proposal.md`/`specs/`/`design.md`/`tasks.md`.
+- Carry `--store <id>` when the change is store-backed.
+- Early exit if the first review returns clean.
 
 ## SHELL ARGUMENT SAFETY
 

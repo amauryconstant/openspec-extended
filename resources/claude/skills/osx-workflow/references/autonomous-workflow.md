@@ -132,9 +132,9 @@ Phase commands instruct agents to "load and use" skills:
 
 | Prefix | Meaning | Source | Example |
 |--------|----------|---------|---------|
-| `osc-*` (renamed from `openspec-*`) | OpenSpec Core | Upstream npm package, renamed by installer | `osc-new-change` (was `openspec-new-change`), `osc-apply-change` (was `openspec-apply-change`) |
-| `osx-*` | OpenSpec eXtended | Local extensions | `osx-review-artifacts`, `osx-modify-artifacts` |
-| `openspec` | Core CLI | npm installed tool | `openspec status`, `openspec new change` |
+| `osc-*` (renamed from `openspec-*`) | OpenSpec Core | Upstream npm package, renamed by installer | `osc-new-change` (was `openspec-new-change`), `osc-apply-change` (was `openspec-apply-change`), `osc-update-change` (was `openspec-update-change`) |
+| `osx-*` | OpenSpec eXtended | Local extensions | `osx-review-artifacts` (audit), `osx-modify-artifacts` (surgical edit) |
+| `openspec` | Core CLI | npm installed tool | `openspec status`, `openspec new change`, `openspec instructions` |
 
 ### 3.2 When to Use Which Tool
 
@@ -143,8 +143,9 @@ Phase commands instruct agents to "load and use" skills:
 | Start a change | `osc-new-change` skill | `openspec new change "$NAME"` |
 | Create all artifacts | `osc-ff-change` skill | `openspec ff "$NAME"` |
 | Implement tasks | `osc-apply-change` skill | Read skill file, follow instructions |
-| Review artifacts | `osx-review-artifacts` skill | Read skill file, follow instructions |
-| Modify artifacts | `osx-modify-artifacts` skill | Read skill file, follow instructions |
+| Audit artifacts (schema-driven, read-only) | `osx-review-artifacts` skill | Read skill file, follow instructions |
+| Surgical single-artifact edit | `osx-modify-artifacts` skill | Read skill file, follow instructions |
+| Multi-artifact reconciliation (post-impl Case A) | `osc-update-change` skill | `openspec update "$NAME"` or `/opsx:update` |
 | Check status | `openspec` CLI | `openspec status --change "$1" --json` |
 | Orchestration state | `osx` lib tool | `openspec-extended osx <domain> <action>` |
 
@@ -231,14 +232,14 @@ graph TD
     A[Verify implementation] --> B{Critical or Warning issues?}
     B -->|No| C[Phase complete → PHASE3]
     B -->|Yes| D{What's the root cause?}
-    
-    D -->|Artifacts wrong| E[Use osx-modify-artifacts to fix]
+
+    D -->|Artifacts wrong (typical)| E[Use /opsx:update to reconcile; isolated single-art defect → /osx-modify]
     E --> F[Commit fixes]
     F --> G[Transition to PHASE1]
-    
+
     D -->|Implementation wrong| H[Do NOT modify artifacts]
     H --> I[Transition to PHASE1]
-    
+
     D -->|Same phase retry| J[Try different approach]
     J --> K[Transition to PHASE2]
 ```
@@ -247,7 +248,8 @@ graph TD
 
 | Situation | Command | Reason Parameter |
 |-----------|----------|-----------------|
-| Artifacts are wrong | `osx state transition "$1" PHASE1 artifacts_modified` | "Fixed unclear specs in design.md" |
+| Artifacts are wrong (typically multi-artifact) | `osx state transition "$1" PHASE1 artifacts_modified` | "Reconciled specs + design + tasks via /opsx:update" |
+| Artifacts are wrong (isolated single-artifact defect) | `osx state transition "$1" PHASE1 artifacts_modified` | "Surgical fix via /osx-modify" |
 | Implementation is wrong | `osx state transition "$1" PHASE1 implementation_incorrect` | "Missing validation in API handler" |
 | Same phase retry | `osx state transition "$1" PHASE2 retry_requested` | "Alternative verification strategy" |
 
@@ -292,18 +294,24 @@ graph TD
 
 ### 5.1 PHASE0: Artifact Review
 
-**Agent**: `osx-analyzer`
+**Agent**: `osx-analyzer` (read-only: `edit: deny`)
 **Tool**: `osx-review-artifacts` skill
 
-**Purpose**: Ensure artifacts are excellent before implementation
+**Purpose**: Ensure artifacts are excellent before implementation.
 
 **Process**:
 1. Load context: `osx ctx get "$1"`
-2. Run review using `osx-review-artifacts` skill
-3. If CRITICAL/WARNING issues found: **FIX IMMEDIATELY** with `osx-modify-artifacts`
-4. If clean: Log and complete
+2. Run review using `osx-review-artifacts` skill (schema-driven audit).
+3. If findings exist, classify by breadth and emit a routing report:
+   - all findings on a single artifact + no coherence-level finding → `/osx-modify <name> <id>`
+   - multi-artifact drift or any coherence-level finding → `/opsx:update <name>`
+   - missing artifacts → `/opsx:continue <name>`
+4. **Do not fix inside PHASE0.** The user invokes the routed command externally.
+5. If clean: Log and complete.
 
-**Critical**: Do not wait for next iteration to fix CRITICAL issues. Fix in same invocation.
+**Note**: PHASE0 used to fix artifacts in the same invocation. With the
+read-only `osx-analyzer`, fixes are routed to `/osx-modify` or `/opsx:update`,
+which the user (or a follow-up slash command) performs.
 
 **State update**:
 ```bash
@@ -335,29 +343,37 @@ openspec-extended osx state complete "$1"
 
 ### 5.3 PHASE2: Review
 
-**Agent**: `osx-analyzer`
+**Agent**: `osx-analyzer` (read-only: `edit: deny`)
 **Tool**: `osc-verify-change` skill
 
-**Purpose**: Verify implementation matches artifacts
+**Purpose**: Verify implementation matches artifacts.
 
 **Process**:
 1. Load context
 2. Run `osc-verify-change` skill
 3. Analyze verification report
-4. **Critical decision tree** (see Section 4.2)
+4. **Critical decision tree** (see Section 4.2):
+   - **Case A — artifacts wrong**: route to `/opsx:update <name>` for the
+     typical multi-artifact drift (specs + design + tasks move together).
+     Isolated single-artifact defects may use `/osx-modify <name> <id>`.
+   - **Case B — implementation wrong**: do not modify artifacts.
+   - **Case C — same phase retry**: try a different approach.
 
 **State updates**:
 ```bash
 # Normal: all good
 openspec-extended osx state complete "$1"
 
-# Explicit transition: artifacts wrong
-openspec-extended osx state transition "$1" PHASE1 artifacts_modified "Updated unclear specs"
+# Case A: artifacts wrong (default → update)
+openspec-extended osx state transition "$1" PHASE1 artifacts_modified "Reconciled via /opsx:update"
 
-# Explicit transition: implementation wrong
+# Case A (isolated): single-artifact defect via modify
+openspec-extended osx state transition "$1" PHASE1 artifacts_modified "Surgical fix via /osx-modify"
+
+# Case B: implementation wrong
 openspec-extended osx state transition "$1" PHASE1 implementation_incorrect "Missing validation"
 
-# Explicit transition: retry
+# Case C: same phase retry
 openspec-extended osx state transition "$1" PHASE2 retry_requested "Alternative strategy"
 ```
 
@@ -502,8 +518,6 @@ User can resume workflow from any phase:
 openspec-extended orchestrate "$CHANGE_ID" --from-phase PHASE2
 ```
 
-Or, when the binary is not on `PATH`, the same `openspec-extended orchestrate` command is what you need on `PATH` — there is no separate wrapper script.
-
 **Use cases**:
 - Fix blocker in PHASE1, resume from PHASE2
 - Skip exploration after starting change
@@ -565,7 +579,7 @@ openspec-extended osx log append "$1" \
 
 **Explanation**: `osc-*` are OpenSpec core commands (from npm). `osx` is the extended lib tool for orchestration state.
 
-**Check**: Script path is `openspec-extended osx`, not `.opencode/scripts/lib/osc`.
+**Check**: The invocation is `openspec-extended osx …` (CLI subcommand), not `osc-…` (core OpenSpec commands).
 
 ### 8.2 Skill Invocation Confusion
 

@@ -13,14 +13,18 @@ Operational reference for the 7-phase loop driven by `openspec-extended orchestr
 ## TL;DR
 
 ```
-PHASE0 ARTIFACT_REVIEW → osx-analyzer  → osx-review-artifacts, osx-modify-artifacts
+PHASE0 ARTIFACT_REVIEW → osx-analyzer  → osx-review-artifacts (audit + routing); /osx-modify or /opsx:update for fixes
 PHASE1 IMPLEMENTATION  → osx-builder   → osc-apply-change, osx-review-test-compliance
-PHASE2 REVIEW          → osx-analyzer  → osc-verify-change
+PHASE2 REVIEW          → osx-analyzer  → osc-verify-change; Case A → /opsx:update (multi-art) or /osx-modify (single-art)
 PHASE3 MAINTAIN_DOCS   → osx-maintainer→ osx-maintain-ai-docs
 PHASE4 SYNC            → osx-maintainer→ osc-sync-specs
 PHASE5 SELF_REFLECTION → osx-analyzer  → (autonomous reasoning)
 PHASE6 ARCHIVE         → osx-maintainer→ osc-archive-change / osc-bulk-archive-change
 ```
+
+PHASE0 and PHASE2 dispatch `osx-analyzer` (`edit: deny`), so they emit routing
+reports instead of writing files. The user invokes `/osx-modify` or
+`/opsx:update` outside the dispatched phase to apply fixes.
 
 **Tool**: every state mutation goes through the `osx` subcommand: `openspec-extended osx <domain> <action>` (one surface; the CLI wrapper lives in `source/osx_cli.py`, the library in `source/lib/osx.py`).
 
@@ -97,15 +101,15 @@ For the full action set of layer 3 (`osx`), see §4 below.
 
 | Phase | Name in `state.json` | Agent | Key skills loaded | Purpose |
 |-------|----------------------|-------|-------------------|---------|
-| PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts`, `osx-modify-artifacts` | Validate artifacts; fix CRITICAL issues immediately |
+| PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts` (audit) + `osc-update-change` (default editor) + `osx-modify-artifacts` (surgical fallback) | Schema-driven audit; emits routing report; user (or follow-up slash command) performs fixes |
 | PHASE1 | `IMPLEMENTATION` | `osx-builder` | `osc-apply-change`, `osx-review-test-compliance` | Implement `tasks.md`; milestone commits |
-| PHASE2 | `REVIEW` | `osx-analyzer` | `osc-verify-change` | Verify implementation matches artifacts |
+| PHASE2 | `REVIEW` | `osx-analyzer` | `osc-verify-change`; Case A → `osc-update-change` (default) or `osx-modify-artifacts` (isolated single-artifact defect) | Verify implementation matches artifacts |
 | PHASE3 | `MAINTAIN_DOCS` | `osx-maintainer` | `osx-maintain-ai-docs` | Update `AGENTS.md` and `CLAUDE.md` |
 | PHASE4 | `SYNC` | `osx-maintainer` | `osc-sync-specs` | Merge delta specs into main specs |
 | PHASE5 | `SELF_REFLECTION` | `osx-analyzer` | (autonomous reasoning) | Evaluate the workflow; write `reflections.md` |
 | PHASE6 | `ARCHIVE` | `osx-maintainer` | `osc-archive-change` or `osc-bulk-archive-change` | Archive change; clean transient files |
 
-> **PHASE2 name disambiguation**: the engine's canonical phase name is `REVIEW`. The skill it loads is `osc-verify-change` ("Verification"). Both refer to the same phase. When you see `--phase REVIEW` in `decision-log.json`, that's PHASE2. The same is true for other phases: e.g., PHASE0 = `ARTIFACT_REVIEW` (engine) = `osx-review-artifacts` (skill).
+> **PHASE2 name disambiguation**: the engine's canonical phase name is `REVIEW`. The skill it loads is `osc-verify-change` ("Verification"). Both refer to the same phase. When you see `--phase REVIEW` in `decision-log.json`, that's PHASE2. The same is true for other phases: e.g., PHASE0 = `ARTIFACT_REVIEW` (engine) = `osx-review-artifacts` (audit). The edit step belongs to `osc-update-change` (default) or `osx-modify-artifacts` (surgical fallback).
 
 ---
 
@@ -184,7 +188,7 @@ The first thing every phase command does: `osx ctx get "$1"`.
 
 **Transition reasons** (canonical, validated by the library):
 - `implementation_incorrect` — code is wrong, do not modify artifacts
-- `artifacts_modified` — specs/design updated, go to PHASE1 to re-implement
+- `artifacts_modified` — specs/design updated (typically via `/opsx:update`, fallback `/osx-modify` for isolated single-artifact defects), go to PHASE1 to re-implement
 - `retry_requested` — same phase, different approach
 
 ### `phase` — phase sequence
@@ -315,7 +319,7 @@ The orchestrator detects `complete.json` and halts.
 
 A blocker is **not**:
 - Failing tests (fix in PHASE1, commit, re-iterate)
-- Unclear specs (use `osx-modify-artifacts`, then `state transition … artifacts_modified`)
+- Unclear specs (route via `osx-review-artifacts`, fix via `/osx-modify <name> <artifact-id>` or `/opsx:update <name>`; the user applies the fix outside the dispatched phase)
 - Missing dependency (add it)
 - Implementation bug (transition `… implementation_incorrect` to PHASE1)
 
@@ -379,8 +383,8 @@ For framework-level edge cases (missing CLI on the user's machine, choosing the 
 - **Quick feature (single-session, no orchestrator)**: `osc-new-change` → `osc-ff-change` → `osc-apply-change` → `osc-verify-change` → `osc-archive-change`
 - **Exploratory**: `osc-explore` → [investigation] → `osc-new-change` → `osc-continue-change` → ... → `osc-apply-change`
 - **Parallel changes (no orchestrator)**: switch between changes with explicit names: `osc-new-change <other>`, work it, archive, then resume the paused one. Avoids orchestrator state.
-- **Enhanced manual (with `osx-*` skills)**: `osc-new-change` → `osc-ff-change` → `osx-review-artifacts` → `osc-apply-change` → `osx-review-test-compliance` → `osx-maintain-ai-docs` → `osc-archive-change` → `osx-generate-changelog`
-- **Autonomous (full 7-phase loop)**: `openspec-extended orchestrate <change>`. The orchestrator dispatches per phase; each phase loads the relevant skills.
+- **Enhanced manual (with `osx-*` skills)**: `osc-new-change` → `osc-ff-change` → `/osx-review <name>` → `{/osx-modify <name> <id> | /opsx:update <name>}` → `osc-apply-change` → `osx-review-test-compliance` → `osx-maintain-ai-docs` → `osc-archive-change` → `osx-generate-changelog`
+- **Autonomous (full 7-phase loop)**: `openspec-extended orchestrate <change>`. The orchestrator dispatches per phase; each phase loads the relevant skills. PHASE0 and PHASE2 are read-only audits that emit routing reports; the user invokes the routed slash command externally.
 
 ---
 

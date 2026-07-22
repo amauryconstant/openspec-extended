@@ -57,13 +57,16 @@ IF CRITICAL OR WARNING ISSUES FOUND:
 First, determine the root cause:
 
 **Case A: Artifacts are wrong (specs/design unclear or incomplete)**
-1. Use `osx-modify-artifacts` skill to fix artifacts
+1. Use `osc-update-change` (`/opsx:update`) skill to reconcile the affected
+   artifacts — the typical verify-blamed-artifact case spans ≥2 artifacts
+   (specs + design + tasks move together). For a clearly isolated
+   single-artifact defect, `osx-modify-artifacts` is acceptable.
 2. Commit the artifact changes
 3. Signal transition back to PHASE1:
    ```bash
    openspec-extended osx state transition "$1" PHASE1 artifacts_modified "Brief description of what was fixed"
    ```
-4. Log: "Artifacts modified, transitioning to PHASE1 for re-implementation"
+4. Log: "Artifacts modified via /opsx:update, transitioning to PHASE1 for re-implementation"
 
 **Case B: Artifacts are correct, implementation is wrong**
 1. DO NOT modify artifacts
@@ -200,7 +203,7 @@ Use `osx state transition` for explicit phase control:
 
 | Scenario | Command | Reason |
 |----------|---------|--------|
-| Artifacts fixed | `osx state transition "$1" PHASE1 artifacts_modified "..."` | Specs/design updated, re-implement |
+| Artifacts fixed | `osx state transition "$1" PHASE1 artifacts_modified "..."` | Specs/design updated via `/opsx:update` (or `osx-modify-artifacts` for isolated single-artifact defects), re-implement |
 | Implementation wrong | `osx state transition "$1" PHASE1 implementation_incorrect "..."` | Artifacts correct, code needs fix |
 | Retry with new approach | `osx state transition "$1" PHASE2 retry_requested "..."` | Try different solution |
 | Review passed | `osx state complete "$1"` | Normal advance to PHASE3 |

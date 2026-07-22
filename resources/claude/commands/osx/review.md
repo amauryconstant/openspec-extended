@@ -1,111 +1,52 @@
 ---
-description: Review OpenSpec artifacts for quality, completeness, and consistency
+name: osx-review
+description: Schema-driven pre-implementation artifact audit (read-only) plus routing to the right editor
 license: MIT
+allowed-tools: Bash(openspec:*)
+category: openspec-extended
+tags: [openspec-extended, workflow, schema-agnostic]
 ---
 
-Review OpenSpec artifacts (proposal, design, tasks, specs) for quality and completeness.
+Schema-driven, **read-only** audit of planning artifacts in a change. Emits a
+routing report; never edits files. Editors (`osx-modify-artifacts` or
+`/opsx:update`) are invoked separately, typically by the user.
 
----
+### Store selection
+
+If the change lives in a registered store (a standalone OpenSpec repo
+registered on this machine), run `openspec store list --json` to discover ids
+and pass `--store <id>` on `status`, `instructions`, etc. Without a store,
+commands act on the nearest local `openspec/` root.
 
 ## Input
 
-Optionally specify `[change-name] [artifact-id]` after `/osx:review`. If omitted, the AI will infer from context or prompt for selection.
+Optionally specify `[change-name] [artifact-id]` after `/osx:review`. If omitted, the agent will infer from context or prompt for selection.
 
 **Patterns**:
 | Input | Behavior |
 |-------|----------|
-| `/osx:review add-auth proposal` | Review specific artifact in specific change |
-| `/osx:review add-auth` | Review entire change (all artifacts) |
+| `/osx:review add-auth specs/auth` | Audit specific artifact in specific change |
+| `/osx:review add-auth` | Audit the entire change |
 | `/osx:review` | Infer from context or prompt |
-
----
 
 ## Steps
 
-1. **Select the change**
+1. **Load the skill body**.
+   Read `.claude/skills/osx-review-artifacts/SKILL.md` and follow the seven
+   steps in `## Workflow`. This command wraps that skill; do not duplicate
+   rules here.
 
-   If name provided: use it. Otherwise:
-   - Infer from conversation context
-   - Auto-select if only one active change
-   - If ambiguous: run `openspec list --json` and use **Ask** to prompt
-
-   Announce: "Reviewing change: <name>" and how to override.
-
-2. **Check status to understand schema**
-   ```bash
-   openspec status --change "<name>" --json
-   ```
-   Parse JSON for: schemaName, artifact list with statuses.
-
-3. **Select artifact to review**
-
-   If artifact ID specified: review that one. Otherwise:
-   - Review all artifacts in schema order
-   - For each artifact, read and validate
-
-4. **Single artifact review**
-
-   For each artifact:
-   - Identify type (proposal/spec/design/tasks)
-   - Read artifact file
-   - Check required sections exist
-   - Validate format (headers, scenario levels, checkbox format)
-   - Review content quality (specificity, clarity)
-   - Report issues with line numbers
-
-5. **Cross-artifact consistency checks**
-
-   When reviewing entire change:
-   - proposal Capabilities match specs/ folder structure
-   - proposal What Changes covered by tasks.md
-   - design.md decisions referenced in tasks
-   - All proposal Capabilities have corresponding specs
-
-6. **Prioritize and report**
-
-   Categories:
-   - **Critical**: Must fix before archive
-   - **Warning**: Should fix
-   - **Suggestion**: Nice to have
-
----
-
-## Output
-
-```
-## Artifact Review: [artifact-name.md]
-
-### Format: Valid
-- All required sections present
-- Header format correct
-
-### Issues Found
-
-#### Critical (Must Fix Before Archive)
-- **Line X**: [Description]
-  - Fix: [Specific action]
-
-#### Warnings (Should Fix)
-- **Line X**: [Description]
-  - Better: [Suggestion]
-
-#### Suggestions (Nice to Have)
-- **Line X**: [Description]
-  - Consider: [Alternative]
-
-### Consistency Check
-- [x]/[ ] [Cross-artifact validation result]
-```
-
----
+2. **Persist the routing report** once the skill completes its work.
 
 ## Guardrails
 
-- Check schema compliance for format adherence
-- Prioritize issues with clear categories
-- Provide specific, actionable feedback with line numbers
-- For cross-artifact checks, explain dependencies clearly
+- **Read-only.** Never edit planning artifacts from inside this command. The
+  routed editor (`/osx:modify <name> <id>` for single-artifact defects;
+  `/opsx:update <name>` for multi-artifact drift) does the writing.
+- **No code edits.** Findings that imply code changes route to `/opsx:apply`.
+- **No hardcoded artifact names.** Read ids and paths from
+  `openspec status --change <name> --json` and `openspec instructions --json`.
+- **Carry `--store <id>`** when the change is store-backed.
 
----
-
-See `.claude/skills/openspec-review-artifacts/SKILL.md` for detailed review criteria and common issues catalog.
+See `.claude/skills/osx-review-artifacts/SKILL.md` for the full contract,
+output templates, and severity calibration.

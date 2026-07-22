@@ -1,6 +1,10 @@
 ---
+name: osx-verify-tests
 description: Review test coverage for OpenSpec changes to ensure spec requirements have tests
 license: MIT
+allowed-tools: Bash(openspec:*)
+category: openspec-extended
+tags: [openspec-extended, workflow, testing]
 ---
 
 Review test coverage for OpenSpec changes, ensuring spec requirements have corresponding tests.

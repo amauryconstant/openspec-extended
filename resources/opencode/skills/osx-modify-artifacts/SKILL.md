@@ -1,235 +1,251 @@
 ---
 name: osx-modify-artifacts
-description: Modify an existing artifact in an OpenSpec change. Use during pre-implementation review iteration (after review-artifacts feedback) or during implementation when requirements change. Supports natural language descriptions and targeted edits with dependency tracking.
+description: Surgical single-artifact edit with forward-only dependent propagation. Use for targeted fixes (typically from review findings). For multi-artifact reconciliation use /opsx:update; for new artifacts use /opsx:continue.
 license: MIT
 compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
 ---
 
-Modify an existing artifact in an OpenSpec change with dependency-aware updates.
+# osx-modify-artifacts
 
-**IMPORTANT: `context` and `rules` from openspec instructions are constraints for YOU, not content for the artifact file.** Do NOT copy `<context>`, `<rules>`, or `<project_context>` blocks into artifacts. These guide what you write but should never appear in output.
+Single-artifact surgical editor. Walks downstream `unlocks` for forward-only
+propagation, **never** rewrites a `dependencies` artifact (that is
+`openspec-update-change`'s job).
 
----
+Adopted verbatim from core's `openspec-update-change` (`/opsx:update`):
 
-## Input
+- Schema is the source of truth. No hardcoded artifact names.
+- Glob safety: write only to `existingOutputPaths`; never to a glob `resolvedOutputPath`.
+- Frontier discipline: refuse to create new artifacts or new files under glob artifacts.
+- No code edits — plan-only.
+- Per-edit confirmation. Rejected revisions are left unchanged.
+- Severity calibration does not apply (this skill makes edits, not findings).
 
-Optionally specify a change name and artifact ID. If omitted, the skill will infer from context or prompt for selection.
-
-**Arguments**: `[change-name] [artifact-id]`
-
-**Examples**:
-- `/osx-modify add-auth` - Modify change "add-auth" (will prompt for artifact)
-- `/osx-modify add-auth proposal` - Modify proposal.md in "add-auth"
-- "Fix the missing rationale in design decision 2" - Infer from context
-
----
-
-## Steps
-
-1. **Select the change**
-
-   If a name is provided, use it. Otherwise:
-   - Infer from conversation context if the user mentioned a change
-   - Auto-select if only one active change exists
-   - If ambiguous: run `openspec list --json` and use the **AskUserQuestion tool** to let the user select
-
-   When showing changes, include: name, schema, status, last modified. Mark the most recently modified as "(Recommended)".
-
-   Always announce: "Using change: <name>" and how to override (e.g., `/osx-modify <other> <artifact>`).
-
-2. **Check change status**
-
-   ```bash
-   openspec status --change "<name>" --json
-   ```
-
-   Parse the JSON to understand:
-   - `schemaName`: The workflow being used (e.g., "spec-driven")
-   - `artifacts`: Array of artifacts with status (done/ready/blocked)
-   - `isComplete`: Whether all artifacts are done
-
-3. **Select artifact to modify**
-
-   If an artifact ID is specified, use it. Otherwise:
-   - If only one artifact has status "ready": auto-select it
-   - If user described content (e.g., "the requirements", "the design"): match by name
-   - If multiple artifacts ready and no direction: use the **AskUserQuestion tool** to prompt
-
-   When prompting, present artifacts in schema order, showing:
-   - Artifact ID
-   - Status (done/ready/blocked)
-   - Dependencies count
-   - Unlocks count
-
-4. **Get modification context**
-
-   ```bash
-   openspec instructions <artifact-id> --change "<name>" --json
-   ```
-
-   Parse the JSON to extract:
-   - `rules`: Validation rules for this artifact (constraints for you)
-   - `context`: Project background (constraints for you)
-   - `template`: Expected structure
-   - `dependencies`: Artifacts this artifact depends on
-   - `unlocks`: Artifacts that depend on this one
-   - `outputPath`: Where the artifact file is located
-   - `instruction`: Schema-specific guidance
-
-   **Read the current artifact file** from `outputPath`.
-
-5. **Detect workflow scenario**
-
-   Check conversation context for review feedback:
-   - If user references review-artifacts output or specific issue numbers → **Review Iteration Mode**
-   - If user describes new requirements or changes discovered during coding → **Amendment Mode**
-
-   **Review Iteration Mode**:
-   - Focus on specific issues identified in review
-   - Validate fixes against the review criteria
-   - After modification, suggest re-running review-artifacts
-
-    **Amendment Mode**:
-    - Focus on capturing requirement changes
-    - Consider impact on existing implementation
-     - After modification, suggest running `/osx-apply <name>`
-
-6. **Display validation constraints**
-
-   Show the user:
-   - `rules` array (as constraints, not content)
-   - `dependencies` list (what this artifact relies on)
-   - `unlocks` list (what artifacts depend on this)
-
-7. **Determine modification mode**
-
-   **Mode A: Describe Changes** - Use when user provides natural language:
-   - "Add a requirement for..."
-   - "Update the design to..."
-   - "Remove this section..."
-
-   **Mode B: Interactive Edit** - Use when user references specific content:
-   - "Change line 42 to..."
-   - "Replace the second paragraph..."
-   - "Update the authentication section..."
-
-   Auto-select based on input type. No explicit prompt needed.
-
-8. **Apply modifications**
-
-   **Mode A (Describe Changes)**:
-   - Parse user's description
-   - Analyze current artifact content
-   - Identify which sections need changes
-   - Apply changes autonomously if clear
-    - If ambiguous: pause and ask for clarification using **AskUserQuestion tool**
-
-   **Mode B (Interactive Edit)**:
-   - Parse entire artifact file
-   - Identify relevant sections based on user's edit intent
-   - Show only those sections (not the entire file)
-   - User provides specific edit instructions
-   - Apply targeted changes using Edit tool
-   - If more sections need changes, repeat
-
-9. **Validate modifications**
-
-   Check proposed changes against:
-   
-   a) The `rules` array from step 4 (structural/format requirements)
-   
-   b) **If in Review Iteration Mode**: The specific issues from review-artifacts feedback
-   
-   c) **If in Amendment Mode**: Backward compatibility with implementation
-
-   Handle validation results:
-   - Clear/fixable violations → Fix automatically and continue
-   - Ambiguous violations → Explain issue and ask user
-   - If user's intent is clear despite violation → Proceed with warning
-
-   Note: Use `rules` from instructions. Do NOT run `openspec validate`.
-
-10. **Write the updated artifact file**
-
-    Use Edit tool for targeted changes, Write tool for complete rewrites. Verify the file was written successfully.
-
-11. **Handle dependent artifacts**
-
-    From the instructions output, check the `unlocks` array (reverse dependencies).
-
-    **For each artifact in `unlocks`**:
-    - Run `openspec instructions <dependent-id> --change "<name>" --json`
-    - Read the dependent artifact file
-    - Analyze if the modification affects this dependent artifact
-    - Track affected artifacts
-
-     **Decision logic** (prefer reasonable decisions):
-     - **Single dependent affected**: Auto-update and explain (no prompt)
-     - **Multiple dependents affected**: Show the list and prompt for confirmation
-     - **User mentioned "cascade"**: Auto-update regardless of count
-
-12. **Show success summary**
-
-    Display:
-    - Which artifact was modified
-    - Changes applied (summary)
-    - Dependent artifacts updated
-    - Context-aware next steps based on scenario
+Triggered by `/osx-modify <change> [artifact-id]` or as a routing target from
+`osx-review-artifacts`. Multi-artifact drift is out of scope — route to
+`/opsx:update` instead.
 
 ---
 
-## Output
+## Store selection
 
-**On Success**:
+If the user names a store (a store is a standalone OpenSpec repo registered on
+this machine) or the work lives in one, run:
+
+```bash
+openspec store list --json
+```
+
+to discover registered store ids, then pass `--store <id>` on every command
+that reads or writes specs and changes:
+
+`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`,
+`doctor`, `context`. Other commands do not take the flag.
+
+Hints printed by commands already carry the flag; keep it on follow-ups.
+Without a store, commands act on the nearest local `openspec/` root.
+
+---
+
+## Inputs
+
+- Positional `<change-name>` (required).
+- Optional positional `<artifact-id>`. When provided as the second argument it
+  is the **root artifact** to edit. When omitted, prompt.
+- Optional `--intent-flag <flag>` to surface a deliberate intent change when
+  the requested edit cannot be a refinement.
+
+---
+
+## Workflow
+
+### Step 1 — Select the change
+
+Adopt the `openspec-update-change` policy: **never auto-select**. If the
+argument matches multiple active changes, ask the user
+(`AskUserQuestion` / `**Ask**`) with the most-recently modified active change
+marked `(Recommended)`.
+
+### Step 2 — Load schema state
+
+```bash
+openspec status --change "<name>" [--store "<id>"] --json
+```
+
+Capture `schemaName`, `planningHome`, `changeRoot`, every
+`artifactPaths.<id>`, and `actionContext.allowedEditRoots`. Reject the request
+if the change's `allowedEditRoots` does not include the current project root.
+
+### Step 3 — Select the root artifact
+
+If `<artifact-id>` was not supplied, prompt. Show for each candidate:
+
+- artifact id
+- `status`
+- `unlocks` count (downstream blast radius)
+
+Sort candidates by `unlocks` ascending — pick the smallest blast-radius
+artifact first. Skip `ready`/`blocked` candidates for selection (they are
+uncreated); they belong in `/opsx:continue`'s domain.
+
+Refuse the request if the candidate set is empty or if every artifact is
+`ready`/`blocked`. Route to `/opsx:continue <name>` instead.
+
+### Step 4 — Load artifact context
+
+```bash
+openspec instructions "<root-id>" --change "<name>" [--store "<id>"] --json
+```
+
+Capture `template`, `instruction`, `context`, `rules`, `dependencies[]`,
+`unlocks[]`, `existingOutputPaths`. Read the current concrete file(s) from
+`existingOutputPaths` (never from `resolvedOutputPath` — for glob artifacts
+that is still a pattern).
+
+Stop if `existingOutputPaths` is empty. That means the artifact has not been
+created yet — `/osx-modify` cannot create it; route the user to
+`/opsx:continue`.
+
+### Step 5 — Surface constraints
+
+Show the user, in this order:
+
+1. The artifact's **root constraints**: `template` skeleton, `instruction`
+   prose, `rules` (each rule is a project-supplied constraint from
+   `openspec/config.yaml`), and `context`.
+2. The **upstream** facts pulled in: `dependencies[]` summaries.
+3. The **downstream** blast radius: `unlocks[]` with each artifact's current
+   status and `existingOutputPaths` size.
+
+Wait for the user to acknowledge (or adjust scope) before proposing edits.
+
+### Step 6 — Propose and confirm the root edit
+
+Based on the user's intent (natural language from the slash command, or by
+inferring from a review finding id), propose a single edit to the root
+artifact. Compose the proposal by:
+
+- Reading the current file(s).
+- Composing the new content per `template` + `rules`.
+- Showing the diff (`file_path:line` ranges and the new content) inline.
+
+**Confirm with `AskUserQuestion` / `**Ask**` before writing.**
+
+If the user rejects, leave the file untouched and exit. Do not cascade.
+
+### Step 7 — Forward-only propagation
+
+For each artifact id in `unlocks` of the root, run:
+
+```bash
+openspec instructions "<dependent-id>" --change "<name>" [--store "<id>"] --json
+```
+
+Read the dependent's `existingOutputPaths` and check whether the root edit
+breaks anything downstream (entities consumed by the dependent, constraints
+declared on the root that the dependent must honor). Compose a propagation
+proposal for that dependent only.
+
+**Forward-only.** Never edit an artifact in `dependencies`. Editing an
+upstream dep is `openspec-update-change`'s job; reject the request and route
+to `/opsx:update`.
+
+**Confirmation model.** Confirm every dependent proposal **individually**:
+
+- For each dependent: show the diff, propose the change with `AskUserQuestion`
+  / `**Ask**`, write only after confirmation.
+- Provide an explicit "cascade all" affordance: a single confirmation that
+  then walks each dependent through its own confirmation in sequence.
+- A rejected dependent is left unchanged; remaining dependents are still
+  proposed.
+
+If `unlocks` is empty, the work is done after the root edit. Otherwise the
+skill keeps proposing dependents until each is confirmed or rejected.
+
+If a dependent's contents strongly suggest it should change because of the
+root edit but the schema's `requires` does not declare a dependency (i.e.
+the schema declaration is incomplete), surface a `Suggestion` finding and
+recommend `/opsx:update`. Do not auto-edit.
+
+### Step 8 — Inherit "Update vs. Start Fresh"
+
+If the requested edit changes the change's **intent** rather than refining
+its execution, refuse the in-place edit. Detect intent-level changes by:
+- The user explicitly says "we want a different feature now" or equivalent.
+- The proposed edit rewrites the proposal section that defines the change's
+  purpose (read the proposal section, not file name).
+- The user passes `--intent-flag`.
+
+Refuse the modification, explain the signal, and recommend `/opsx:new
+<new-name>`. Stop cleanly.
+
+### Step 9 — Hand-off
+
+After all proposed edits are confirmed (or rejected), surface:
 
 ```
 ## Modification Complete
 
-**Change:** <name>
-**Artifact:** <artifact-id>
-**Mode:** [Review Iteration / Amendment]
+**Change**: <name>
+**Artifact**: <artifact-id>
+**Files edited**: <list of existingOutputPaths written>
 
-### Changes Applied
-- [Section]: [Action] - [Summary]
+### Changes applied
+- <section>: <action> — <summary>
 
-### Dependent Artifacts Updated
-- [x] <artifact-id>: [Summary]
+### Forward propagation
+- [x] <dependent-id>: <auto-updated | unchanged | prompted>
+- [ ] <dependent-id>: <rejected by user>
 
-### Next Steps
-**Pre-implementation review:**
-- Continue with: [next flagged artifact if any]
-- Verify fixes: `/osx-review <name>`
-- Ready to implement: `/osx-apply <name>` after review passes
-
-**Implementation phase**:
-- Sync changes: `/osx-apply <name>`
-- Check tests: [affected test files if known]
+### Next steps
+- Re-review: `/osx-review <name>`
+- Multi-artifact drift: `/opsx:update <name>`
+- Code implications: `/opsx:apply <name>`
 ```
 
-**On Pause (Ambiguous Input)**:
+If the request was rejected as intent-level:
 
 ```
-## Modification Paused
+## Modification declined
 
-**Issue:** <description of ambiguity>
+The requested edit changes the change's intent rather than refining it.
+This is better handled by starting a fresh change.
 
-**Options:**
-1. <option 1>
-2. <option 2>
-3. Describe differently
+**Detected signal**: <why we classified this as intent-level>
 
-What would you like to do?
+### Recommendation
+- Start fresh: `/opsx:new <new-name>`
+- Or override: re-run `/osx-modify <name> <artifact-id>` and explicitly confirm the intent change.
 ```
 
 ---
 
 ## Guardrails
 
-- Always read current artifact before modifying
-- Check dependents before finalizing changes
-- Use `rules` from instructions for validation (not CLI validate command)
-- Use Edit for targeted changes, Write for complete rewrites
-- Prefer reasonable decisions to keep momentum (0-1 dependents → auto-update)
-- Pause and ask for clarification if unable to act autonomously
-- Follow schema order for artifact selection
-- Never copy `context`, `rules`, or `project_context` blocks into artifact files
+- **Schema-agnostic.** Never assume `proposal.md`/`specs/`/`design.md`/`tasks.md`
+  or any other hardcoded artifact name. Read ids and paths from CLI JSON.
+- **Glob safety.** Read from and write to `existingOutputPaths` only. Never
+  to a glob `resolvedOutputPath`.
+- **Frontier discipline.** A missing artifact is not an editing target.
+  Route to `/opsx:continue <name>`.
+- **Forward-only propagation.** Never edit an artifact in `dependencies`.
+- **No code edits.** If the user asks to change code, refuse and point to
+  `/opsx:apply <name>`.
+- **Per-edit confirmation.** Show each proposed revision (root + each
+  dependent). Write only after the user confirms. Rejected revisions are
+  left unchanged.
+- **Carry `--store <id>`** on every `openspec` command when the change is
+  store-backed.
+
+---
+
+## Failure modes
+
+- **`unlocks` is non-empty but no dependent should change** — accept each as
+  "unchanged"; that is a valid terminal state.
+- **`existingOutputPaths` reads as glob pattern, not a file** — you read the
+  wrong field. Re-read `existingOutputPaths`.
+- **`openspec instructions` errors mid-cascade** — stop the cascade, report
+  which dependent failed, leave prior confirmed writes in place.
+- **`actionContext.allowedEditRoots` is empty** — refuse with a clear
+  message and recommend `/opsx:update` (which validates its own context).

@@ -3,6 +3,10 @@ name: osx-review-test-compliance
 description: Analyze spec-to-test alignment for OpenSpec changes. Use after implementation to identify test gaps, verify coverage of spec requirements, or understand test/spec alignment. Performs semantic matching between spec scenarios and test implementations.
 license: MIT
 compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
+metadata:
+  audience: agents running post-implementation spec-to-test alignment review (PHASE1 end, ad-hoc /osx:verify-tests)
+  workflow: post-implementation — after `osc-apply-change` and before `osc-verify-change`
 ---
 
 Analyze spec-to-test alignment to identify missing test coverage for OpenSpec changes.
@@ -18,7 +22,7 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 **Arguments**: `[change-name]`
 
 **Examples**:
-- `/osx:test-compliance add-auth` - Analyze test coverage for "add-auth"
+- `/osx:verify-tests add-auth` - Analyze test coverage for "add-auth"
 - "Check test coverage" - Infer change from context
 
 ---
@@ -169,10 +173,10 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 3. Add test `TestSessionTimeout()` to cover session timeout
 4. Document orphaned tests `TestHelperFunction` as utility functions
 
-### Next Steps
+### Next steps
 - Address gaps: Add recommended tests
-- Re-run compliance: `/osx:test-compliance <name>`
-- Verify implementation: `/osx:verify <name>`
+- Re-run compliance: `/osx:verify-tests <name>`
+- Verify implementation: `/opsx:verify <name>`
 ```
 
 **Quick Summary** (for clean changes):
@@ -186,7 +190,7 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 - All scenarios have corresponding tests
 - 0 coverage gaps
 
-Ready to verify: `/osx:verify <name>`
+Ready to verify: `/opsx:verify <name>`
 ```
 
 ---

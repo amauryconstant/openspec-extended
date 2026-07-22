@@ -2,7 +2,11 @@
 
 **Source**: Official OpenSpec workflow skills - track upstream, do not modify locally.
 
-**Version**: v1.5.0 (custom profile with all 11 workflows)
+**Version**: v1.6.0 (custom profile with all 12 workflows)
+
+**v1.6.0 highlights**:
+- Adds `openspec-update-change` (`/opsx:update`): revise existing planning artifacts in place and reconcile them bidirectionally.
+- Generated skills and `/opsx:*` slash commands now carry `allowed-tools: Bash(openspec:*)` in frontmatter (auto-approves the openspec CLI).
 
 **v1.5.0 highlight**: introduces "stores" — standalone OpenSpec repos registered on this machine via `openspec store <subcommand>`. Workflows check `openspec store list --json` and pass `--store <id>` on `new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`. Without a store, commands act on the nearest local `openspec/` root.
 
@@ -68,7 +72,7 @@ openspec-core/
 
 ---
 
-## Skills Reference (11 Workflows)
+## Skills Reference (12 Workflows)
 
 | Skill | Command | Description |
 |-------|---------|-------------|
@@ -77,6 +81,7 @@ openspec-core/
 | `openspec-new-change` | `/opsx:new` | Start a new change with artifact workflow |
 | `openspec-continue-change` | `/opsx:continue` | Continue working on an existing change |
 | `openspec-apply-change` | `/opsx:apply` | Implement tasks from a change |
+| `openspec-update-change` | `/opsx:update` | Revise existing planning artifacts and reconcile them (v1.6.0) |
 | `openspec-ff-change` | `/opsx:ff` | Fast-forward: create all artifacts at once |
 | `openspec-verify-change` | `/opsx:verify` | Verify implementation matches artifacts |
 | `openspec-sync-specs` | `/opsx:sync` | Sync specs with implementation state |
@@ -100,7 +105,7 @@ The `source/` subtree tracks upstream directly. This will:
 2. Discover the latest stable release tag (e.g., `v1.6.0`) via `git ls-remote --tags`
 3. `git subtree pull` from that tag into `source/` (squashed)
 4. Build the CLI in-place from `source/`
-5. Configure custom profile with all 11 workflows
+5. Configure custom profile with all 12 workflows
 6. Generate `.claude` and `.opencode` files via `openspec init --tools claude,opencode --profile custom`
 7. Copy generated files into this directory
 

@@ -436,7 +436,7 @@ The `openspec-extended` binary mounts `osx` as a subcommand. No deployed script 
 
 **Transition reasons** (canonical, validated by the library):
 - `implementation_incorrect` — code is wrong, do not modify artifacts
-- `artifacts_modified` — specs/design updated, go to PHASE1 to re-implement
+- `artifacts_modified` — specs/design updated (typically via `osc-update-change` / `/opsx:update`, fallback `osx-modify-artifacts` / `/osx-modify` for isolated single-artifact defects), go to PHASE1 to re-implement
 - `retry_requested` — same phase, different approach
 
 ### `phase`

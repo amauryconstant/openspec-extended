@@ -274,7 +274,7 @@ When you realize you've made a mistake:
 |-----------|----------|
 | Created wrong artifact | Delete file, run `osc-continue-change` to recreate |
 | Wrong change name | Delete folder, create new with correct name |
-| Missing spec updates | Use `osx-modify-artifacts` to add |
+| Missing spec updates | Run `/osx-review <name>` to classify; route via `/osx-modify <name> <id>` for single-artifact cases or `/opsx:update <name>` for multi-artifact drift |
 | Archived prematurely | Can't undo - document in next change |
 | Tasks out of sync with code | Update tasks.md to match reality, not vice versa |
 

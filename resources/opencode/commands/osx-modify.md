@@ -1,129 +1,63 @@
 ---
-description: Modify artifacts in OpenSpec changes with dependency tracking
+description: Surgical single-artifact edit with forward-only dependent propagation
 license: MIT
+allowed-tools: Bash(openspec:*)
 ---
 
 ## Tools Available
 
 | Tool | Type | Usage |
 |------|------|-------|
-| `openspec` | Upstream CLI | `openspec <command> [options]` - npm package |
-| `osx ctx` | Local script | `openspec-extended osx ctx get <change>` - load change context |
+| `openspec` | Upstream CLI | `openspec <command> [options]` — npm package |
+| `osx ctx` | Local script | `openspec-extended osx ctx get <change>` — load change context |
 
-Modify existing artifacts in an OpenSpec change, automatically tracking and updating dependent artifacts.
+Single-artifact surgical edit with forward-only `unlocks` propagation. For
+multi-artifact reconciliation, run `/opsx:update <name>` instead.
 
----
+### Store selection
+
+If the change lives in a registered store (a standalone OpenSpec repo
+registered on this machine), run `openspec store list --json` to discover ids
+and pass `--store <id>` on `status`, `instructions`, etc. Without a store,
+commands act on the nearest local `openspec/` root.
 
 ## Input
 
-Optionally specify `[change-name] [artifact-id]` after `/osx-modify`. If omitted, the AI will infer from context or prompt for selection.
+Positional `<change-name>` (required) and optional `<artifact-id>`. If
+`<artifact-id>` is omitted, the agent prompts (smallest blast radius first).
 
 **Patterns**:
 | Input | Behavior |
 |-------|----------|
-| `/osx-modify add-auth proposal` | Direct: use specified change and artifact |
-| `/osx-modify add-auth` | Change specified, auto-select artifact |
-| `/osx-modify` | Infer from context or prompt for both |
-
----
+| `/osx-modify add-auth specs/auth` | Edit specific artifact in change |
+| `/osx-modify add-auth` | Prompt for artifact selection |
+| `/osx-modify` | Prompt for change and artifact |
 
 ## Steps
 
-1. **Select the change**
+1. **Load the skill body**.
+   Read `.opencode/skills/osx-modify-artifacts/SKILL.md` and follow the nine
+   steps in `## Workflow`. This command wraps that skill; do not duplicate
+   rules here.
 
-   If name provided: use it. Otherwise:
-   - Infer from conversation context
-   - Auto-select if only one active change
-   - If ambiguous: run `openspec list --json` and use **AskUserQuestion** to prompt
-
-   Announce: "Using change: <name>" and how to override.
-
-2. **Check change status**  (Optional) 
-    ```bash
-    openspec-extended osx ctx get "<name>"
-    ```
-    - Parse JSON for: state (phase, iteration), artifacts with existence info.
-    - Bypass if the call returns nothing or an error.
-
-3. **Select artifact to modify**
-
-   If artifact ID specified: use it. Otherwise:
-   - Auto-select if only one artifact has status "ready"
-   - Match by name if user described content (e.g., "the requirements")
-   - Prompt if multiple ready and no direction
-
-   Present in schema order showing: ID, status, dependencies, unlocks.
-
-4. **Read current artifact**
-
-    Read the artifact file from `openspec/changes/<name>/`:
-    - `proposal.md` - Change proposal
-    - `specs/` - Specification files
-    - `design.md` - Design decisions
-    - `tasks.md` - Task list
-
-5. **Determine modification mode**
-
-   - **Mode A - Describe Changes**: User provides natural language → apply autonomously if clear, ask if ambiguous
-   - **Mode B - Interactive Edit**: User references specific content → show relevant sections, apply targeted edits
-
-   Auto-select based on input type.
-
-6. **Apply modifications**
-
-   Validate against `rules` from step 4:
-   - Clear violations → fix automatically
-   - Ambiguous violations → ask user
-   - Clear intent despite violation → proceed with warning
-
-   Use Edit tool for targeted changes, Write for complete rewrites.
-
-7. **Handle dependent artifacts**
-
-   Check `unlocks` array from instructions. For each dependent:
-   - Read the dependent artifact
-   - Analyze if modification affects it
-   - Track affected artifacts
-
-   **Decision logic**:
-   - 0-1 affected: Auto-update and explain
-   - 2+ affected: Show list and prompt
-   - User said "cascade": Auto-update all
-
-8. **Display summary**
-
----
-
-## Output
-
-```
-## Modification Complete
-
-**Change:** <name>
-**Artifact:** <artifact-id>
-
-### Changes Applied
-- [Section]: [Action] - [Summary]
-
-### Dependent Artifacts Updated
-- [x] <artifact-id>: [Summary]
-
-### Next Steps
-- Ready to implement: `/osx-apply <name>`
-- Continue modifying: [describe next artifact]
-```
-
----
+2. **Apply the per-artifact confirmation model** the skill spells out: confirm
+   root edit, then confirm each propagated dependent individually.
 
 ## Guardrails
 
-- Always read current artifact before modifying
-- Check dependents before finalizing
-- Use `rules` from instructions for validation (not `openspec validate`)
-- Use Edit for targeted changes, Write for complete rewrites
-- Prefer reasonable decisions (0-1 dependents → auto-update)
-- **IMPORTANT**: `context` and `rules` are constraints for YOU, not content for the file
+- **Schema-agnostic.** Never assume `proposal.md`/`specs/`/`design.md`/`tasks.md`.
+  Read ids and paths from `openspec status --change <name> --json` and
+  `openspec instructions <id> --change <name> --json`.
+- **Glob safety.** Write only to `existingOutputPaths`. Never to a glob
+  `resolvedOutputPath`.
+- **Frontier discipline.** A missing artifact is not an editing target. Route
+  the user to `/opsx:continue <name>`.
+- **Forward-only propagation.** Never edit an artifact in `dependencies`.
+- **No code edits.** If the user asks to change code, refuse and point to
+  `/opsx:apply <name>`.
+- **Per-edit confirmation.** Show each proposed revision; write only after
+  the user confirms. Rejected revisions are left unchanged.
+- **Carry `--store <id>`** when the change is store-backed.
 
----
-
-See `.opencode/skills/osx-modify-artifacts/SKILL.md` for detailed implementation logic.
+See `.opencode/skills/osx-modify-artifacts/SKILL.md` for the full contract,
+intent-level change detection, and hand-off templates.

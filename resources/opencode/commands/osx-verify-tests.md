@@ -1,6 +1,7 @@
 ---
 description: Review test coverage for OpenSpec changes to ensure spec requirements have tests
 license: MIT
+allowed-tools: Bash(openspec:*)
 ---
 
 Review test coverage for OpenSpec changes, ensuring spec requirements have corresponding tests.

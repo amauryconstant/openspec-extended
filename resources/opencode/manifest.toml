@@ -2,10 +2,10 @@
 version = "0.1.0"
 
 [resources.skills.osx-concepts]
-version = "0.8.0"
+version = "0.9.0"
 
 [resources.skills.osx-workflow]
-version = "0.2.0"
+version = "0.3.0"
 
 [resources.skills.osx-generate-changelog]
 version = "0.2.1"
@@ -14,13 +14,13 @@ version = "0.2.1"
 version = "0.2.0"
 
 [resources.skills.osx-modify-artifacts]
-version = "0.2.3"
+version = "0.3.0"
 
 [resources.skills.osx-review-artifacts]
-version = "0.2.6"
+version = "0.3.0"
 
 [resources.skills.osx-review-test-compliance]
-version = "0.2.1"
+version = "0.2.2"
 
 [resources.agents.osx-analyzer]
 version = "0.2.2"
@@ -38,16 +38,16 @@ version = "0.1.1"
 version = "0.1.1"
 
 [resources.commands.osx-modify]
-version = "0.1.4"
+version = "0.2.0"
 
 [resources.commands.osx-phase0]
-version = "0.2.11"
+version = "0.3.0"
 
 [resources.commands.osx-phase1]
 version = "0.3.5"
 
 [resources.commands.osx-phase2]
-version = "0.2.18"
+version = "0.3.0"
 
 [resources.commands.osx-phase3]
 version = "0.3.5"
@@ -62,7 +62,7 @@ version = "0.3.4"
 version = "0.3.6"
 
 [resources.commands.osx-review]
-version = "0.1.3"
+version = "0.2.0"
 
 [resources.commands.osx-verify-tests]
-version = "0.1.1"
+version = "0.1.2"
