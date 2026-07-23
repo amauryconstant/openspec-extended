@@ -1,0 +1,29 @@
+# Audit targets. Edit when targets or roots change.
+# The skill reads this file to know which two trees to compare.
+
+[upstream]
+label = "OpenSpec Core"
+root = "openspec-core/"
+head_path = "openspec-core/source/package.json"
+allowed_reads = [
+  "openspec-core/source/",
+  "openspec-core/AGENTS.md",
+]
+
+[local]
+label = "OpenSpec Extended"
+root = "source/"
+head_path = "source/__init__.py"
+resources_root = "resources/"
+manifest = "resources/opencode/manifest.toml"
+allowed_reads = [
+  "source/",
+  "resources/",
+  "resources/opencode/manifest.toml",
+  "resources/claude/manifest.toml",
+]
+
+[paths]
+capture_dir = ".audit/captures/"
+map_dir = ".audit/maps/"
+report_dir = ".audit/reports/"
