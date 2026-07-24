@@ -274,9 +274,14 @@ VERSION=v$FIXTURE_VERSION \
     [ "$status" -eq 0 ]
     [ -x "$prefix/bin/openspec-extended" ]
 
+    local packaged_binary="${BIN_SRC:-$PROJECT_ROOT/dist/openspec-extended}"
+    run "$packaged_binary" --version
+    [ "$status" -eq 0 ]
+    local expected_version_output="$output"
+
     run "$prefix/bin/openspec-extended" --version
     [ "$status" -eq 0 ]
-    [[ "$output" == *"$FIXTURE_VERSION"* ]]
+    [ "$output" = "$expected_version_output" ]
 }
 
 @test "install: rejects tarball with bad SHA256SUMS" {
