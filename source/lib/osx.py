@@ -1187,14 +1187,20 @@ def validate_commands(project_root: Optional[Path] = None) -> dict:
     errors: list[dict] = []
 
     base = commands_dir(root)
+    platform = detect_platform(root)
     for phase in PHASES:
         cmd_name = PHASE_COMMANDS.get(phase)
-        if cmd_name:
-            cmd_path = base / f"{cmd_name}.md"
-            if not cmd_path.exists():
-                errors.append(
-                    {"check": "commands", "message": f"Missing command: {cmd_name}"}
-                )
+        if not cmd_name:
+            continue
+        if platform == "claude" and cmd_name.startswith("osx-"):
+            deployed_name = cmd_name.replace("osx-", "", 1)
+        else:
+            deployed_name = cmd_name
+        cmd_path = base / f"{deployed_name}.md"
+        if not cmd_path.exists():
+            errors.append(
+                {"check": "commands", "message": f"Missing command: {deployed_name}"}
+            )
 
     if errors:
         return {"valid": False, "errors": errors}

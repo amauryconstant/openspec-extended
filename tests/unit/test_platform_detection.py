@@ -84,7 +84,8 @@ class TestValidateCommandsPlatformAware:
     def test_validates_claude_layout(self, tmp_path):
         (tmp_path / ".claude" / "commands" / "osx").mkdir(parents=True)
         for phase, cmd_name in osx.PHASE_COMMANDS.items():
-            (tmp_path / ".claude" / "commands" / "osx" / f"{cmd_name}.md").write_text(
+            deployed_name = cmd_name.replace("osx-", "", 1)
+            (tmp_path / ".claude" / "commands" / "osx" / f"{deployed_name}.md").write_text(
                 f"# {cmd_name}"
             )
 
@@ -100,3 +101,34 @@ class TestValidateCommandsPlatformAware:
 
         result = osx.validate_commands(tmp_path)
         assert result["valid"] is True, result
+
+    def test_rejects_claude_layout_with_osx_prefixed_filenames(self, tmp_path):
+        (tmp_path / ".claude" / "commands" / "osx").mkdir(parents=True)
+        for phase, cmd_name in osx.PHASE_COMMANDS.items():
+            (tmp_path / ".claude" / "commands" / "osx" / f"{cmd_name}.md").write_text(
+                f"# {cmd_name}"
+            )
+
+        result = osx.validate_commands(tmp_path)
+        assert result["valid"] is False
+        assert any("phase0" in err["message"] for err in result["errors"])
+
+    def test_rejects_opencode_layout_with_unprefixed_filenames(self, tmp_path):
+        (tmp_path / ".opencode" / "commands").mkdir(parents=True)
+        for phase, cmd_name in osx.PHASE_COMMANDS.items():
+            deployed_name = cmd_name.replace("osx-", "", 1)
+            (tmp_path / ".opencode" / "commands" / f"{deployed_name}.md").write_text(
+                f"# {cmd_name}"
+            )
+
+        result = osx.validate_commands(tmp_path)
+        assert result["valid"] is False
+        assert any("osx-phase0" in err["message"] for err in result["errors"])
+
+    def test_claude_error_names_deployed_filename_not_internal_name(self, tmp_path):
+        (tmp_path / ".claude" / "commands" / "osx").mkdir(parents=True)
+        result = osx.validate_commands(tmp_path)
+        assert result["valid"] is False
+        messages = [err["message"] for err in result["errors"]]
+        assert any("phase0" in m for m in messages)
+        assert not any("osx-phase0" in m for m in messages)
