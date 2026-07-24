@@ -86,6 +86,17 @@ Phase complete (clean review):
 openspec-extended osx state complete "$1"
 ```
 
+Non-clean review (routes pending — engine halts cleanly until user runs them):
+```bash
+openspec-extended osx state set-routes "$1" --routes "/osx-modify,/opsx:update"
+```
+
+The engine reads `routes_pending` from `state.json` after the phase ends.
+If non-empty (and `phase_complete` is false), the orchestrator exits 0 with
+a clear "Halted for routed commands" message instead of looping PHASE0.
+After the user runs the routed commands, the next `orchestrate` run re-enters
+PHASE0 to verify the fix.
+
 Critical blocker (cannot proceed):
 ```bash
 openspec-extended osx complete set "$1" BLOCKED --blocker-reason "[Describe the blocking issue]"

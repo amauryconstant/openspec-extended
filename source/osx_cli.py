@@ -125,7 +125,8 @@ def phase_cmd(
 @osx_app.command(name="state")
 def state_cmd(
     action: str = typer.Argument(
-        ..., help="Action: get, complete, transition, clear-transition, set-phase"
+        ...,
+        help="Action: get, complete, transition, clear-transition, set-phase, set-routes, clear-routes",
     ),
     change: str = typer.Argument(..., help="Change name"),
     phase: Optional[str] = typer.Argument(None, help="Phase (for set-phase only)"),
@@ -144,6 +145,11 @@ def state_cmd(
     ),
     iteration: Optional[int] = typer.Option(
         None, "--iteration", help="Iteration number (for set-phase)"
+    ),
+    routes: Optional[str] = typer.Option(
+        None,
+        "--routes",
+        help="Comma-separated slash commands (for set-routes; empty string to clear)",
     ),
 ) -> None:
     if action == "get" or action == "show":
@@ -164,11 +170,19 @@ def state_cmd(
         data = _call_library(osx_lib.state_clear_transition, change)
     elif action == "set-phase" or action == "set":
         data = _call_library(osx_lib.state_set_phase, change, phase, iteration)
+    elif action == "set-routes":
+        if routes is None:
+            routes_list: list[str] = []
+        else:
+            routes_list = [r.strip() for r in routes.split(",") if r.strip()]
+        data = _call_library(osx_lib.state_set_routes, change, routes_list)
+    elif action == "clear-routes":
+        data = _call_library(osx_lib.state_clear_routes, change)
     else:
         osx_error(
             "invalid_action",
             f"Unknown action: {action}",
-            valid="get, complete, transition, clear-transition, set-phase",
+            valid="get, complete, transition, clear-transition, set-phase, set-routes, clear-routes",
         )
         return
     osx_output(data)

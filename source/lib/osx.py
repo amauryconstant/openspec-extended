@@ -735,6 +735,7 @@ def state_complete(change: str, *, store: Optional[str] = None) -> dict:
 
     state = _read_state(change_dir)
     state["phase_complete"] = True
+    state.pop("routes_pending", None)
     state["last_updated"] = get_timestamp()
     _write_state(change_dir, state)
 
@@ -825,6 +826,51 @@ def state_set_phase(
     _write_state(change_dir, state)
 
     return {"success": True, "phase": phase, "previous_phase": previous}
+
+
+def state_set_routes(
+    change: str,
+    routes: list[str],
+    *,
+    store: Optional[str] = None,
+) -> dict:
+    """Record pending routes from a read-only phase (e.g. PHASE0).
+
+    Routes are slash-command names the user should run externally to fix
+    issues the phase found (e.g. ``/osx-modify``, ``/opsx:update``,
+    ``/opsx:continue``). The engine halts cleanly when ``routes_pending``
+    is non-empty after a phase, so the user actually has time to run them.
+    """
+    change_dir = _find_change_dir(change, store=store)
+    state_file = change_dir / "state.json"
+
+    if not state_file.exists():
+        raise OSXError("state_not_found", "state.json does not exist")
+
+    routes = [r for r in routes if r]
+    state = _read_state(change_dir)
+    state["routes_pending"] = routes
+    state["last_updated"] = get_timestamp()
+    _write_state(change_dir, state)
+
+    return {"success": True, "routes_pending": routes}
+
+
+def state_clear_routes(change: str, *, store: Optional[str] = None) -> dict:
+    """Drop any ``routes_pending`` from state.json."""
+    change_dir = _find_change_dir(change, store=store)
+    state_file = change_dir / "state.json"
+
+    if not state_file.exists():
+        raise OSXError("state_not_found", "state.json does not exist")
+
+    state = _read_state(change_dir)
+    had = bool(state.get("routes_pending"))
+    state.pop("routes_pending", None)
+    state["last_updated"] = get_timestamp()
+    _write_state(change_dir, state)
+
+    return {"success": True, "had_routes": had}
 
 
 def iterations_get(change: str, *, store: Optional[str] = None) -> dict:

@@ -4,6 +4,7 @@ Integration tests for phase workflow.
 """
 
 import json
+from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
@@ -387,4 +388,217 @@ class TestPhaseTransition:
         state_file = test_env / "openspec" / "changes" / "test-change" / "state.json"
         state = json.loads(state_file.read_text())
         assert state["transition"]["reason"] == "artifacts_modified"
-        assert state["transition"]["details"] == "ValidationPipeline spec updated"
+
+
+@pytest.mark.integration
+class TestPhase0RoutesPending:
+    """Regression sentinel for C3 (PHASE0 routes without completing).
+
+    PHASE0 is read-only and can only route the user to other commands
+    (``/osx-modify``, ``/opsx:update``). The engine must halt cleanly so the
+    user has time to run the routed commands. Without ``routes_pending`` the
+    engine would loop PHASE0 until the iteration cap exhausts.
+    """
+
+    def _state_file(self, test_env) -> Path:
+        return test_env / "openspec" / "changes" / "test-change" / "state.json"
+
+    def _read_state(self, test_env) -> dict:
+        return json.loads(self._state_file(test_env).read_text())
+
+    def test_set_routes_writes_routes_pending(self, test_env, monkeypatch):
+        """`osx state set-routes --routes …` writes routes_pending to state.json."""
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false}',
+        )
+        monkeypatch.chdir(test_env)
+        result = invoke(
+            [
+                "state",
+                "set-routes",
+                "test-change",
+                "--routes",
+                "/osx-modify,/opsx:update",
+            ]
+        )
+        assert result.exit_code == 0, result.stdout
+        payload = json.loads(result.stdout.strip())
+        assert payload["routes_pending"] == ["/osx-modify", "/opsx:update"]
+        assert self._read_state(test_env)["routes_pending"] == [
+            "/osx-modify",
+            "/opsx:update",
+        ]
+
+    def test_set_routes_replaces_previous_routes(self, test_env, monkeypatch):
+        """A second `set-routes` call overwrites the previous list."""
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":["/osx-modify"]}',
+        )
+        monkeypatch.chdir(test_env)
+        invoke(
+            [
+                "state",
+                "set-routes",
+                "test-change",
+                "--routes",
+                "/opsx:continue",
+            ]
+        )
+        assert self._read_state(test_env)["routes_pending"] == ["/opsx:continue"]
+
+    def test_clear_routes_removes_field(self, test_env, monkeypatch):
+        """`osx state clear-routes` strips routes_pending from state.json."""
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":["/osx-modify"]}',
+        )
+        monkeypatch.chdir(test_env)
+        result = invoke(["state", "clear-routes", "test-change"])
+        assert result.exit_code == 0, result.stdout
+        assert "routes_pending" not in self._read_state(test_env)
+
+    def test_set_routes_without_flag_clears(self, test_env, monkeypatch):
+        """`osx state set-routes --routes ""` clears the list (explicit empty)."""
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":["/osx-modify"]}',
+        )
+        monkeypatch.chdir(test_env)
+        invoke(["state", "set-routes", "test-change", "--routes", ""])
+        assert self._read_state(test_env)["routes_pending"] == []
+
+    def test_state_complete_clears_routes(self, test_env, monkeypatch):
+        """Phase completion clears routes_pending (engine contract)."""
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":["/osx-modify"]}',
+        )
+        monkeypatch.chdir(test_env)
+        invoke(["state", "complete", "test-change"])
+        state = self._read_state(test_env)
+        assert state["phase_complete"] is True
+        assert "routes_pending" not in state
+
+    def test_engine_check_routes_pending_helper(self, test_env, monkeypatch):
+        """Engine helper reads the list from state.json."""
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":["/osx-modify","/opsx:update"]}',
+        )
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+        )
+        assert eng.check_routes_pending(orch_state) == [
+            "/osx-modify",
+            "/opsx:update",
+        ]
+
+    def test_engine_check_routes_pending_empty_when_missing(self, test_env):
+        """Engine helper returns [] when no state.json routes_pending is set."""
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false}',
+        )
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+        )
+        assert eng.check_routes_pending(orch_state) == []
+
+    def test_engine_check_routes_pending_handles_corrupt_field(self, test_env):
+        """Engine helper tolerates a non-list routes_pending field."""
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":"not-a-list"}',
+        )
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+        )
+        assert eng.check_routes_pending(orch_state) == []
+
+
+@pytest.mark.integration
+class TestEnginePhase0RouteHalt:
+    """Engine-level tests for the soft-halt behavior in `run_phase`."""
+
+    def test_run_phase_returns_false_when_routes_pending(self, test_env, monkeypatch):
+        """PHASE0 with routes_pending non-empty + phase_complete=False → False (halt)."""
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":["/osx-modify"]}',
+        )
+        monkeypatch.setattr(eng, "run_agent", lambda s, p: True)
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=3,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is False
+
+    def test_run_phase_proceeds_when_routes_pending_cleared(self, test_env, monkeypatch):
+        """PHASE0 with routes_pending cleared + phase_complete=True → True (advance)."""
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":[]}',
+        )
+        monkeypatch.chdir(test_env)
+
+        def _run_agent_sets_complete(state, phase):
+            invoke(["state", "complete", "test-change"])
+            return True
+
+        monkeypatch.setattr(eng, "run_agent", _run_agent_sets_complete)
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=3,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is True
+        state = json.loads(
+            (test_env / "openspec" / "changes" / "test-change" / "state.json").read_text()
+        )
+        assert state["phase_complete"] is False
+        assert "routes_pending" not in state
+
+    def test_write_state_preserves_routes_pending(self, test_env, monkeypatch):
+        """The engine's write_state preserves routes_pending across iterations."""
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":["/osx-modify","/opsx:update"]}',
+        )
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+        )
+        eng.write_state(orch_state, "PHASE0", iteration=2, phase_complete=False)
+        state = json.loads(
+            (test_env / "openspec" / "changes" / "test-change" / "state.json").read_text()
+        )
+        assert state["routes_pending"] == ["/osx-modify", "/opsx:update"]

@@ -406,7 +406,7 @@ class TestManifestParity:
             ("commands.osx-modify", "0.2.0"),
             ("commands.osx-verify-tests", "0.1.2"),
             ("commands.osx-maintain-docs", "0.2.2"),
-            ("commands.osx-phase0", "0.3.0"),
+            ("commands.osx-phase0", "0.3.1"),
             ("commands.osx-phase2", "0.3.2"),
         ],
     )

@@ -350,6 +350,8 @@ def write_state(
         "started_at": existing_started_at,
         "last_updated": timestamp,
     }
+    if "routes_pending" in existing:
+        state_data["routes_pending"] = existing["routes_pending"]
 
     state_io.write_state(state.change_dir, state_data)
     log_verbose(
@@ -399,6 +401,22 @@ def check_phase_complete(state: OrchestratorState) -> bool:
 def clear_phase_complete(state: OrchestratorState) -> None:
     if state.change_dir is not None:
         state_io.clear_phase_complete(state.change_dir)
+
+
+def check_routes_pending(state: OrchestratorState) -> list[str]:
+    """Return the list of pending routes (slash commands) written by the phase.
+
+    Empty list when the phase is clean or no routes are recorded. A non-empty
+    list means the phase halted cleanly and the engine should exit so the
+    user can run the routed commands externally.
+    """
+    data = read_state(state)
+    if not data:
+        return []
+    routes = data.get("routes_pending") or []
+    if not isinstance(routes, list):
+        return []
+    return [r for r in routes if isinstance(r, str) and r]
 
 
 def check_transition(state: OrchestratorState) -> tuple[bool, str]:
@@ -565,7 +583,16 @@ def run_phase(state: OrchestratorState, phase: str) -> bool:
         elif check_phase_complete(state):
             log_success(state, f"{phase} completed in {iteration} iteration(s)")
             clear_phase_complete(state)
+            osx_lib.state_clear_routes(state.change_id)
             return True
+
+        routes = check_routes_pending(state)
+        if routes:
+            log_warning(
+                state,
+                f"{phase} halted: routes_pending={routes}. Run the routed command(s) and re-run.",
+            )
+            return False
 
         iteration += 1
 
@@ -1065,6 +1092,25 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
 
                 if current_phase in PHASES:
                     if not run_phase(state, current_phase):
+                        routes = check_routes_pending(state)
+                        if routes:
+                            log(state, "")
+                            log(state, "================================")
+                            log(state, "Halted for routed commands")
+                            log(state, "================================")
+                            log(
+                                state,
+                                f"{current_phase} identified the following routes:",
+                            )
+                            for route in routes:
+                                log(state, f"  - {route}")
+                            log(
+                                state,
+                                "Run the routed command(s) above, then re-run `openspec-extended orchestrate "
+                                f"{state.change_id}` to resume.",
+                            )
+                            show_progress(state)
+                            raise SystemExit(0)
                         log_error(state, f"{current_phase} failed")
                         raise SystemExit(1)
 
@@ -1112,6 +1158,12 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
 
                         clear_transition(state)
                         clear_phase_complete(state)
+                        if check_routes_pending(state):
+                            osx_lib.state_clear_routes(state.change_id)
+                            log_verbose(
+                                state,
+                                "Cleared routes_pending: transition takes precedence.",
+                            )
                         current_phase = transition_target
                     else:
                         next_phase = advance_phase(current_phase)
