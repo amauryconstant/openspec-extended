@@ -397,7 +397,7 @@ class TestManifestParity:
         [
             ("skills.osx-review-artifacts", "0.3.0"),
             ("skills.osx-modify-artifacts", "0.3.1"),
-            ("skills.osx-workflow", "0.3.2"),
+            ("skills.osx-workflow", "0.3.3"),
             ("skills.osx-concepts", "0.9.3"),
             ("skills.osx-review-test-compliance", "0.2.3"),
             ("skills.osx-generate-changelog", "0.2.3"),
@@ -407,7 +407,7 @@ class TestManifestParity:
             ("commands.osx-verify-tests", "0.1.2"),
             ("commands.osx-maintain-docs", "0.2.2"),
             ("commands.osx-phase0", "0.3.0"),
-            ("commands.osx-phase2", "0.3.1"),
+            ("commands.osx-phase2", "0.3.2"),
         ],
     )
     def test_target_versions(self, key: str, expected: str):

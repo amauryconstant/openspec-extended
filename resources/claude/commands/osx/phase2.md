@@ -68,7 +68,7 @@ First, determine the root cause:
 2. Commit the artifact changes
 3. Signal transition back to PHASE1:
    ```bash
-   openspec-extended osx state transition "$1" PHASE1 artifacts_modified "Brief description of what was fixed"
+   openspec-extended osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "Brief description of what was fixed"
    ```
 4. Log: "Artifacts modified via /opsx:update, transitioning to PHASE1 for re-implementation"
 
@@ -76,14 +76,14 @@ First, determine the root cause:
 1. DO NOT modify artifacts
 2. Signal transition back to PHASE1:
    ```bash
-   openspec-extended osx state transition "$1" PHASE1 implementation_incorrect "Brief description of what needs fixing"
+   openspec-extended osx state transition "$1" --target PHASE1 --reason implementation_incorrect --details "Brief description of what needs fixing"
    ```
 3. Log: "Implementation incorrect, transitioning to PHASE1 for fixes"
 
 **Case C: Same phase needs retry with different approach**
 1. Signal retry:
    ```bash
-   openspec-extended osx state transition "$1" PHASE2 retry_requested "Brief description of alternative approach"
+   openspec-extended osx state transition "$1" --target PHASE2 --reason retry_requested --details "Brief description of alternative approach"
    ```
 2. Log: "Requesting retry with different approach"
 
@@ -207,9 +207,9 @@ Use `osx state transition` for explicit phase control:
 
 | Scenario | Command | Reason |
 |----------|---------|--------|
-| Artifacts fixed | `osx state transition "$1" PHASE1 artifacts_modified "..."` | Specs/design updated via `/opsx:update` (or `osx-modify-artifacts` for isolated single-artifact defects), re-implement |
-| Implementation wrong | `osx state transition "$1" PHASE1 implementation_incorrect "..."` | Artifacts correct, code needs fix |
-| Retry with new approach | `osx state transition "$1" PHASE2 retry_requested "..."` | Try different solution |
+| Artifacts fixed | `osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "..."` | Specs/design updated via `/opsx:update` (or `osx-modify-artifacts` for isolated single-artifact defects), re-implement |
+| Implementation wrong | `osx state transition "$1" --target PHASE1 --reason implementation_incorrect --details "..."` | Artifacts correct, code needs fix |
+| Retry with new approach | `osx state transition "$1" --target PHASE2 --reason retry_requested --details "..."` | Try different solution |
 | Review passed | `osx state complete "$1"` | Normal advance to PHASE3 |
 
 

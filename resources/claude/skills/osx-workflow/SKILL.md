@@ -186,7 +186,7 @@ The first thing every phase command does: `osx ctx get "$1"`.
 | `get` | `<change>` | Read `state.json` |
 | `complete` | `<change>` | Set `phase_complete: true`; orchestrator advances to next phase |
 | `set-phase` | `<change> <PHASEN> [--iteration N]` | Force-set phase (use `orchestrate --from-phase` instead when possible) |
-| `transition` | `<change> <target> <reason> [details]` | Set a pending transition; orchestrator routes to `<target>` next |
+| `transition` | `<change> --target <PHASEN> --reason <reason> [--details "..."]` | Set a pending transition; orchestrator routes to `<target>` next |
 | `clear-transition` | `<change>` | Clear a pending transition |
 
 **Transition reasons** (canonical, validated by the library):
@@ -346,9 +346,9 @@ PHASE2 (`osc-verify-change`) uses `state transition` to send the workflow back t
 
 | Situation | Command |
 |-----------|---------|
-| Artifacts were fixed | `osx state transition <change> PHASE1 artifacts_modified "Fixed unclear specs in design.md"` |
-| Implementation is wrong | `osx state transition <change> PHASE1 implementation_incorrect "Missing validation in API handler"` |
-| Same phase retry | `osx state transition <change> PHASE2 retry_requested "Alternative verification strategy"` |
+| Artifacts were fixed | `osx state transition <change> --target PHASE1 --reason artifacts_modified --details "Fixed unclear specs in design.md"` |
+| Implementation is wrong | `osx state transition <change> --target PHASE1 --reason implementation_incorrect --details "Missing validation in API handler"` |
+| Same phase retry | `osx state transition <change> --target PHASE2 --reason retry_requested --details "Alternative verification strategy"` |
 
 > **Critical**: choose the correct reason. The wrong transition sends the workflow to the wrong place.
 

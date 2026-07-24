@@ -248,10 +248,10 @@ graph TD
 
 | Situation | Command | Reason Parameter |
 |-----------|----------|-----------------|
-| Artifacts are wrong (typically multi-artifact) | `osx state transition "$1" PHASE1 artifacts_modified` | "Reconciled specs + design + tasks via /opsx:update" |
-| Artifacts are wrong (isolated single-artifact defect) | `osx state transition "$1" PHASE1 artifacts_modified` | "Surgical fix via /osx-modify" |
-| Implementation is wrong | `osx state transition "$1" PHASE1 implementation_incorrect` | "Missing validation in API handler" |
-| Same phase retry | `osx state transition "$1" PHASE2 retry_requested` | "Alternative verification strategy" |
+| Artifacts are wrong (typically multi-artifact) | `osx state transition "$1" --target PHASE1 --reason artifacts_modified` | "Reconciled specs + design + tasks via /opsx:update" |
+| Artifacts are wrong (isolated single-artifact defect) | `osx state transition "$1" --target PHASE1 --reason artifacts_modified` | "Surgical fix via /osx-modify" |
+| Implementation is wrong | `osx state transition "$1" --target PHASE1 --reason implementation_incorrect` | "Missing validation in API handler" |
+| Same phase retry | `osx state transition "$1" --target PHASE2 --reason retry_requested` | "Alternative verification strategy" |
 
 **Critical**: Choose the correct case - wrong transition sends workflow to wrong place.
 
@@ -365,16 +365,16 @@ openspec-extended osx state complete "$1"
 openspec-extended osx state complete "$1"
 
 # Case A: artifacts wrong (default → update)
-openspec-extended osx state transition "$1" PHASE1 artifacts_modified "Reconciled via /opsx:update"
+openspec-extended osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "Reconciled via /opsx:update"
 
 # Case A (isolated): single-artifact defect via modify
-openspec-extended osx state transition "$1" PHASE1 artifacts_modified "Surgical fix via /osx-modify"
+openspec-extended osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "Surgical fix via /osx-modify"
 
 # Case B: implementation wrong
-openspec-extended osx state transition "$1" PHASE1 implementation_incorrect "Missing validation"
+openspec-extended osx state transition "$1" --target PHASE1 --reason implementation_incorrect --details "Missing validation"
 
 # Case C: same phase retry
-openspec-extended osx state transition "$1" PHASE2 retry_requested "Alternative strategy"
+openspec-extended osx state transition "$1" --target PHASE2 --reason retry_requested --details "Alternative strategy"
 ```
 
 ### 5.4 PHASE3: Maintain Documentation
@@ -651,7 +651,7 @@ osx ctx get "$CHANGE_ID"
 osx state complete "$CHANGE_ID"
 
 # Phase transition (PHASE2 only)
-osx state transition "$CHANGE_ID" PHASE1 artifacts_modified "Fixed specs"
+osx state transition "$CHANGE_ID" --target PHASE1 --reason artifacts_modified --details "Fixed specs"
 
 # Log decision
 osx log append "$CHANGE_ID" --phase PHASE0 --iteration 1 --summary "Review complete"
