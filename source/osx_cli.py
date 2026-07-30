@@ -15,7 +15,6 @@ the Typer/CLI surface.
 import json
 import subprocess
 import sys
-from typing import Optional
 
 import typer
 
@@ -27,7 +26,7 @@ osx_app = typer.Typer(help="OpenSpec Extended change management tool")
 @osx_app.callback()
 def _osx_app_callback(
     ctx: typer.Context,
-    store: Optional[str] = typer.Option(
+    store: str | None = typer.Option(
         None,
         "--store",
         "-s",
@@ -136,24 +135,24 @@ def state_cmd(
         help="Action: get, complete, transition, clear-transition, set-phase, set-routes, clear-routes",
     ),
     change: str = typer.Argument(..., help="Change name"),
-    phase: Optional[str] = typer.Argument(None, help="Phase (for set-phase only)"),
-    target: Optional[str] = typer.Option(
+    phase: str | None = typer.Argument(None, help="Phase (for set-phase only)"),
+    target: str | None = typer.Option(
         None,
         "--target",
         help="Target phase for transition (required)",
     ),
-    reason: Optional[str] = typer.Option(
+    reason: str | None = typer.Option(
         None,
         "--reason",
         help="Transition reason (required): implementation_incorrect, artifacts_modified, retry_requested",
     ),
-    details: Optional[str] = typer.Option(
+    details: str | None = typer.Option(
         None, "--details", help="Transition details (free text)"
     ),
-    iteration: Optional[int] = typer.Option(
+    iteration: int | None = typer.Option(
         None, "--iteration", help="Iteration number (for set-phase)"
     ),
-    routes: Optional[str] = typer.Option(
+    routes: str | None = typer.Option(
         None,
         "--routes",
         help="Comma-separated slash commands (for set-routes; empty string to clear)",
@@ -199,25 +198,25 @@ def state_cmd(
 def iterations_cmd(
     action: str = typer.Argument(..., help="Action: get, append"),
     change: str = typer.Argument(..., help="Change name"),
-    phase: Optional[str] = typer.Option(None, "--phase", help="Phase"),
-    iteration: Optional[int] = typer.Option(
+    phase: str | None = typer.Option(None, "--phase", help="Phase"),
+    iteration: int | None = typer.Option(
         None, "--iteration", help="Iteration number"
     ),
-    summary: Optional[str] = typer.Option(None, "--summary", help="Summary text"),
-    status: Optional[str] = typer.Option(None, "--status", help="Status"),
-    notes: Optional[str] = typer.Option(None, "--notes", help="Notes"),
-    commit_hash: Optional[str] = typer.Option(
+    summary: str | None = typer.Option(None, "--summary", help="Summary text"),
+    status: str | None = typer.Option(None, "--status", help="Status"),
+    notes: str | None = typer.Option(None, "--notes", help="Notes"),
+    commit_hash: str | None = typer.Option(
         None, "--commit-hash", help="Git commit hash"
     ),
-    issues: Optional[str] = typer.Option(None, "--issues", help="Issues (JSON)"),
-    artifacts_modified: Optional[str] = typer.Option(
+    issues: str | None = typer.Option(None, "--issues", help="Issues (JSON)"),
+    artifacts_modified: str | None = typer.Option(
         None, "--artifacts-modified", help="Artifacts modified (JSON)"
     ),
-    decisions: Optional[str] = typer.Option(
+    decisions: str | None = typer.Option(
         None, "--decisions", help="Decisions (JSON)"
     ),
-    errors: Optional[str] = typer.Option(None, "--errors", help="Errors (JSON)"),
-    extra: Optional[str] = typer.Option(
+    errors: str | None = typer.Option(None, "--errors", help="Errors (JSON)"),
+    extra: str | None = typer.Option(
         None, "--extra", help="Additional fields (JSON object)"
     ),
 ) -> None:
@@ -249,24 +248,24 @@ def iterations_cmd(
 def log_cmd(
     action: str = typer.Argument(..., help="Action: get, append"),
     change: str = typer.Argument(..., help="Change name"),
-    phase: Optional[str] = typer.Option(None, "--phase", help="Phase"),
-    iteration: Optional[int] = typer.Option(
+    phase: str | None = typer.Option(None, "--phase", help="Phase"),
+    iteration: int | None = typer.Option(
         None, "--iteration", help="Iteration number"
     ),
-    summary: Optional[str] = typer.Option(None, "--summary", help="Summary text"),
-    commit_hash: Optional[str] = typer.Option(
+    summary: str | None = typer.Option(None, "--summary", help="Summary text"),
+    commit_hash: str | None = typer.Option(
         None, "--commit-hash", help="Git commit hash"
     ),
-    next_steps: Optional[str] = typer.Option(None, "--next-steps", help="Next steps"),
-    issues: Optional[str] = typer.Option(None, "--issues", help="Issues (JSON)"),
-    artifacts_modified: Optional[str] = typer.Option(
+    next_steps: str | None = typer.Option(None, "--next-steps", help="Next steps"),
+    issues: str | None = typer.Option(None, "--issues", help="Issues (JSON)"),
+    artifacts_modified: str | None = typer.Option(
         None, "--artifacts-modified", help="Artifacts modified (JSON)"
     ),
-    decisions: Optional[str] = typer.Option(
+    decisions: str | None = typer.Option(
         None, "--decisions", help="Decisions (JSON)"
     ),
-    errors: Optional[str] = typer.Option(None, "--errors", help="Errors (JSON)"),
-    extra: Optional[str] = typer.Option(
+    errors: str | None = typer.Option(None, "--errors", help="Errors (JSON)"),
+    extra: str | None = typer.Option(
         None, "--extra", help="Additional fields (JSON object)"
     ),
 ) -> None:
@@ -297,8 +296,8 @@ def log_cmd(
 def complete_cmd(
     action: str = typer.Argument(..., help="Action: check, get, set"),
     change: str = typer.Argument(..., help="Change name"),
-    status: Optional[str] = typer.Argument(None, help="Status (COMPLETE or BLOCKED)"),
-    blocker_reason: Optional[str] = typer.Option(
+    status: str | None = typer.Argument(None, help="Status (COMPLETE or BLOCKED)"),
+    blocker_reason: str | None = typer.Option(
         None, "--blocker-reason", help="Blocker reason"
     ),
 ) -> None:
@@ -326,7 +325,7 @@ def validate_cmd(
         ...,
         help="Action: json, skills, commands, change-dir, archive, iterations, completion, change, spec, all, changes, specs",
     ),
-    target: Optional[str] = typer.Argument(
+    target: str | None = typer.Argument(
         None, help="Target (file path or change name depending on action)"
     ),
     strict: bool = typer.Option(False, "--strict", help="Treat warnings as failures"),
@@ -418,7 +417,7 @@ def validate_cmd(
 @osx_app.command(name="instructions")
 def instructions_cmd(
     artifact: str = typer.Argument(..., help="Artifact type (e.g., specs, apply)"),
-    change: Optional[str] = typer.Option(None, "--change", help="Change name"),
+    change: str | None = typer.Option(None, "--change", help="Change name"),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
 ) -> None:
     cmd_args = ["openspec", "instructions", artifact]
@@ -450,7 +449,7 @@ def store_list_cmd() -> None:
 
 @store_app.command("doctor")
 def store_doctor_cmd(
-    store: Optional[str] = typer.Argument(None, help="Store id (omit to check all)"),
+    store: str | None = typer.Argument(None, help="Store id (omit to check all)"),
 ) -> None:
     """Check health of a registered store (or all when id is omitted)."""
     data = _call_library(osx_lib.store_doctor, store)
@@ -460,7 +459,7 @@ def store_doctor_cmd(
 @store_app.command("register")
 def store_register_cmd(
     path: str = typer.Argument(..., help="Filesystem path to the store repo"),
-    store_id: Optional[str] = typer.Option(
+    store_id: str | None = typer.Option(
         None, "--id", help="Store id (defaults to folder name or existing metadata)"
     ),
 ) -> None:
@@ -484,7 +483,7 @@ osx_app.add_typer(schema_app, name="schema")
 
 @schema_app.command("which")
 def schema_which_cmd(
-    name: Optional[str] = typer.Argument(None),
+    name: str | None = typer.Argument(None),
     all_schemas: bool = typer.Option(
         False, "--all", help="List all schemas with resolution source"
     ),
@@ -503,7 +502,7 @@ def schema_list_cmd() -> None:
 
 @schema_app.command("validate")
 def schema_validate_cmd(
-    name: Optional[str] = typer.Argument(None),
+    name: str | None = typer.Argument(None),
 ) -> None:
     """Validate a schema's structure (delegates to `openspec schema validate`)."""
     data = _call_library(osx_lib.schema_validate, name)
@@ -513,7 +512,7 @@ def schema_validate_cmd(
 @schema_app.command("fork")
 def schema_fork_cmd(
     source: str = typer.Argument(...),
-    name: Optional[str] = typer.Argument(None),
+    name: str | None = typer.Argument(None),
     force: bool = typer.Option(False, "--force"),
 ) -> None:
     """Fork a schema to project-local (delegates to `openspec schema fork`)."""
@@ -524,8 +523,8 @@ def schema_fork_cmd(
 @schema_app.command("init")
 def schema_init_cmd(
     name: str = typer.Argument(...),
-    description: Optional[str] = typer.Option(None, "--description"),
-    artifacts: Optional[str] = typer.Option(
+    description: str | None = typer.Option(None, "--description"),
+    artifacts: str | None = typer.Option(
         None, "--artifacts", help="Comma-separated list"
     ),
     set_default: bool = typer.Option(False, "--default"),

@@ -14,16 +14,15 @@ import signal
 import subprocess
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from rich import print as rich_print
 
 from source import __version__
 from source.lib import osx as osx_lib
 from source.lib import state_io
-from source.lib.osx import OSXError, PHASE_COMMANDS, PHASE_NAMES, PHASES
+from source.lib.osx import PHASE_COMMANDS, PHASE_NAMES, PHASES, OSXError
 from source.orchestrator.runner import detect_runner
 
 PHASE_AGENTS = {
@@ -53,7 +52,7 @@ def get_version() -> str:
 @dataclass
 class OrchestratorState:
     change_id: str = ""
-    change_dir: Optional[Path] = None
+    change_dir: Path | None = None
     max_phase_iterations: int = DEFAULT_MAX_PHASE_ITERATIONS
     timeout: int = DEFAULT_TIMEOUT
     verbose: bool = False
@@ -62,25 +61,25 @@ class OrchestratorState:
     clean: bool = False
     from_phase: str = ""
     no_color: bool = False
-    log_file: Optional[Path] = None
+    log_file: Path | None = None
     log_user_specified: bool = False
     total_invocations: int = 0
     start_time: int = 0
     interrupted: bool = False
-    child_pid: Optional[int] = None
+    child_pid: int | None = None
     model: str = ""
     list_changes: bool = False
-    store: Optional[str] = None
-    schema_override: Optional[str] = None
-    schema_name: Optional[str] = None
-    schema_source: Optional[str] = None
+    store: str | None = None
+    schema_override: str | None = None
+    schema_name: str | None = None
+    schema_source: str | None = None
 
 
 def get_timestamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def find_change_dir(change: str, *, store: Optional[str] = None) -> Optional[Path]:
+def find_change_dir(change: str, *, store: str | None = None) -> Path | None:
     try:
         return osx_lib._find_change_dir(
             change, store=store or osx_lib.current_store.get()
@@ -161,7 +160,7 @@ def print_validation_errors(state: OrchestratorState, data: dict) -> None:
             log_error(state, msg)
 
 
-def _project_root(state: OrchestratorState) -> Optional[Path]:
+def _project_root(state: OrchestratorState) -> Path | None:
     """Project root derived from the active change directory.
 
     Mirrors the derivation used by ``validate_schema`` (``engine.py:284``).
@@ -216,13 +215,13 @@ def validate_git(state: OrchestratorState) -> None:
         log_warning(state, "Uncommitted changes detected")
 
         if not state.force and os.isatty(0):
-            print("")
+            print()
             print("Options:")
             print("  1. Commit or stash changes before proceeding")
             print("  2. Abort and clean up first")
             print("  3. Continue anyway (use --force to skip this prompt)")
             reply = input("Continue? [y/N] ")
-            print("")
+            print()
             if not reply.lower().startswith("y"):
                 log_error(state, "Aborted due to dirty git state")
                 raise SystemExit(1)
@@ -304,7 +303,7 @@ def record_baseline(state: OrchestratorState) -> None:
     log_verbose(state, f"Baseline recorded: {commit}")
 
 
-def read_state(state: OrchestratorState) -> Optional[dict]:
+def read_state(state: OrchestratorState) -> dict | None:
     if state.change_dir is None:
         return None
 
@@ -360,7 +359,7 @@ def write_state(
     )
 
 
-def get_current_phase(state: OrchestratorState) -> Optional[str]:
+def get_current_phase(state: OrchestratorState) -> str | None:
     data = read_state(state)
     if data:
         return data.get("phase")
@@ -458,7 +457,7 @@ def check_complete(state: OrchestratorState) -> bool:
     return data.get("exists", False) is True
 
 
-def check_blocker(state: OrchestratorState) -> Optional[str]:
+def check_blocker(state: OrchestratorState) -> str | None:
     """Read ``complete.json`` and return the blocker reason if ``with_blocker``
     is set, else ``None``. Called both at the top of the main loop (so a
     user-set blocker halts before the next phase) and inside ``run_phase``
@@ -479,7 +478,7 @@ def check_blocker(state: OrchestratorState) -> Optional[str]:
     return None
 
 
-def read_completion(state: OrchestratorState) -> Optional[str]:
+def read_completion(state: OrchestratorState) -> str | None:
     try:
         data = osx_lib.complete_get(state.change_id)
     except osx_lib.OSXError as e:
@@ -665,12 +664,12 @@ def show_progress(state: OrchestratorState) -> None:
     else:
         print("Current phase: Not started")
 
-    print("")
+    print()
     print(f"Total invocations: {state.total_invocations}")
 
     elapsed = 0
     if state.start_time > 0:
-        elapsed = int(datetime.now(timezone.utc).timestamp()) - state.start_time
+        elapsed = int(datetime.now(UTC).timestamp()) - state.start_time
     minutes = elapsed // 60
     seconds = elapsed % 60
     print(f"Elapsed time: {minutes}m {seconds}s")
@@ -681,7 +680,7 @@ def show_progress(state: OrchestratorState) -> None:
     if state.change_dir:
         state_file = state.change_dir / "state.json"
         if state_file.exists():
-            print("")
+            print()
             print("Iterations by phase:")
             try:
                 data = json.loads(state_file.read_text())
@@ -789,7 +788,7 @@ def handle_interrupt(signum, frame, state: OrchestratorState) -> None:
     _terminate_child(state)
 
 
-def _resolve_post_phase6_path(state: OrchestratorState) -> Optional[Path]:
+def _resolve_post_phase6_path(state: OrchestratorState) -> Path | None:
     """Resolve the change directory for cleanup.
 
     After PHASE6, the active path is gone (the change moved to the archive
@@ -904,7 +903,7 @@ def _extract_changes(payload) -> list:
 
 def list_changes() -> None:
     print("Available OpenSpec changes:")
-    print("")
+    print()
 
     # Aggregate from registered stores
     try:
@@ -929,7 +928,7 @@ def list_changes() -> None:
     except osx_lib.OSXError:
         pass
 
-    print("")
+    print()
     print("From openspec/changes/ directory:")
 
     changes_dir = Path("openspec/changes")
@@ -946,11 +945,11 @@ def list_changes() -> None:
                     valid_marker = " ✗"
                 print(f"  {d.name}{valid_marker}")
 
-    print("")
+    print()
     print("Legend: ✓ = valid structure, ✗ = missing required files")
 
 
-def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
+def run_orchestrator(state: OrchestratorState | None = None) -> None:
     if state is None:
         state = OrchestratorState()
 
@@ -974,7 +973,7 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
     state.change_dir = find_change_dir(state.change_id, store=state.store)
     if not state.change_dir:
         log_error(state, f"Change not found: {state.change_id}")
-        print("")
+        print()
         print("Tried:")
         print(f"  - Direct path: openspec/changes/{state.change_id}")
         if state.store:
@@ -987,7 +986,7 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
             print("  - CLI lookup: openspec list")
         except FileNotFoundError:
             pass
-        print("")
+        print()
         print("Run 'openspec-extended orchestrate --list' to see available changes")
         raise SystemExit(1)
 
@@ -1011,7 +1010,7 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
             state.log_file = Path(f".osx-orchestrate-{state.change_id}.log")
             state.log_user_specified = False
 
-        state.start_time = int(datetime.now(timezone.utc).timestamp())
+        state.start_time = int(datetime.now(UTC).timestamp())
 
         log(state, "")
         log(state, "================================")
@@ -1129,9 +1128,9 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
                 )
 
                 if not state.force and os.isatty(0):
-                    print("")
+                    print()
                     reply = input("Continue? [Y/n] ")
-                    print("")
+                    print()
                     if reply.lower().startswith("n"):
                         log_error(state, "Aborted by user")
                         raise SystemExit(1)
