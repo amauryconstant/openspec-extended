@@ -57,7 +57,9 @@ class TestInstallOpencode:
 
     def test_install_opencode_creates_structure(self, test_env):
         """Install opencode creates .opencode structure."""
-        result = run_osx(["install", "opencode"], cwd=test_env)
+        result = run_osx(
+            ["install", "opencode", "--with-autonomous"], cwd=test_env
+        )
 
         assert result.returncode == 0
         assert (test_env / ".opencode" / "skills").is_dir()
@@ -75,8 +77,10 @@ class TestInstallOpencode:
         assert (test_env / ".opencode" / "skills" / "osx-review-artifacts").is_dir()
 
     def test_install_opencode_copies_agents(self, test_env):
-        """Install opencode copies agents."""
-        result = run_osx(["install", "opencode"], cwd=test_env)
+        """Install opencode with --with-autonomous copies agents."""
+        result = run_osx(
+            ["install", "opencode", "--with-autonomous"], cwd=test_env
+        )
 
         assert result.returncode == 0
         assert (test_env / ".opencode" / "agents" / "osx-analyzer.md").is_file()
@@ -84,8 +88,10 @@ class TestInstallOpencode:
         assert (test_env / ".opencode" / "agents" / "osx-maintainer.md").is_file()
 
     def test_install_opencode_copies_commands(self, test_env):
-        """Install opencode copies commands."""
-        result = run_osx(["install", "opencode"], cwd=test_env)
+        """Install opencode with --with-autonomous copies phase commands."""
+        result = run_osx(
+            ["install", "opencode", "--with-autonomous"], cwd=test_env
+        )
 
         assert result.returncode == 0
         assert (test_env / ".opencode" / "commands" / "osx-phase0.md").is_file()
@@ -211,7 +217,7 @@ class TestGitignore:
 
     def test_updates_gitignore_when_installing(self, test_env):
         """Updates .gitignore when openspec-extended resources are installed."""
-        run_osx(["install", "opencode"], cwd=test_env)
+        run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         gitignore = test_env / ".gitignore"
         assert gitignore.is_file()
@@ -221,7 +227,7 @@ class TestGitignore:
 
     def test_gitignore_has_markers(self, test_env):
         """Gitignore has BEGIN/END markers."""
-        run_osx(["install", "opencode"], cwd=test_env)
+        run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         content = (test_env / ".gitignore").read_text()
         assert "BEGIN OpenSpec autonomous" in content
@@ -232,7 +238,7 @@ class TestGitignore:
         gitignore = test_env / ".gitignore"
         gitignore.write_text("# Existing content\n")
 
-        run_osx(["install", "opencode"], cwd=test_env)
+        run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         content = gitignore.read_text()
         assert "# Existing content" in content
@@ -301,7 +307,7 @@ class TestVersionAwareUpgrade:
 
     def test_manifest_tracks_deployed_resources(self, test_env):
         """Manifest tracks deployed resources with versions."""
-        run_osx(["install", "opencode"], cwd=test_env)
+        run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         manifest = test_env / ".opencode" / "manifest.toml"
         manifest_data = toml.loads(manifest.read_text())
@@ -342,3 +348,144 @@ class TestValidation:
 
         output = result.stdout + result.stderr
         assert "in manifest but not deployed" not in output
+
+
+class TestInstallAutonomousFlag:
+    """Tests for the --with-autonomous / --no-with-autonomous flag.
+
+    The flag gates the 7-phase autonomous workflow resources (phase commands,
+    agents, and the osx-workflow skill) on top of the utility default.
+    """
+
+    def test_install_without_autonomous_skips_phase_commands(self, test_env):
+        """`--no-with-autonomous` install does not deploy osx-phase0..6 commands."""
+        result = run_osx(
+            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
+        )
+
+        assert result.returncode == 0
+        commands_dir = test_env / ".opencode" / "commands"
+        for n in range(7):
+            assert not (commands_dir / f"osx-phase{n}.md").is_file(), (
+                f"osx-phase{n}.md should not exist under utility-only install"
+            )
+
+    def test_install_without_autonomous_skips_agents(self, test_env):
+        """`--no-with-autonomous` install leaves no osx-* agents on disk."""
+        result = run_osx(
+            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
+        )
+
+        assert result.returncode == 0
+        agents_dir = test_env / ".opencode" / "agents"
+        if agents_dir.is_dir():
+            deployed = {p.stem for p in agents_dir.glob("*.md")}
+            assert not deployed, (
+                f"Agents directory should be empty under utility-only install; "
+                f"found {deployed}"
+            )
+
+    def test_install_without_autonomous_skips_workflow_skill(self, test_env):
+        """`--no-with-autonomous` install does not deploy the osx-workflow skill."""
+        result = run_osx(
+            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
+        )
+
+        assert result.returncode == 0
+        skills_dir = test_env / ".opencode" / "skills"
+        assert not (skills_dir / "osx-workflow").is_dir(), (
+            "osx-workflow skill should not exist under utility-only install"
+        )
+
+    def test_install_without_autonomous_deploys_utility_skills(self, test_env):
+        """`--no-with-autonomous` install still deploys utility skills."""
+        result = run_osx(
+            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
+        )
+
+        assert result.returncode == 0
+        skills_dir = test_env / ".opencode" / "skills"
+        assert (skills_dir / "osx-concepts").is_dir()
+        assert (skills_dir / "osx-modify-artifacts").is_dir()
+        assert (skills_dir / "osx-review-artifacts").is_dir()
+        assert (skills_dir / "osx-commit").is_dir()
+
+    def test_install_without_autonomous_deploys_utility_commands(self, test_env):
+        """`--no-with-autonomous` install still deploys utility commands."""
+        result = run_osx(
+            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
+        )
+
+        assert result.returncode == 0
+        commands_dir = test_env / ".opencode" / "commands"
+        for name in ("osx-modify", "osx-review", "osx-changelog", "osx-maintain-docs"):
+            assert (commands_dir / f"{name}.md").is_file(), (
+                f"{name}.md should exist under utility-only install"
+            )
+
+    def test_install_with_autonomous_deploys_phase_commands(self, test_env):
+        """`--with-autonomous` (or default) install deploys osx-phase0..6 commands."""
+        result = run_osx(
+            ["install", "opencode", "--with-autonomous"], cwd=test_env
+        )
+
+        assert result.returncode == 0
+        commands_dir = test_env / ".opencode" / "commands"
+        for n in range(7):
+            assert (commands_dir / f"osx-phase{n}.md").is_file(), (
+                f"osx-phase{n}.md should exist with --with-autonomous"
+            )
+
+    def test_install_with_autonomous_deploys_agents(self, test_env):
+        """`--with-autonomous` install deploys osx-analyzer, builder, maintainer, reviewer."""
+        result = run_osx(
+            ["install", "opencode", "--with-autonomous"], cwd=test_env
+        )
+
+        assert result.returncode == 0
+        agents_dir = test_env / ".opencode" / "agents"
+        for name in ("osx-analyzer", "osx-builder", "osx-maintainer", "osx-reviewer"):
+            assert (agents_dir / f"{name}.md").is_file(), (
+                f"{name}.md should exist with --with-autonomous"
+            )
+
+    def test_install_without_autonomous_skips_gitignore_markers(self, test_env):
+        """`--no-with-autonomous` install does not add orchestrator gitignore markers."""
+        result = run_osx(
+            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
+        )
+
+        assert result.returncode == 0
+        gitignore = test_env / ".gitignore"
+        if gitignore.is_file():
+            content = gitignore.read_text()
+            assert "BEGIN OpenSpec autonomous" not in content, (
+                "Utility-only install should not add autonomous-state gitignore entries"
+            )
+
+    def test_install_with_autonomous_adds_gitignore_markers(self, test_env):
+        """`--with-autonomous` install adds the orchestrator gitignore markers."""
+        result = run_osx(
+            ["install", "opencode", "--with-autonomous"], cwd=test_env
+        )
+
+        assert result.returncode == 0
+        gitignore = test_env / ".gitignore"
+        assert gitignore.is_file()
+        content = gitignore.read_text()
+        assert "BEGIN OpenSpec autonomous" in content
+
+    def test_update_without_autonomous_does_not_refresh_phase_commands(self, test_env):
+        """`update --with-autonomous` after a utility-only install adds the autonomous
+        resources. ``update --no-with-autonomous`` leaves them absent.
+        """
+        run_osx(["install", "opencode", "--no-with-autonomous"], cwd=test_env)
+
+        result = run_osx(["update", "opencode", "--no-with-autonomous"], cwd=test_env)
+        assert result.returncode == 0
+
+        commands_dir = test_env / ".opencode" / "commands"
+        for n in range(7):
+            assert not (commands_dir / f"osx-phase{n}.md").is_file(), (
+                f"osx-phase{n}.md should remain absent after no-autonomous update"
+            )

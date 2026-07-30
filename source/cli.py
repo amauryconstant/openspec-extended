@@ -18,7 +18,7 @@ import typer
 from rich.console import Console
 
 from source import __version__
-from source.lib.osx import REQUIRED_CORE_SKILLS
+from source.lib.osx import AUTONOMOUS_RESOURCE_NAMES, REQUIRED_CORE_SKILLS
 from source.orchestrator.engine import OrchestratorState, run_orchestrator
 from source.osx_cli import osx_app
 
@@ -241,6 +241,7 @@ def deploy_type(
     source_manifest: dict,
     force: bool,
     tool: str,
+    with_autonomous: bool,
 ) -> tuple[int, int]:
     source_type_dir = get_source_type_dir(source_dir, resource_type)
     if not source_type_dir.is_dir():
@@ -252,10 +253,15 @@ def deploy_type(
 
     count = 0
     skipped = 0
+    gated = 0
 
     for name, info in resources.items():
         source_version = info.get("version", "")
         if not source_version:
+            continue
+
+        if name in AUTONOMOUS_RESOURCE_NAMES and not with_autonomous:
+            gated += 1
             continue
 
         target_path = get_target_path(resource_type, target_dir, name)
@@ -290,10 +296,15 @@ def deploy_type(
     if skipped > 0:
         console.print(f"  Skipped {skipped} current {resource_type}")
 
+    if gated > 0:
+        console.print(
+            f"  Skipped {gated} autonomous {resource_type} (use --with-autonomous)"
+        )
+
     return (count, skipped)
 
 
-def deploy_all_resources(tool: str, force: bool) -> None:
+def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
     resources_dir = get_resources_dir()
     source_dir = resources_dir / tool
     source_manifest_path = source_dir / "manifest.toml"
@@ -322,11 +333,24 @@ def deploy_all_resources(tool: str, force: bool) -> None:
             source_manifest,
             force,
             tool,
+            with_autonomous,
         )
         total_count += cnt
         total_skipped += skp
 
     manifest_data = source_manifest.copy()
+    if not with_autonomous:
+        declared = manifest_data.get("resources", {})
+        filtered: dict = {}
+        for resource_type, entries in declared.items():
+            if not isinstance(entries, dict):
+                continue
+            filtered[resource_type] = {
+                name: info
+                for name, info in entries.items()
+                if name not in AUTONOMOUS_RESOURCE_NAMES
+            }
+        manifest_data["resources"] = filtered
     manifest_data["version"] = source_version
     target_manifest.write_text(toml.dumps(manifest_data))
     log_success(f"Manifest updated to v{source_version}")
@@ -676,6 +700,15 @@ def install(
     with_core: bool = typer.Option(
         False, "--with-core", help="Also deploy core OpenSpec skills"
     ),
+    with_autonomous: bool = typer.Option(
+        False,
+        "--with-autonomous/--no-with-autonomous",
+        help=(
+            "Also deploy the 7-phase autonomous workflow resources "
+            "(phase commands, agents, workflow skill). Defaults to off; "
+            "pass --with-autonomous to enable the orchestrator."
+        ),
+    ),
     force: bool = typer.Option(
         False,
         "--force",
@@ -692,17 +725,17 @@ def install(
         raise SystemExit(1)
 
     target_dir = Path.cwd() / TOOL_DIRS[tool]
-    deploy_all_resources(tool, force=False)
+    deploy_all_resources(tool, force=False, with_autonomous=with_autonomous)
 
-    update_gitignore()
+    if with_autonomous:
+        update_gitignore()
 
     if with_core:
         deploy_core(tool, force=force)
 
-    resources_dir = get_resources_dir()
-    source_manifest = resources_dir / tool / "manifest.toml"
-    if source_manifest.is_file():
-        manifest_data = toml.loads(source_manifest.read_text())
+    target_manifest_path = target_dir / "manifest.toml"
+    if target_manifest_path.is_file():
+        manifest_data = toml.loads(target_manifest_path.read_text())
         validate_deployment(target_dir, manifest_data)
 
 
@@ -715,6 +748,14 @@ def update(
     with_core: bool = typer.Option(
         False, "--with-core", help="Also deploy core OpenSpec skills"
     ),
+    with_autonomous: bool = typer.Option(
+        False,
+        "--with-autonomous/--no-with-autonomous",
+        help=(
+            "Refresh the 7-phase autonomous workflow resources. "
+            "Defaults to off; pass --with-autonomous to refresh them."
+        ),
+    ),
     force: bool = typer.Option(
         False,
         "--force",
@@ -731,17 +772,17 @@ def update(
         raise SystemExit(1)
 
     target_dir = Path.cwd() / TOOL_DIRS[tool]
-    deploy_all_resources(tool, force=True)
+    deploy_all_resources(tool, force=True, with_autonomous=with_autonomous)
 
-    update_gitignore()
+    if with_autonomous:
+        update_gitignore()
 
     if with_core:
         deploy_core(tool, force=force)
 
-    resources_dir = get_resources_dir()
-    source_manifest = resources_dir / tool / "manifest.toml"
-    if source_manifest.is_file():
-        manifest_data = toml.loads(source_manifest.read_text())
+    target_manifest_path = target_dir / "manifest.toml"
+    if target_manifest_path.is_file():
+        manifest_data = toml.loads(target_manifest_path.read_text())
         validate_deployment(target_dir, manifest_data)
 
 

@@ -67,6 +67,7 @@ Keep the library and the CLI module separate so the library can be imported in-p
 | `VALID_TRANSITION_REASONS` | `implementation_incorrect`, `artifacts_modified`, `retry_requested` |
 | `REQUIRED_SKILLS` | 7 `osx-*` skills installed for changes (`osx-generate-changelog` is intentionally excluded; it has its own `/osx-changelog` dispatch) |
 | `REQUIRED_CORE_SKILLS` | 4 `osc-*` core skills (apply, verify, sync, archive) |
+| `AUTONOMOUS_RESOURCE_NAMES` | 12 names (4 agents + 7 phase commands + `osx-workflow` skill) gated by `install --with-autonomous`. Mirror in `deploy_type` (`source/cli.py:236`). |
 | `OSXError` | Exception class raised by library functions |
 
 ## Conventions

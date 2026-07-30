@@ -25,7 +25,7 @@ setup_e2e_repo() {
     git add README.md
     git commit -q -m "Initial commit"
 
-    "$OPENSPEC_BIN" install opencode --with-core >/dev/null 2>&1
+    "$OPENSPEC_BIN" install opencode --with-core --with-autonomous >/dev/null 2>&1
 
     mkdir -p openspec/changes
 

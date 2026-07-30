@@ -45,10 +45,12 @@ These exist only in `openspec-extended`. They have no upstream equivalent.
 
 | Command | Purpose | Implementation |
 |---------|---------|----------------|
-| `openspec-extended install <tool>` | Copy `osx-*` skills, agents, and commands into the target platform's resource directory | `source/cli.py:526-549` |
-| `openspec-extended install opencode --with-core` | Same, plus the 12 upstream `osc-*` commands | `source/cli.py:526-549` |
-| `openspec-extended update <tool>` | Force-update (overwrite) extension resources | `source/cli.py:556-580` |
-| `openspec-extended update-core [path]` | Refresh upstream instruction files | `source/cli.py:926-938` |
+| `openspec-extended install <tool>` | Copy utility `osx-*` skills and commands into the target platform's resource directory | `source/cli.py:670-707` |
+| `openspec-extended install opencode --with-autonomous` | Also deploy the 7 phase commands, 4 agents, and `osx-workflow` skill (orchestrator prerequisites) | `source/cli.py:670-707` |
+| `openspec-extended install opencode --with-core` | Same, plus the 12 upstream `osc-*` commands | `source/cli.py:670-707` |
+| `openspec-extended update <tool>` | Force-update (overwrite) utility resources | `source/cli.py:710-755` |
+| `openspec-extended update opencode --with-autonomous` | Refresh autonomous resources too | `source/cli.py:710-755` |
+| `openspec-extended update-core [path]` | Refresh upstream instruction files | `source/cli.py:1107-1124` |
 | `openspec-extended orchestrate <change>` | Run the 7-phase autonomous loop | `source/cli.py:583-645` and `source/orchestrator/engine.py` |
 | `openspec-extended osx ...` | Programmatic library access (12 domains) | `source/osx_cli.py` |
 

@@ -11,16 +11,16 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 | Feature                   | OpenSpec Core | OpenSpec-extended     |
 | ------------------------- | ------------- | --------------------- |
 | Manual change workflows   | ✓ 12 commands | ✓ (via `--with-core`) |
-| Autonomous implementation | ✗             | ✓ 7-phase loop        |
-| Specialized agents        | ✗             | ✓ 4 agents            |
-| Utility skills            | ✗             | ✓ 8 skills            |
+| Autonomous implementation | ✗             | ✓ 7-phase loop (opt-in via `--with-autonomous`) |
+| Specialized agents        | ✗             | ✓ 4 agents (with `--with-autonomous`) |
+| Utility skills            | ✗             | ✓ 7 skills (default)   |
 | Unified CLI surface       | ✓             | ✓ (passthrough + ext) |
 
 **Key additions:**
 
-- **Autonomous workflow** — Run end-to-end implementation without manual intervention
-- **Specialized agents** — Analyzer (PHASE0, read-only, 0.1 temp), Builder (PHASE1, write-capable, 0.4 temp), Reviewer (PHASE2/PHASE5, write-capable, 0.1 temp), Maintainer (PHASE3/PHASE4/PHASE6, write-capable, 0.3 temp)
-- **Utility skills** — Concepts, workflow, artifact modification and review, changelogs, test compliance, AI docs, commits
+- **Autonomous workflow** (opt-in) — Run end-to-end implementation without manual intervention via `install <tool> --with-autonomous`
+- **Specialized agents** (with `--with-autonomous`) — Analyzer (PHASE0, read-only, 0.1 temp), Builder (PHASE1, write-capable, 0.4 temp), Reviewer (PHASE2/PHASE5, write-capable, 0.1 temp), Maintainer (PHASE3/PHASE4/PHASE6, write-capable, 0.3 temp)
+- **Utility skills** (default) — Concepts, artifact modification and review, changelogs, test compliance, AI docs, commits
 - **Unified CLI surface** — All upstream OpenSpec commands (`validate`, `list`, `show`, `status`, `instructions`, `templates`, `schemas`, `init`, `update`, `feedback`, `completion`) plus the 7-phase orchestrator under one binary.
 
 ## Requirements
@@ -72,8 +72,11 @@ openspec-extended --version
 ```bash
 cd your-project
 
-# Install extension resources
+# Install extension resources (utility skills + commands only — default)
 openspec-extended install opencode
+
+# Add the autonomous workflow (phase commands, agents, workflow skill)
+openspec-extended install opencode --with-autonomous
 
 # Include core OpenSpec workflows (12 commands)
 openspec-extended install opencode --with-core
@@ -89,13 +92,15 @@ ls .opencode/{skills,agents,commands}/
 
 ### Installing Resources
 
-| Command                                         | Description                           |
-| ----------------------------------------------- | ------------------------------------- |
-| `openspec-extended install opencode`            | Add missing resources (skip existing) |
-| `openspec-extended install claude`              | Same for Claude Code                  |
-| `openspec-extended install opencode --with-core`| Include 12 core OpenSpec workflows    |
-| `openspec-extended update opencode`             | Force update all (overwrite existing) |
-| `openspec-extended update-core [path]`          | Refresh upstream OpenSpec instruction files |
+| Command                                              | Description                                   |
+| ---------------------------------------------------- | --------------------------------------------- |
+| `openspec-extended install opencode`                 | Deploy utility skills + commands (default)    |
+| `openspec-extended install opencode --with-autonomous` | Also deploy 7 phase commands, 4 agents, workflow skill |
+| `openspec-extended install claude`                   | Same for Claude Code                          |
+| `openspec-extended install opencode --with-core`     | Include 12 core OpenSpec workflows            |
+| `openspec-extended update opencode`                  | Refresh utility resources (overwrite existing)|
+| `openspec-extended update opencode --with-autonomous`| Refresh autonomous resources too              |
+| `openspec-extended update-core [path]`               | Refresh upstream OpenSpec instruction files   |
 
 ### Workflow Commands (Passthrough)
 
@@ -126,18 +131,22 @@ openspec-extended feedback "love the new flow" --body "Detailed description..."
 
 ### Extension Skills
 
-| Skill                        | Purpose                                        |
-| ---------------------------- | ---------------------------------------------- |
-| `osx-concepts`               | Teaches AI agents about OpenSpec framework     |
-| `osx-workflow`               | Explains tool layers and autonomous workflow   |
-| `osx-modify-artifacts`       | Modifies artifacts with dependency tracking    |
-| `osx-review-artifacts`       | Reviews artifacts for quality and completeness |
-| `osx-generate-changelog`     | Generate changelogs (Keep a Changelog format)  |
-| `osx-review-test-compliance` | Review test coverage for OpenSpec changes      |
-| `osx-maintain-ai-docs`       | Maintain AGENTS.md and CLAUDE.md               |
-| `osx-commit`                 | Create commits matching project conventions    |
+The default install ships **7 utility skills** for everyday work:
 
-### Specialized Agents
+| Skill                        | Purpose                                        | Default? |
+| ---------------------------- | ---------------------------------------------- | -------- |
+| `osx-concepts`               | Teaches AI agents about OpenSpec framework     | yes      |
+| `osx-modify-artifacts`       | Modifies artifacts with dependency tracking    | yes      |
+| `osx-review-artifacts`       | Reviews artifacts for quality and completeness | yes      |
+| `osx-generate-changelog`     | Generate changelogs (Keep a Changelog format)  | yes      |
+| `osx-review-test-compliance` | Review test coverage for OpenSpec changes      | yes      |
+| `osx-maintain-ai-docs`       | Maintain AGENTS.md and CLAUDE.md               | yes      |
+| `osx-commit`                 | Create commits matching project conventions    | yes      |
+| `osx-workflow`               | Explains the 7-phase autonomous workflow       | opt-in (`--with-autonomous`) |
+
+### Specialized Agents (opt-in: `--with-autonomous`)
+
+The 4 agents are **not** installed by default. Run `openspec-extended install <tool> --with-autonomous` to enable the orchestrator.
 
 | Agent              | Purpose                 | Tools                               | Temp |
 | ------------------ | ----------------------- | ----------------------------------- | ---- |

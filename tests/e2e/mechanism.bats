@@ -76,7 +76,7 @@ teardown() {
     fresh_dir=$(mktemp -d)
     cd "$fresh_dir" || exit 1
 
-    run "$OPENSPEC_BIN" install opencode
+    run "$OPENSPEC_BIN" install opencode --with-autonomous
     echo "STATUS=$status"
     echo "OUTPUT=$output"
     [ "$status" -eq 0 ]
@@ -96,7 +96,7 @@ teardown() {
     fresh_dir=$(mktemp -d)
     cd "$fresh_dir" || exit 1
 
-    run "$OPENSPEC_BIN" install claude
+    run "$OPENSPEC_BIN" install claude --with-autonomous
     echo "STATUS=$status"
     echo "OUTPUT=$output"
     [ "$status" -eq 0 ]
@@ -107,6 +107,45 @@ teardown() {
     [ -f .claude/skills/osx-review-artifacts/SKILL.md ]
     [ -f .claude/skills/osx-modify-artifacts/SKILL.md ]
     [ ! -e .claude/skills/osx-review-artifacts/references/review-criteria.md ]
+
+    rm -rf "$fresh_dir"
+}
+
+@test "mechanism: install opencode defaults to utility-only" {
+    local fresh_dir
+    fresh_dir=$(mktemp -d)
+    cd "$fresh_dir" || exit 1
+
+    run "$OPENSPEC_BIN" install opencode
+    echo "STATUS=$status"
+    echo "OUTPUT=$output"
+    [ "$status" -eq 0 ]
+
+    [ ! -d .opencode/skills/osx-workflow ]
+    [ ! -f .opencode/commands/osx-phase0.md ]
+    [ -d .opencode/skills/osx-concepts ]
+    [ -d .opencode/skills/osx-modify-artifacts ]
+    [ -f .opencode/commands/osx-modify.md ]
+    [ ! -e .opencode/agents ]
+
+    rm -rf "$fresh_dir"
+}
+
+@test "mechanism: install claude defaults to utility-only" {
+    local fresh_dir
+    fresh_dir=$(mktemp -d)
+    cd "$fresh_dir" || exit 1
+
+    run "$OPENSPEC_BIN" install claude
+    echo "STATUS=$status"
+    echo "OUTPUT=$output"
+    [ "$status" -eq 0 ]
+
+    [ ! -d .claude/skills/osx-workflow ]
+    [ ! -e .claude/commands/osx/phase0.md ]
+    [ -d .claude/skills/osx-concepts ]
+    [ -d .claude/skills/osx-modify-artifacts ]
+    [ -f .claude/commands/osx/modify.md ]
 
     rm -rf "$fresh_dir"
 }

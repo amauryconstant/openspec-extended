@@ -122,6 +122,23 @@ REQUIRED_CORE_SKILLS = [
     "osc-archive-change",
 ]
 
+AUTONOMOUS_RESOURCE_NAMES = frozenset(
+    {
+        "osx-analyzer",
+        "osx-builder",
+        "osx-maintainer",
+        "osx-reviewer",
+        "osx-phase0",
+        "osx-phase1",
+        "osx-phase2",
+        "osx-phase3",
+        "osx-phase4",
+        "osx-phase5",
+        "osx-phase6",
+        "osx-workflow",
+    }
+)
+
 SKILLS_DIR = Path(".opencode/skills")
 COMMANDS_DIR = Path(".opencode/commands")
 
@@ -1267,8 +1284,20 @@ def validate_skills(project_root: Path | None = None) -> dict:
                 )
 
     if errors:
+        platform = detect_platform(root)
+        if missing_skills:
+            errors.append(
+                {
+                    "check": "autonomous-install-hint",
+                    "message": _install_hint(platform),
+                }
+            )
         return {"valid": False, "errors": errors, "missing_skills": missing_skills}
     return {"valid": True}
+
+
+def _install_hint(platform: str) -> str:
+    return f"Re-run: openspec-extended install {platform} --with-autonomous"
 
 
 def validate_commands(project_root: Path | None = None) -> dict:
@@ -1277,6 +1306,8 @@ def validate_commands(project_root: Path | None = None) -> dict:
 
     base = commands_dir(root)
     platform = detect_platform(root)
+    install_hint = _install_hint(platform)
+    missing_phase_commands: list[str] = []
     for phase in PHASES:
         cmd_name = PHASE_COMMANDS.get(phase)
         if not cmd_name:
@@ -1287,8 +1318,12 @@ def validate_commands(project_root: Path | None = None) -> dict:
             deployed_name = cmd_name
         cmd_path = base / f"{deployed_name}.md"
         if not cmd_path.exists():
+            missing_phase_commands.append(deployed_name)
             errors.append(
-                {"check": "commands", "message": f"Missing command: {deployed_name}"}
+                {
+                    "check": "commands",
+                    "message": f"Missing command: {deployed_name}",
+                }
             )
 
     # M23: cross-check the manifest. Each phase command should be declared
@@ -1326,6 +1361,13 @@ def validate_commands(project_root: Path | None = None) -> dict:
                     )
 
     if errors:
+        if missing_phase_commands:
+            errors.append(
+                {
+                    "check": "autonomous-install-hint",
+                    "message": install_hint,
+                }
+            )
         return {"valid": False, "errors": errors}
     return {"valid": True}
 
