@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001 - shebang is intentional (module may also be invoked directly)
 """
 OpenSpec-extended - Unified CLI for OpenSpec resources and autonomous workflow
 """
@@ -84,14 +85,31 @@ def compare_versions(v1: str, v2: str) -> int:
     return 0
 
 
-def run_openspec(args: list[str], timeout: int = 30) -> int:
+def run_openspec(
+    args: list[str], timeout: int = 30, extra_env: dict[str, str] | None = None
+) -> int:
     """Run `openspec <args>` and forward stdout/stderr. Returns exit code.
 
     Raises SystemExit(1) if openspec is not installed or times out.
+    When ``extra_env`` is provided, the named variables are merged into the
+    subprocess environment (overriding the parent values when keys collide).
     """
     cmd = ["openspec", *args]
+    env = None
+    if extra_env:
+        import os
+
+        env = os.environ.copy()
+        env.update(extra_env)
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=env,
+            check=False,
+        )
     except FileNotFoundError:
         log_error("openspec CLI not found. Install it first:")
         console.print("  npm install -g @fission-ai/openspec")
@@ -803,9 +821,7 @@ def validate_cmd(
     all: bool = typer.Option(False, "--all", help="Validate all changes and specs"),
     changes: bool = typer.Option(False, "--changes", help="Validate only changes"),
     specs: bool = typer.Option(False, "--specs", help="Validate only specs"),
-    type_: str | None = typer.Option(
-        None, "--type", help="Disambiguate: change|spec"
-    ),
+    type_: str | None = typer.Option(None, "--type", help="Disambiguate: change|spec"),
     strict: bool = typer.Option(False, "--strict", help="Enable strict mode"),
     json_output: bool = typer.Option(False, "--json", help="JSON output"),
     concurrency: int | None = typer.Option(
@@ -869,9 +885,7 @@ def list_cmd(
 @app.command("show", help="Show change or spec (passthrough to openspec show)")
 def show_cmd(
     item_name: str | None = typer.Argument(None, help="Change or spec ID"),
-    type_: str | None = typer.Option(
-        None, "--type", help="Disambiguate: change|spec"
-    ),
+    type_: str | None = typer.Option(None, "--type", help="Disambiguate: change|spec"),
     no_interactive: bool = typer.Option(
         True, "--no-interactive/--interactive", help="Disable prompts (default: true)"
     ),
@@ -1083,7 +1097,13 @@ def update_core_cmd(
     if force:
         args.append("--force")
 
-    code = run_openspec(["update", *args], timeout=60)
+    # Skip the v1.7.0 interactive "upgrade CLI?" offer when invoked from
+    # openspec-extended so that automated contexts (CI, install --with-core)
+    # don't hang on a prompt. The user can always run `openspec update`
+    # directly to upgrade.
+    code = run_openspec(
+        ["update", *args], timeout=60, extra_env={"OPENSPEC_NO_UPDATE_CHECK": "1"}
+    )
     raise typer.Exit(code=code)
 
 
@@ -1131,7 +1151,7 @@ def completion_cmd(
     help="Restore the openspec global config from the most recent .openspec-extended-baseline.json snapshot.",
 )
 def restore_core(
-    path: Path | None = typer.Option(
+    path: str | None = typer.Option(
         None,
         "--from",
         help="Path to the baseline file. Defaults to ./.openspec-extended-baseline.json",
@@ -1142,7 +1162,7 @@ def restore_core(
     Re-applies the snapshot's ``global_config`` block and writes it back.
     The baseline file is removed on success unless ``--keep-snapshot`` is passed.
     """
-    baseline = path or (Path.cwd() / CORE_BASELINE_FILENAME)
+    baseline = Path(path) if path else (Path.cwd() / CORE_BASELINE_FILENAME)
     if not baseline.is_file():
         log_error(f"No baseline found at {baseline}")
         raise typer.Exit(code=1)

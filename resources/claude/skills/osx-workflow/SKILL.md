@@ -91,6 +91,7 @@ Flags for `orchestrate` (full semantics in §5 below):
 |--------------------------|-----|
 | Know what artifacts exist for a change | Layer 1: `openspec status --change <name> --json` |
 | Get instructions for creating an artifact | Layer 1: `openspec instructions <art> --change <name> --json` |
+| Derive the full transitive required set for a change | Layer 1: `openspec status --change <name> --json` — v1.7.0+ adds `artifacts[].requires` so the graph is in one call |
 | Mark the current phase complete | Layer 3: `osx state complete <change>` (full action set in §4) |
 | Read state from inside Python | Layer 4: `osx.state_get(change)` (full action set in §4) |
 | Trigger the autonomous workflow | Layer 2: `openspec-extended orchestrate <change>` |

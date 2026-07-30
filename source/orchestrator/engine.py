@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001 - shebang is intentional
 """
 OpenSpec Extended Autonomous Workflow Orchestrator - Core Engine
 
@@ -205,9 +206,11 @@ def validate_git(state: OrchestratorState) -> None:
         log_error(state, "Not in a git repository")
         raise SystemExit(1)
 
-    result = subprocess.run(["git", "diff", "--quiet"], capture_output=True)
+    result = subprocess.run(
+        ["git", "diff", "--quiet"], capture_output=True, check=False
+    )
     result_cached = subprocess.run(
-        ["git", "diff", "--cached", "--quiet"], capture_output=True
+        ["git", "diff", "--cached", "--quiet"], capture_output=True, check=False
     )
 
     if result.returncode != 0 or result_cached.returncode != 0:
@@ -726,7 +729,7 @@ def archive_log_file(state: OrchestratorState) -> bool:
 
     try:
         shutil.move(str(state.log_file), str(archive_log))
-    except Exception as e:
+    except OSError as e:
         log_error(state, f"Failed to move log file to archive: {e}")
         return False
 
@@ -982,7 +985,7 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
             cmd = ["openspec", "list"]
             if state.store:
                 cmd[1:1] = ["--store", state.store]
-            subprocess.run(cmd, capture_output=True)
+            subprocess.run(cmd, capture_output=True, check=False)
             print("  - CLI lookup: openspec list")
         except FileNotFoundError:
             pass
@@ -1076,13 +1079,15 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
 
         if not state.from_phase:
             try:
-                subprocess.run(["jq", "--version"], capture_output=True)
+                subprocess.run(["jq", "--version"], capture_output=True, check=False)
             except FileNotFoundError:
                 log_error(state, "Required tool not found: jq")
                 raise SystemExit(1)
 
             try:
-                subprocess.run(["openspec", "--version"], capture_output=True)
+                subprocess.run(
+                    ["openspec", "--version"], capture_output=True, check=False
+                )
             except FileNotFoundError:
                 log_error(state, "Required tool not found: openspec")
                 raise SystemExit(1)
@@ -1108,7 +1113,9 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
             platform = osx_lib.detect_platform(_project_root(state) or Path.cwd())
             ai_binary = "opencode" if platform == "opencode" else "claude"
             try:
-                subprocess.run([ai_binary, "--version"], capture_output=True)
+                subprocess.run(
+                    [ai_binary, "--version"], capture_output=True, check=False
+                )
             except FileNotFoundError:
                 log_error(state, f"Required tool not found: {ai_binary}")
                 raise SystemExit(1)
@@ -1203,19 +1210,19 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
 
                     show_progress(state)
 
-                    if current_phase == "PHASE6":
-                        if (
-                            state.log_file
-                            and not state.log_user_specified
-                            and state.log_file.exists()
-                        ):
-                            if not archive_log_file(state):
-                                log_error(state, "Log file archiving failed")
-                                log_error(
-                                    state,
-                                    "Archive validation will not proceed without log file",
-                                )
-                                raise SystemExit(1)
+                    if (
+                        current_phase == "PHASE6"
+                        and state.log_file
+                        and not state.log_user_specified
+                        and state.log_file.exists()
+                    ):
+                        if not archive_log_file(state):
+                            log_error(state, "Log file archiving failed")
+                            log_error(
+                                state,
+                                "Archive validation will not proceed without log file",
+                            )
+                            raise SystemExit(1)
 
                         success, _ = validate_archive(state)
                         if success:

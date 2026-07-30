@@ -4,9 +4,9 @@ Integration tests for store-aware orchestrator behavior.
 
 Covers:
   - OrchestratorState.store field (default None, accepts override)
-  - find_change_dir(change, store=...) consults the CLI (v1.5.0 shape)
+  - find_change_dir(change, store=...) consults the CLI (v1.5.0+ shape, current v1.7.0 compatible)
   - parse_change_spec(spec) -> (store, change) for all forms
-  - _extract_changes() handles every v1.5.0 list JSON shape
+  - _extract_changes() handles every v1.5.0+ list JSON shape (v1.7.0 unchanged)
 """
 
 import json
@@ -78,7 +78,7 @@ class TestStoreAwareEngine:
         assert parse_change_spec("s1:") == ("s1", "")
 
     def test_extract_changes(self):
-        """_extract_changes handles the various v1.5.0 JSON shapes."""
+        """_extract_changes handles the various v1.5.0+ JSON shapes."""
         assert _extract_changes([{"name": "a"}]) == [{"name": "a"}]
         assert _extract_changes({"changes": [{"name": "a"}]}) == [{"name": "a"}]
         assert _extract_changes({"items": [{"name": "a"}]}) == [{"name": "a"}]

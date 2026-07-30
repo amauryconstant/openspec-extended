@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001 - shebang is intentional
 """
 osx_cli - Typer CLI surface for the osx change-management library
 
@@ -199,9 +200,7 @@ def iterations_cmd(
     action: str = typer.Argument(..., help="Action: get, append"),
     change: str = typer.Argument(..., help="Change name"),
     phase: str | None = typer.Option(None, "--phase", help="Phase"),
-    iteration: int | None = typer.Option(
-        None, "--iteration", help="Iteration number"
-    ),
+    iteration: int | None = typer.Option(None, "--iteration", help="Iteration number"),
     summary: str | None = typer.Option(None, "--summary", help="Summary text"),
     status: str | None = typer.Option(None, "--status", help="Status"),
     notes: str | None = typer.Option(None, "--notes", help="Notes"),
@@ -212,9 +211,7 @@ def iterations_cmd(
     artifacts_modified: str | None = typer.Option(
         None, "--artifacts-modified", help="Artifacts modified (JSON)"
     ),
-    decisions: str | None = typer.Option(
-        None, "--decisions", help="Decisions (JSON)"
-    ),
+    decisions: str | None = typer.Option(None, "--decisions", help="Decisions (JSON)"),
     errors: str | None = typer.Option(None, "--errors", help="Errors (JSON)"),
     extra: str | None = typer.Option(
         None, "--extra", help="Additional fields (JSON object)"
@@ -249,9 +246,7 @@ def log_cmd(
     action: str = typer.Argument(..., help="Action: get, append"),
     change: str = typer.Argument(..., help="Change name"),
     phase: str | None = typer.Option(None, "--phase", help="Phase"),
-    iteration: int | None = typer.Option(
-        None, "--iteration", help="Iteration number"
-    ),
+    iteration: int | None = typer.Option(None, "--iteration", help="Iteration number"),
     summary: str | None = typer.Option(None, "--summary", help="Summary text"),
     commit_hash: str | None = typer.Option(
         None, "--commit-hash", help="Git commit hash"
@@ -261,9 +256,7 @@ def log_cmd(
     artifacts_modified: str | None = typer.Option(
         None, "--artifacts-modified", help="Artifacts modified (JSON)"
     ),
-    decisions: str | None = typer.Option(
-        None, "--decisions", help="Decisions (JSON)"
-    ),
+    decisions: str | None = typer.Option(None, "--decisions", help="Decisions (JSON)"),
     errors: str | None = typer.Option(None, "--errors", help="Errors (JSON)"),
     extra: str | None = typer.Option(
         None, "--extra", help="Additional fields (JSON object)"
@@ -427,7 +420,7 @@ def instructions_cmd(
         cmd_args.append("--json")
 
     try:
-        result = subprocess.run(cmd_args, capture_output=True, text=True)
+        result = subprocess.run(cmd_args, capture_output=True, text=True, check=False)
         print(result.stdout, end="")
         if result.returncode != 0:
             print(result.stderr, file=sys.stderr, end="")

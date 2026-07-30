@@ -52,7 +52,7 @@ Anchors for assigning severity to new findings at the same shape.
     `source/cli.py` runs `openspec init --force` without snapshotting prior state. Fix: snapshot global config; offer `--init-core` opt-in.
 
 11. **No upstream version floor**
-    `source/orchestrator/engine.py` only checks exit code of `openspec --version`, not version. With v1.4.x, `openspec-update-change` (v1.6.0) is absent and a phase command silently no-ops. Fix: parse version, enforce `>=1.6.0`.
+    Resolved — see "Resolved History". Floor raised to `(1, 7, 0)` in openspec-extended v1.4.0.
 
 12. **No live contract tests for upstream JSON shapes**
     Unit tests mock subprocess and never hit real upstream. Fix: `tests/contract/test_upstream_envelopes.py` snapshotting each `--json` shape.
@@ -117,3 +117,11 @@ Anchors for assigning severity to new findings at the same shape.
 - Refresh per audit. When a finding is fixed, move it here to "## Resolved History" or delete; do not leave stale anchors in the active list.
 - When a new finding shape appears that does not fit any existing example, add it under the appropriate tier with a one-line summary and a citation.
 - Keep citations to canonical file paths only. Line numbers drift; resolve them at audit time, not when writing this file.
+
+## Resolved History
+
+Findings that were once live and have since been remediated. Anchored here so audit runs don't re-open them.
+
+### HIGH
+
+- **#11 No upstream version floor** — Fixed in openspec-extended v1.4.0. `source/lib/osx.py` now declares `MIN_OPENSPEC_VERSION = (1, 7, 0)`; `get_core_version()` parses `openspec --version`; the orchestrator's preflight refuses to start when the binary is below the floor (raises `SystemExit(2)`). Companion test: `tests/unit/test_core_version_gate.py` (`test_min_version_is_1_7_0`, `test_orchestrator_accepts_new_core`); contract test: `tests/contract/test_upstream_envelopes.py::TestOpenspecVersion::test_version_parses`. Floor bump synced in `pyproject.toml` (OpenSpec floor reference) and `README.md`.

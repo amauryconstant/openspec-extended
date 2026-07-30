@@ -176,7 +176,7 @@ teardown() {
     echo "$output" | jq -e '.valid == true'
 }
 
-# ========== v1.5.0 store subapp ==========
+# ========== v1.5+ store subapp (current v1.7.0 compatible) ==========
 #
 # The `osx store` Typer subapp (from source/osx_cli.py) is the user-facing
 # CLI surface for the store_* library functions in source/lib/osx.py.

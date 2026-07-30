@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001 - shebang is intentional
 """
 Runner - Abstraction over AI-assistant CLI invocations.
 
@@ -237,16 +238,14 @@ def _run_with_logging(
         ) as agent_log:
             log_path = Path(agent_log.name)
 
-        agent_log_file = open(log_path, "w", buffering=1)
-
-        popen_kwargs: dict = dict(
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            cwd=request.cwd,
-            env=os.environ | (request.env or {}),
-        )
+        popen_kwargs: dict = {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "text": True,
+            "bufsize": 1,
+            "cwd": request.cwd,
+            "env": os.environ | (request.env or {}),
+        }
         if request.store:
             popen_kwargs["env"] = {
                 **popen_kwargs["env"],
@@ -275,7 +274,7 @@ def _run_with_logging(
         if on_pid is not None:
             try:
                 on_pid(pid)
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 - user callback may raise anything
                 print(
                     f"Warning: PID callback failed for process {pid}: {error}",
                     file=sys.stderr,
@@ -285,7 +284,7 @@ def _run_with_logging(
             stdout = process.stdout
             if stdout is None:
                 return
-            with agent_log_file:
+            with open(log_path, "w", buffering=1) as agent_log_file:
                 for line in stdout:
                     agent_log_file.write(re.sub(r"\x1b\[[0-9;]*m", "", line))
                     if verbose:
@@ -316,5 +315,5 @@ def _run_with_logging(
             "runner_not_found",
             f"{cmd[0]} binary not found in PATH",
         ) from e
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - process spawn can fail in many ways; converted to RunResult
         return RunResult(exit_code=1, error=str(e))

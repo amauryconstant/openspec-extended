@@ -2,13 +2,29 @@
 
 **Source**: Official OpenSpec workflow skills - track upstream, do not modify locally.
 
-**Version**: v1.6.0 (custom profile with all 12 workflows)
+**Version**: v1.7.0 (custom profile with all 12 workflows)
 
-**v1.6.0 highlights**:
+**v1.7.0 highlights**:
+- Three new tools supported via `openspec init --tools`: `codeartsagent`, `hermes` (skills-only), `zcode`. Codex is now skills-only (`$openspec-<skill>` invocation).
+- `openspec config set defaultStore <id>` — machine-level fallback root. Status `root` block reports `source: "global_default"` when used; all explicit forms still win on precedence.
+- `skip_specs: true` change metadata for pure refactors, tooling, or docs changes that have no spec-level behavior.
+- `openspec status --json` now reports a `requires` array on each artifact (additive, backward-compatible) — agents can derive the full transitive required set from one call.
+- New read-only `openspec instructions archive` surface returns archive inputs for the selected root (mirrors the proposal/apply variants).
+- `openspec update` offers to upgrade a stale CLI interactively when behind upstream (bypassed by `OPENSPEC_NO_UPDATE_CHECK` / `DO_NOT_TRACK=1` / `OPENSPEC_TELEMETRY=0` / CI detection).
+- `openspec archive` no longer stacks a second date prefix on already-date-prefixed names; tolerates already-synced REMOVED/RENAMED deltas as no-ops; uses a delta's `## Purpose` as the new main spec's Purpose when present.
+- `openspec archive` runs the spec sync inline before moving the change folder — no more archive-after-sync races.
+- `--change` accepts any change name that exists on disk (e.g. `2026-07-04-voice-copilot-v1`); kebab-case still enforced on create.
+- `design.md` no longer restates `proposal.md` — the schema's design instruction and template now state the (why,what) vs (how) boundary explicitly.
+- `--tools windsurf` renamed to `devin`; `.windsurf/` still read as legacy fallback, new commands write to `.devin/`.
+- `openspec new change` accepts numeric-prefixed names like `100-add-feature`.
+- Static `skills/<name>/SKILL.md` files published so `npx skills add Fission-AI/OpenSpec` works.
+- Multi-select prompts render with `[x]`/`[ ]` checkbox markers.
+
+**v1.6.0 highlights** (historical context, unchanged in v1.7.0):
 - Adds `openspec-update-change` (`/opsx:update`): revise existing planning artifacts in place and reconcile them bidirectionally.
-- Generated skills and `/opsx:*` slash commands now carry `allowed-tools: Bash(openspec:*)` in frontmatter (auto-approves the openspec CLI).
+- Generated skills and `/opsx:*` slash commands carry `allowed-tools: Bash(openspec:*)` in frontmatter (auto-approves the openspec CLI).
 
-**v1.5.0 highlight**: introduces "stores" — standalone OpenSpec repos registered on this machine via `openspec store <subcommand>`. Workflows check `openspec store list --json` and pass `--store <id>` on `new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`. Without a store, commands act on the nearest local `openspec/` root.
+**v1.5.0 highlight**: introduces "stores" — standalone OpenSpec repos registered on this machine via `openspec store <subcommand>`. Workflows check `openspec store list --json` and pass `--store <id>` on `new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`. Without a store, commands act on the nearest local `openspec/` root. v1.7.0 layers `defaultStore` config on top for a per-machine fallback that sits below all other resolution paths.
 
 ---
 
@@ -81,7 +97,7 @@ openspec-core/
 | `openspec-new-change` | `/opsx:new` | Start a new change with artifact workflow |
 | `openspec-continue-change` | `/opsx:continue` | Continue working on an existing change |
 | `openspec-apply-change` | `/opsx:apply` | Implement tasks from a change |
-| `openspec-update-change` | `/opsx:update` | Revise existing planning artifacts and reconcile them (v1.6.0) |
+| `openspec-update-change` | `/opsx:update` | Revise existing planning artifacts and reconcile them (v1.6.0; unchanged in v1.7.0) |
 | `openspec-ff-change` | `/opsx:ff` | Fast-forward: create all artifacts at once |
 | `openspec-verify-change` | `/opsx:verify` | Verify implementation matches artifacts |
 | `openspec-sync-specs` | `/opsx:sync` | Sync specs with implementation state |
@@ -102,14 +118,14 @@ mise run sync-core
 
 The `source/` subtree tracks upstream directly. This will:
 1. Refuse if `source/` has uncommitted local changes
-2. Discover the latest stable release tag (e.g., `v1.6.0`) via `git ls-remote --tags`
+2. Discover the latest stable release tag (e.g., `v1.7.0`) via `git ls-remote --tags`
 3. `git subtree pull` from that tag into `source/` (squashed)
 4. Build the CLI in-place from `source/`
 5. Configure custom profile with all 12 workflows
 6. Generate `.claude` and `.opencode` files via `openspec init --tools claude,opencode --profile custom`
 7. Copy generated files into this directory
 
-**Upstream**: https://github.com/Fission-AI/OpenSpec (ref: latest stable tag, e.g. `v1.6.0`)
+**Upstream**: https://github.com/Fission-AI/OpenSpec (ref: latest stable tag, e.g. `v1.7.0`)
 
 ---
 

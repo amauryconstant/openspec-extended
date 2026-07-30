@@ -63,14 +63,14 @@ class TestOpenspecVersion:
         rc, out, _ = _run(["--version"])
         assert rc == 0, f"openspec --version failed: {out}"
         # Output is "<pkg>/<ver> <arch> <runtime>" like
-        # "@fission-ai/openspec/1.6.0 linux-x64 node-v20.19.0"
+        # "@fission-ai/openspec/1.7.0 linux-x64 node-v20.19.0"
         import re
 
         m = re.search(r"(\d+)\.(\d+)\.(\d+)", out)
         assert m, f"could not parse version from {out!r}"
         ver = (int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        assert ver >= (1, 6, 0), (
-            f"installed openspec is {ver}; orchestrator requires >= 1.6.0"
+        assert ver >= (1, 7, 0), (
+            f"installed openspec is {ver}; orchestrator requires >= 1.7.0"
         )
 
 
@@ -127,7 +127,7 @@ class TestStoreRegisterFlags:
     """``openspec store register`` flag inventory."""
 
     def test_help_uses_id_not_name(self):
-        """v1.5.0 stores beta renamed --name → --id."""
+        """v1.5+ stores renamed --name → --id (still enforced in v1.7.0)."""
         rc, out, _ = _run(["store", "register", "--help"])
         assert rc == 0
         assert "--id" in out, (
