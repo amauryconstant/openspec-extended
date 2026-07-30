@@ -24,7 +24,13 @@ def _make_validation_payload(valid=True):
         "warnings": [],
         "info": [],
         "items": [{"id": "x", "type": "change", "valid": valid, "issues": []}],
-        "summary": {"totals": {"items": 1, "passed": 1 if valid else 0, "failed": 0 if valid else 1}},
+        "summary": {
+            "totals": {
+                "items": 1,
+                "passed": 1 if valid else 0,
+                "failed": 0 if valid else 1,
+            }
+        },
         "root": {},
     }
 
@@ -156,7 +162,9 @@ class TestOsxValidateErrorFormat:
             "errors": [{"check": "no_openspec_root", "message": "no root"}],
             "warnings": [],
             "info": [],
-            "diagnostics": [{"code": "no_openspec_root", "message": "no root", "fix": "init"}],
+            "diagnostics": [
+                {"code": "no_openspec_root", "message": "no root", "fix": "init"}
+            ],
         }
         with patch("source.osx_cli.osx_lib.validate_change") as mock:
             mock.return_value = payload
@@ -164,3 +172,57 @@ class TestOsxValidateErrorFormat:
         assert result.exit_code == 1
         parsed = json.loads(result.stdout)
         assert parsed["diagnostics"][0]["code"] == "no_openspec_root"
+
+
+@pytest.mark.unit
+class TestOsxStoreEnvFallback:
+    """M18: the osx CLI callback consults ``OSX_STORE`` env var as a fallback
+    when ``--store`` is not passed. This is how the AI subprocess picks up
+    the store from the orchestrator's RunRequest without explicit flags."""
+
+    def test_env_var_sets_current_store(self, monkeypatch):
+        from source.lib import osx as osx_lib
+
+        captured: dict = {}
+
+        def fake_get():
+            captured["store"] = osx_lib.current_store.get()
+            return osx_lib.current_store.get()
+
+        monkeypatch.setenv("OSX_STORE", "team-store")
+        monkeypatch.setattr(
+            osx_lib, "current_store", osx_lib.ContextVar("test", default=None)
+        )
+
+        from typer.testing import CliRunner
+        from source.osx_cli import osx_app
+
+        r = CliRunner()
+        with patch("source.osx_cli.osx_lib.baseline_get", side_effect=fake_get):
+            result = r.invoke(osx_app, ["baseline", "get"])
+        assert captured["store"] == "team-store"
+        assert result.exit_code == 0
+
+    def test_explicit_flag_overrides_env_var(self, monkeypatch):
+        from source.lib import osx as osx_lib
+
+        monkeypatch.setenv("OSX_STORE", "env-store")
+
+        from typer.testing import CliRunner
+        from source.osx_cli import osx_app
+
+        r = CliRunner()
+
+        captured: dict = {}
+
+        def fake_get():
+            captured["store"] = osx_lib.current_store.get()
+            return osx_lib.current_store.get()
+
+        with patch("source.osx_cli.osx_lib.baseline_get", side_effect=fake_get):
+            result = r.invoke(
+                osx_app,
+                ["--store", "flag-store", "baseline", "get"],
+            )
+        assert captured["store"] == "flag-store"
+        assert result.exit_code == 0

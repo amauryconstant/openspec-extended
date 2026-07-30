@@ -13,6 +13,7 @@ on which tool directory (.opencode/ or .claude/) is present.
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -39,6 +40,8 @@ class RunRequest:
     timeout: int = 1800
     on_pid: Optional[OnPidCallback] = None
     env: dict[str, str] | None = None
+    store: Optional[str] = None
+    schema_name: Optional[str] = None
 
 
 @dataclass
@@ -152,6 +155,58 @@ class ClaudeRunner:
         )
 
 
+def _terminate_subprocess_tree(process: subprocess.Popen, pid: int) -> None:
+    """Terminate ``process`` and any descendants it spawned.
+
+    Mirrors ``engine._terminate_child`` semantics:
+
+    - POSIX: child runs in its own session (``os.setsid`` above). Signal the
+      whole group with ``SIGTERM`` first, escalate to ``SIGKILL`` after a
+      short grace period.
+    - Windows: child runs with ``CREATE_NEW_PROCESS_GROUP``; send
+      ``CTRL_BREAK_EVENT`` to the direct PID (process-group signal semantics
+      differ). Falls back to ``TerminateProcess`` (SIGTERM) if the break
+      event is unavailable.
+
+    Errors (process already dead, permission denied) are swallowed — the
+    caller cannot act on them and the subprocess is about to be reaped.
+    """
+    if sys.platform != "win32":
+        try:
+            pgid = os.getpgid(pid)
+            os.killpg(pgid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, OSError):
+            try:
+                process.terminate()
+            except OSError:
+                pass
+        try:
+            process.wait(timeout=2)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+        try:
+            pgid = os.getpgid(pid)
+            os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            try:
+                process.kill()
+            except OSError:
+                pass
+    else:
+        ctrl_break = getattr(signal, "CTRL_BREAK_EVENT", None)
+        try:
+            if ctrl_break is not None:
+                os.kill(pid, ctrl_break)
+            else:
+                process.terminate()
+        except (ProcessLookupError, PermissionError, OSError):
+            try:
+                process.terminate()
+            except OSError:
+                pass
+
+
 def _run_with_logging(
     cmd: list,
     request: RunRequest,
@@ -171,8 +226,9 @@ def _run_with_logging(
 
     On POSIX, the child is spawned in its own session via ``os.setsid`` so the
     engine can terminate the whole process group with ``killpg`` if the child
-    becomes unresponsive. On Windows, falls back to ``CREATE_NEW_PROCESS_GROUP``
-    (``creationflags``); see TODO(Windows follow-up).
+    becomes unresponsive. On Windows, ``CREATE_NEW_PROCESS_GROUP`` is set so
+    ``CTRL_BREAK_EVENT`` can be sent on cancellation. See
+    ``_terminate_subprocess_tree`` for the termination policy.
     """
     try:
         with tempfile.NamedTemporaryFile(
@@ -190,13 +246,23 @@ def _run_with_logging(
             cwd=request.cwd,
             env=os.environ | (request.env or {}),
         )
+        if request.store:
+            popen_kwargs["env"] = {
+                **popen_kwargs["env"],
+                "OSX_STORE": request.store,
+            }
+        if request.schema_name:
+            popen_kwargs["env"] = {
+                **popen_kwargs["env"],
+                "OSX_SCHEMA": request.schema_name,
+            }
         # Use a new session / process group so we can signal the whole tree
         # if the AI runner spawns child processes of its own.
         if sys.platform != "win32":
             popen_kwargs["preexec_fn"] = os.setsid
         else:
-            # TODO(Windows follow-up): add creationflags=CREATE_NEW_PROCESS_GROUP
-            # and use signal.CTRL_BREAK_EVENT when terminating.
+            # CREATE_NEW_PROCESS_GROUP is required for CTRL_BREAK_EVENT to be
+            # delivered on Windows; see _terminate_subprocess_tree.
             popen_kwargs["creationflags"] = getattr(
                 subprocess, "CREATE_NEW_PROCESS_GROUP", 0
             )
@@ -230,7 +296,7 @@ def _run_with_logging(
         try:
             exit_code = process.wait(timeout=request.timeout)
         except subprocess.TimeoutExpired:
-            process.kill()
+            _terminate_subprocess_tree(process, pid)
             reader.join(timeout=2)
             log_path.unlink(missing_ok=True)
             return RunResult(

@@ -525,10 +525,17 @@ def run_agent(state: OrchestratorState, phase: str) -> bool:
         timeout=state.timeout,
         on_pid=_capture_pid,
         env={"OSX_AUTONOMOUS": "1"},
+        store=state.store,
+        schema_name=state.schema_name,
     )
 
     try:
-        result = runner.run(request, verbose=state.verbose)
+        try:
+            result = runner.run(request, verbose=state.verbose)
+        finally:
+            # Clear before the post-run block: the defensive fallback below
+            # would otherwise re-set a stale PID after the finally cleared it.
+            state.child_pid = None
     except OSXError as e:
         log_error(state, e.message)
         return False
@@ -537,6 +544,11 @@ def run_agent(state: OrchestratorState, phase: str) -> bool:
     # still capture the post-hoc pid as a fallback.
     if state.child_pid is None:
         state.child_pid = result.pid
+
+    # Clear the PID after we've captured the fallback value. The PID is
+    # only meaningful while the subprocess is live; once ``runner.run``
+    # returns, the child has exited and the PID is stale.
+    state.child_pid = None
 
     if state.log_file and result.log_path and result.log_path.exists():
         with open(state.log_file, "a") as log_f:
@@ -714,8 +726,10 @@ def _terminate_child(state: OrchestratorState) -> None:
 
     On POSIX, the runner spawns the child via ``os.setsid`` so the AI's own
     subprocesses inherit a fresh pgid. We signal the group so the runner
-    and any spawned worker die together. On Windows (TODO), use
-    ``CREATE_NEW_PROCESS_GROUP`` + ``CTRL_BREAK_EVENT``.
+    and any spawned worker die together. On Windows, the child runs in a
+    new process group (the runner sets ``CREATE_NEW_PROCESS_GROUP``); we
+    deliver ``CTRL_BREAK_EVENT`` to the direct PID, falling back to
+    ``SIGTERM`` if the break event is unavailable on this platform.
     """
     if not state.child_pid:
         return
@@ -729,9 +743,11 @@ def _terminate_child(state: OrchestratorState) -> None:
                 # child died between capture and signal).
                 os.kill(state.child_pid, signal.SIGTERM)
         else:
-            # TODO(Windows follow-up): send CTRL_BREAK_EVENT via the child's
-            # process group; fall back to terminate() for now.
-            os.kill(state.child_pid, signal.SIGTERM)
+            ctrl_break = getattr(signal, "CTRL_BREAK_EVENT", None)
+            if ctrl_break is not None:
+                os.kill(state.child_pid, ctrl_break)
+            else:
+                os.kill(state.child_pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):
         pass
 

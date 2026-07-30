@@ -18,6 +18,7 @@ class TestDetectRunner:
         (tmp_path / ".opencode").mkdir()
         monkeypatch.chdir(tmp_path)
         from source.orchestrator.runner import detect_runner
+
         runner = detect_runner(tmp_path)
         assert runner.name == "opencode"
 
@@ -25,6 +26,7 @@ class TestDetectRunner:
         (tmp_path / ".claude").mkdir()
         monkeypatch.chdir(tmp_path)
         from source.orchestrator.runner import detect_runner
+
         runner = detect_runner(tmp_path)
         assert runner.name == "claude"
 
@@ -32,11 +34,13 @@ class TestDetectRunner:
         (tmp_path / ".opencode").mkdir()
         (tmp_path / ".claude").mkdir()
         from source.orchestrator.runner import detect_runner
+
         runner = detect_runner(tmp_path)
         assert runner.name == "opencode"
 
     def test_no_runner_raises(self, tmp_path):
         from source.orchestrator.runner import detect_runner
+
         with pytest.raises(OSXError) as e:
             detect_runner(tmp_path)
         assert e.value.code == "no_runner_detected"
@@ -46,11 +50,15 @@ class TestDetectRunner:
 class TestRunResult:
     def test_run_result_has_pid_field(self):
         from source.orchestrator.runner import RunResult
-        result = RunResult(exit_code=0, log_path=None, timed_out=False, error=None, pid=12345)
+
+        result = RunResult(
+            exit_code=0, log_path=None, timed_out=False, error=None, pid=12345
+        )
         assert result.pid == 12345
 
     def test_run_result_pid_default_none(self):
         from source.orchestrator.runner import RunResult
+
         result = RunResult(exit_code=0)
         assert result.pid is None
 
@@ -59,14 +67,18 @@ class TestRunResult:
 class TestOpencodeRunner:
     def test_missing_binary_raises(self, monkeypatch):
         from source.orchestrator.runner import OpencodeRunner, RunRequest
+
         monkeypatch.setattr("shutil.which", lambda _: None)
         runner = OpencodeRunner()
         with pytest.raises(OSXError) as e:
-            runner.run(RunRequest(command="osx-phase0", agent="osx-analyzer", change_id="foo"))
+            runner.run(
+                RunRequest(command="osx-phase0", agent="osx-analyzer", change_id="foo")
+            )
         assert e.value.code == "runner_not_found"
 
     def test_successful_run(self, monkeypatch):
         from source.orchestrator.runner import OpencodeRunner, RunRequest
+
         monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
         captured = {}
 
@@ -100,6 +112,7 @@ class TestOpencodeRunner:
 
     def test_includes_model_when_set(self, monkeypatch):
         from source.orchestrator.runner import OpencodeRunner, RunRequest
+
         monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
         captured = {}
 
@@ -127,14 +140,18 @@ class TestOpencodeRunner:
 class TestClaudeRunner:
     def test_missing_binary_raises(self, monkeypatch):
         from source.orchestrator.runner import ClaudeRunner, RunRequest
+
         monkeypatch.setattr("shutil.which", lambda _: None)
         runner = ClaudeRunner()
         with pytest.raises(OSXError) as e:
-            runner.run(RunRequest(command="osx-phase0", agent="osx-analyzer", change_id="foo"))
+            runner.run(
+                RunRequest(command="osx-phase0", agent="osx-analyzer", change_id="foo")
+            )
         assert e.value.code == "runner_not_found"
 
     def test_successful_run(self, monkeypatch):
         from source.orchestrator.runner import ClaudeRunner, RunRequest
+
         monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/claude")
         captured = {}
 
@@ -165,6 +182,7 @@ class TestClaudeRunner:
 
     def test_includes_model_when_set(self, monkeypatch):
         from source.orchestrator.runner import ClaudeRunner, RunRequest
+
         monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/claude")
         captured = {}
 
@@ -190,6 +208,7 @@ class TestClaudeRunner:
 
     def test_env_is_merged_and_forwarded(self, monkeypatch):
         from source.orchestrator.runner import OpencodeRunner, RunRequest
+
         monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
         captured = {}
 
@@ -215,3 +234,144 @@ class TestClaudeRunner:
 
         assert captured["env"]["OSX_AUTONOMOUS"] == "1"
         assert captured["env"]["PATH"] == os.environ["PATH"]
+
+
+@pytest.mark.unit
+class TestRunRequestStoreAndSchema:
+    """M18: RunRequest carries ``store`` and ``schema_name``; the helper
+    injects them as ``OSX_STORE`` / ``OSX_SCHEMA`` env vars in the
+    subprocess so the AI-side ``osx`` CLI picks them up."""
+
+    def test_store_injects_osx_store_env(self, monkeypatch):
+        from source.orchestrator.runner import OpencodeRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["env"] = kwargs["env"]
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 4242
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        OpencodeRunner().run(
+            RunRequest(
+                command="osx-phase0",
+                agent="osx-analyzer",
+                change_id="my-change",
+                store="team-store",
+            )
+        )
+
+        assert captured["env"]["OSX_STORE"] == "team-store"
+        assert "OSX_SCHEMA" not in captured["env"]
+
+    def test_schema_name_injects_osx_schema_env(self, monkeypatch):
+        from source.orchestrator.runner import OpencodeRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["env"] = kwargs["env"]
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 4242
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        OpencodeRunner().run(
+            RunRequest(
+                command="osx-phase0",
+                agent="osx-analyzer",
+                change_id="my-change",
+                schema_name="spec-driven",
+            )
+        )
+
+        assert captured["env"]["OSX_SCHEMA"] == "spec-driven"
+        assert "OSX_STORE" not in captured["env"]
+
+    def test_both_store_and_schema_inject_both_envs(self, monkeypatch):
+        from source.orchestrator.runner import OpencodeRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["env"] = kwargs["env"]
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 4242
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        OpencodeRunner().run(
+            RunRequest(
+                command="osx-phase0",
+                agent="osx-analyzer",
+                change_id="my-change",
+                store="team-store",
+                schema_name="custom",
+            )
+        )
+
+        assert captured["env"]["OSX_STORE"] == "team-store"
+        assert captured["env"]["OSX_SCHEMA"] == "custom"
+
+    def test_no_store_no_env_var(self, monkeypatch):
+        from source.orchestrator.runner import OpencodeRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["env"] = kwargs["env"]
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 4242
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        OpencodeRunner().run(
+            RunRequest(
+                command="osx-phase0",
+                agent="osx-analyzer",
+                change_id="my-change",
+            )
+        )
+
+        assert "OSX_STORE" not in captured["env"]
+        assert "OSX_SCHEMA" not in captured["env"]
+
+    def test_claude_runner_also_forwards_store(self, monkeypatch):
+        from source.orchestrator.runner import ClaudeRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/claude")
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["env"] = kwargs["env"]
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 4242
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        ClaudeRunner().run(
+            RunRequest(
+                command="osx-phase0",
+                agent="osx-analyzer",
+                change_id="my-change",
+                store="team-store",
+            )
+        )
+
+        assert captured["env"]["OSX_STORE"] == "team-store"

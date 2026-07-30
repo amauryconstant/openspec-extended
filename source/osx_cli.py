@@ -34,9 +34,16 @@ def _osx_app_callback(
         help="OpenSpec store id (defaults to nearest openspec/ root)",
     ),
 ) -> None:
-    if store is not None:
-        token = osx_lib.current_store.set(store)
-        ctx.obj = {"store_token": token, "store": store}
+    import os as _os
+
+    effective_store = store
+    if effective_store is None:
+        env_store = _os.environ.get("OSX_STORE")
+        if env_store:
+            effective_store = env_store
+    if effective_store is not None:
+        token = osx_lib.current_store.set(effective_store)
+        ctx.obj = {"store_token": token, "store": effective_store}
         ctx.call_on_close(lambda: osx_lib.current_store.reset(token))
     else:
         ctx.obj = {}

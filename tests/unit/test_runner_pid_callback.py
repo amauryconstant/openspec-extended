@@ -7,10 +7,12 @@ termination.
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -182,3 +184,236 @@ class TestPopenFunctionAcceptsOnPid:
         result = runner.run(request, verbose=False)
         assert result.pid == 9999
         assert captured["pids"] == [9999]
+
+
+@pytest.mark.unit
+class TestTimeoutProcessGroupTermination:
+    """M21a: the timeout path must signal the whole process group, not just
+    the direct child PID. The runner sets up ``os.setsid`` on POSIX so the
+    AI's own subprocesses inherit a fresh pgid."""
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX-only")
+    def test_timeout_signals_process_group(self, monkeypatch: pytest.MonkeyPatch):
+        """When the subprocess exceeds the timeout, the helper signals the
+        process group with ``SIGTERM`` and escalates to ``SIGKILL``."""
+        killpg_calls: list = []
+        kill_calls: list = []
+
+        def fake_killpg(pgid: int, sig: int) -> None:
+            killpg_calls.append((pgid, sig))
+
+        def fake_kill(pid: int, sig: int) -> None:
+            kill_calls.append((pid, sig))
+
+        monkeypatch.setattr(os, "killpg", fake_killpg)
+        monkeypatch.setattr(os, "kill", fake_kill)
+        # getpgid must still return something so the killpg branch is taken.
+        monkeypatch.setattr(os, "getpgid", lambda pid: pid)
+
+        # Build a fake Popen that always raises TimeoutExpired on wait().
+        class _FakeProcess:
+            pid = 12345
+            stdout = None
+
+            def wait(self, timeout=None):  # noqa: ARG002
+                raise subprocess.TimeoutExpired(cmd=["sleep"], timeout=timeout)
+
+            def terminate(self) -> None:
+                pass
+
+            def kill(self) -> None:
+                pass
+
+        request = RunRequest(
+            command="dummy",
+            agent="dummy",
+            change_id="dummy",
+            timeout=0,
+        )
+
+        with patch(
+            "source.orchestrator.runner.subprocess.Popen",
+            return_value=_FakeProcess(),
+        ):
+            result = _run_with_logging(
+                ["sleep", "10"],
+                request,
+                verbose=False,
+                label="test",
+            )
+
+        assert result.timed_out is True
+        assert result.exit_code == 124
+        sigterms = [c for c in killpg_calls if c[1] == signal.SIGTERM]
+        assert sigterms, f"expected SIGTERM via killpg; got {killpg_calls}"
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX-only")
+    def test_timeout_falls_back_to_direct_terminate_when_pgid_unknown(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """If getpgid raises (process already reaped), fall back to terminate()."""
+        terminate_calls: list = []
+
+        class _FakeProcess:
+            pid = 99999
+            stdout = None
+
+            def wait(self, timeout=None):  # noqa: ARG002
+                raise subprocess.TimeoutExpired(cmd=["x"], timeout=timeout)
+
+            def terminate(self) -> None:
+                terminate_calls.append(None)
+
+            def kill(self) -> None:
+                pass
+
+        def fake_getpgid(pid: int) -> int:  # noqa: ARG001
+            raise ProcessLookupError("not found")
+
+        monkeypatch.setattr(os, "getpgid", fake_getpgid)
+
+        request = RunRequest(
+            command="dummy",
+            agent="dummy",
+            change_id="dummy",
+            timeout=0,
+        )
+
+        with patch(
+            "source.orchestrator.runner.subprocess.Popen",
+            return_value=_FakeProcess(),
+        ):
+            result = _run_with_logging(
+                ["x"],
+                request,
+                verbose=False,
+                label="test",
+            )
+
+        assert result.timed_out is True
+        assert terminate_calls, "expected fallback to process.terminate()"
+
+
+@pytest.mark.unit
+class TestChildPidClearedAfterRunAgent:
+    """M21b: ``state.child_pid`` must be cleared after ``run_agent`` returns,
+    so a stale PID cannot be signalled by a later SIGINT."""
+
+    def test_state_child_pid_cleared_after_run_agent(self, tmp_path, monkeypatch):
+        from source.orchestrator import engine as eng
+        from source.orchestrator import runner as runner_mod
+
+        change_dir = tmp_path / "openspec" / "changes" / "test-change"
+        change_dir.mkdir(parents=True)
+        (change_dir / "tasks.md").write_text("# Tasks")
+        (change_dir / "proposal.md").write_text("# Proposal")
+        (change_dir / "design.md").write_text("# Design")
+        (change_dir / "specs").mkdir()
+        (change_dir / "specs" / "spec.md").write_text("# Spec")
+
+        monkeypatch.chdir(tmp_path)
+
+        st = eng.OrchestratorState(
+            change_dir=change_dir,
+            change_id="test-change",
+        )
+        st.log_file = None
+        st.log_user_specified = False
+
+        class _FakeResult:
+            exit_code = 0
+            log_path = None
+            pid = 4242
+            timed_out = False
+            error = None
+
+        pid_observed: dict = {}
+
+        class _FakeRunner:
+            name = "fake"
+
+            def run(self, request, verbose=False):  # noqa: ARG002
+                if request.on_pid is not None:
+                    request.on_pid(4242)
+                    pid_observed["inside_run"] = st.child_pid
+                return _FakeResult()
+
+        monkeypatch.setattr(eng, "detect_runner", lambda x: _FakeRunner())
+        monkeypatch.setattr(runner_mod, "detect_runner", lambda x: _FakeRunner())
+
+        st.child_pid = None
+        result = eng.run_agent(st, "PHASE0")
+        assert result is True
+        assert pid_observed.get("inside_run") == 4242
+        assert st.child_pid is None, (
+            f"state.child_pid should be cleared after run_agent; got {st.child_pid}"
+        )
+
+
+@pytest.mark.unit
+class TestWindowsSignalSelection:
+    """M21c: on Windows, the timeout / interrupt path must select
+    ``signal.CTRL_BREAK_EVENT`` when available. The signal is only defined
+    on Windows; on POSIX we patch it in."""
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows-only contract test")
+    def test_windows_terminate_child_uses_ctrl_break_event(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        from source.orchestrator import engine as eng
+
+        sent_signals: list = []
+
+        def fake_kill(pid: int, sig: int) -> None:
+            sent_signals.append((pid, sig))
+
+        monkeypatch.setattr(eng.os, "kill", fake_kill)
+
+        st = eng.OrchestratorState(change_id="x")
+        st.child_pid = 1234
+
+        with patch.object(eng.sys, "platform", "win32"):
+            monkeypatch.setattr(eng.signal, "CTRL_BREAK_EVENT", 1, raising=False)
+            eng._terminate_child(st)
+
+        assert sent_signals, "expected at least one kill call"
+        assert all(pid == 1234 for pid, _ in sent_signals)
+        # The control-break event (value 1 from our patch) should appear
+        # in the sent signals when available.
+        assert 1 in (sig for _, sig in sent_signals), (
+            f"expected CTRL_BREAK_EVENT (1) in sent signals; got {sent_signals}"
+        )
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="Windows-only contract test")
+    def test_windows_terminate_subprocess_tree_uses_ctrl_break_event(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        from source.orchestrator import runner as runner_mod
+
+        sent_signals: list = []
+
+        def fake_kill(pid: int, sig: int) -> None:
+            sent_signals.append((pid, sig))
+
+        monkeypatch.setattr(runner_mod.os, "kill", fake_kill)
+
+        class _FakeProcess:
+            pid = 5555
+            stdout = None
+
+            def wait(self, timeout=None):  # noqa: ARG002
+                raise subprocess.TimeoutExpired(cmd=["x"], timeout=timeout)
+
+            def terminate(self) -> None:
+                pass
+
+            def kill(self) -> None:
+                pass
+
+        with patch.object(runner_mod.sys, "platform", "win32"):
+            monkeypatch.setattr(runner_mod.signal, "CTRL_BREAK_EVENT", 1, raising=False)
+            runner_mod._terminate_subprocess_tree(_FakeProcess(), 5555)
+
+        assert sent_signals
+        assert all(pid == 5555 for pid, _ in sent_signals)
+        assert 1 in (sig for _, sig in sent_signals)
