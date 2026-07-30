@@ -10,7 +10,6 @@ import pytest
 from typer.testing import CliRunner
 
 
-
 @pytest.fixture
 def test_env(tmp_path):
     """Create a test environment with git repo and change structure."""
@@ -81,6 +80,7 @@ def invoke(args):
     """Invoke osx CLI with given args using CliRunner."""
     runner = CliRunner()
     from source.osx_cli import osx_app
+
     return runner.invoke(osx_app, args)
 
 
@@ -556,7 +556,9 @@ class TestEnginePhase0RouteHalt:
         )
         assert eng.run_phase(orch_state, "PHASE0") is False
 
-    def test_run_phase_proceeds_when_routes_pending_cleared(self, test_env, monkeypatch):
+    def test_run_phase_proceeds_when_routes_pending_cleared(
+        self, test_env, monkeypatch
+    ):
         """PHASE0 with routes_pending cleared + phase_complete=True → True (advance)."""
         from source.orchestrator import engine as eng
 
@@ -579,7 +581,9 @@ class TestEnginePhase0RouteHalt:
         )
         assert eng.run_phase(orch_state, "PHASE0") is True
         state = json.loads(
-            (test_env / "openspec" / "changes" / "test-change" / "state.json").read_text()
+            (
+                test_env / "openspec" / "changes" / "test-change" / "state.json"
+            ).read_text()
         )
         assert state["phase_complete"] is False
         assert "routes_pending" not in state
@@ -599,6 +603,355 @@ class TestEnginePhase0RouteHalt:
         )
         eng.write_state(orch_state, "PHASE0", iteration=2, phase_complete=False)
         state = json.loads(
-            (test_env / "openspec" / "changes" / "test-change" / "state.json").read_text()
+            (
+                test_env / "openspec" / "changes" / "test-change" / "state.json"
+            ).read_text()
         )
         assert state["routes_pending"] == ["/osx-modify", "/opsx:update"]
+
+
+@pytest.mark.integration
+class TestPhase6ArchiveCleanup:
+    """C4 fix: cleanup() re-resolves the path so transients are removed from the archive.
+
+    The bug: after PHASE6, the change directory moved to
+    ``openspec/changes/archive/YYYY-MM-DD-<change>/`` but the engine's
+    ``cleanup()`` still references the pre-archive path. Transients
+    (``state.json``, ``complete.json``, the per-change log) are silently
+    never removed. The next ``orchestrate`` invocation finds the stale
+    ``state.json`` in the archive and either aborts preflight or attempts
+    to re-run a phantom phase.
+
+    The fix: ``cleanup()`` re-resolves the change path via
+    ``find_change_dir`` (with a direct archive-walk fallback) before
+    touching any files.
+    """
+
+    def test_cleanup_removes_transients_from_archive(self, test_env, monkeypatch):
+        """End-to-end: setup post-archive state, run cleanup, verify transients gone."""
+        import shutil
+        import subprocess
+
+        from source.orchestrator import engine as eng
+
+        active = test_env / "openspec" / "changes" / "test-change"
+        if active.exists():
+            shutil.rmtree(active)
+
+        archive = (
+            test_env / "openspec" / "changes" / "archive" / "2024-01-15-test-change"
+        )
+        archive.mkdir(parents=True)
+        (archive / "proposal.md").write_text("# Proposal")
+        (archive / "tasks.md").write_text("# Tasks")
+        (archive / "decision-log.json").write_text("[]")
+        (archive / "iterations.json").write_text("[]")
+        (archive / "state.json").write_text(
+            json.dumps({"phase": "PHASE6", "phase_complete": True})
+        )
+        (archive / "complete.json").write_text(json.dumps({"status": "COMPLETE"}))
+        log_file = archive / ".osx-orchestrate-test-change.log"
+        log_file.write_text("orchestrator log")
+        baseline = test_env / ".openspec-baseline.json"
+        baseline.write_text("{}")
+
+        subprocess.run(["git", "add", "-A"], cwd=test_env, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "Archive test-change"],
+            cwd=test_env,
+            check=True,
+        )
+
+        monkeypatch.chdir(test_env)
+
+        st = eng.OrchestratorState(
+            change_dir=active,
+            change_id="test-change",
+        )
+        st.log_file = log_file
+        st.log_user_specified = False
+
+        eng.cleanup(st, 0)
+
+        assert not (archive / "state.json").exists()
+        assert not (archive / "complete.json").exists()
+        assert not log_file.exists()
+        assert not baseline.exists()
+
+        assert (archive / "iterations.json").exists()
+        assert (archive / "decision-log.json").exists()
+        assert (archive / "proposal.md").exists()
+        assert (archive / "tasks.md").exists()
+
+    def test_validate_archive_passes_for_well_formed_archive(
+        self, test_env, monkeypatch
+    ):
+        """validate_archive (called by the engine) accepts a properly archived change."""
+        from source.lib import osx as osx_lib
+
+        archive = (
+            test_env / "openspec" / "changes" / "archive" / "2024-01-15-test-change"
+        )
+        archive.mkdir(parents=True)
+        (archive / "decision-log.json").write_text("[]")
+        (archive / "iterations.json").write_text("[]")
+        (archive / "proposal.md").write_text("# Proposal")
+
+        import subprocess
+
+        subprocess.run(["git", "add", "-A"], cwd=test_env, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "Archive test-change"],
+            cwd=test_env,
+            check=True,
+        )
+
+        monkeypatch.chdir(test_env)
+        osx_lib._PATHS_CACHE.clear()
+
+        result = osx_lib.validate_archive("test-change")
+
+        assert result["valid"] is True
+        assert result["archive"].endswith("2024-01-15-test-change")
+
+    def test_validate_archive_rejects_archive_missing_decision_log(
+        self, test_env, monkeypatch
+    ):
+        """validate_archive rejects an archive directory that lacks decision-log.json."""
+        from source.lib import osx as osx_lib
+
+        archive = (
+            test_env / "openspec" / "changes" / "archive" / "2024-01-15-test-change"
+        )
+        archive.mkdir(parents=True)
+        (archive / "iterations.json").write_text("[]")
+        (archive / "proposal.md").write_text("# Proposal")
+
+        import subprocess
+
+        subprocess.run(["git", "add", "-A"], cwd=test_env, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "Archive test-change"],
+            cwd=test_env,
+            check=True,
+        )
+
+        monkeypatch.chdir(test_env)
+        osx_lib._PATHS_CACHE.clear()
+
+        result = osx_lib.validate_archive("test-change")
+
+        assert result["valid"] is False
+        assert any(e["check"] == "decision-log" for e in result["errors"])
+
+    def test_orchestrator_early_exit_fires_after_cleanup(self, test_env, monkeypatch):
+        """After cleanup removes transients, the engine's early-exit check fires.
+
+        Reproduces the C4 bug scenario: a previously-archived change that
+        had stale transients. After cleanup, the next ``orchestrate`` call
+        should detect the change is already archived and complete.
+        """
+        import shutil
+        import subprocess
+
+        active = test_env / "openspec" / "changes" / "test-change"
+        if active.exists():
+            shutil.rmtree(active)
+
+        archive = (
+            test_env / "openspec" / "changes" / "archive" / "2024-01-15-test-change"
+        )
+        archive.mkdir(parents=True)
+        (archive / "decision-log.json").write_text("[]")
+        (archive / "iterations.json").write_text("[]")
+        (archive / "proposal.md").write_text("# Proposal")
+        (archive / "tasks.md").write_text("# Tasks")
+        (archive / "state.json").write_text(
+            json.dumps({"phase": "PHASE6", "phase_complete": True})
+        )
+        (archive / "complete.json").write_text(json.dumps({"status": "COMPLETE"}))
+
+        subprocess.run(["git", "add", "-A"], cwd=test_env, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "Archive test-change"],
+            cwd=test_env,
+            check=True,
+        )
+
+        monkeypatch.chdir(test_env)
+
+        from source.orchestrator import engine as eng
+
+        resolved = eng.find_change_dir("test-change")
+        assert resolved is not None
+        assert "archive" in str(resolved)
+
+        assert (resolved / "state.json").exists()
+        assert (resolved / "complete.json").exists()
+
+        st = eng.OrchestratorState(change_dir=active, change_id="test-change")
+        st.log_file = None
+        st.log_user_specified = False
+        eng.cleanup(st, 0)
+
+        assert not (resolved / "state.json").exists()
+        assert not (resolved / "complete.json").exists()
+
+        assert "archive" in str(resolved) and not (resolved / "state.json").exists()
+
+
+@pytest.mark.integration
+class TestCleanErrorReporting:
+    """M20: --clean logs warnings instead of silently swallowing OSError
+    when transient file removal fails."""
+
+    def test_clean_logs_warning_when_state_json_unremovable(
+        self, test_env, monkeypatch
+    ):
+        """A read-only parent directory causes --clean to log a clear warning
+        instead of failing silently."""
+        from source.orchestrator import engine as eng
+
+        change = test_env / "openspec" / "changes" / "test-change"
+        change.mkdir(parents=True, exist_ok=True)
+        state_file = change / "state.json"
+        state_file.write_text('{"phase":"PHASE1"}')
+
+        import getpass
+        import os as _os
+        import stat
+
+        if getpass.getuser() == "root" or _os.geteuid() == 0:
+            pytest.skip("cannot simulate permission failure as root")
+
+        original_mode = change.stat().st_mode
+        try:
+            # Make the parent directory read-only so unlink fails
+            change.chmod(stat.S_IRUSR | stat.S_IXUSR)
+            monkeypatch.chdir(test_env)
+
+            captured: dict = {"warnings": []}
+
+            def capture_warn(state_or_msg, msg=None):
+                if msg is None and isinstance(state_or_msg, str):
+                    captured["warnings"].append(state_or_msg)
+                else:
+                    captured["warnings"].append(msg)
+
+            monkeypatch.setattr(eng, "log_warning", capture_warn)
+            monkeypatch.setattr(eng, "log_verbose", lambda *a, **kw: None)
+            monkeypatch.setattr(
+                eng, "run_agent", lambda s, p: (_ for _ in ()).throw(SystemExit(0))
+            )
+
+            st = eng.OrchestratorState(
+                change_id="test-change",
+                change_dir=change,
+                clean=True,
+                force=True,
+            )
+
+            from contextlib import suppress
+
+            with suppress(SystemExit):
+                eng.run_orchestrator(st)
+
+            assert any(
+                "Failed to remove" in w and "state.json" in w
+                for w in captured["warnings"]
+            ), f"expected warning; got {captured['warnings']}"
+        finally:
+            change.chmod(original_mode)
+
+
+@pytest.mark.integration
+class TestBlockerFileRecheck:
+    """M22: a phase that writes ``complete.json`` BLOCKED without setting
+    ``phase_complete`` must not be re-invoked in the next iteration."""
+
+    def test_check_blocker_returns_reason_when_present(self, tmp_path):
+        """The check_blocker helper returns the blocker_reason from complete.json."""
+        from source.orchestrator import engine as eng
+
+        change = tmp_path / "openspec" / "changes" / "test-change"
+        change.mkdir(parents=True)
+        (change / "complete.json").write_text(
+            json.dumps(
+                {
+                    "status": "BLOCKED",
+                    "with_blocker": True,
+                    "blocker_reason": "tests failing in CI",
+                }
+            )
+        )
+
+        st = eng.OrchestratorState(change_id="test-change", change_dir=change)
+        reason = eng.check_blocker(st)
+        assert reason == "tests failing in CI"
+
+    def test_check_blocker_returns_none_when_not_blocked(self, tmp_path):
+        """complete.json without with_blocker returns None."""
+        from source.orchestrator import engine as eng
+
+        change = tmp_path / "openspec" / "changes" / "test-change"
+        change.mkdir(parents=True)
+        (change / "complete.json").write_text(json.dumps({"status": "COMPLETE"}))
+
+        st = eng.OrchestratorState(change_id="test-change", change_dir=change)
+        assert eng.check_blocker(st) is None
+
+    def test_check_blocker_returns_none_when_file_missing(self, tmp_path):
+        """No complete.json returns None (graceful)."""
+        from source.orchestrator import engine as eng
+
+        change = tmp_path / "openspec" / "changes" / "test-change"
+        change.mkdir(parents=True)
+
+        st = eng.OrchestratorState(change_id="test-change", change_dir=change)
+        assert eng.check_blocker(st) is None
+
+    def test_run_phase_halts_when_blocker_detected(self, tmp_path, monkeypatch):
+        """After run_agent returns, if complete.json BLOCKED appears,
+        run_phase returns False without re-invoking the agent."""
+        from source.orchestrator import engine as eng
+
+        change = tmp_path / "openspec" / "changes" / "test-change"
+        change.mkdir(parents=True)
+        (change / "tasks.md").write_text("# Tasks")
+        (change / "proposal.md").write_text("# Proposal")
+        (change / "design.md").write_text("# Design")
+        (change / "specs").mkdir()
+        (change / "specs" / "spec.md").write_text("# Spec")
+        (change / "state.json").write_text(
+            json.dumps({"phase": "PHASE1", "iteration": 1, "phase_complete": False})
+        )
+
+        monkeypatch.chdir(tmp_path)
+
+        agent_call_count = {"n": 0}
+
+        def fake_run_agent(state, phase):  # noqa: ARG001
+            agent_call_count["n"] += 1
+            # Simulate the agent writing complete.json BLOCKED
+            (state.change_dir / "complete.json").write_text(
+                json.dumps(
+                    {
+                        "status": "BLOCKED",
+                        "with_blocker": True,
+                        "blocker_reason": "stuck",
+                    }
+                )
+            )
+            return True
+
+        monkeypatch.setattr(eng, "run_agent", fake_run_agent)
+        monkeypatch.setattr(eng, "write_state", lambda *a, **kw: None)
+        monkeypatch.setattr(eng, "get_next_phase_iteration", lambda state, phase: 1)
+        monkeypatch.setattr(eng, "check_phase_complete", lambda state: False)
+        monkeypatch.setattr(eng, "check_routes_pending", lambda state: [])
+
+        st = eng.OrchestratorState(change_id="test-change", change_dir=change)
+        result = eng.run_phase(st, "PHASE1")
+
+        assert result is False
+        assert agent_call_count["n"] == 1, "agent must not be re-invoked after blocker"

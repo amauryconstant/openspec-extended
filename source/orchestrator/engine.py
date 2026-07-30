@@ -789,8 +789,40 @@ def handle_interrupt(signum, frame, state: OrchestratorState) -> None:
     _terminate_child(state)
 
 
+def _resolve_post_phase6_path(state: OrchestratorState) -> Optional[Path]:
+    """Resolve the change directory for cleanup.
+
+    After PHASE6, the active path is gone (the change moved to the archive
+    subdir). ``state.change_dir`` still references the pre-archive path, so
+    we re-resolve via ``find_change_dir`` (which falls back to walking the
+    archive directory) and additionally do a direct archive walk so the
+    resolve still works if the ``openspec`` binary is unavailable.
+    """
+    resolved = find_change_dir(state.change_id, store=state.store)
+    if resolved is not None:
+        return resolved
+
+    try:
+        paths = osx_lib.resolve_change_paths(
+            state.change_id, store=state.store or osx_lib.current_store.get()
+        )
+    except osx_lib.OSXError:
+        return None
+
+    archive_dir = paths["archive_dir"]
+    if archive_dir.is_dir():
+        for d in sorted(archive_dir.iterdir()):
+            if d.is_dir() and d.name.endswith(f"-{state.change_id}"):
+                return d
+    return None
+
+
 def cleanup(state: OrchestratorState, exit_code: int) -> None:
     _terminate_child(state)
+
+    resolved_change_dir = _resolve_post_phase6_path(state)
+    if resolved_change_dir is not None:
+        state.change_dir = resolved_change_dir
 
     if state.interrupted:
         log(state, "")
@@ -835,6 +867,14 @@ def cleanup(state: OrchestratorState, exit_code: int) -> None:
                         fp.unlink()
                     except OSError:
                         log_warning(state, f"Failed to remove {fname}")
+
+            for fname in ["state.json", "complete.json"]:
+                fp = state.change_dir / fname
+                if fp.exists():
+                    log_warning(
+                        state,
+                        f"Transient still present after cleanup: {fp}",
+                    )
 
         baseline = Path(".openspec-baseline.json")
         if baseline.exists():
@@ -997,31 +1037,45 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
                     if fp.exists():
                         try:
                             fp.unlink()
-                        except OSError:
-                            pass
+                        except OSError as e:
+                            log_warning(state, f"Failed to remove {fname}: {e}")
             baseline = Path(".openspec-baseline.json")
             if baseline.exists():
                 try:
                     baseline.unlink()
-                except OSError:
-                    pass
+                except OSError as e:
+                    log_warning(state, f"Failed to remove .openspec-baseline.json: {e}")
             log_file_unset = Path(f".osx-orchestrate-{state.change_id}.log")
             if log_file_unset.exists():
                 try:
                     log_file_unset.unlink()
-                except OSError:
-                    pass
+                except OSError as e:
+                    log_warning(state, f"Failed to remove {log_file_unset}: {e}")
             log_verbose(state, "State files cleaned, starting fresh")
 
-        if not state.from_phase:
-            try:
-                subprocess.run(
-                    ["git", "rev-parse", "HEAD"], capture_output=True, check=True
-                )
-            except (subprocess.CalledProcessError, FileNotFoundError):
-                log_error(state, "Required tool not found: git")
-                raise SystemExit(1)
+        # Preflight is split into two groups:
+        #  * Always-run checks (skills, commands, git, change_dir, schema):
+        #    a phase that starts with missing skills / commands / a broken
+        #    change dir will fail immediately anyway, so surface the error
+        #    at the top of the run even when --from-phase is passed.
+        #  * Fresh-start-only checks (binary probes, openspec version floor,
+        #    baseline): skipped with --from-phase because the user is
+        #    resuming into an existing run, not starting a new one.
+        try:
+            subprocess.run(
+                ["git", "rev-parse", "HEAD"], capture_output=True, check=True
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            log_error(state, "Required tool not found: git")
+            raise SystemExit(1)
 
+        validate_skills(state)
+        validate_commands(state)
+        validate_git(state)
+        validate_change_dir(state)
+        validate_schema(state)
+
+        if not state.from_phase:
             try:
                 subprocess.run(["jq", "--version"], capture_output=True)
             except FileNotFoundError:
@@ -1052,7 +1106,7 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
                 )
                 raise SystemExit(2)
 
-            platform = osx_lib.detect_platform(Path.cwd())
+            platform = osx_lib.detect_platform(_project_root(state) or Path.cwd())
             ai_binary = "opencode" if platform == "opencode" else "claude"
             try:
                 subprocess.run([ai_binary, "--version"], capture_output=True)
@@ -1060,15 +1114,9 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
                 log_error(state, f"Required tool not found: {ai_binary}")
                 raise SystemExit(1)
 
-            validate_skills(state)
-            validate_commands(state)
-            validate_git(state)
-            validate_change_dir(state)
-            validate_schema(state)
-
             record_baseline(state)
         else:
-            log(state, "Skipping pre-flight validation (--from-phase specified)")
+            log(state, "Resuming with --from-phase: skipping fresh-start checks")
 
         resume_phase = None
         data = read_state(state)

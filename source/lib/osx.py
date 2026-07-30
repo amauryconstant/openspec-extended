@@ -1390,7 +1390,57 @@ def validate_archive(target: str, *, store: Optional[str] = None) -> dict:
             ],
         }
 
-    return {"valid": True, "archive": str(archives[0])}
+    archive = archives[0]
+    errors: list[dict] = []
+
+    if not (archive / "decision-log.json").is_file():
+        errors.append(
+            {
+                "check": "decision-log",
+                "message": f"Archive missing decision-log.json: {archive}",
+            }
+        )
+
+    if not (archive / "iterations.json").is_file():
+        errors.append(
+            {
+                "check": "iterations",
+                "message": f"Archive missing iterations.json: {archive}",
+            }
+        )
+
+    try:
+        result = subprocess.run(
+            ["git", "log", "-1", "--format=%H", "--", "."],
+            cwd=str(archive),
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (subprocess.TimeoutExpired, OSError) as e:
+        errors.append(
+            {
+                "check": "commit",
+                "message": f"Archive commit check failed: {e}",
+            }
+        )
+    else:
+        if result.returncode != 0 or not result.stdout.strip():
+            stderr = (result.stderr or "").strip()
+            errors.append(
+                {
+                    "check": "commit",
+                    "message": (
+                        f"Archive directory has no commit: {archive}"
+                        + (f" ({stderr})" if stderr else "")
+                    ),
+                }
+            )
+
+    if errors:
+        return {"valid": False, "archive": str(archive), "errors": errors}
+
+    return {"valid": True, "archive": str(archive)}
 
 
 def validate_iterations(target: str, *, store: Optional[str] = None) -> dict:

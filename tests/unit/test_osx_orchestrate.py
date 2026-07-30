@@ -24,6 +24,7 @@ from source.orchestrator.engine import (
     log_verbose,
     advance_phase,
     archive_log_file,
+    cleanup,
 )
 
 
@@ -471,3 +472,153 @@ class TestCheckPhaseComplete:
         result = check_phase_complete(st)
 
         assert result is False
+
+
+@pytest.mark.unit
+class TestCleanupReResolution:
+    """Tests for the C4 fix: cleanup() must re-resolve the change path.
+
+    After PHASE6, the active change directory is gone (the change moved
+    to the archive). ``state.change_dir`` still references the pre-archive
+    path. ``cleanup()`` must detect this and re-resolve to the archive
+    path so transient files (state.json, complete.json, log) are removed
+    from the right place.
+    """
+
+    def test_cleanup_resolves_archived_path_on_success(
+        self, temp_change_dir, archived_change_dir, monkeypatch, tmp_path
+    ):
+        """Success path: pre-archive path is stale; cleanup resolves to archive."""
+        pre_archive_root = tmp_path
+        active = pre_archive_root / "openspec" / "changes" / "test-change"
+        if active.exists():
+            import shutil
+
+            shutil.rmtree(active)
+
+        archive = archived_change_dir
+        (archive / "state.json").write_text(
+            json.dumps({"phase": "PHASE6", "phase_complete": True})
+        )
+        (archive / "complete.json").write_text(json.dumps({"status": "COMPLETE"}))
+        (archive / "iterations.json").write_text("[]")
+        (archive / "decision-log.json").write_text("[]")
+        log_file = archive / ".osx-orchestrate-test-change.log"
+        log_file.write_text("orchestrator log")
+        baseline = pre_archive_root / ".openspec-baseline.json"
+        baseline.write_text("{}")
+
+        monkeypatch.chdir(pre_archive_root)
+
+        st = OrchestratorState(
+            change_dir=active,
+            change_id="test-change",
+        )
+        st.log_file = log_file
+        st.log_user_specified = False
+
+        cleanup(st, 0)
+
+        assert not (archive / "state.json").exists()
+        assert not (archive / "complete.json").exists()
+        assert not log_file.exists()
+        assert not baseline.exists()
+
+        assert (archive / "iterations.json").exists()
+        assert (archive / "decision-log.json").exists()
+
+        assert st.change_dir.resolve() == archive.resolve()
+
+    def test_cleanup_preserves_historical_files(
+        self, temp_change_dir, archived_change_dir, monkeypatch, tmp_path
+    ):
+        """iterations.json and decision-log.json must survive cleanup."""
+        pre_archive_root = tmp_path
+        active = pre_archive_root / "openspec" / "changes" / "test-change"
+        if active.exists():
+            import shutil
+
+            shutil.rmtree(active)
+
+        archive = archived_change_dir
+        (archive / "state.json").write_text(
+            json.dumps({"phase": "PHASE6", "phase_complete": True})
+        )
+        (archive / "complete.json").write_text(json.dumps({"status": "COMPLETE"}))
+        (archive / "iterations.json").write_text(json.dumps([{"phase": "PHASE6"}]))
+        (archive / "decision-log.json").write_text(json.dumps([{"decision": "go"}]))
+        (archive / "verification-report.md").write_text("# Verification")
+
+        monkeypatch.chdir(pre_archive_root)
+
+        st = OrchestratorState(change_dir=active, change_id="test-change")
+        st.log_file = None
+        st.log_user_specified = False
+
+        cleanup(st, 0)
+
+        assert (archive / "iterations.json").exists()
+        assert (archive / "decision-log.json").exists()
+        assert (archive / "verification-report.md").exists()
+
+    def test_cleanup_skips_when_path_disappears(self, temp_change_dir, monkeypatch):
+        """Both active and archive paths gone: cleanup does not crash."""
+        monkeypatch.chdir(temp_change_dir)
+
+        st = OrchestratorState(change_dir=None, change_id="test-change")
+        st.log_file = None
+
+        cleanup(st, 0)
+
+        assert st.change_dir is None
+
+    def test_cleanup_warns_when_transient_removal_fails(
+        self, temp_change_dir, archived_change_dir, monkeypatch, tmp_path
+    ):
+        """Post-cleanup assertion fires when a transient cannot be removed.
+
+        Simulated by removing write permission on the archive directory.
+        Skipped when running as root, since root bypasses file permissions.
+        """
+        import getpass
+        import os as _os
+        import stat
+
+        if getpass.getuser() == "root" or _os.geteuid() == 0:
+            pytest.skip("cannot simulate permission failure as root")
+
+        pre_archive_root = tmp_path
+        active = pre_archive_root / "openspec" / "changes" / "test-change"
+        if active.exists():
+            import shutil
+
+            shutil.rmtree(active)
+        archive = archived_change_dir
+        (archive / "state.json").write_text(json.dumps({"phase": "PHASE6"}))
+        (archive / "complete.json").write_text(json.dumps({}))
+
+        try:
+            archive.chmod(stat.S_IRUSR | stat.S_IXUSR)
+            monkeypatch.chdir(pre_archive_root)
+
+            st = OrchestratorState(change_dir=active, change_id="test-change")
+            st.log_file = None
+
+            with patch("source.orchestrator.engine.log_warning") as mock_warn:
+                cleanup(st, 0)
+
+                warnings = []
+                for call in mock_warn.call_args_list:
+                    args, _ = call
+                    if len(args) >= 2 and isinstance(args[1], str):
+                        warnings.append(args[1])
+                transient_warnings = [
+                    w
+                    for w in warnings
+                    if "Transient still present" in w or "Failed to remove" in w
+                ]
+                assert transient_warnings, (
+                    f"expected a transient warning; got: {warnings}"
+                )
+        finally:
+            archive.chmod(stat.S_IRWXU)

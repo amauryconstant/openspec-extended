@@ -77,7 +77,9 @@ def env_claude(tmp_path: Path) -> Path:
         (env / ".claude" / "skills" / skill / "SKILL.md").write_text("# x")
 
     for phase in range(7):
-        (env / ".claude" / "commands" / "osx" / f"osx-phase{phase}.md").write_text("# x")
+        (env / ".claude" / "commands" / "osx" / f"osx-phase{phase}.md").write_text(
+            "# x"
+        )
     return env
 
 
@@ -107,6 +109,7 @@ def _patch_preflight_env(monkeypatch, env: Path):
     # Gate the minimum-core-version check so preflight tests focus on the
     # preflight behaviour, not the floor enforced in commit 6.
     import source.lib.osx as _osx
+
     monkeypatch.setattr(_osx, "get_core_version", lambda: (1, 6, 0))
     return probed
 
@@ -121,24 +124,60 @@ class TestPreflightAlwaysRuns:
 
         probed = _patch_preflight_env(monkeypatch, env_opencode)
 
-        calls = {"validate_skills": 0, "validate_commands": 0, "validate_git": 0,
-                 "validate_change_dir": 0, "validate_schema": 0, "record_baseline": 0}
+        calls = {
+            "validate_skills": 0,
+            "validate_commands": 0,
+            "validate_git": 0,
+            "validate_change_dir": 0,
+            "validate_schema": 0,
+            "record_baseline": 0,
+        }
 
-        monkeypatch.setattr(eng, "validate_skills",
-                            lambda s: calls.__setitem__("validate_skills", calls["validate_skills"] + 1))
-        monkeypatch.setattr(eng, "validate_commands",
-                            lambda s: calls.__setitem__("validate_commands", calls["validate_commands"] + 1))
-        monkeypatch.setattr(eng, "validate_git",
-                            lambda s: calls.__setitem__("validate_git", calls["validate_git"] + 1))
-        monkeypatch.setattr(eng, "validate_change_dir",
-                            lambda s: calls.__setitem__("validate_change_dir", calls["validate_change_dir"] + 1))
-        monkeypatch.setattr(eng, "validate_schema",
-                            lambda s: calls.__setitem__("validate_schema", calls["validate_schema"] + 1))
-        monkeypatch.setattr(eng, "record_baseline",
-                            lambda s: calls.__setitem__("record_baseline", calls["record_baseline"] + 1))
+        monkeypatch.setattr(
+            eng,
+            "validate_skills",
+            lambda s: calls.__setitem__(
+                "validate_skills", calls["validate_skills"] + 1
+            ),
+        )
+        monkeypatch.setattr(
+            eng,
+            "validate_commands",
+            lambda s: calls.__setitem__(
+                "validate_commands", calls["validate_commands"] + 1
+            ),
+        )
+        monkeypatch.setattr(
+            eng,
+            "validate_git",
+            lambda s: calls.__setitem__("validate_git", calls["validate_git"] + 1),
+        )
+        monkeypatch.setattr(
+            eng,
+            "validate_change_dir",
+            lambda s: calls.__setitem__(
+                "validate_change_dir", calls["validate_change_dir"] + 1
+            ),
+        )
+        monkeypatch.setattr(
+            eng,
+            "validate_schema",
+            lambda s: calls.__setitem__(
+                "validate_schema", calls["validate_schema"] + 1
+            ),
+        )
+        monkeypatch.setattr(
+            eng,
+            "record_baseline",
+            lambda s: calls.__setitem__(
+                "record_baseline", calls["record_baseline"] + 1
+            ),
+        )
 
         # Skip AI runner dispatch
-        monkeypatch.setattr(eng, "run_agent", lambda s, p: (_ for _ in ()).throw(SystemExit(0)))
+        monkeypatch.setattr(
+            eng, "run_agent", lambda s, p: (_ for _ in ()).throw(SystemExit(0))
+        )
 
         state = eng.OrchestratorState(
             change_id="c1",
@@ -172,14 +211,24 @@ class TestPreflightAlwaysRuns:
         _patch_preflight_env(monkeypatch, env_opencode)
 
         called = {"validate_skills": False, "record_baseline": False}
-        monkeypatch.setattr(eng, "validate_skills", lambda s: called.__setitem__("validate_skills", True))
+        monkeypatch.setattr(
+            eng,
+            "validate_skills",
+            lambda s: called.__setitem__("validate_skills", True),
+        )
         monkeypatch.setattr(eng, "validate_commands", lambda s: None)
         monkeypatch.setattr(eng, "validate_git", lambda s: None)
         monkeypatch.setattr(eng, "validate_change_dir", lambda s: None)
         monkeypatch.setattr(eng, "validate_schema", lambda s: None)
-        monkeypatch.setattr(eng, "record_baseline", lambda s: called.__setitem__("record_baseline", True))
+        monkeypatch.setattr(
+            eng,
+            "record_baseline",
+            lambda s: called.__setitem__("record_baseline", True),
+        )
 
-        monkeypatch.setattr(eng, "run_agent", lambda s, p: (_ for _ in ()).throw(SystemExit(0)))
+        monkeypatch.setattr(
+            eng, "run_agent", lambda s, p: (_ for _ in ()).throw(SystemExit(0))
+        )
 
         state = eng.OrchestratorState(
             change_id="c1",
@@ -198,21 +247,69 @@ class TestPreflightAlwaysRuns:
         assert called["validate_skills"] is True
         assert called["record_baseline"] is True
 
-    def test_preflight_skipped_with_from_phase(self, env_opencode, monkeypatch):
-        """--from-phase continues to skip preflight."""
+    def test_from_phase_keeps_non_destructive_preflight(
+        self, env_opencode, monkeypatch
+    ):
+        """M19: --from-phase skips fresh-start checks (binary probes, baseline)
+        but still runs non-destructive validation (skills, commands, git,
+        change_dir, schema). A phase that starts with missing skills/commands
+        fails immediately rather than producing a confusing mid-run error."""
         from source.orchestrator import engine as eng
 
         probed = _patch_preflight_env(monkeypatch, env_opencode)
 
-        called = {"validate_skills": False}
-        monkeypatch.setattr(eng, "validate_skills", lambda s: called.__setitem__("validate_skills", True))
-        monkeypatch.setattr(eng, "validate_commands", lambda s: None)
-        monkeypatch.setattr(eng, "validate_git", lambda s: None)
-        monkeypatch.setattr(eng, "validate_change_dir", lambda s: None)
-        monkeypatch.setattr(eng, "validate_schema", lambda s: None)
-        monkeypatch.setattr(eng, "record_baseline", lambda s: None)
+        calls = {
+            "validate_skills": 0,
+            "validate_commands": 0,
+            "validate_git": 0,
+            "validate_change_dir": 0,
+            "validate_schema": 0,
+            "record_baseline": 0,
+        }
+        monkeypatch.setattr(
+            eng,
+            "validate_skills",
+            lambda s: calls.__setitem__(
+                "validate_skills", calls["validate_skills"] + 1
+            ),
+        )
+        monkeypatch.setattr(
+            eng,
+            "validate_commands",
+            lambda s: calls.__setitem__(
+                "validate_commands", calls["validate_commands"] + 1
+            ),
+        )
+        monkeypatch.setattr(
+            eng,
+            "validate_git",
+            lambda s: calls.__setitem__("validate_git", calls["validate_git"] + 1),
+        )
+        monkeypatch.setattr(
+            eng,
+            "validate_change_dir",
+            lambda s: calls.__setitem__(
+                "validate_change_dir", calls["validate_change_dir"] + 1
+            ),
+        )
+        monkeypatch.setattr(
+            eng,
+            "validate_schema",
+            lambda s: calls.__setitem__(
+                "validate_schema", calls["validate_schema"] + 1
+            ),
+        )
+        monkeypatch.setattr(
+            eng,
+            "record_baseline",
+            lambda s: calls.__setitem__(
+                "record_baseline", calls["record_baseline"] + 1
+            ),
+        )
 
-        monkeypatch.setattr(eng, "run_agent", lambda s, p: (_ for _ in ()).throw(SystemExit(0)))
+        monkeypatch.setattr(
+            eng, "run_agent", lambda s, p: (_ for _ in ()).throw(SystemExit(0))
+        )
 
         state = eng.OrchestratorState(
             change_id="c1",
@@ -225,8 +322,24 @@ class TestPreflightAlwaysRuns:
         with pytest.raises(SystemExit):
             eng.run_orchestrator(state)
 
-        assert called["validate_skills"] is False
-        assert probed.get("binaries", []) == [], "no tool probes should fire under --from-phase"
+        # Always-run validation still fires under --from-phase
+        for k in (
+            "validate_skills",
+            "validate_commands",
+            "validate_git",
+            "validate_change_dir",
+            "validate_schema",
+        ):
+            assert calls[k] == 1, f"{k} should run under --from-phase; got {calls[k]}"
+
+        # Fresh-start-only checks are skipped
+        assert calls["record_baseline"] == 0
+        # Binary probes are also skipped (jq, openspec, AI binary)
+        binaries = probed.get("binaries", [])
+        assert "jq" not in binaries
+        assert "openspec" not in binaries
+        assert "opencode" not in binaries
+        assert "claude" not in binaries
 
 
 @pytest.mark.integration
@@ -238,10 +351,18 @@ class TestPreflightPlatformAware:
 
         probed = _patch_preflight_env(monkeypatch, env_opencode)
 
-        for fn in ("validate_skills", "validate_commands", "validate_git",
-                   "validate_change_dir", "validate_schema", "record_baseline"):
+        for fn in (
+            "validate_skills",
+            "validate_commands",
+            "validate_git",
+            "validate_change_dir",
+            "validate_schema",
+            "record_baseline",
+        ):
             monkeypatch.setattr(eng, fn, lambda s: None)
-        monkeypatch.setattr(eng, "run_agent", lambda s, p: (_ for _ in ()).throw(SystemExit(0)))
+        monkeypatch.setattr(
+            eng, "run_agent", lambda s, p: (_ for _ in ()).throw(SystemExit(0))
+        )
 
         state = eng.OrchestratorState(
             change_id="c1",
@@ -261,10 +382,18 @@ class TestPreflightPlatformAware:
 
         probed = _patch_preflight_env(monkeypatch, env_claude)
 
-        for fn in ("validate_skills", "validate_commands", "validate_git",
-                   "validate_change_dir", "validate_schema", "record_baseline"):
+        for fn in (
+            "validate_skills",
+            "validate_commands",
+            "validate_git",
+            "validate_change_dir",
+            "validate_schema",
+            "record_baseline",
+        ):
             monkeypatch.setattr(eng, fn, lambda s: None)
-        monkeypatch.setattr(eng, "run_agent", lambda s, p: (_ for _ in ()).throw(SystemExit(0)))
+        monkeypatch.setattr(
+            eng, "run_agent", lambda s, p: (_ for _ in ()).throw(SystemExit(0))
+        )
 
         state = eng.OrchestratorState(
             change_id="c1",
