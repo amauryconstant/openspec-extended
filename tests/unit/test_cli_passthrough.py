@@ -344,7 +344,6 @@ class TestOrchestrateSchemaFlag:
         assert "--schema" in result.output
 
     def test_schema_flag_propagates_to_state(self, monkeypatch) -> None:
-        from source.orchestrator.engine import OrchestratorState, run_orchestrator
 
         captured = {}
 

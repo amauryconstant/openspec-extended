@@ -461,9 +461,11 @@ def _detect_existing_core_deployment(tool: str) -> bool:
             timeout=10,
         )
         payload = json.loads(result.stdout or "{}")
-        for key in ("skills", "specs", "changes", "items"):
-            if payload.get(key):
-                return True
+        # `openspec list --json` returns a top-level `items` array; `skills`,
+        # `specs`, and `changes` are nested under each item. Iterating over
+        # the latter at the top level yields dead branches.
+        if payload.get("items"):
+            return True
     except (
         subprocess.CalledProcessError,
         FileNotFoundError,

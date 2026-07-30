@@ -30,10 +30,10 @@ The orchestrator is the Python engine in `source/orchestrator/engine.py`, expose
 ```
 PHASE0: ARTIFACT_REVIEW  → osx-analyzer
 PHASE1: IMPLEMENTATION   → osx-builder
-PHASE2: REVIEW           → osx-analyzer
+PHASE2: REVIEW           → osx-reviewer
 PHASE3: MAINTAIN_DOCS    → osx-maintainer
 PHASE4: SYNC             → osx-maintainer
-PHASE5: SELF_REFLECTION  → osx-analyzer
+PHASE5: SELF_REFLECTION  → osx-reviewer
 PHASE6: ARCHIVE          → osx-maintainer
 ```
 

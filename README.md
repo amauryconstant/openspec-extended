@@ -10,7 +10,7 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 
 | Feature                   | OpenSpec Core | OpenSpec-extended     |
 | ------------------------- | ------------- | --------------------- |
-| Manual change workflows   | ✓ 11 commands | ✓ (via `--with-core`) |
+| Manual change workflows   | ✓ 12 commands | ✓ (via `--with-core`) |
 | Autonomous implementation | ✗             | ✓ 7-phase loop        |
 | Specialized agents        | ✗             | ✓ 4 agents            |
 | Utility skills            | ✗             | ✓ 8 skills            |
@@ -64,7 +64,7 @@ The entry point `openspec-extended` is registered automatically.
 
 ```bash
 openspec-extended --version
-# openspec-extended 1.2.1
+# openspec-extended 1.3.0
 ```
 
 ## Setup in Your Project
@@ -75,7 +75,7 @@ cd your-project
 # Install extension resources
 openspec-extended install opencode
 
-# Include core OpenSpec workflows (11 commands)
+# Include core OpenSpec workflows (12 commands)
 openspec-extended install opencode --with-core
 ```
 
@@ -93,9 +93,9 @@ ls .opencode/{skills,agents,commands}/
 | ----------------------------------------------- | ------------------------------------- |
 | `openspec-extended install opencode`            | Add missing resources (skip existing) |
 | `openspec-extended install claude`              | Same for Claude Code                  |
-| `openspec-extended install opencode --with-core`| Include 11 core OpenSpec workflows    |
+| `openspec-extended install opencode --with-core`| Include 12 core OpenSpec workflows    |
 | `openspec-extended update opencode`             | Force update all (overwrite existing) |
-| `openspec-extended update-core [opencode]`      | Refresh upstream OpenSpec instruction files |
+| `openspec-extended update-core [path]`          | Refresh upstream OpenSpec instruction files |
 
 ### Workflow Commands (Passthrough)
 

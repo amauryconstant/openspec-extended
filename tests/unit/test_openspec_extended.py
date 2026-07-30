@@ -307,3 +307,71 @@ class TestGetTargetPath:
         target_dir = temp_dir / ".opencode"
         result = get_target_path("agents", target_dir, "osx-test")
         assert result == target_dir / "agents" / "osx-test.md"
+
+
+@pytest.mark.unit
+class TestDetectExistingCoreDeployment:
+    """Trim: ``_detect_existing_core_deployment`` should only check the
+    ``items`` key (the only one ``openspec list --json`` actually returns).
+    Iterating over dead keys like ``skills``/``specs``/``changes`` was a
+    no-op."""
+
+    def test_returns_true_when_items_present(self, tmp_path, monkeypatch):
+        from source.cli import _detect_existing_core_deployment
+
+        def fake_run(cmd, **kwargs):
+            from unittest.mock import MagicMock
+
+            return MagicMock(
+                returncode=0,
+                stdout=json.dumps({"items": [{"id": "x", "type": "change"}]}),
+                stderr="",
+            )
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+        (tmp_path / ".opencode" / "skills").mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+        assert _detect_existing_core_deployment("opencode") is True
+
+    def test_returns_false_when_only_dead_keys_present(self, tmp_path, monkeypatch):
+        """Payload with ``skills``/``specs``/``changes`` set but no
+        ``items`` must return False (the previous loop would have returned
+        True on the first dead key)."""
+        from source.cli import _detect_existing_core_deployment
+
+        def fake_run(cmd, **kwargs):
+            from unittest.mock import MagicMock
+
+            return MagicMock(
+                returncode=0,
+                stdout=json.dumps(
+                    {
+                        "skills": [{"id": "x"}],
+                        "specs": [{"id": "y"}],
+                        "changes": [{"id": "z"}],
+                    }
+                ),
+                stderr="",
+            )
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+        (tmp_path / ".opencode" / "skills").mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+        assert _detect_existing_core_deployment("opencode") is False
+
+    def test_returns_false_when_items_empty(self, tmp_path, monkeypatch):
+        from source.cli import _detect_existing_core_deployment
+
+        def fake_run(cmd, **kwargs):
+            from unittest.mock import MagicMock
+
+            return MagicMock(
+                returncode=0,
+                stdout=json.dumps({"items": []}),
+                stderr="",
+            )
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+        (tmp_path / ".opencode" / "skills").mkdir(parents=True)
+        monkeypatch.chdir(tmp_path)
+        assert _detect_existing_core_deployment("opencode") is False

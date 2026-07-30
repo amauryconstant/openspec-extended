@@ -2,10 +2,10 @@
 version = "0.1.0"
 
 [resources.skills.osx-concepts]
-version = "0.9.3"
+version = "0.9.4"
 
 [resources.skills.osx-workflow]
-version = "0.3.3"
+version = "0.3.4"
 
 [resources.skills.osx-generate-changelog]
 version = "0.2.3"
@@ -62,7 +62,7 @@ version = "0.2.13"
 version = "0.3.5"
 
 [resources.commands.osx-phase6]
-version = "0.3.7"
+version = "0.3.8"
 
 [resources.commands.osx-review]
 version = "0.2.0"

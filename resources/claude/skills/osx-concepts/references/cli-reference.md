@@ -1,6 +1,6 @@
 # CLI Reference for AI Agents
 
-Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes verified against `@fission-ai/openspec@1.5.0`, `openspec-extended@1.2.1` source, and the `osx` CLI subcommand.
+Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes verified against `@fission-ai/openspec@1.6.0`, `openspec-extended@1.3.0` source, and the `osx` CLI subcommand.
 
 > **Quick rule**: use **`openspec`** to query workflow state, **`openspec-extended`** to drive the lifecycle, and **`osx`** to mutate change state.
 
@@ -44,7 +44,7 @@ Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes v
 The `openspec` binary is installed via `npm install -g @fission-ai/openspec`. It implements the spec-driven workflow: query state, get instructions for creating artifacts, validate, list changes, etc.
 
 ```bash
-openspec --version    # 1.5.0
+openspec --version    # 1.6.0
 openspec <subcommand> [options]
 ```
 
@@ -328,7 +328,7 @@ The upstream CLI has additional commands (`archive`, `init`, `update`, `view`, `
 The `openspec-extended` binary wraps the `osx` library and provides the lifecycle commands. It is the **entry point users run** to install resources or trigger the autonomous workflow.
 
 ```bash
-openspec-extended --version    # 1.2.1
+openspec-extended --version    # 1.3.0
 openspec-extended <subcommand> [options]
 ```
 

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Tests for openspec schema * subprocess wrappers."""
 
-from unittest.mock import patch
 
 import pytest
 

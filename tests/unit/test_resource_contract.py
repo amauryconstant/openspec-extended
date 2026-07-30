@@ -397,8 +397,8 @@ class TestManifestParity:
         [
             ("skills.osx-review-artifacts", "0.3.0"),
             ("skills.osx-modify-artifacts", "0.3.1"),
-            ("skills.osx-workflow", "0.3.3"),
-            ("skills.osx-concepts", "0.9.3"),
+            ("skills.osx-workflow", "0.3.4"),
+            ("skills.osx-concepts", "0.9.4"),
             ("skills.osx-review-test-compliance", "0.2.3"),
             ("skills.osx-generate-changelog", "0.2.3"),
             ("skills.osx-maintain-ai-docs", "0.2.3"),

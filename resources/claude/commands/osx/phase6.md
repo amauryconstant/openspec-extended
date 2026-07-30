@@ -42,7 +42,7 @@ Archive the completed change for historical reference.
 
 Complete ALL of these steps in order, without stopping:
 
-Transient state files (`state.json`, `complete.json`, `.openspec-baseline.json`, `.osx-orchestrate-<change>.log`) are removed by the orchestrator on success. Do not delete them from this phase — the orchestrator needs the auto-log to move it into the archive after the archive commit.
+Transient state files (`state.json`, `complete.json`, `.openspec-baseline.json`, `.osx-orchestrate-<change>.log`) are removed by the orchestrator on success. Do not delete them from this phase — the orchestrator needs the auto-log to move it into the archive after the archive commit. The orchestrator re-resolves the change path **after** this phase completes, so it cleans up transients from `openspec/changes/archive/YYYY-MM-DD-<change>/`, not from the pre-archive path. Do not pre-empt by deleting files in this phase.
 
 Note: PHASE6 does NOT call `osx state complete`. The orchestrator detects completion by archive directory existence, not by state.json.
 
