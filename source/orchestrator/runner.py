@@ -18,9 +18,10 @@ import subprocess
 import sys
 import tempfile
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional, Protocol
+from typing import Protocol
 
 from source.lib.osx import OSXError
 
@@ -36,12 +37,12 @@ class RunRequest:
     change_id: str
     title: str = ""
     model: str = ""
-    cwd: Optional[Path] = None
+    cwd: Path | None = None
     timeout: int = 1800
-    on_pid: Optional[OnPidCallback] = None
+    on_pid: OnPidCallback | None = None
     env: dict[str, str] | None = None
-    store: Optional[str] = None
-    schema_name: Optional[str] = None
+    store: str | None = None
+    schema_name: str | None = None
 
 
 @dataclass
@@ -49,10 +50,10 @@ class RunResult:
     """Outcome of a runner dispatch."""
 
     exit_code: int
-    log_path: Optional[Path] = None
+    log_path: Path | None = None
     timed_out: bool = False
-    error: Optional[str] = None
-    pid: Optional[int] = None
+    error: str | None = None
+    pid: int | None = None
 
 
 class Runner(Protocol):
@@ -213,7 +214,7 @@ def _run_with_logging(
     *,
     verbose: bool,
     label: str,
-    on_pid: Optional[OnPidCallback] = None,
+    on_pid: OnPidCallback | None = None,
 ) -> RunResult:
     """Spawn a subprocess, stream output, strip ANSI, return exit code.
 

@@ -9,8 +9,8 @@ import re
 import shutil
 import subprocess
 import sys
+from datetime import UTC
 from pathlib import Path
-from typing import Optional
 
 import toml
 import typer
@@ -18,8 +18,8 @@ from rich.console import Console
 
 from source import __version__
 from source.lib.osx import REQUIRED_CORE_SKILLS
-from source.osx_cli import osx_app
 from source.orchestrator.engine import OrchestratorState, run_orchestrator
+from source.osx_cli import osx_app
 
 SCRIPT_NAME = "openspec-extended"
 
@@ -520,10 +520,10 @@ def _write_core_baseline(tool: str, project_root: Path | None = None) -> Path | 
     openspec core setup. Returns the path written, or None if nothing to save.
     """
     project_root = project_root or Path.cwd()
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     snapshot = {
-        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "captured_at": datetime.now(UTC).isoformat(),
         "tool": tool,
         "global_config": _capture_global_config(),
         "project_root": str(project_root),
@@ -730,10 +730,10 @@ def update(
 @app.command("orchestrate", help="Run the 7-phase autonomous change workflow")
 def orchestrate(
     ctx: typer.Context,
-    change_name: Optional[str] = typer.Argument(
+    change_name: str | None = typer.Argument(
         None, help="OpenSpec change ID or 'store:change'"
     ),
-    store: Optional[str] = typer.Option(
+    store: str | None = typer.Option(
         None, "--store", help="OpenSpec store id (defaults to nearest openspec/ root)"
     ),
     timeout: int = typer.Option(
@@ -758,7 +758,7 @@ def orchestrate(
     from_phase: str = typer.Option(
         "", "--from-phase", help="Resume from specific phase"
     ),
-    schema: Optional[str] = typer.Option(
+    schema: str | None = typer.Option(
         None, "--schema", help="Override schema resolution"
     ),
     list_changes: bool = typer.Option(False, "--list", help="List available changes"),
@@ -769,7 +769,7 @@ def orchestrate(
 
     os.environ["OSX_AUTONOMOUS"] = "1"
 
-    parsed_store: Optional[str] = None
+    parsed_store: str | None = None
     parsed_change = change_name
     if change_name and ":" in change_name and not store:
         parsed_store, _, parsed_change = change_name.partition(":")
@@ -799,22 +799,22 @@ def orchestrate(
     "validate", help="Validate changes and specs (passthrough to openspec validate)"
 )
 def validate_cmd(
-    item_name: Optional[str] = typer.Argument(None, help="Change or spec ID"),
+    item_name: str | None = typer.Argument(None, help="Change or spec ID"),
     all: bool = typer.Option(False, "--all", help="Validate all changes and specs"),
     changes: bool = typer.Option(False, "--changes", help="Validate only changes"),
     specs: bool = typer.Option(False, "--specs", help="Validate only specs"),
-    type_: Optional[str] = typer.Option(
+    type_: str | None = typer.Option(
         None, "--type", help="Disambiguate: change|spec"
     ),
     strict: bool = typer.Option(False, "--strict", help="Enable strict mode"),
     json_output: bool = typer.Option(False, "--json", help="JSON output"),
-    concurrency: Optional[int] = typer.Option(
+    concurrency: int | None = typer.Option(
         None, "--concurrency", help="Max concurrent validations"
     ),
     no_interactive: bool = typer.Option(
         True, "--no-interactive/--interactive", help="Disable prompts (default: true)"
     ),
-    store: Optional[str] = typer.Option(None, "--store", help="OpenSpec store id"),
+    store: str | None = typer.Option(None, "--store", help="OpenSpec store id"),
 ) -> None:
     args: list[str] = []
     if item_name:
@@ -846,9 +846,9 @@ def validate_cmd(
 def list_cmd(
     specs: bool = typer.Option(False, "--specs", help="List only specs"),
     changes: bool = typer.Option(False, "--changes", help="List only changes"),
-    sort: Optional[str] = typer.Option(None, "--sort", help="Sort field"),
+    sort: str | None = typer.Option(None, "--sort", help="Sort field"),
     json_output: bool = typer.Option(False, "--json", help="JSON output"),
-    store: Optional[str] = typer.Option(None, "--store", help="OpenSpec store id"),
+    store: str | None = typer.Option(None, "--store", help="OpenSpec store id"),
 ) -> None:
     args: list[str] = []
     if specs:
@@ -868,8 +868,8 @@ def list_cmd(
 
 @app.command("show", help="Show change or spec (passthrough to openspec show)")
 def show_cmd(
-    item_name: Optional[str] = typer.Argument(None, help="Change or spec ID"),
-    type_: Optional[str] = typer.Option(
+    item_name: str | None = typer.Argument(None, help="Change or spec ID"),
+    type_: str | None = typer.Option(
         None, "--type", help="Disambiguate: change|spec"
     ),
     no_interactive: bool = typer.Option(
@@ -885,11 +885,11 @@ def show_cmd(
     no_scenarios: bool = typer.Option(
         False, "--no-scenarios", help="Exclude scenarios"
     ),
-    requirement: Optional[str] = typer.Option(
+    requirement: str | None = typer.Option(
         None, "--requirement", "-r", help="Specific requirement id"
     ),
     json_output: bool = typer.Option(False, "--json", help="JSON output"),
-    store: Optional[str] = typer.Option(None, "--store", help="OpenSpec store id"),
+    store: str | None = typer.Option(None, "--store", help="OpenSpec store id"),
 ) -> None:
     args: list[str] = []
     if item_name:
@@ -919,10 +919,10 @@ def show_cmd(
 
 @app.command("status", help="Show project status (passthrough to openspec status)")
 def status_cmd(
-    change: Optional[str] = typer.Option(None, "--change", help="Specific change id"),
+    change: str | None = typer.Option(None, "--change", help="Specific change id"),
     schema: bool = typer.Option(False, "--schema", help="Show JSON schema"),
     json_output: bool = typer.Option(False, "--json", help="JSON output"),
-    store: Optional[str] = typer.Option(None, "--store", help="OpenSpec store id"),
+    store: str | None = typer.Option(None, "--store", help="OpenSpec store id"),
 ) -> None:
     args: list[str] = []
     if change:
@@ -943,11 +943,11 @@ def status_cmd(
     help="Show change instructions (passthrough to openspec instructions)",
 )
 def instructions_cmd(
-    artifact: Optional[str] = typer.Argument(None, help="Artifact path or id"),
-    change: Optional[str] = typer.Option(None, "--change", help="Specific change id"),
+    artifact: str | None = typer.Argument(None, help="Artifact path or id"),
+    change: str | None = typer.Option(None, "--change", help="Specific change id"),
     schema: bool = typer.Option(False, "--schema", help="Show JSON schema"),
     json_output: bool = typer.Option(False, "--json", help="JSON output"),
-    store: Optional[str] = typer.Option(None, "--store", help="OpenSpec store id"),
+    store: str | None = typer.Option(None, "--store", help="OpenSpec store id"),
 ) -> None:
     args: list[str] = []
     if artifact:
@@ -967,7 +967,7 @@ def instructions_cmd(
 
 @app.command("templates", help="List templates (passthrough to openspec templates)")
 def templates_cmd(
-    schema: Optional[str] = typer.Option(None, "--schema", help="Show JSON schema"),
+    schema: str | None = typer.Option(None, "--schema", help="Show JSON schema"),
     json_output: bool = typer.Option(False, "--json", help="JSON output"),
 ) -> None:
     args: list[str] = []
@@ -995,15 +995,15 @@ def schemas_cmd(
 @app.command("schema", help="`openspec schema *` passthrough")
 def schema_cmd(
     action: str = typer.Argument(..., help="which | list | validate | fork | init"),
-    source: Optional[str] = typer.Argument(None, help="Source or target schema name"),
-    name: Optional[str] = typer.Argument(None),
+    source: str | None = typer.Argument(None, help="Source or target schema name"),
+    name: str | None = typer.Argument(None),
     all_schemas: bool = typer.Option(False, "--all"),
-    description: Optional[str] = typer.Option(None, "--description"),
-    artifacts: Optional[str] = typer.Option(None, "--artifacts"),
+    description: str | None = typer.Option(None, "--description"),
+    artifacts: str | None = typer.Option(None, "--artifacts"),
     set_default: bool = typer.Option(False, "--default"),
     force: bool = typer.Option(False, "--force"),
     json_output: bool = typer.Option(False, "--json"),
-    store: Optional[str] = typer.Option(None, "--store"),
+    store: str | None = typer.Option(None, "--store"),
 ) -> None:
     if action == "init":
         target = name if name is not None else source
@@ -1046,12 +1046,12 @@ def schema_cmd(
     "init", help="Initialize OpenSpec in a project (passthrough to openspec init)"
 )
 def init_cmd(
-    path: Optional[str] = typer.Argument(None, help="Project path"),
-    tools: Optional[str] = typer.Option(
+    path: str | None = typer.Argument(None, help="Project path"),
+    tools: str | None = typer.Option(
         None, "--tools", help="Comma-separated tools, 'all', or 'none'"
     ),
     force: bool = typer.Option(False, "--force", help="Auto-cleanup legacy files"),
-    profile: Optional[str] = typer.Option(
+    profile: str | None = typer.Option(
         None, "--profile", help="Override global config profile (core|custom)"
     ),
 ) -> None:
@@ -1074,7 +1074,7 @@ def init_cmd(
     help="Update OpenSpec instruction files (passthrough to openspec update)",
 )
 def update_core_cmd(
-    path: Optional[str] = typer.Argument(None, help="Project path"),
+    path: str | None = typer.Argument(None, help="Project path"),
     force: bool = typer.Option(False, "--force", help="Force update"),
 ) -> None:
     args: list[str] = []
@@ -1092,7 +1092,7 @@ def update_core_cmd(
 )
 def feedback_cmd(
     message: str = typer.Argument(..., help="Short feedback message"),
-    body: Optional[str] = typer.Option(None, "--body", help="Detailed description"),
+    body: str | None = typer.Option(None, "--body", help="Detailed description"),
 ) -> None:
     args: list[str] = [message]
     if body:
@@ -1104,7 +1104,7 @@ def feedback_cmd(
 
 @app.command("completion", help="Manage shell completions for the openspec CLI")
 def completion_cmd(
-    shell: Optional[str] = typer.Argument(None, help="Shell: bash|zsh|fish"),
+    shell: str | None = typer.Argument(None, help="Shell: bash|zsh|fish"),
     install: bool = typer.Option(False, "--install", help="Install completion"),
     uninstall: bool = typer.Option(False, "--uninstall", help="Uninstall completion"),
     verbose: bool = typer.Option(False, "--verbose", help="Verbose output"),
@@ -1131,7 +1131,7 @@ def completion_cmd(
     help="Restore the openspec global config from the most recent .openspec-extended-baseline.json snapshot.",
 )
 def restore_core(
-    path: Optional[Path] = typer.Option(
+    path: Path | None = typer.Option(
         None,
         "--from",
         help="Path to the baseline file. Defaults to ./.openspec-extended-baseline.json",

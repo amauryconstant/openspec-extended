@@ -23,12 +23,12 @@ import select
 import subprocess
 import sys
 import tempfile
-import toml
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
+import toml
 import yaml
 
 from source.lib import state_io
@@ -64,7 +64,7 @@ VALID_TRANSITION_REASONS = [
 MIN_OPENSPEC_VERSION: tuple[int, int, int] = (1, 6, 0)
 
 
-def get_core_version(timeout: int = 10) -> Optional[tuple[int, int, int]]:
+def get_core_version(timeout: int = 10) -> tuple[int, int, int] | None:
     """Parse `openspec --version` stdout into a (major, minor, patch) tuple.
 
     Returns None if the binary is missing, errors, or the version cannot
@@ -161,12 +161,12 @@ class OSXError(Exception):
 
 
 def get_timestamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-current_store: ContextVar[Optional[str]] = ContextVar("osx_current_store", default=None)
+current_store: ContextVar[str | None] = ContextVar("osx_current_store", default=None)
 
-_PATHS_CACHE: dict[tuple[str, Optional[str]], dict] = {}
+_PATHS_CACHE: dict[tuple[str, str | None], dict] = {}
 
 
 def _run_openspec_json(args: list, timeout: int = 10) -> dict:
@@ -200,7 +200,7 @@ def _run_openspec_json(args: list, timeout: int = 10) -> dict:
         ) from e
 
 
-def resolve_change_paths(change: str, store: Optional[str] = None) -> dict:
+def resolve_change_paths(change: str, store: str | None = None) -> dict:
     """Resolve where a change *would* live on disk.
 
     Always returns a dict. The `change_root` may not exist on disk —
@@ -233,7 +233,7 @@ def resolve_change_paths(change: str, store: Optional[str] = None) -> dict:
     if isinstance(cli_result, dict):
         change_root_str = cli_result.get("changeRoot")
         planning_home_val = cli_result.get("planningHome")
-        planning_home_str: Optional[str]
+        planning_home_str: str | None
         if isinstance(planning_home_val, dict):
             planning_home_str = planning_home_val.get("root")
         else:
@@ -258,7 +258,7 @@ def resolve_change_paths(change: str, store: Optional[str] = None) -> dict:
     return result
 
 
-def _find_change_dir(change: str, store: Optional[str] = None) -> Path:
+def _find_change_dir(change: str, store: str | None = None) -> Path:
     """Find the change directory. Checks the active path first, then the
     archive. Backward-compatible: existing callers that omit `store` get
     the same behavior as before (CLI consulted, then repo-local fallback).
@@ -368,7 +368,7 @@ def append_to_json_array(path: Path, entry: dict) -> int:
     return len(data)
 
 
-def _read_stdin_json() -> Optional[dict]:
+def _read_stdin_json() -> dict | None:
     if sys.stdin.isatty():
         return None
 
@@ -459,7 +459,7 @@ def baseline_get() -> dict:
         ) from e
 
 
-def ctx_get(change: str, *, store: Optional[str] = None) -> dict:
+def ctx_get(change: str, *, store: str | None = None) -> dict:
     change_dir = _find_change_dir(change, store=store)
 
     def check_artifact(path: Path, artifact_type: str) -> dict:
@@ -607,7 +607,7 @@ def git_get(change: str) -> dict:
     return result
 
 
-def phase_current(change: str, *, store: Optional[str] = None) -> dict:
+def phase_current(change: str, *, store: str | None = None) -> dict:
     change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
@@ -635,7 +635,7 @@ def phase_current(change: str, *, store: Optional[str] = None) -> dict:
     return {"phase": phase, "next": next_phase, "iteration": iteration}
 
 
-def phase_next(change: str, *, store: Optional[str] = None) -> dict:
+def phase_next(change: str, *, store: str | None = None) -> dict:
     change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
@@ -664,7 +664,7 @@ def phase_next(change: str, *, store: Optional[str] = None) -> dict:
     return {"next": next_phase}
 
 
-def phase_advance(change: str, *, store: Optional[str] = None) -> dict:
+def phase_advance(change: str, *, store: str | None = None) -> dict:
     change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
@@ -709,7 +709,7 @@ def phase_advance(change: str, *, store: Optional[str] = None) -> dict:
     }
 
 
-def state_get(change: str, *, store: Optional[str] = None) -> dict:
+def state_get(change: str, *, store: str | None = None) -> dict:
     change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
@@ -727,7 +727,7 @@ def state_get(change: str, *, store: Optional[str] = None) -> dict:
     }
 
 
-def state_complete(change: str, *, store: Optional[str] = None) -> dict:
+def state_complete(change: str, *, store: str | None = None) -> dict:
     change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
@@ -747,9 +747,9 @@ def state_transition(
     change: str,
     target: str,
     reason: str,
-    details: Optional[str] = None,
+    details: str | None = None,
     *,
-    store: Optional[str] = None,
+    store: str | None = None,
 ) -> dict:
     if target not in PHASES:
         raise OSXError(
@@ -786,7 +786,7 @@ def state_transition(
     return result
 
 
-def state_clear_transition(change: str, *, store: Optional[str] = None) -> dict:
+def state_clear_transition(change: str, *, store: str | None = None) -> dict:
     change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
 
@@ -804,9 +804,9 @@ def state_clear_transition(change: str, *, store: Optional[str] = None) -> dict:
 def state_set_phase(
     change: str,
     phase: str,
-    iteration: Optional[int] = None,
+    iteration: int | None = None,
     *,
-    store: Optional[str] = None,
+    store: str | None = None,
 ) -> dict:
     if phase not in PHASES:
         raise OSXError("invalid_phase", f"Invalid phase: {phase}", valid=PHASES)
@@ -833,7 +833,7 @@ def state_set_routes(
     change: str,
     routes: list[str],
     *,
-    store: Optional[str] = None,
+    store: str | None = None,
 ) -> dict:
     """Record pending routes from a read-only phase (e.g. PHASE0).
 
@@ -857,7 +857,7 @@ def state_set_routes(
     return {"success": True, "routes_pending": routes}
 
 
-def state_clear_routes(change: str, *, store: Optional[str] = None) -> dict:
+def state_clear_routes(change: str, *, store: str | None = None) -> dict:
     """Drop any ``routes_pending`` from state.json."""
     change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
@@ -874,7 +874,7 @@ def state_clear_routes(change: str, *, store: Optional[str] = None) -> dict:
     return {"success": True, "had_routes": had}
 
 
-def iterations_get(change: str, *, store: Optional[str] = None) -> dict:
+def iterations_get(change: str, *, store: str | None = None) -> dict:
     change_dir = _find_change_dir(change, store=store)
     iterations_file = change_dir / "iterations.json"
 
@@ -888,19 +888,19 @@ def iterations_get(change: str, *, store: Optional[str] = None) -> dict:
 
 def iterations_append(
     change: str,
-    iteration: Optional[int] = None,
-    phase: Optional[str] = None,
-    summary: Optional[str] = None,
-    status: Optional[str] = None,
-    notes: Optional[str] = None,
-    commit_hash: Optional[str] = None,
-    issues: Optional[str] = None,
-    artifacts_modified: Optional[str] = None,
-    decisions: Optional[str] = None,
-    errors: Optional[str] = None,
-    extra: Optional[str] = None,
-    entry: Optional[dict] = None,
-    store: Optional[str] = None,
+    iteration: int | None = None,
+    phase: str | None = None,
+    summary: str | None = None,
+    status: str | None = None,
+    notes: str | None = None,
+    commit_hash: str | None = None,
+    issues: str | None = None,
+    artifacts_modified: str | None = None,
+    decisions: str | None = None,
+    errors: str | None = None,
+    extra: str | None = None,
+    entry: dict | None = None,
+    store: str | None = None,
 ) -> dict:
     change_dir = _find_change_dir(change, store=store)
     iterations_file = change_dir / "iterations.json"
@@ -973,7 +973,7 @@ def iterations_append(
     }
 
 
-def log_get(change: str, *, store: Optional[str] = None) -> dict:
+def log_get(change: str, *, store: str | None = None) -> dict:
     change_dir = _find_change_dir(change, store=store)
     log_file = change_dir / "decision-log.json"
 
@@ -986,18 +986,18 @@ def log_get(change: str, *, store: Optional[str] = None) -> dict:
 
 def log_append(
     change: str,
-    phase: Optional[str] = None,
-    iteration: Optional[int] = None,
-    summary: Optional[str] = None,
-    commit_hash: Optional[str] = None,
-    next_steps: Optional[str] = None,
-    issues: Optional[str] = None,
-    artifacts_modified: Optional[str] = None,
-    decisions: Optional[str] = None,
-    errors: Optional[str] = None,
-    extra: Optional[str] = None,
-    entry: Optional[dict] = None,
-    store: Optional[str] = None,
+    phase: str | None = None,
+    iteration: int | None = None,
+    summary: str | None = None,
+    commit_hash: str | None = None,
+    next_steps: str | None = None,
+    issues: str | None = None,
+    artifacts_modified: str | None = None,
+    decisions: str | None = None,
+    errors: str | None = None,
+    extra: str | None = None,
+    entry: dict | None = None,
+    store: str | None = None,
 ) -> dict:
     change_dir = _find_change_dir(change, store=store)
     log_file = change_dir / "decision-log.json"
@@ -1082,7 +1082,7 @@ def log_append(
     }
 
 
-def complete_check(change: str, *, store: Optional[str] = None) -> dict:
+def complete_check(change: str, *, store: str | None = None) -> dict:
     change_dir = _find_change_dir(change, store=store)
     complete_file = change_dir / "complete.json"
 
@@ -1096,7 +1096,7 @@ def complete_check(change: str, *, store: Optional[str] = None) -> dict:
         return {"exists": False, "error": "invalid_json"}
 
 
-def complete_get(change: str, *, store: Optional[str] = None) -> dict:
+def complete_get(change: str, *, store: str | None = None) -> dict:
     change_dir = _find_change_dir(change, store=store)
     complete_file = change_dir / "complete.json"
 
@@ -1119,10 +1119,10 @@ def complete_get(change: str, *, store: Optional[str] = None) -> dict:
 
 def complete_set(
     change: str,
-    status: Optional[str] = None,
-    blocker_reason: Optional[str] = None,
+    status: str | None = None,
+    blocker_reason: str | None = None,
     *,
-    store: Optional[str] = None,
+    store: str | None = None,
 ) -> dict:
     change_dir = _find_change_dir(change, store=store)
     complete_file = change_dir / "complete.json"
@@ -1162,7 +1162,7 @@ def store_list() -> dict:
     return {"success": True, "data": _run_openspec_json(["store", "list"])}
 
 
-def store_doctor(store_id: Optional[str] = None) -> dict:
+def store_doctor(store_id: str | None = None) -> dict:
     """Check health of a single registered store (or all when id is None)."""
     args = ["store", "doctor"]
     if store_id:
@@ -1170,7 +1170,7 @@ def store_doctor(store_id: Optional[str] = None) -> dict:
     return {"success": True, "data": _run_openspec_json(args)}
 
 
-def store_register(path: str, store_id: Optional[str] = None) -> dict:
+def store_register(path: str, store_id: str | None = None) -> dict:
     """Register an OpenSpec store at the given filesystem path.
 
     Args:
@@ -1212,7 +1212,7 @@ def validate_json(target: str) -> dict:
         }
 
 
-def _load_manifest(project_root: Path) -> Optional[dict]:
+def _load_manifest(project_root: Path) -> dict | None:
     """Load the deployed manifest for the active platform.
 
     Looks for ``.opencode/manifest.toml`` or ``.claude/manifest.toml`` under
@@ -1235,7 +1235,7 @@ def _load_manifest(project_root: Path) -> Optional[dict]:
         return None
 
 
-def validate_skills(project_root: Optional[Path] = None) -> dict:
+def validate_skills(project_root: Path | None = None) -> dict:
     root = project_root if project_root is not None else Path.cwd()
     errors: list[dict] = []
     missing_skills: list[str] = []
@@ -1266,7 +1266,7 @@ def validate_skills(project_root: Optional[Path] = None) -> dict:
     return {"valid": True}
 
 
-def validate_commands(project_root: Optional[Path] = None) -> dict:
+def validate_commands(project_root: Path | None = None) -> dict:
     root = project_root if project_root is not None else Path.cwd()
     errors: list[dict] = []
 
@@ -1325,7 +1325,7 @@ def validate_commands(project_root: Optional[Path] = None) -> dict:
     return {"valid": True}
 
 
-def validate_change_dir(target: str, *, store: Optional[str] = None) -> dict:
+def validate_change_dir(target: str, *, store: str | None = None) -> dict:
     paths = resolve_change_paths(target, store=store)
     change_path = paths["change_root"]
     errors: list[dict] = []
@@ -1363,7 +1363,7 @@ def validate_change_dir(target: str, *, store: Optional[str] = None) -> dict:
     return {"valid": True}
 
 
-def validate_archive(target: str, *, store: Optional[str] = None) -> dict:
+def validate_archive(target: str, *, store: str | None = None) -> dict:
     paths = resolve_change_paths(target, store=store)
     archive_dir = paths["archive_dir"]
     archives: list[Path] = []
@@ -1443,7 +1443,7 @@ def validate_archive(target: str, *, store: Optional[str] = None) -> dict:
     return {"valid": True, "archive": str(archive)}
 
 
-def validate_iterations(target: str, *, store: Optional[str] = None) -> dict:
+def validate_iterations(target: str, *, store: str | None = None) -> dict:
     try:
         change_dir = _find_change_dir(target, store=store)
     except OSXError:
@@ -1478,7 +1478,7 @@ def validate_iterations(target: str, *, store: Optional[str] = None) -> dict:
     return {"valid": True}
 
 
-def validate_completion(target: str, *, store: Optional[str] = None) -> dict:
+def validate_completion(target: str, *, store: str | None = None) -> dict:
     errors: list[dict] = []
 
     try:
@@ -1652,7 +1652,7 @@ def _translate_validate_payload(payload: dict) -> dict:
 
 
 def validate_change(
-    change_id: str, *, store: Optional[str] = None, strict: bool = False
+    change_id: str, *, store: str | None = None, strict: bool = False
 ) -> dict:
     """Validate a single OpenSpec change via `openspec validate <id> --json`.
 
@@ -1673,7 +1673,7 @@ def validate_change(
 
 
 def validate_spec(
-    spec_id: str, *, store: Optional[str] = None, strict: bool = False
+    spec_id: str, *, store: str | None = None, strict: bool = False
 ) -> dict:
     """Validate a single OpenSpec main spec via `openspec validate <id> --type spec --json`.
 
@@ -1695,7 +1695,7 @@ def validate_spec(
 
 def validate_all(
     *,
-    store: Optional[str] = None,
+    store: str | None = None,
     strict: bool = False,
     concurrency: int = 6,
 ) -> dict:
@@ -1723,7 +1723,7 @@ def validate_all(
     return _translate_validate_payload(_run_openspec_json(args, timeout=60))
 
 
-def validate_changes_only(*, store: Optional[str] = None, strict: bool = False) -> dict:
+def validate_changes_only(*, store: str | None = None, strict: bool = False) -> dict:
     """Validate all active changes only via `openspec validate --changes --json`."""
     args = ["validate", "--changes", "--no-interactive"]
     if strict:
@@ -1733,7 +1733,7 @@ def validate_changes_only(*, store: Optional[str] = None, strict: bool = False) 
     return _translate_validate_payload(_run_openspec_json(args))
 
 
-def validate_specs_only(*, store: Optional[str] = None, strict: bool = False) -> dict:
+def validate_specs_only(*, store: str | None = None, strict: bool = False) -> dict:
     """Validate all main specs only via `openspec validate --specs --json`."""
     args = ["validate", "--specs", "--no-interactive"]
     if strict:
@@ -1745,9 +1745,9 @@ def validate_specs_only(*, store: Optional[str] = None, strict: bool = False) ->
 
 def resolve_schema(
     *,
-    project_root: Optional[Path] = None,
-    explicit: Optional[str] = None,
-    change_dir: Optional[Path] = None,
+    project_root: Path | None = None,
+    explicit: str | None = None,
+    change_dir: Path | None = None,
 ) -> dict:
     """Resolve the active workflow schema with 4-level precedence.
 
@@ -1806,7 +1806,7 @@ def resolve_schema(
 
 
 def list_artifacts_for_schema(
-    schema_name: str, *, store: Optional[str] = None
+    schema_name: str, *, store: str | None = None
 ) -> list[str]:
     """Return artifact IDs for a schema, resolved from upstream `openspec templates`.
 
@@ -1841,10 +1841,10 @@ def required_core_skills(schema_name: str) -> list[str]:
 
 
 def schema_which(
-    name: Optional[str] = None,
+    name: str | None = None,
     *,
     all_schemas: bool = False,
-    store: Optional[str] = None,
+    store: str | None = None,
 ) -> dict:
     """Resolve which schema a project uses via `openspec schema which`.
 
@@ -1862,9 +1862,9 @@ def schema_which(
 
 
 def schema_validate(
-    name: Optional[str] = None,
+    name: str | None = None,
     *,
-    store: Optional[str] = None,
+    store: str | None = None,
 ) -> dict:
     """Validate a schema via `openspec schema validate`.
 
@@ -1880,10 +1880,10 @@ def schema_validate(
 
 def schema_fork(
     source: str,
-    name: Optional[str] = None,
+    name: str | None = None,
     *,
     force: bool = False,
-    store: Optional[str] = None,
+    store: str | None = None,
 ) -> dict:
     """Fork a schema to project-local via `openspec schema fork`."""
     args = ["schema", "fork", source]
@@ -1899,11 +1899,11 @@ def schema_fork(
 def schema_init(
     name: str,
     *,
-    description: Optional[str] = None,
-    artifacts: Optional[list[str]] = None,
+    description: str | None = None,
+    artifacts: list[str] | None = None,
     set_default: bool = False,
     force: bool = False,
-    store: Optional[str] = None,
+    store: str | None = None,
 ) -> dict:
     """Initialize a new project-local schema via `openspec schema init`."""
     args = ["schema", "init", name]
@@ -1920,7 +1920,7 @@ def schema_init(
     return _run_openspec_json(args)
 
 
-def schema_list(*, store: Optional[str] = None) -> list[dict]:
+def schema_list(*, store: str | None = None) -> list[dict]:
     """List all available schemas via `openspec schemas`.
 
     Returns the raw upstream list payload.
