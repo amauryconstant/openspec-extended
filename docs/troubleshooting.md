@@ -13,7 +13,9 @@ npm install -g @fission-ai/openspec@latest
 openspec --version
 ```
 
-If it installed but still isn't found, your global npm bin directory probably isn't on your `PATH`. Run `npm bin -g` to see where global binaries live, and make sure that path is in your shell profile.
+If it installed but still isn't found, your global npm bin directory probably isn't on your `PATH`. Run `npm prefix -g` to see where global packages live: on macOS and Linux the binaries are in that directory's `bin/`, and on Windows they sit directly in it. Make sure that path is on your `PATH`. (`npm bin -g` was removed in npm 9.)
+
+If you used the [AI-assisted install](installation.md#install-with-your-ai-assistant), this is the expected hand-off point: that prompt tells your assistant to show you the `PATH` change rather than edit your shell startup files itself.
 
 ### "Requires Node.js 20.19.0 or higher"
 
@@ -49,13 +51,15 @@ If `/opsx:propose` (or your tool's equivalent) doesn't appear or doesn't do anyt
 
    This rewrites the skill and command files for every tool you've configured.
 
+   Instruction files come from the *installed* CLI, so an outdated CLI reports everything up to date without ever writing the newer workflows. `openspec update` now checks for that and offers to upgrade — take the offer if you see it.
+
 3. **Restart your assistant.** Most tools scan for skills and commands at startup. A fresh window often does it.
 
 4. **Confirm the files exist.** For Claude Code, check that `.claude/skills/` contains `openspec-*` folders. Other tools use their own directories, all listed in [Supported Tools](supported-tools.md).
 
 5. **Check you initialized this project.** Skills are written per project. If you cloned a repo or switched folders, run `openspec init` (or `openspec update`) there.
 
-6. **Confirm your tool supports command files.** A few tools (Kimi CLI, ForgeCode, Mistral Vibe) don't get generated `opsx-*` command files; they use skill-based invocations instead. The forms differ per tool: see [Supported Tools](supported-tools.md) and [How Commands Work](how-commands-work.md#slash-command-syntax-by-tool).
+6. **Confirm your tool supports command files.** Codex, CodeArts, ForgeCode, Hermes, Kimi Code and Mistral Vibe don't get generated `opsx-*` command files; they use skill-based invocations instead, so `/opsx` will never autocomplete for them. Type `$openspec-propose` in Codex, `/skill:openspec-propose` in Kimi Code, and `/openspec-propose` in the rest. Amazon Q does get command files, but loads them into its prompt library rather than its slash menu — type `@opsx-propose` there, not `/opsx`. Every tool's form is listed in [How To Invoke](supported-tools.md#how-to-invoke).
 
 ## Working with changes
 
@@ -148,6 +152,8 @@ You're in CI or a non-interactive shell, and OpenSpec found old files to clean u
 ```bash
 openspec init --force
 ```
+
+For Codex, OpenSpec may detect old managed prompt files in `$CODEX_HOME/prompts` or `~/.codex/prompts`. That cleanup is limited to OpenSpec's allowlisted legacy Codex prompt filenames, and non-interactive `openspec init` removes only the files whose replacement `.codex/skills/openspec-*` skills exist. Non-interactive `openspec update` leaves all legacy cleanup untouched unless you pass `--force`.
 
 ### Commands didn't appear after migrating
 
