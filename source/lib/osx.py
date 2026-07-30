@@ -23,6 +23,7 @@ import select
 import subprocess
 import sys
 import tempfile
+import toml
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1211,6 +1212,29 @@ def validate_json(target: str) -> dict:
         }
 
 
+def _load_manifest(project_root: Path) -> Optional[dict]:
+    """Load the deployed manifest for the active platform.
+
+    Looks for ``.opencode/manifest.toml`` or ``.claude/manifest.toml`` under
+    ``project_root``. Returns ``None`` if no manifest is found or it is
+    unparseable — callers should treat missing manifest as "no cross-check
+    available" rather than as a hard failure.
+    """
+    platform = detect_platform(project_root)
+    if platform == "opencode":
+        manifest_path = project_root / ".opencode" / "manifest.toml"
+    elif platform == "claude":
+        manifest_path = project_root / ".claude" / "manifest.toml"
+    else:
+        return None
+    if not manifest_path.is_file():
+        return None
+    try:
+        return toml.loads(manifest_path.read_text())
+    except (OSError, toml.TomlDecodeError):
+        return None
+
+
 def validate_skills(project_root: Optional[Path] = None) -> dict:
     root = project_root if project_root is not None else Path.cwd()
     errors: list[dict] = []
@@ -1222,6 +1246,20 @@ def validate_skills(project_root: Optional[Path] = None) -> dict:
         if not skill_path.exists():
             errors.append({"check": "skills", "message": f"Missing skill: {skill}"})
             missing_skills.append(skill)
+
+    # M23: cross-check the manifest. Each required skill should be declared
+    # in [resources.skills.<name>] in the deployed manifest.toml.
+    manifest = _load_manifest(root)
+    if manifest is not None:
+        declared = manifest.get("resources", {}).get("skills", {})
+        for skill in REQUIRED_SKILLS + REQUIRED_CORE_SKILLS:
+            if skill not in declared:
+                errors.append(
+                    {
+                        "check": "skills-manifest",
+                        "message": f"Skill '{skill}' not declared in manifest",
+                    }
+                )
 
     if errors:
         return {"valid": False, "errors": errors, "missing_skills": missing_skills}
@@ -1247,6 +1285,40 @@ def validate_commands(project_root: Optional[Path] = None) -> dict:
             errors.append(
                 {"check": "commands", "message": f"Missing command: {deployed_name}"}
             )
+
+    # M23: cross-check the manifest. Each phase command should be declared
+    # in [resources.commands.<name>] in the deployed manifest.toml, and
+    # each PHASE_AGENTS[phase] should exist as an agent file (opencode only;
+    # Claude has no agents — the user brings their own session).
+    manifest = _load_manifest(root)
+    if manifest is not None:
+        declared_commands = manifest.get("resources", {}).get("commands", {})
+        for phase, cmd_name in PHASE_COMMANDS.items():
+            if cmd_name and cmd_name not in declared_commands:
+                errors.append(
+                    {
+                        "check": "commands-manifest",
+                        "message": f"Command '{cmd_name}' (for {phase}) not declared in manifest",
+                    }
+                )
+
+        if platform == "opencode":
+            from source.orchestrator.engine import PHASE_AGENTS
+
+            agents_dir = root / ".opencode" / "agents"
+            for phase, agent_name in PHASE_AGENTS.items():
+                if not agent_name:
+                    continue
+                if not (agents_dir / f"{agent_name}.md").is_file():
+                    errors.append(
+                        {
+                            "check": "agents",
+                            "message": (
+                                f"PHASE_AGENTS['{phase}'] = '{agent_name}' "
+                                f"but agents/{agent_name}.md not found"
+                            ),
+                        }
+                    )
 
     if errors:
         return {"valid": False, "errors": errors}

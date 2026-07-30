@@ -35,7 +35,11 @@ class TestTranslateValidatePayload:
                     "type": "change",
                     "valid": False,
                     "issues": [
-                        {"level": "ERROR", "path": "specs.auth/foo.md", "message": "missing SHALL"},
+                        {
+                            "level": "ERROR",
+                            "path": "specs.auth/foo.md",
+                            "message": "missing SHALL",
+                        },
                     ],
                     "durationMs": 5,
                 }
@@ -63,7 +67,11 @@ class TestTranslateValidatePayload:
                     "type": "spec",
                     "valid": True,
                     "issues": [
-                        {"level": "WARNING", "path": "overview", "message": "too brief"},
+                        {
+                            "level": "WARNING",
+                            "path": "overview",
+                            "message": "too brief",
+                        },
                     ],
                     "durationMs": 3,
                 }
@@ -85,7 +93,13 @@ class TestTranslateValidatePayload:
                     "id": "spec-y",
                     "type": "spec",
                     "valid": True,
-                    "issues": [{"level": "INFO", "path": "requirements[0].text", "message": "too long"}],
+                    "issues": [
+                        {
+                            "level": "INFO",
+                            "path": "requirements[0].text",
+                            "message": "too long",
+                        }
+                    ],
                 }
             ],
             "summary": {"totals": {"items": 1, "passed": 1, "failed": 0}},
@@ -135,7 +149,12 @@ class TestTranslateValidatePayload:
                     "type": "spec",
                     "valid": False,
                     "issues": [
-                        {"level": "ERROR", "path": "file", "message": "structure issue", "line": 42},
+                        {
+                            "level": "ERROR",
+                            "path": "file",
+                            "message": "structure issue",
+                            "line": 42,
+                        },
                     ],
                 }
             ],
@@ -183,7 +202,11 @@ class TestTranslateValidatePayload:
                     "type": "spec",
                     "valid": True,
                     "issues": [
-                        {"level": "WARNING", "path": "overview", "message": "too brief"},
+                        {
+                            "level": "WARNING",
+                            "path": "overview",
+                            "message": "too brief",
+                        },
                     ],
                 }
             ],
@@ -213,9 +236,7 @@ class TestTranslateValidatePayload:
         }
         result = osx._translate_validate_payload(payload)
         assert result["valid"] is None
-        assert any(
-            w.get("code") == "unverifiable_envelope" for w in result["warnings"]
-        )
+        assert any(w.get("code") == "unverifiable_envelope" for w in result["warnings"])
 
 
 @pytest.mark.unit
@@ -227,12 +248,21 @@ class TestValidateChange:
             captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
             return MagicMock(
                 returncode=0,
-                stdout=json.dumps({
-                    "items": [{"id": "my-change", "type": "change", "valid": True, "issues": []}],
-                    "summary": {"totals": {"items": 1, "passed": 1, "failed": 0}},
-                    "version": "1.0",
-                    "root": {},
-                }),
+                stdout=json.dumps(
+                    {
+                        "items": [
+                            {
+                                "id": "my-change",
+                                "type": "change",
+                                "valid": True,
+                                "issues": [],
+                            }
+                        ],
+                        "summary": {"totals": {"items": 1, "passed": 1, "failed": 0}},
+                        "version": "1.0",
+                        "root": {},
+                    }
+                ),
                 stderr="",
             )
 
@@ -251,7 +281,14 @@ class TestValidateChange:
             captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
             return MagicMock(
                 returncode=0,
-                stdout=json.dumps({"items": [], "summary": {"totals": {}}, "version": "1.0", "root": {}}),
+                stdout=json.dumps(
+                    {
+                        "items": [],
+                        "summary": {"totals": {}},
+                        "version": "1.0",
+                        "root": {},
+                    }
+                ),
                 stderr="",
             )
 
@@ -267,7 +304,14 @@ class TestValidateChange:
             captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
             return MagicMock(
                 returncode=0,
-                stdout=json.dumps({"items": [], "summary": {"totals": {}}, "version": "1.0", "root": {}}),
+                stdout=json.dumps(
+                    {
+                        "items": [],
+                        "summary": {"totals": {}},
+                        "version": "1.0",
+                        "root": {},
+                    }
+                ),
                 stderr="",
             )
 
@@ -285,7 +329,14 @@ class TestValidateSpec:
             captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
             return MagicMock(
                 returncode=0,
-                stdout=json.dumps({"items": [], "summary": {"totals": {}}, "version": "1.0", "root": {}}),
+                stdout=json.dumps(
+                    {
+                        "items": [],
+                        "summary": {"totals": {}},
+                        "version": "1.0",
+                        "root": {},
+                    }
+                ),
                 stderr="",
             )
 
@@ -305,7 +356,14 @@ class TestValidateAll:
             captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
             return MagicMock(
                 returncode=0,
-                stdout=json.dumps({"items": [], "summary": {"totals": {}}, "version": "1.0", "root": {}}),
+                stdout=json.dumps(
+                    {
+                        "items": [],
+                        "summary": {"totals": {}},
+                        "version": "1.0",
+                        "root": {},
+                    }
+                ),
                 stderr="",
             )
 
@@ -322,7 +380,14 @@ class TestValidateAll:
             captured_kwargs.update(kwargs)
             return MagicMock(
                 returncode=0,
-                stdout=json.dumps({"items": [], "summary": {"totals": {}}, "version": "1.0", "root": {}}),
+                stdout=json.dumps(
+                    {
+                        "items": [],
+                        "summary": {"totals": {}},
+                        "version": "1.0",
+                        "root": {},
+                    }
+                ),
                 stderr="",
             )
 
@@ -340,7 +405,14 @@ class TestValidateChangesOnly:
             captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
             return MagicMock(
                 returncode=0,
-                stdout=json.dumps({"items": [], "summary": {"totals": {}}, "version": "1.0", "root": {}}),
+                stdout=json.dumps(
+                    {
+                        "items": [],
+                        "summary": {"totals": {}},
+                        "version": "1.0",
+                        "root": {},
+                    }
+                ),
                 stderr="",
             )
 
@@ -359,7 +431,14 @@ class TestValidateSpecsOnly:
             captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
             return MagicMock(
                 returncode=0,
-                stdout=json.dumps({"items": [], "summary": {"totals": {}}, "version": "1.0", "root": {}}),
+                stdout=json.dumps(
+                    {
+                        "items": [],
+                        "summary": {"totals": {}},
+                        "version": "1.0",
+                        "root": {},
+                    }
+                ),
                 stderr="",
             )
 
@@ -367,3 +446,158 @@ class TestValidateSpecsOnly:
         osx.validate_specs_only()
         assert "--specs" in captured["cmd"]
         assert "--all" not in captured["cmd"]
+
+
+@pytest.mark.unit
+class TestValidateManifestCrossCheck:
+    """M23: ``validate_skills`` and ``validate_commands`` cross-check the
+    deployed ``manifest.toml`` so a manifest that omits a required skill
+    or command is caught at preflight."""
+
+    @staticmethod
+    def _write_skill_dirs(project_root, skill_names, platform="opencode"):
+        if platform == "opencode":
+            base = project_root / ".opencode" / "skills"
+        else:
+            base = project_root / ".claude" / "skills"
+        base.mkdir(parents=True, exist_ok=True)
+        for skill in skill_names:
+            (base / skill).mkdir(parents=True, exist_ok=True)
+            (base / skill / "SKILL.md").write_text("# x")
+
+    @staticmethod
+    def _write_command_files(project_root, cmd_names, platform="opencode"):
+        if platform == "opencode":
+            base = project_root / ".opencode" / "commands"
+        else:
+            base = project_root / ".claude" / "commands" / "osx"
+        base.mkdir(parents=True, exist_ok=True)
+        for cmd in cmd_names:
+            (base / f"{cmd}.md").write_text("# x")
+
+    @staticmethod
+    def _write_manifest(project_root, skills, commands, platform="opencode"):
+        if platform == "opencode":
+            manifest_path = project_root / ".opencode" / "manifest.toml"
+        else:
+            manifest_path = project_root / ".claude" / "manifest.toml"
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        content = "[resources]\n"
+        if skills:
+            content += "[resources.skills]\n"
+            for s in skills:
+                content += f'"{s}" = {{ version = "0.1.0" }}\n'
+        if commands:
+            content += "[resources.commands]\n"
+            for c in commands:
+                content += f'"{c}" = {{ version = "0.1.0" }}\n'
+        manifest_path.write_text(content)
+
+    def test_validate_skills_manifest_missing_skill_is_invalid(
+        self, tmp_path, monkeypatch
+    ):
+        """A required skill present on disk but missing from manifest fails."""
+        monkeypatch.chdir(tmp_path)
+        from source.lib import osx as osx_lib
+
+        all_skills = list(osx_lib.REQUIRED_SKILLS + osx_lib.REQUIRED_CORE_SKILLS)
+        self._write_skill_dirs(tmp_path, all_skills, platform="opencode")
+        # Omit one skill from the manifest
+        self._write_manifest(
+            tmp_path,
+            skills=[s for s in all_skills if s != "osx-commit"],
+            commands=[],
+            platform="opencode",
+        )
+
+        result = osx_lib.validate_skills(project_root=tmp_path)
+        assert result["valid"] is False
+        assert any(
+            e["check"] == "skills-manifest" and "osx-commit" in e["message"]
+            for e in result["errors"]
+        )
+
+    def test_validate_skills_manifest_complete_is_valid(self, tmp_path, monkeypatch):
+        """All required skills declared in manifest + on disk = valid."""
+        monkeypatch.chdir(tmp_path)
+        from source.lib import osx as osx_lib
+
+        all_skills = list(osx_lib.REQUIRED_SKILLS + osx_lib.REQUIRED_CORE_SKILLS)
+        self._write_skill_dirs(tmp_path, all_skills, platform="opencode")
+        self._write_manifest(
+            tmp_path, skills=all_skills, commands=[], platform="opencode"
+        )
+
+        result = osx_lib.validate_skills(project_root=tmp_path)
+        assert result["valid"] is True
+
+    def test_validate_skills_no_manifest_skips_cross_check(self, tmp_path, monkeypatch):
+        """If no manifest is deployed, the cross-check is silently skipped."""
+        monkeypatch.chdir(tmp_path)
+        from source.lib import osx as osx_lib
+
+        all_skills = list(osx_lib.REQUIRED_SKILLS + osx_lib.REQUIRED_CORE_SKILLS)
+        self._write_skill_dirs(tmp_path, all_skills, platform="opencode")
+        # No manifest written
+
+        result = osx_lib.validate_skills(project_root=tmp_path)
+        assert result["valid"] is True
+
+    def test_validate_commands_manifest_missing_command_is_invalid(
+        self, tmp_path, monkeypatch
+    ):
+        """A phase command present on disk but missing from manifest fails."""
+        monkeypatch.chdir(tmp_path)
+        from source.lib import osx as osx_lib
+        from source.orchestrator.engine import PHASE_COMMANDS
+
+        cmd_names = list(set(PHASE_COMMANDS.values()))
+        self._write_command_files(tmp_path, cmd_names, platform="opencode")
+        omitted = next(iter(cmd_names))
+        self._write_manifest(
+            tmp_path,
+            skills=[],
+            commands=[c for c in cmd_names if c != omitted],
+            platform="opencode",
+        )
+
+        result = osx_lib.validate_commands(project_root=tmp_path)
+        assert result["valid"] is False
+        assert any(
+            e["check"] == "commands-manifest" and omitted in e["message"]
+            for e in result["errors"]
+        )
+
+    def test_validate_commands_agents_opencode_missing_agent_is_invalid(
+        self, tmp_path, monkeypatch
+    ):
+        """PHASE_AGENTS entries must exist as files under agents/ (opencode)."""
+        monkeypatch.chdir(tmp_path)
+        from source.lib import osx as osx_lib
+        from source.orchestrator.engine import PHASE_AGENTS, PHASE_COMMANDS
+
+        cmd_names = list(set(PHASE_COMMANDS.values()))
+        self._write_command_files(tmp_path, cmd_names, platform="opencode")
+        all_skills = list(osx_lib.REQUIRED_SKILLS + osx_lib.REQUIRED_CORE_SKILLS)
+        self._write_skill_dirs(tmp_path, all_skills, platform="opencode")
+        self._write_manifest(
+            tmp_path,
+            skills=all_skills,
+            commands=cmd_names,
+            platform="opencode",
+        )
+        # Drop one of the agent files
+        agents_dir = tmp_path / ".opencode" / "agents"
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        for agent in set(PHASE_AGENTS.values()):
+            (agents_dir / f"{agent}.md").write_text("# x")
+        # Pick one and remove it
+        omitted_agent = next(iter(PHASE_AGENTS.values()))
+        (agents_dir / f"{omitted_agent}.md").unlink()
+
+        result = osx_lib.validate_commands(project_root=tmp_path)
+        assert result["valid"] is False
+        assert any(
+            e["check"] == "agents" and omitted_agent in e["message"]
+            for e in result["errors"]
+        )

@@ -458,6 +458,27 @@ def check_complete(state: OrchestratorState) -> bool:
     return data.get("exists", False) is True
 
 
+def check_blocker(state: OrchestratorState) -> Optional[str]:
+    """Read ``complete.json`` and return the blocker reason if ``with_blocker``
+    is set, else ``None``. Called both at the top of the main loop (so a
+    user-set blocker halts before the next phase) and inside ``run_phase``
+    (M22) so a phase that writes ``complete.json`` BLOCKED without setting
+    ``phase_complete=true`` is not re-invoked in the next iteration.
+    """
+    if not state.change_dir:
+        return None
+    complete_file = state.change_dir / "complete.json"
+    if not complete_file.exists():
+        return None
+    try:
+        data = json.loads(complete_file.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if data.get("with_blocker", False):
+        return data.get("blocker_reason", "Unknown")
+    return None
+
+
 def read_completion(state: OrchestratorState) -> Optional[str]:
     try:
         data = osx_lib.complete_get(state.change_id)
@@ -586,6 +607,17 @@ def run_phase(state: OrchestratorState, phase: str) -> bool:
 
         if state.dry_run:
             return True
+
+        # M22: a phase that writes complete.json BLOCKED without setting
+        # phase_complete must not be re-invoked in the next iteration.
+        blocker_reason = check_blocker(state)
+        if blocker_reason is not None:
+            log_error(
+                state, "Blocker detected mid-phase; halting before next iteration"
+            )
+            log_warning(state, f"Blocker: {blocker_reason}")
+            log(state, "Review decision-log.json for details")
+            return False
 
         if phase == "PHASE6":
             success, _ = validate_archive(state)
@@ -1086,25 +1118,17 @@ def run_orchestrator(state: Optional[OrchestratorState] = None) -> None:
                         phase_determined = True
 
                 if check_complete(state):
-                    complete_file = (
-                        state.change_dir / "complete.json" if state.change_dir else None
-                    )
-                    if complete_file and complete_file.exists():
-                        try:
-                            data = json.loads(complete_file.read_text())
-                            if data.get("with_blocker", False):
-                                blocker_reason = data.get("blocker_reason", "Unknown")
-                                log(state, "")
-                                log(state, "================================")
-                                log_error(state, "CRITICAL BLOCKER DETECTED")
-                                log(state, "================================")
-                                log_warning(state, f"Blocker: {blocker_reason}")
-                                log(state, "Review decision-log.json for details")
-                                show_progress(state)
+                    blocker_reason = check_blocker(state)
+                    if blocker_reason is not None:
+                        log(state, "")
+                        log(state, "================================")
+                        log_error(state, "CRITICAL BLOCKER DETECTED")
+                        log(state, "================================")
+                        log_warning(state, f"Blocker: {blocker_reason}")
+                        log(state, "Review decision-log.json for details")
+                        show_progress(state)
 
-                                raise SystemExit(1)
-                        except json.JSONDecodeError:
-                            pass
+                        raise SystemExit(1)
 
                 if current_phase in PHASES:
                     if not run_phase(state, current_phase):
