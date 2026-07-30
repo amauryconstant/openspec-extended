@@ -2,7 +2,7 @@
 """
 Unit tests for path resolution in source.lib.osx.
 
-Locks down the v1.5.0 behavior of:
+Locks down the v1.5.0+ behavior (current v1.7.0 compatible) of:
   - resolve_change_paths(change, store=None) -> dict
   - _find_change_dir(change, store=None) -> Path
   - _run_openspec_json(args) -> dict

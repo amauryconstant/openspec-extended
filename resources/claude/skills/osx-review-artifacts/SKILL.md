@@ -82,8 +82,10 @@ Capture:
 - `schemaName` — the workflow schema id (e.g. `"spec-driven"`).
 - `planningHome`, `changeRoot` — path context (do not assume repo-local paths).
 - `artifactPaths.<id>.{outputPath, resolvedOutputPath, existingOutputPaths}`.
-- `artifacts[]` — array of `{id, status, missingDeps?}` with status in `{done, ready, blocked}`.
+- `artifacts[]` — array of `{id, status, missingDeps?, requires?}` with status in `{done, ready, blocked}`.
 - `isComplete`, `applyRequires`, `nextSteps`, `actionContext.allowedEditRoots`.
+
+> **v1.7.0 contract**: each entry in `artifacts[]` carries a `requires` array of the artifact ids it directly depends on. This is the preferred input for Step 4's dependency graph — derive it from `status --json` alone when present. Fall back to `instructions --json` `dependencies`/`unlocks` only when `requires` is absent (defensive against future envelope changes or older cores in snapshots).
 
 For each artifact with `status == "done"` and non-empty `existingOutputPaths`,
 queue it for the per-artifact audit (Step 3). Skip `ready` and `blocked` —
@@ -133,8 +135,10 @@ local rubric.
 
 ### Step 4 — Cross-artifact consistency report
 
-Build a graph from each artifact's `dependencies` + `unlocks` (both come from
-`openspec instructions --json`). Skip `dependencies`/`unlocks` whose source
+Build a graph from each artifact's `requires` array (v1.7.0+, captured in
+Step 2 from `openspec status --json`). When a `requires` value is missing
+on a specific artifact, fall back to that artifact's `dependencies` +
+`unlocks` from `openspec instructions --json`. Skip edges whose source
 artifact has no `existingOutputPaths` — there is nothing to compare.
 
 For each existing edge **A → B** (A depends on B, both with concrete files):
@@ -145,10 +149,10 @@ For each existing edge **A → B** (A depends on B, both with concrete files):
 - **Severity** — coherence-level findings follow the same calibration rule.
 
 Do **not** hardcode any proposal↔specs↔design↔tasks pairs. The
-`dependencies` / `unlocks` graph is fully schema-derived — never assume the
-shape.
+`requires` (or `dependencies` / `unlocks`) graph is fully schema-derived —
+never assume the shape.
 
-If an artifact in `unlocks` is missing concrete files (status `ready` or
+If an artifact in the edge target has no concrete files (status `ready` or
 `blocked`), it belongs to Step 7 routing, not here.
 
 ### Step 5 — Implementation-readiness

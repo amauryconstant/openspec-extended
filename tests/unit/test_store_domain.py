@@ -2,7 +2,7 @@
 """
 Unit tests for store_* functions in source.lib.osx.
 
-Covers the v1.5.0 CLI shapes for:
+Covers the v1.5.0+ CLI shapes (current v1.7.0 compatible) for:
   - store_list()   -> {success, data}
   - store_doctor([id]) -> {success, data}
   - store_register(path, name=None) -> {success, data}

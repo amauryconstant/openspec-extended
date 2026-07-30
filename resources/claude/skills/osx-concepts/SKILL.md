@@ -81,7 +81,7 @@ openspec/
 | `READY` | ◆ | Can create now |
 | `DONE` | ✓ | File exists |
 
-Query: `openspec status --change <name> --json` returns the full state per artifact (see `references/cli-reference.md` for the canonical JSON shape). From v1.5.0, the same status call accepts `--store <id>` when the change lives in a registered store.
+Query: `openspec status --change <name> --json` returns the full state per artifact (see `references/cli-reference.md` for the canonical JSON shape). From v1.5.0, the same status call accepts `--store <id>` when the change lives in a registered store. From v1.7.0, projects can also set a machine-level fallback via `openspec config set defaultStore <id>` (status `root.source` reports `global_default` when used); each artifact entry additionally carries a `requires` array, so agents can derive the full transitive required set from one call.
 
 ### 2.5 Resource taxonomy
 
@@ -93,7 +93,7 @@ Query: `openspec status --change <name> --json` returns the full state per artif
 | `osc-explore` | Think through ideas without committing |
 | `osc-new-change` | Create change folder |
 | `osc-continue-change` | Create next artifact incrementally |
-| `osc-update-change` | Revise existing artifacts; multi-artifact bidirectional reconciliation (v1.6.0) |
+| `osc-update-change` | Revise existing artifacts; multi-artifact bidirectional reconciliation (v1.6.0; unchanged in v1.7.0) |
 | `osc-ff-change` | Create all artifacts at once |
 | `osc-apply-change` | Implement tasks from `tasks.md` |
 | `osc-verify-change` | Verify implementation matches artifacts |

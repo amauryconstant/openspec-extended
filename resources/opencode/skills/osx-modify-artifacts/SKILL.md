@@ -81,6 +81,8 @@ Capture `schemaName`, `planningHome`, `changeRoot`, every
 `artifactPaths.<id>`, and `actionContext.allowedEditRoots`. Reject the request
 if the change's `allowedEditRoots` does not include the current project root.
 
+> **v1.7.0 contract**: also capture `artifacts[].requires` per artifact. The root's `requires` list enumerates the artifacts that **must not** be edited here (`/osx-modify` is forward-only); `unlocks` from `instructions` covers the forward direction.
+
 ### Step 3 — Select the root artifact
 
 If `<artifact-id>` was not supplied, mode check: if `OSX_AUTONOMOUS=1` is set
@@ -143,6 +145,13 @@ If the user rejects, leave the file untouched and exit. Do not cascade.
 
 ### Step 7 — Forward-only propagation
 
+**v1.7.0 cross-artifact re-read requirement**: before proposing a
+propagation edit for any dependent, **re-read the dependent's current
+file(s) from disk** (per upstream PR #1368 fix). The conversation context
+may carry a stale version of the dependent artifact from earlier in this
+session; the actual on-disk content is the source of truth for downstream
+edits.
+
 For each artifact id in `unlocks` of the root, run:
 
 ```bash
@@ -152,11 +161,13 @@ openspec instructions "<dependent-id>" --change "<name>" [--store "<id>"] --json
 Read the dependent's `existingOutputPaths` and check whether the root edit
 breaks anything downstream (entities consumed by the dependent, constraints
 declared on the root that the dependent must honor). Compose a propagation
-proposal for that dependent only.
+proposal for that dependent only — never trust a version of the dependent
+seen before the root edit landed.
 
-**Forward-only.** Never edit an artifact in `dependencies`. Editing an
-upstream dep is `openspec-update-change`'s job; reject the request and route
-to `/opsx:update`.
+**Forward-only.** Never edit an artifact in `dependencies` (use the root's
+`requires` array from `status --json`, v1.7.0+, to enumerate them
+defensively). Editing an upstream dep is `openspec-update-change`'s job;
+reject the request and route to `/opsx:update`.
 
 Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question
 and auto-accept. Otherwise, confirm every dependent proposal individually:

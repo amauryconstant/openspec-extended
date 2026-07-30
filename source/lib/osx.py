@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001 - shebang is intentional (PyInstaller entry may invoke it directly)
 """
 osx - OpenSpec Extended change management library
 
@@ -61,7 +62,7 @@ VALID_TRANSITION_REASONS = [
     "retry_requested",
 ]
 
-MIN_OPENSPEC_VERSION: tuple[int, int, int] = (1, 6, 0)
+MIN_OPENSPEC_VERSION: tuple[int, int, int] = (1, 7, 0)
 
 
 def get_core_version(timeout: int = 10) -> tuple[int, int, int] | None:
@@ -69,7 +70,9 @@ def get_core_version(timeout: int = 10) -> tuple[int, int, int] | None:
 
     Returns None if the binary is missing, errors, or the version cannot
     be parsed. Used by the orchestrator to enforce the minimum core version
-    before relying on v1.6.0 workflows (notably ``openspec-update-change``).
+    before relying on v1.7.0 contracts: the ``requires`` field on each
+    artifact in ``openspec status --json`` and the new
+    ``openspec instructions archive`` read-only surface.
     """
     try:
         result = subprocess.run(
@@ -179,7 +182,9 @@ def _run_openspec_json(args: list, timeout: int = 10) -> dict:
     """
     cmd = ["openspec", *args, "--json"]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, check=False
+        )
     except FileNotFoundError as e:
         raise OSXError("cli_not_found", "openspec CLI not found in PATH") from e
     except subprocess.TimeoutExpired as e:
@@ -820,7 +825,7 @@ def state_set_phase(
     state = _read_state(change_dir)
     previous = state.get("phase", "UNKNOWN")
     state["phase"] = phase
-    state["phase_name"] = PHASE_NAMES[phase] if phase in PHASE_NAMES else "UNKNOWN"
+    state["phase_name"] = PHASE_NAMES.get(phase, "UNKNOWN")
     if iteration is not None:
         state["iteration"] = iteration
     state["last_updated"] = get_timestamp()
@@ -1416,6 +1421,7 @@ def validate_archive(target: str, *, store: str | None = None) -> dict:
             capture_output=True,
             text=True,
             timeout=10,
+            check=False,
         )
     except (subprocess.TimeoutExpired, OSError) as e:
         errors.append(

@@ -17,8 +17,8 @@ from source.lib import osx
 class TestGetCoreVersion:
     """Unit tests for ``get_core_version``."""
 
-    def test_min_version_is_1_6_0(self):
-        assert osx.MIN_OPENSPEC_VERSION == (1, 6, 0)
+    def test_min_version_is_1_7_0(self):
+        assert osx.MIN_OPENSPEC_VERSION == (1, 7, 0)
 
     def test_cli_module_no_longer_exports_script_version(self):
         """`__version__` in source/__init__.py is the canonical version.
@@ -87,8 +87,8 @@ class TestGetCoreVersion:
     @pytest.mark.parametrize(
         "raw,expected",
         [
-            ("openspec 1.6.0", (1, 6, 0)),
-            ("@fission-ai/openspec/1.6.3 (darwin)", (1, 6, 3)),
+            ("openspec 1.7.0", (1, 7, 0)),
+            ("@fission-ai/openspec/1.7.2 linux-x64 node-v20.19.0", (1, 7, 2)),
             ("@fission-ai/openspec/2.0.0", (2, 0, 0)),
             ("garbage output", None),
         ],
@@ -103,10 +103,10 @@ class TestGetCoreVersion:
 
 @pytest.mark.integration
 class TestCoreVersionGate:
-    """The orchestrator must refuse to start with openspec < 1.6.0."""
+    """The orchestrator must refuse to start with openspec < 1.7.0."""
 
     def test_orchestrator_refuses_old_core(self, tmp_path, monkeypatch):
-        """If openspec reports < 1.6.0, run_orchestrator exits 2."""
+        """If openspec reports < 1.7.0, run_orchestrator exits 2."""
 
         # Skip AI probe / git / jq so we get to the openspec version check
         # before any side effects.
@@ -121,10 +121,10 @@ class TestCoreVersionGate:
 
         monkeypatch.setattr(eng.subprocess, "run", fake_run)
 
-        # Make `openspec --version` report 1.5.3
+        # Make `openspec --version` report 1.6.3 (below the v1.7.0 floor)
         import source.lib.osx as osx_lib
 
-        monkeypatch.setattr(osx_lib, "get_core_version", lambda: (1, 5, 3))
+        monkeypatch.setattr(osx_lib, "get_core_version", lambda: (1, 6, 3))
 
         # Stub validate_* and record_baseline so we hit only the gate
         for fn in (
@@ -155,7 +155,7 @@ class TestCoreVersionGate:
         assert exc.value.code == 2
 
     def test_orchestrator_accepts_new_core(self, tmp_path, monkeypatch):
-        """openspec 1.6.0+ passes the gate; further validation runs."""
+        """openspec 1.7.0+ passes the gate; further validation runs."""
         from source.orchestrator import engine as eng
         import source.lib.osx as osx_lib
 
@@ -165,7 +165,7 @@ class TestCoreVersionGate:
             return MagicMock(returncode=0, stdout="", stderr="")
 
         monkeypatch.setattr(eng.subprocess, "run", fake_run)
-        monkeypatch.setattr(osx_lib, "get_core_version", lambda: (1, 6, 0))
+        monkeypatch.setattr(osx_lib, "get_core_version", lambda: (1, 7, 0))
 
         called = {"v": False}
 

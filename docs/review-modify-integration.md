@@ -1,8 +1,10 @@
 # Review/Modify × Core Pre-Implementation Integration
 
 **Status**: Planning — ready for execution
-**Last updated**: 2026-07-19
+**Last updated**: 2026-07-30
 **Scope**: Rewrite of `osx-review-artifacts` and `osx-modify-artifacts`, plus orchestrator wiring updates, to integrate cleanly with OpenSpec core v1.6.0's pre-implementation workflow skills (`new`, `continue`, `propose`, `ff`, `update`).
+
+> **v1.7.0 note**: Design from the v1.6.0 integration PR is verified-compatible with v1.7.0. No behavioral changes to `openspec-update-change` or the `instructions` envelope shape. v1.7.0 adds the `requires` field on each `status --json` artifact (now preferred for dependency-graph construction in `osx-review-artifacts`) and the read-only `instructions archive` surface (used by the archive pre-check workflow). See `openspec-core/source/CHANGELOG.md` for the full v1.7.0 contract.
 
 ---
 
@@ -10,16 +12,16 @@
 
 ### 1.1 The triggering change
 
-OpenSpec core v1.6.0 introduced `openspec-update-change` (`/opsx:update`), a new pre-implementation skill that revises existing planning artifacts in place and reconciles them bidirectionally for coherence. This skill lives alongside four other pre-implementation skills:
+OpenSpec core v1.6.0 introduced `openspec-update-change` (`/opsx:update`), a new pre-implementation skill that revises existing planning artifacts in place and reconciles them bidirectionally for coherence. v1.7.0 keeps this contract unchanged (still the recommended multi-artifact editor). This skill lives alongside four other pre-implementation skills:
 
 | Core skill | Creates new? | Revises existing? | Granularity | Schema-agnostic? |
 |---|---|---|---|---|
 | `new` | dir only | — | — | yes |
 | `continue` | next ready one | no | one per turn | yes |
 | `propose` ≈ `ff` | all `applyRequires` | no | all at once | yes |
-| `update` (v1.6.0) | **forbidden** | yes | multi, bidirectional, per-artifact confirm | **strictly** |
+| `update` (v1.6.0; unchanged v1.7.0) | **forbidden** | yes | multi, bidirectional, per-artifact confirm | **strictly** |
 
-`propose` and `ff` are ~95% duplicated (same `applyRequires` loop, different framing). Treat them as one capability.
+`propose` and `ff` are ~95% duplicated (same `applyRequires` loop, different framing). Treat them as one capability. v1.7.0's `requires` field on `status --json` makes the loop converge on the full transitive required set instead of stopping at `tasks.md` (the bug fixed by upstream PR #1412).
 
 ### 1.2 The problem
 

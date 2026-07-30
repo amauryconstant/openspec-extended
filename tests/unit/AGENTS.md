@@ -10,7 +10,7 @@ Fast, isolated tests under `@pytest.mark.unit`. Mixed pytest and bats.
 | `test_cli_passthrough.py` | Top-level passthrough commands (`status`, `templates`, `schemas`, `validate`, etc.) forwarded to upstream `openspec` |
 | `test_openspec_extended.py` | Top-level CLI: install, update, orchestrate entry points |
 | `test_osx_orchestrate.py` | `osx` subcommand domains, JSON contract |
-| `test_path_resolution.py` | `resolve_change_paths`, `_find_change_dir`, `_run_openspec_json` (v1.5.0 store behavior) |
+| `test_path_resolution.py` | `resolve_change_paths`, `_find_change_dir`, `_run_openspec_json` (v1.5.0+ store behavior; current v1.7.0 compatible) |
 | `test_platform_detection.py` | `detect_platform` / `skills_dir` / `commands_dir` (opencode vs claude layout) and platform-aware `validate_skills` / `validate_commands` |
 | `test_runner_abstraction.py` | `RunResult`, `RunRequest`, runner dispatch, PID propagation |
 | `test_schema_resolution.py` | `resolve_schema()` 4-level precedence chain |

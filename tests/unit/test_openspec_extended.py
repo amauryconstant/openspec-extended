@@ -150,6 +150,14 @@ class TestVersionComparison:
         assert compare_versions("1.5.0", "1.4.9") == 1
         assert compare_versions("1.4.9", "1.5.0") == -1
 
+    def test_compare_versions_v1_7_floor(self):
+        """v1.7.0 floor: 1.7.0 > 1.6.0; 1.6.x < 1.7.0."""
+        assert compare_versions("1.7.0", "1.6.0") == 1
+        assert compare_versions("1.6.0", "1.7.0") == -1
+        assert compare_versions("1.7.0", "1.6.9") == 1
+        assert compare_versions("1.6.9", "1.7.0") == -1
+        assert compare_versions("1.7.2", "1.7.0") == 1
+
     def test_compare_versions_patch(self):
         """Patch version comparison works."""
         assert compare_versions("1.0.5", "1.0.4") == 1

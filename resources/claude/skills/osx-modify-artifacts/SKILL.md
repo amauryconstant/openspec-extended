@@ -5,8 +5,8 @@ license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
 metadata:
-  audience: agents running targeted pre-implementation edits (PHASE0 routing target, ad-hoc /osx:modify)
-  workflow: pre-implementation — surgical single-artifact edit between review and apply
+  audience: agents making single-artifact edits before implementation (PHASE0 fallback, ad-hoc /osx:modify)
+  workflow: pre-implementation — surgical edit; multi-artifact drift routes to /opsx:update
 ---
 
 # osx-modify-artifacts
@@ -70,8 +70,8 @@ Without a store, commands act on the nearest local `openspec/` root.
 
 Adopt the `openspec-update-change` policy: **never auto-select**. If the
 argument matches multiple active changes, mode check: if `OSX_AUTONOMOUS=1`
-is set in the environment, skip the `Ask` tool and use the most-recently
-modified active change. Otherwise, ask the user (the **`Ask`** tool) with
+is set in the environment, skip `AskUserQuestion` and use the most-recently
+modified active change. Otherwise, ask the user (use the **`Ask`** tool)
 marked `(Recommended)`.
 
 ### Step 2 — Load schema state
@@ -83,6 +83,8 @@ openspec status --change "<name>" [--store "<id>"] --json
 Capture `schemaName`, `planningHome`, `changeRoot`, every
 `artifactPaths.<id>`, and `actionContext.allowedEditRoots`. Reject the request
 if the change's `allowedEditRoots` does not include the current project root.
+
+> **v1.7.0 contract**: also capture `artifacts[].requires` per artifact. The root's `requires` list enumerates the artifacts that **must not** be edited here (`/osx:modify` is forward-only); `unlocks` from `instructions` covers the forward direction.
 
 ### Step 3 — Select the root artifact
 
@@ -113,7 +115,7 @@ Capture `template`, `instruction`, `context`, `rules`, `dependencies[]`,
 that is still a pattern).
 
 Stop if `existingOutputPaths` is empty. That means the artifact has not been
-created yet — `/osx-modify` cannot create it; route the user to
+created yet — `/osx:modify` cannot create it; route the user to
 `/opsx:continue`.
 
 ### Step 5 — Surface constraints
@@ -146,6 +148,13 @@ If the user rejects, leave the file untouched and exit. Do not cascade.
 
 ### Step 7 — Forward-only propagation
 
+**v1.7.0 cross-artifact re-read requirement**: before proposing a
+propagation edit for any dependent, **re-read the dependent's current
+file(s) from disk** (per upstream PR #1368 fix). The conversation context
+may carry a stale version of the dependent artifact from earlier in this
+session; the actual on-disk content is the source of truth for downstream
+edits.
+
 For each artifact id in `unlocks` of the root, run:
 
 ```bash
@@ -155,17 +164,19 @@ openspec instructions "<dependent-id>" --change "<name>" [--store "<id>"] --json
 Read the dependent's `existingOutputPaths` and check whether the root edit
 breaks anything downstream (entities consumed by the dependent, constraints
 declared on the root that the dependent must honor). Compose a propagation
-proposal for that dependent only.
+proposal for that dependent only — never trust a version of the dependent
+seen before the root edit landed.
 
-**Forward-only.** Never edit an artifact in `dependencies`. Editing an
-upstream dep is `openspec-update-change`'s job; reject the request and route
-to `/opsx:update`.
+**Forward-only.** Never edit an artifact in `dependencies` (use the root's
+`requires` array from `status --json`, v1.7.0+, to enumerate them
+defensively). Editing an upstream dep is `openspec-update-change`'s job;
+reject the request and route to `/opsx:update`.
 
 Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question
 and auto-accept. Otherwise, confirm every dependent proposal individually:
 
-- For each dependent: show the diff, propose the change with the `Ask` tool
-  / `**Ask**`, write only after confirmation.
+- For each dependent: show the diff, propose the change with the **`Ask`**
+  tool, write only after confirmation.
 - Provide an explicit "cascade all" affordance: a single confirmation that
   then walks each dependent through its own confirmation in sequence.
 - A rejected dependent is left unchanged; remaining dependents are still
@@ -210,7 +221,7 @@ After all proposed edits are confirmed (or rejected), surface:
 - [ ] <dependent-id>: <rejected by user>
 
 ### Next steps
-- Re-review: `/osx:review <name>`
+- Re-review: `/osx-review <name>`
 - Multi-artifact drift: `/opsx:update <name>`
 - Code implications: `/opsx:apply <name>`
 ```
@@ -227,7 +238,7 @@ This is better handled by starting a fresh change.
 
 ### Recommendation
 - Start fresh: `/opsx:new <new-name>`
-- Or override: re-run `/osx:modify <name> <artifact-id>` and explicitly confirm the intent change.
+- Or override: re-run `/osx-modify <name> <artifact-id>` and explicitly confirm the intent change.
 ```
 
 ---
