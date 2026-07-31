@@ -5,12 +5,14 @@ Integration tests for install flow.
 
 import subprocess
 import sys
+from pathlib import Path
 
 import toml
 
 import pytest
 
 from source import __version__
+from source.cli import TOOL_DIRS
 
 pytestmark = pytest.mark.integration
 
@@ -489,3 +491,193 @@ class TestInstallAutonomousFlag:
             assert not (commands_dir / f"osx-phase{n}.md").is_file(), (
                 f"osx-phase{n}.md should remain absent after no-autonomous update"
             )
+
+
+class TestUpdateRemovesStale:
+    """``update`` reconciles the deployed tree against the current manifest.
+
+    Locks in that resources which are no longer present in the source
+    manifest are removed on the next ``update``. Custom (non-``osx-``/non-
+    ``osc-``) resources are preserved across updates.
+    """
+
+    def _seed_obsolete(self, test_env: Path, tool: str) -> None:
+        """Plant stale ``osx-*`` resources of every type."""
+        target = test_env / TOOL_DIRS[tool]
+
+        # Stale skill
+        skill = target / "skills" / "osx-obsolete-skill"
+        skill.mkdir(parents=True, exist_ok=True)
+        (skill / "SKILL.md").write_text("---\nname: osx-obsolete-skill\n---\nold")
+
+        # Stale agent
+        agent = target / "agents" / "osx-obsolete-agent.md"
+        agent.parent.mkdir(parents=True, exist_ok=True)
+        agent.write_text("# obsolete agent")
+
+        # Stale command (per-platform layout)
+        commands = target / "commands"
+        commands.mkdir(parents=True, exist_ok=True)
+        if tool == "opencode":
+            (commands / "osx-obsolete-cmd.md").write_text("# obsolete")
+        else:
+            (commands / "osx" / "obsolete-cmd.md").parent.mkdir(
+                parents=True, exist_ok=True
+            )
+            (commands / "osx" / "obsolete-cmd.md").write_text("# obsolete")
+
+        # Custom resource that must survive every update
+        (target / "skills" / "my-custom-skill").mkdir(parents=True, exist_ok=True)
+        (target / "skills" / "my-custom-skill" / "SKILL.md").write_text(
+            "---\nname: my-custom-skill\n---\ncustom"
+        )
+
+    def test_update_opencode_removes_obsolete_osx_resources(self, test_env):
+        run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
+        self._seed_obsolete(test_env, "opencode")
+
+        result = run_osx(["update", "opencode", "--with-autonomous"], cwd=test_env)
+        assert result.returncode == 0
+
+        target = test_env / ".opencode"
+        assert not (target / "skills" / "osx-obsolete-skill").exists()
+        assert not (target / "agents" / "osx-obsolete-agent.md").exists()
+        assert not (target / "commands" / "osx-obsolete-cmd.md").exists()
+
+        # Custom resources preserved
+        assert (target / "skills" / "my-custom-skill").is_dir()
+
+        # Current resources untouched
+        assert (target / "skills" / "osx-concepts").is_dir()
+        assert (target / "agents" / "osx-analyzer.md").is_file()
+        assert (target / "commands" / "osx-phase0.md").is_file()
+
+    def test_update_claude_removes_obsolete_osx_resources(self, test_env):
+        run_osx(["install", "claude", "--with-autonomous"], cwd=test_env)
+        self._seed_obsolete(test_env, "claude")
+
+        result = run_osx(["update", "claude", "--with-autonomous"], cwd=test_env)
+        assert result.returncode == 0
+
+        target = test_env / ".claude"
+        assert not (target / "skills" / "osx-obsolete-skill").exists()
+        assert not (target / "commands" / "osx" / "obsolete-cmd.md").exists()
+
+        # Current resources untouched
+        assert (target / "skills" / "osx-concepts").is_dir()
+        assert (target / "commands" / "osx" / "phase0.md").is_file()
+
+    def test_install_does_not_remove_obsolete_resources(self, test_env):
+        """``install`` is non-destructive; only ``update`` reconciles the tree."""
+        run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
+        self._seed_obsolete(test_env, "opencode")
+
+        # Install runs should NOT purge leftovers left by an older release.
+        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
+        assert result.returncode == 0
+
+        target = test_env / ".opencode"
+        assert (target / "skills" / "osx-obsolete-skill").is_dir()
+        assert (target / "agents" / "osx-obsolete-agent.md").is_file()
+        assert (target / "commands" / "osx-obsolete-cmd.md").is_file()
+
+    def test_update_does_not_touch_other_tool(self, test_env):
+        """Cleanup only affects the requested tool directory."""
+        run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
+        run_osx(["install", "claude", "--with-autonomous"], cwd=test_env)
+        self._seed_obsolete(test_env, "claude")
+
+        result = run_osx(["update", "opencode", "--with-autonomous"], cwd=test_env)
+        assert result.returncode == 0
+
+        # Claude tree should still contain the obsolete resources
+        claude_target = test_env / ".claude"
+        assert (claude_target / "skills" / "osx-obsolete-skill").is_dir()
+        assert (claude_target / "commands" / "osx" / "obsolete-cmd.md").is_file()
+
+        # OpenCode tree (which had no obsolete resources) remains valid
+        opencode_target = test_env / ".opencode"
+        assert (opencode_target / "skills" / "osx-concepts").is_dir()
+
+    def test_update_preserves_non_managed_skills(self, test_env):
+        """Resources outside the managed prefix must never be deleted."""
+        run_osx(["install", "opencode"], cwd=test_env)
+
+        target = test_env / ".opencode"
+        for skill in ("my-review", "team-onboarding", "my-osx-helper"):
+            (target / "skills" / skill).mkdir(parents=True, exist_ok=True)
+            (target / "skills" / skill / "SKILL.md").write_text(skill)
+        (target / "agents" / "my-agent.md").parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        (target / "agents" / "my-agent.md").write_text("# agent")
+        (target / "commands" / "my-command.md").write_text("# cmd")
+        (target / "commands" / "oscillator.md").write_text("# cmd")
+
+        result = run_osx(["update", "opencode"], cwd=test_env)
+        assert result.returncode == 0
+
+        for skill in ("my-review", "team-onboarding", "my-osx-helper"):
+            assert (target / "skills" / skill).is_dir(), skill
+        assert (target / "agents" / "my-agent.md").is_file()
+        assert (target / "commands" / "my-command.md").is_file()
+        assert (target / "commands" / "oscillator.md").is_file()
+
+
+class TestUpdateAutonomousToggleCleanup:
+    """Switching between autonomous and utility-only via ``update`` must
+    reconcile the deployed tree so that previously-deployed autonomous
+    resources are removed when ``--no-with-autonomous`` is set.
+    """
+
+    def test_update_drops_autonomous_resources_when_toggled_off(
+        self, test_env
+    ):
+        run_osx(
+            ["install", "opencode", "--with-autonomous"], cwd=test_env
+        )
+
+        # Sanity check: autonomous resources present after first install.
+        target = test_env / ".opencode"
+        assert (target / "commands" / "osx-phase0.md").is_file()
+        assert (target / "agents" / "osx-analyzer.md").is_file()
+        assert (target / "skills" / "osx-workflow").is_dir()
+
+        result = run_osx(
+            ["update", "opencode", "--no-with-autonomous"], cwd=test_env
+        )
+        assert result.returncode == 0
+
+        # Autonomous resources are gone
+        for n in range(7):
+            assert not (target / "commands" / f"osx-phase{n}.md").exists()
+        agents_dir = target / "agents"
+        if agents_dir.is_dir():
+            assert not any(agents_dir.glob("*.md")), (
+                "Autonomous agents should be removed under no-with-autonomous"
+            )
+        assert not (target / "skills" / "osx-workflow").exists()
+
+        # Utility resources remain
+        assert (target / "skills" / "osx-concepts").is_dir()
+        assert (target / "commands" / "osx-modify.md").is_file()
+
+    def test_update_adds_autonomous_resources_when_toggled_on(
+        self, test_env
+    ):
+        run_osx(
+            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
+        )
+
+        target = test_env / ".opencode"
+        assert not (target / "skills" / "osx-workflow").exists()
+
+        result = run_osx(
+            ["update", "opencode", "--with-autonomous"], cwd=test_env
+        )
+        assert result.returncode == 0
+
+        assert (target / "skills" / "osx-workflow").is_dir()
+        for n in range(7):
+            assert (target / "commands" / f"osx-phase{n}.md").is_file()
+        assert (target / "agents" / "osx-analyzer.md").is_file()

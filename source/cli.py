@@ -362,6 +362,151 @@ def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
         console.print(f"All {total_skipped} resources are current")
 
 
+def purge_managed_resources(
+    target_dir: Path,
+    tool: str,
+    keep_names: set[str],
+    prefixes: tuple[str, ...],
+) -> int:
+    """Remove stale ``osx-*``/``osc-*`` resources from a deployed tool tree.
+
+    Scans only the direct managed destinations (skills, commands, agents) and
+    removes entries whose name starts with one of ``prefixes`` and is **not**
+    in ``keep_names``. Returns the number of entries removed.
+
+    Scope is intentionally narrow:
+
+    - **Skills**: ``<target>/skills/<dir>`` whose directory name starts with a
+      managed prefix. The directory and its entire contents are removed.
+    - **Agents**: ``<target>/agents/<name>.md`` whose stem starts with a
+      managed prefix. Only files (or symlinks) are removed; subdirectories
+      are left untouched.
+    - **Commands**: layout-aware.
+        - OpenCode: ``<target>/commands/<name>.md`` flat files, plus any
+          leftover ``openspec-*.md`` files from pre-rename layouts.
+        - Claude: ``<target>/commands/osx/<name>.md`` and
+          ``<target>/commands/osc/<name>.md`` nested layouts. Any orphan
+          flat ``osx-*.md``/``osc-*.md`` files at the top of ``commands/``
+          are also removed for legacy compatibility.
+
+    Symlinks are unlinked (never followed) so that a symlinked tree cannot
+    cause unintended removal outside the managed namespace. Directories whose
+    entry was not removed but is now empty are left in place.
+    """
+    if tool not in TOOL_DIRS:
+        raise ValueError(f"Unknown tool: {tool}")
+
+    removed = 0
+    if not target_dir.is_dir():
+        return 0
+
+    def starts_with_managed(name: str) -> str | None:
+        for prefix in prefixes:
+            if name.startswith(prefix):
+                return prefix
+        return None
+
+    def should_keep(name: str) -> bool:
+        return name in keep_names
+
+    def safe_remove(path: Path) -> bool:
+        try:
+            if path.is_symlink() or path.is_file():
+                path.unlink()
+            elif path.is_dir():
+                shutil.rmtree(path)
+            else:
+                return False
+            return True
+        except OSError:
+            log_warn(f"Could not remove {path}")
+            return False
+
+    # Skills: directories under <target>/skills/ matching a managed prefix.
+    skills_dir = target_dir / "skills"
+    if skills_dir.is_dir():
+        for entry in skills_dir.iterdir():
+            if starts_with_managed(entry.name) is None:
+                continue
+            if should_keep(entry.name):
+                continue
+            if safe_remove(entry):
+                removed += 1
+
+    # Agents: files under <target>/agents/ whose stem matches a managed prefix.
+    agents_dir = target_dir / "agents"
+    if agents_dir.is_dir():
+        for entry in agents_dir.iterdir():
+            if not (entry.is_file() or entry.is_symlink()):
+                continue
+            stem = entry.stem
+            if starts_with_managed(stem) is None:
+                continue
+            if should_keep(stem):
+                continue
+            if safe_remove(entry):
+                removed += 1
+
+    # Commands: layout-aware cleanup.
+    commands_dir = target_dir / "commands"
+    if commands_dir.is_dir():
+        if tool == "opencode":
+            # Flat layout: commands/<name>.md
+            for entry in commands_dir.iterdir():
+                if not (entry.is_file() or entry.is_symlink()):
+                    continue
+                stem = entry.stem
+                # Catch osx-*, osc-*, and legacy openspec-* flat files
+                # from pre-rename OpenSpec layouts.
+                if starts_with_managed(stem) is None and not stem.startswith(
+                    "openspec-"
+                ):
+                    continue
+                if should_keep(stem):
+                    continue
+                if safe_remove(entry):
+                    removed += 1
+        else:
+            # Claude: nested under commands/osx/ and commands/osc/. The
+            # disk filenames strip the osx-/osc- prefix, so we reapply it
+            # when matching against keep_names.
+            for subdir_name, implicit_prefix in (("osx", "osx-"), ("osc", "osc-")):
+                subdir = commands_dir / subdir_name
+                if not subdir.is_dir():
+                    continue
+                if not any(prefix.startswith(implicit_prefix) for prefix in prefixes):
+                    continue
+                for entry in subdir.iterdir():
+                    if not (entry.is_file() or entry.is_symlink()):
+                        continue
+                    stem = entry.stem
+                    # Filenames on disk are like "phase0.md" but the manifest
+                    # names them "osx-phase0". Always treat anything in this
+                    # subdir as belonging to the implicit prefix.
+                    canonical = f"{implicit_prefix}{stem}"
+                    if should_keep(stem) or should_keep(canonical):
+                        continue
+                    if safe_remove(entry):
+                        removed += 1
+
+            # Any legacy flat osx-*.md / osc-*.md / openspec-*.md files at
+            # the top of commands/ are also removed for safety.
+            for entry in commands_dir.iterdir():
+                if not (entry.is_file() or entry.is_symlink()):
+                    continue
+                stem = entry.stem
+                if starts_with_managed(stem) is None and not stem.startswith(
+                    "openspec-"
+                ):
+                    continue
+                if should_keep(stem):
+                    continue
+                if safe_remove(entry):
+                    removed += 1
+
+    return removed
+
+
 def update_gitignore() -> None:
     gitignore = Path.cwd() / ".gitignore"
     marker_start = "# BEGIN OpenSpec autonomous workflow state"
@@ -739,6 +884,52 @@ def install(
         validate_deployment(target_dir, manifest_data)
 
 
+def _expected_extension_names(tool: str, with_autonomous: bool) -> set[str]:
+    """Return the set of extended ``osx-*`` resource names that the current
+    source manifest will deploy for ``tool``.
+
+    The set mirrors ``deploy_all_resources`` filtering: autonomous names are
+    included only when ``with_autonomous`` is set.
+    """
+    resources_dir = get_resources_dir() / tool
+    manifest_path = resources_dir / "manifest.toml"
+    if not manifest_path.is_file():
+        return set()
+    data = toml.loads(manifest_path.read_text())
+    expected: set[str] = set()
+    for entries in data.get("resources", {}).values():
+        if not isinstance(entries, dict):
+            continue
+        for name in entries:
+            if not with_autonomous and name in AUTONOMOUS_RESOURCE_NAMES:
+                continue
+            expected.add(name)
+    return expected
+
+
+def _core_keep_set(target_dir: Path) -> set[str]:
+    """Build the keep-set for the ``osc-*`` cleanup pass from the resources
+    currently present on disk in the deployed core tree.
+    """
+    keep: set[str] = set()
+
+    skills_dir = target_dir / "skills"
+    if skills_dir.is_dir():
+        for entry in skills_dir.iterdir():
+            if entry.is_dir() and entry.name.startswith("osc-"):
+                keep.add(entry.name)
+
+    commands_dir = target_dir / "commands"
+    if commands_dir.is_dir():
+        osc_dir = commands_dir / "osc"
+        if osc_dir.is_dir():
+            for entry in osc_dir.iterdir():
+                if entry.is_file() and entry.suffix == ".md":
+                    keep.add(f"osc-{entry.stem}")
+
+    return keep
+
+
 @app.command(
     "update",
     help="Force reinstall all resources (same as install but always overwrites)",
@@ -772,6 +963,17 @@ def update(
         raise SystemExit(1)
 
     target_dir = Path.cwd() / TOOL_DIRS[tool]
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Purge stale extended ``osx-*`` resources before the forced redeploy
+    #    so the resulting tree exactly matches the current source manifest.
+    osx_keep = _expected_extension_names(tool, with_autonomous)
+    removed = purge_managed_resources(
+        target_dir, tool, keep_names=osx_keep, prefixes=("osx-",)
+    )
+    if removed:
+        log_info(f"Purged {removed} stale osx-* resource(s)")
+
     deploy_all_resources(tool, force=True, with_autonomous=with_autonomous)
 
     if with_autonomous:
@@ -779,6 +981,19 @@ def update(
 
     if with_core:
         deploy_core(tool, force=force)
+
+        # 2. After core deployment succeeds, reconcile ``osc-*`` resources
+        #    against what was just generated. Anything previously deployed
+        #    that is no longer generated upstream is removed here.
+        core_keep = _core_keep_set(target_dir)
+        removed = purge_managed_resources(
+            target_dir,
+            tool,
+            keep_names=core_keep,
+            prefixes=("osc-",),
+        )
+        if removed:
+            log_info(f"Purged {removed} stale osc-* resource(s)")
 
     target_manifest_path = target_dir / "manifest.toml"
     if target_manifest_path.is_file():
