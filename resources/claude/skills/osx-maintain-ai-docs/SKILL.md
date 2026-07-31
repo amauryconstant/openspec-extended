@@ -1,6 +1,6 @@
 ---
 name: osx-maintain-ai-docs
-description: Update CLAUDE.md after implementing an OpenSpec change. Use between sync and archive to document what was built for future Claude Code sessions.
+description: Document only what AI cannot infer from code. Use between /opsx:apply and /opsx:archive to update CLAUDE.md after an OpenSpec change.
 license: MIT
 ---
 

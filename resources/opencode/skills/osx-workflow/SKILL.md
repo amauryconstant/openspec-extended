@@ -1,6 +1,6 @@
 ---
 name: osx-workflow
-description: Reference for the 7-phase OpenSpec-extended autonomous workflow. INVOKE when dispatched by the orchestrator, executing any osx-phaseN command, calling the osx state I/O tool, or troubleshooting the 7-phase loop. Covers the 4 tool layers, the phases, state files, the osx state I/O tool, and blocker/resume semantics.
+description: 7-phase workflow reference. INVOKE when dispatched into PHASE0..PHASE6, when calling the osx state I/O tool, or when troubleshooting the loop. Pair with `osx-concepts` for framework concepts.
 license: MIT
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: osx-review-artifacts
-description: Schema-driven audit of planning artifacts before implementation. Validates each artifact against its schema template + rules, walks the dependency graph for cross-artifact consistency, and routes findings to the right editor (modify, update, continue, apply, archive). Never edits artifacts.
+description: Audit artifacts against schema + dependency graph before implementation. Use between artifact creation (/opsx:continue, /opsx:propose, /opsx:ff) and /opsx:apply. Emits a routing report only; never edits.
 license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)

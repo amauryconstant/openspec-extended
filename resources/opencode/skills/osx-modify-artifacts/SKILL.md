@@ -1,6 +1,6 @@
 ---
 name: osx-modify-artifacts
-description: Surgical single-artifact edit with forward-only dependent propagation. Use for targeted fixes (typically from review findings). For multi-artifact reconciliation use /opsx:update; for new artifacts use /opsx:continue.
+description: Single-artifact edit with forward-only dependent propagation. Use for targeted fixes from review findings. Route multi-artifact drift to /opsx:update; missing artifacts to /opsx:continue.
 license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)

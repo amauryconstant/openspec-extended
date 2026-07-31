@@ -1,6 +1,6 @@
 ---
 name: osx-review-test-compliance
-description: Analyze spec-to-test alignment for OpenSpec changes. Use after implementation to identify test gaps, verify coverage of spec requirements, or understand test/spec alignment. Performs semantic matching between spec scenarios and test implementations.
+description: Surface test coverage gaps and orphaned tests for OpenSpec changes. Use after implementation, between /opsx:apply and /opsx:archive. Pair with /osc-verify-change for full verification.
 license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)

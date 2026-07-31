@@ -1,6 +1,6 @@
 ---
 name: osx-concepts
-description: Foundational knowledge for OpenSpec-extended. INVOKE when learning the framework or whenever a phase command says "load osx-concepts". Covers the framework (repo layout, artifacts, resource taxonomy, glossary) and decision guidance. For tool-layer choice and the 7-phase workflow, see `osx-workflow`.
+description: OpenSpec-extended reference. INVOKE when learning the framework, when a phase command says "load osx-concepts", or when deciding whether/how to use OpenSpec. Pair with `osx-workflow` for tool-layer and 7-phase mechanics.
 license: MIT
 ---
 

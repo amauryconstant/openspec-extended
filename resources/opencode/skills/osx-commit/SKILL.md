@@ -1,6 +1,6 @@
 ---
 name: osx-commit
-description: Guide agents to create commits following project conventions. Detects Conventional, Angular, Gitmoji, or Classic commit styles from git history and config files.
+description: Detect the project's commit standard (Conventional / Angular / Gitmoji / Classic) and apply it. Use when the user names a style or commits in an unfamiliar repo.
 license: MIT
 ---
 

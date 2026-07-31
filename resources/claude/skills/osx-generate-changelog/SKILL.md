@@ -1,7 +1,8 @@
 ---
 name: osx-generate-changelog
-description: Generate CHANGELOG.md in Keep a Changelog format from archived OpenSpec changes. Use after archiving changes, before publishing releases, or when creating release notes. Reads archived proposals and categorizes changes automatically.
+description: Generate CHANGELOG.md from archived OpenSpec changes (Keep a Changelog format). Run via /osx-changelog [filter].
 license: MIT
+disable-model-invocation: true
 compatibility: Requires openspec CLI.
 ---
 

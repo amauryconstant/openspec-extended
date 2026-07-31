@@ -1,6 +1,6 @@
 ---
 name: osx-maintain-ai-docs
-description: Update {{DOCS_FILE}} after implementing an OpenSpec change. Use between sync and archive to document what was built for future {{TOOL_NAME}} sessions.
+description: Document only what AI cannot infer from code. Use between /opsx:apply and /opsx:archive to update {{DOCS_FILE}} after an OpenSpec change.
 license: MIT
 ---
 
