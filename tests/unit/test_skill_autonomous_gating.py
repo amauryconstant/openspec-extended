@@ -11,7 +11,8 @@ import pytest
 @pytest.mark.parametrize("platform", ["opencode", "claude"])
 def test_skill_autonomous_gates_precede_questions(skill: str, platform: str) -> None:
     path = Path(__file__).parents[2] / "resources" / platform / "skills" / skill / "SKILL.md"
-    lines = path.read_text().splitlines()
+    text = path.read_text()
+    lines = text.splitlines()
     # The ask-tool name varies by platform and form:
     #   opencode source:  {{ASK_TOOL}}  (literal token before sync-mirrors)
     #   opencode runtime: AskUserQuestion
@@ -30,17 +31,31 @@ def test_skill_autonomous_gates_precede_questions(skill: str, platform: str) -> 
         or "(`Ask`" in line
         or " `Ask`" in line
     ]
-    assert question_lines, (
-        f"{path} has no ask-tool references; the convention is to gate every "
-        "ask behind `OSX_AUTONOMOUS=1` and skip the prompt when set"
+    # The skill must declare the autonomous-mode convention at the top (one
+    # blockquote pointing at references/osx-mode-conventions.md, or the inline
+    # gate prose). Per-step restatement is no longer required — the convention
+    # is announced once and assumed thereafter.
+    assert "OSX_AUTONOMOUS=1" in text, (
+        f"{path} must declare the OSX_AUTONOMOUS=1 convention"
     )
+    assert ("auto-accept" in text.lower() or "skip" in text.lower()), (
+        f"{path} must include the auto-accept/skip phrasing of the convention"
+    )
+    # Per-step gating only matters when the skill actually has ask-tool
+    # references. Skills with no interactive prompts (e.g., fully autonomous
+    # flows) declare the convention once and need no per-step checks.
+    if not question_lines:
+        return
+    # Per-step: every ask-tool reference must be preceded (within 4 lines) by
+    # either `OSX_AUTONOMOUS=1` (per-step inline gate) or the auto-accept
+    # leading word.
     for index in question_lines:
         preceding = "\n".join(lines[max(0, index - 4) : index + 1])
-        assert "OSX_AUTONOMOUS=1" in preceding, (
-            f"{path}:{index + 1} ask-tool reference must be preceded by "
-            "`OSX_AUTONOMOUS=1` gating"
+        gated = (
+            "OSX_AUTONOMOUS=1" in preceding
+            or "auto-accept" in preceding.lower()
         )
-        assert "skip" in preceding.lower(), (
-            f"{path}:{index + 1} ask-tool reference must be preceded by a "
-            "`skip` clause when autonomous mode is set"
+        assert gated, (
+            f"{path}:{index + 1} ask-tool reference must be preceded by "
+            "`OSX_AUTONOMOUS=1` gating or the auto-accept leading word"
         )

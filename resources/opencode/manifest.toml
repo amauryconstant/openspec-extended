@@ -1,26 +1,26 @@
 [resources.skills.osx-commit]
-version = "0.1.1"
+version = "0.1.2"
 
 [resources.skills.osx-concepts]
-version = "0.9.5"
+version = "0.9.6"
 
 [resources.skills.osx-workflow]
-version = "0.3.5"
+version = "0.3.6"
 
 [resources.skills.osx-generate-changelog]
-version = "0.2.5"
+version = "0.2.6"
 
 [resources.skills.osx-maintain-ai-docs]
-version = "0.2.5"
+version = "0.2.6"
 
 [resources.skills.osx-modify-artifacts]
-version = "0.3.3"
+version = "0.3.4"
 
 [resources.skills.osx-review-artifacts]
-version = "0.3.2"
+version = "0.3.3"
 
 [resources.skills.osx-review-test-compliance]
-version = "0.2.5"
+version = "0.2.6"
 
 [resources.agents.osx-analyzer]
 version = "0.2.3"

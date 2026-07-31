@@ -9,9 +9,9 @@ metadata:
   workflow: post-implementation — after `osc-apply-change` and before `osc-verify-change`
 ---
 
-Analyze spec-to-test alignment to identify missing test coverage for OpenSpec changes.
+Surface spec-to-test alignment to identify gaps for OpenSpec changes.
 
-**IMPORTANT: This is a semantic analysis skill, not a CLI tool.** You will read spec files, discover test files, and analyze coverage by comparing scenarios to test implementations.
+**IMPORTANT: This is a semantic analysis skill, not a CLI tool.** Read spec files, discover test files, analyse coverage by comparing scenarios to test implementations.
 
 ---
 
@@ -22,111 +22,90 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 **Arguments**: `[change-name]`
 
 **Examples**:
-- `/{{CMD_PREFIX}}verify-tests add-auth` - Analyze test coverage for "add-auth"
-- "Check test coverage" - Infer change from context
+- `/{{CMD_PREFIX}}verify-tests add-auth` — analyse test coverage for "add-auth"
+- "Check test coverage" — infer change from context
 
 ---
 
 ## When to Use
 
-| Timing | Use Case |
-|--------|----------|
-| After `apply-change` | Deep test coverage analysis when implementation is done |
-| Before `verify-change` | Get detailed test gaps before general verification |
-| During code review | Check spec/test alignment for PRs |
-| Periodic maintenance | Audit test coverage quality over time |
+After implementation, between `/opsx:apply` and `/opsx:archive`.
 
 ---
 
 ## Steps
 
-1. **Select the change**
+### 1. Select the change
 
-    If a name is provided, use it. Otherwise:
-    - Infer from conversation context
-    - Auto-select if only one active change exists
-    - If ambiguous: run `openspec list --json` to get available changes and prompt the user to select
+If a name is provided, use it. Otherwise:
+- Infer from conversation context.
+- Auto-select if only one active change exists.
+- If ambiguous, run `openspec list --json` to get available changes and prompt the user to select.
 
-   Always announce: "Analyzing test compliance for: <name>"
+Always announce: "Analysing test compliance for: <name>"
 
-2. **Check change status**
+### 2. Check change status
 
-   ```bash
-   openspec status --change "<name>" --json
-   ```
+```bash
+openspec status --change "<name>" --json
+```
 
-   Parse the JSON to identify the change directory path.
+Parse the JSON to identify the change directory path.
 
-3. **Read spec files**
+### 3. Read spec files
 
-    Read all spec files from `openspec/changes/<name>/specs/`:
+Read all spec files from `openspec/changes/<name>/specs/`:
 
-    Use the Glob tool to find spec files:
-    ```bash
-    openspec/changes/<name>/specs/**/*.md
-    ```
+```bash
+openspec/changes/<name>/specs/**/*.md
+```
 
-   For each spec file, extract:
-   - **Requirement names**: Lines matching `### Requirement: <name>`
-   - **Scenario names**: Lines matching `#### Scenario: <name>`
-   - **Scenario content**: GIVEN/WHEN/THEN/AND clauses following each scenario
+For each spec file, extract:
+- **Requirement names**: Lines matching `### Requirement: <name>`
+- **Scenario names**: Lines matching `#### Scenario: <name>`
+- **Scenario content**: GIVEN/WHEN/THEN/AND clauses following each scenario
 
-4. **Discover test files**
+### 4. Discover test files
 
-   Use the Glob tool to find test files. Start with common patterns:
+Use Glob to find test files. Start with common patterns:
 
-   | Language | Pattern |
-   |----------|---------|
-   | Go | `**/*_test.go` |
-   | Python | `**/test_*.py`, `**/*_test.py` |
-   | JavaScript/TypeScript | `**/*.test.{js,ts,jsx,tsx}`, `**/*.spec.{js,ts,jsx,tsx}` |
-   | Java | `**/*Test.java` |
-   | Ruby | `**/*_spec.rb` |
+| Language | Pattern |
+|----------|---------|
+| Go | `**/*_test.go` |
+| Python | `**/test_*.py`, `**/*_test.py` |
+| JavaScript/TypeScript | `**/*.test.{js,ts,jsx,tsx}`, `**/*.spec.{js,ts,jsx,tsx}` |
+| Java | `**/*Test.java` |
+| Ruby | `**/*_spec.rb` |
 
-    If `openspec/config.yaml` exists, check the `context` field for project-specific test patterns.
+If `openspec/config.yaml` exists, check the `context` field for project-specific test patterns.
 
-5. **Extract test behaviors**
+### 5. Extract test behaviours
 
-   For each test file, read its contents and extract:
-   - **Test function names**: e.g., `TestLoginFlow`, `test_user_authentication`
-   - **Assertion patterns**: Look for `assert`, `expect`, `should`, `t.Error`
-   - **Test descriptions**: Describe blocks, docstrings, comments
+For each test file, read its contents and extract:
+- **Test function names**: e.g., `TestLoginFlow`, `test_user_authentication`
+- **Assertion patterns**: Look for `assert`, `expect`, `should`, `t.Error`
+- **Test descriptions**: Describe blocks, docstrings, comments
 
-   Identify what behavior each test validates based on its name and assertions.
+Identify what behaviour each test validates based on its name and assertions.
 
-6. **Match scenarios to tests**
+### 6. Match scenarios to tests
 
-   For each spec scenario, find matching tests by comparing:
+For each spec scenario, find matching tests by comparing:
 
-   **Semantic similarity factors**:
-   - **Action alignment**: Does the test name/description contain verbs from the scenario? (e.g., "submits", "validates", "returns")
-   - **Entity overlap**: Do both reference the same domain objects? (e.g., "token", "credentials", "user")
-   - **Outcome correspondence**: Does the test verify the expected outcome?
+**Semantic similarity factors**:
+- **Action alignment** — does the test name/description contain verbs from the scenario? (e.g., "submits", "validates", "returns")
+- **Entity overlap** — do both reference the same domain objects? (e.g., "token", "credentials", "user")
+- **Outcome correspondence** — does the test verify the expected outcome?
 
-   **Confidence levels**:
+**Confidence scoring** — see `references/scoring-rubric.md` for tier definitions and worked examples.
 
-   | Score | Match Quality | Interpretation |
-   |--------|---------------|----------------|
-   | High (80%+) | Strong match | Scenario clearly covered |
-   | Medium (50-79%) | Partial match | Some coverage, gaps noted |
-   | Low (<50%) | Weak/No match | Coverage gap |
+### 7. Generate gap analysis
 
-7. **Generate gap analysis**
+Compile findings into two sections: **Coverage by requirement** (each scenario's match status and confidence, with notes for missing or partial coverage) and **Orphaned tests** (tests that don't match any scenario — may indicate missing specs or utility tests).
 
-   Compile findings:
+### 8. Output compliance report
 
-   **Coverage by requirement**:
-   - For each requirement, list its scenarios
-   - For each scenario, show match status and confidence
-   - Note what's missing or partially covered
-
-   **Orphaned tests**:
-   - Tests that don't match any scenario
-   - May indicate missing specs or utility tests
-
-8. **Output compliance report**
-
-   Present the analysis with actionable recommendations.
+Present the analysis with actionable recommendations.
 
 ---
 
@@ -195,33 +174,11 @@ Ready to verify: `/osc-verify <name>`
 
 ---
 
-## Matching Heuristics
-
-Use these patterns when analyzing test-to-spec correspondence:
-
-**Strong indicators of coverage**:
-- Test name contains scenario name keywords
-- Test asserts the exact outcome specified in THEN clause
-- Test sets up the exact GIVEN conditions
-
-**Partial coverage indicators**:
-- Test covers happy path but not error cases
-- Test validates subset of scenario conditions
-- Test has similar name but different scope
-
-**No coverage indicators**:
-- No test names match scenario keywords
-- No assertions for expected outcomes
-- Scenario describes feature not in test suite
-
----
-
 ## Guardrails
 
-- Read actual test files - don't assume coverage from names alone
-- Report gaps, not just percentages - focus on what's missing
-- Acknowledge utility tests that don't map to scenarios (orphaned tests)
-- Consider partial coverage valid for complex scenarios
-- Don't require 100% coverage - focus on critical path scenarios
-- Confidence scores are subjective - explain reasoning
-- If no tests exist, report that clearly rather than failing
+- Read actual test files — don't assume coverage from names alone.
+- Report gaps, not just percentages — focus on what's missing.
+- Acknowledge utility tests that don't map to scenarios (orphaned tests).
+- Don't require 100% coverage — focus on critical path scenarios.
+- Confidence scores are subjective — explain reasoning per the scoring rubric.
+- If no tests exist, report that clearly rather than failing.

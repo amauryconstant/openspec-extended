@@ -224,10 +224,13 @@ class TestSchemaAgnosticContract:
         "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
     )
     def test_skill_includes_store_selection_paragraph(self, skill: Path):
+        """Skills that handle store-backed changes must point at the
+        shared store-selection reference (single source of truth at
+        ``references/store-selection.md``)."""
         text = _read(skill)
-        assert "openspec store list --json" in text, (
-            f"{skill.relative_to(REPO_ROOT)} must include the v1.6 "
-            "store-selection paragraph"
+        assert "references/store-selection.md" in text, (
+            f"{skill.relative_to(REPO_ROOT)} must include a pointer to "
+            "references/store-selection.md"
         )
 
     def test_modify_skill_confirms_each_dependent(self):
@@ -397,13 +400,13 @@ class TestManifestParity:
     @pytest.mark.parametrize(
         "key,expected",
         [
-            ("skills.osx-review-artifacts", "0.3.2"),
-            ("skills.osx-modify-artifacts", "0.3.3"),
-            ("skills.osx-workflow", "0.3.5"),
-            ("skills.osx-concepts", "0.9.5"),
-            ("skills.osx-review-test-compliance", "0.2.5"),
-            ("skills.osx-generate-changelog", "0.2.5"),
-            ("skills.osx-maintain-ai-docs", "0.2.5"),
+            ("skills.osx-review-artifacts", "0.3.3"),
+            ("skills.osx-modify-artifacts", "0.3.4"),
+            ("skills.osx-workflow", "0.3.6"),
+            ("skills.osx-concepts", "0.9.6"),
+            ("skills.osx-review-test-compliance", "0.2.6"),
+            ("skills.osx-generate-changelog", "0.2.6"),
+            ("skills.osx-maintain-ai-docs", "0.2.6"),
             ("commands.osx-review", "0.2.1"),
             ("commands.osx-modify", "0.2.1"),
             ("commands.osx-verify-tests", "0.1.3"),

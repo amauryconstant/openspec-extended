@@ -26,17 +26,11 @@ ls commitlint.config.js .commitlintrc .versionrc .gitmojirc 2>/dev/null
 
 ### 3. Detect Standard
 
-Run detection script:
-
 ```bash
 scripts/detect-commit-style
 ```
 
-Or analyze manually:
-
-```bash
-git log --format="%s" -10
-```
+Falls back to manual `git log --format="%s" -10` only when the script is absent.
 
 | Pattern | Standard |
 |---------|----------|
@@ -65,14 +59,12 @@ Follow detected standard. See references for examples.
 
 ### 7. Verify
 
-```bash
-git log -1
-```
+`git log -1 --format='%s'` returns the standard's prefix shape (e.g. `feat:` for Conventional).
 
 ## References
 
-- `references/standards.md` - Full standards reference
-- `references/detection.md` - Detection details
+- `references/standards.md` — full standards reference
+- `references/detection.md` — detection details
 - `references/examples/conventional.md`
 - `references/examples/angular.md`
 - `references/examples/gitmoji.md`
@@ -80,4 +72,4 @@ git log -1
 
 ## Scripts
 
-- `scripts/detect-commit-style` - Auto-detect commit standard from git history
+- `scripts/detect-commit-style` — auto-detect commit standard from git history

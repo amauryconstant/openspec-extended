@@ -6,11 +6,9 @@ license: MIT
 
 Update project documentation after implementing an OpenSpec change.
 
-## Autonomous mode
+> **Mode** — see `references/osx-mode-conventions.md`. When `OSX_AUTONOMOUS=1` is set, skip interactive confirmation and proceed with reasonable defaults.
 
-When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In that mode, skip interactive confirmation and proceed with reasonable defaults. For interactive use, the env var is unset and the skill prompts as documented.
-
-**Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
+**Input**: optionally specify a change name. If omitted, infer from conversation context or prompt.
 
 ---
 
@@ -18,10 +16,10 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
 
 | Principle | Application |
 |-----------|-------------|
-| **Ruthless conciseness** | Only document what AI can't infer from code |
-| **Progressive disclosure** | Reference details, don't embed them |
-| **Token efficiency** | Tables over verbose lists, front-load essentials |
-| **Specificity** | Concrete commands, not vague instructions |
+| **Infer** | Only document what AI can't infer from code |
+| **Reference, don't embed** | Use progressive disclosure — point at detail, don't inline it |
+| **Tables over prose** | Token efficiency: tables beat verbose lists |
+| **Concrete** | Specific commands, not vague instructions |
 
 **Target lengths**:
 - Ideal: <300 lines (~1200 tokens)
@@ -32,175 +30,110 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
 
 ## Steps
 
-1. **Select the change**
+### 1. Select the change
 
-   If a name is provided, use it. Otherwise:
-    - Infer from conversation context if the user mentioned a change
-    - Auto-select if only one active change exists
-    - If ambiguous, run `openspec list --json` to get available changes.
-      Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question and use the first candidate. Otherwise, use the **{{ASK_TOOL}} tool** to let the user select
+If a name is provided, use it. Otherwise: infer from context, auto-select if only one active change exists, or run `openspec list --json` and prompt. Auto-select first candidate under `OSX_AUTONOMOUS=1`.
 
+Always announce: "Using change: <name>" and how to override.
 
-   Always announce: "Using change: <name>" and how to override.
+### 2. Read change artifacts
 
-2. **Read change artifacts**
+Read files from `openspec/changes/<name>/`:
 
-   Read files from `openspec/changes/<name>/`:
-   
-   | File | Extract |
-   |------|---------|
-   | `proposal.md` | Intent, scope, new features/capabilities |
-   | `specs/` | New requirements, modified behaviors |
-   | `design.md` | Architectural decisions, new patterns, file changes |
-   | `tasks.md` | Checked items = what was actually built |
+- `proposal.md` — Intent, scope, new features/capabilities
+- `specs/` — New requirements, modified behaviors
+- `design.md` — Architectural decisions, new patterns, file changes
+- `tasks.md` — Checked items = what was actually built
 
-   **Key extraction**:
-   - New commands/CLI tools added
-   - New components/modules created
-   - New patterns or conventions established
-   - New APIs/endpoints exposed
-   - Architectural changes
+Extract: new commands, components, patterns, APIs/endpoints, architecture changes. Detail in `references/doc-structures.md`.
 
-3. **Read recent code changes**
+### 3. Read recent code changes
 
-   Use git to identify what code was actually modified:
+```bash
+git log --oneline -20
+git diff HEAD~5..HEAD --stat
+git diff HEAD~5..HEAD --name-only
+```
 
-   ```bash
-   # Get recent commits related to the change
-   git log --oneline -20
+Cross-reference: match git changes to `tasks.md` checked items; identify implementation that differs from `design.md`; note additional work not in original artifacts.
 
-   # See what files changed in recent commits
-   git diff HEAD~5..HEAD --stat
+### 4. Detect or create documentation file
 
-   # View actual diff content for context
-   git diff HEAD~5..HEAD --name-only
-   ```
+```bash
+test -f {{DOCS_FILE}} && echo "{{DOCS_FILE}} found"
+```
 
-   **What to look for**:
-   - New files created (indicate new components/modules)
-   - Modified files (indicate pattern changes or extensions)
-   - Deleted files (indicate removed functionality)
-   - Commit messages (provide context on what was built)
+If `{{DOCS_FILE}}` doesn't exist, create minimal documentation:
 
-   **Cross-reference with artifacts**:
-   - Match git changes to tasks.md checked items
-   - Identify any implementation that differs from design.md
-   - Note any additional work not in original artifacts
+```markdown
+# Project - {{TOOL_NAME}} Reference
 
-4. **Detect or create documentation file**
+## Quick Reference
 
-   ```bash
-   test -f {{DOCS_FILE}} && echo "{{DOCS_FILE}} found"
-   ```
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Start development |
+| `npm run build` | Production build |
 
-   **If {{DOCS_FILE}} doesn't exist**, create minimal documentation:
+## Architecture
 
-   ```markdown
-   # Project - {{TOOL_NAME}} Reference
+[Brief overview based on codebase structure]
 
-   ## Quick Reference
+## Conventions
 
-   | Command | Purpose |
-   |---------|---------|
-   | `npm run dev` | Start development |
-   | `npm run build` | Production build |
+[Key patterns observed from git changes]
+```
 
-   ## Architecture
+### 5. Read current documentation
 
-   [Brief overview based on codebase structure]
+Parse existing structure and sections. Note current line count.
 
-   ## Conventions
+**Warn if** `{{DOCS_FILE}}` > 300 lines. **Error if** > 500 lines (split required before adding content).
 
-   [Key patterns observed from git changes]
-   ```
+### 6. Assess documentation needs
 
-5. **Read current documentation**
+For each implemented item, determine if docs need updating:
 
-   - Parse existing structure and sections
-   - Note current line count
-   - Identify sections to preserve
+| Implementation Type | Action |
+|---------------------|--------|
+| New CLI commands/scripts | Add to Quick Reference |
+| New components/modules | Add brief entry with purpose |
+| New patterns/conventions | Add specific pattern |
+| New APIs/endpoints | Add endpoint summary table |
+| Architecture changes | Update overview section |
+| Bug fixes/refactors | Usually no update needed |
+| Internal changes | Skip unless affects conventions |
 
-   **Warn if**:
-   - {{DOCS_FILE}} > 300 lines
+Filter out: generic patterns AI already knows, self-evident implementations, standard language conventions.
 
-   **Error if**:
-   - {{DOCS_FILE}} > 500 lines (split required before adding content)
+### 7. Generate proposed updates
 
-6. **Assess documentation needs**
+Apply best practices — use tables, be specific, reference rather than embed, cut generic advice. See `references/update-rules.md` for the full list.
 
-   For each implemented item, determine if docs need updating:
+### 8. Show proposal and confirm
 
-   | Implementation Type | Action |
-   |---------------------|--------|
-   | New CLI commands/scripts | Add to Quick Reference |
-   | New components/modules | Add brief entry with purpose |
-   | New patterns/conventions | Add specific pattern |
-   | New APIs/endpoints | Add endpoint summary table |
-   | Architecture changes | Update overview section |
-   | Bug fixes/refactors | Usually no update needed |
-   | Internal changes | Skip unless affects conventions |
+Present changes with impact:
 
-   **Filter out**:
-   - Generic patterns AI already knows
-   - Self-evident implementations
-   - Standard language conventions
+```markdown
+## Documentation Updates: <change-name>
 
-7. **Generate proposed updates**
+**Current state**:
+- {{DOCS_FILE}}: 180 lines (~720 tokens)
 
-   Apply best practices:
-   
-   **Use tables for lists**:
-   ```markdown
-   | Command | Purpose |
-   |---------|---------|
-   | `npm run dev` | Start dev server |
-   | `npm run build` | Production build |
-   ```
+**Proposed changes**:
+- Add "Feature X" to Quick Reference (table format)
+- Add pattern: "Use `useX()` hook for X state"
 
-   **Be specific**:
-   ```markdown
-   ✅ "Run `npm run typecheck` after TypeScript changes"
-   ❌ "Run the typechecker"
-   ```
+**After update**: ~195 lines (within target)
 
-   **Progressive disclosure**:
-   ```markdown
-   ✅ "See `src/auth/{{DOCS_FILE}}` for auth patterns"
-   ❌ [500 lines of auth documentation embedded]
-   ```
+Apply these updates?
+```
 
-   **Cut generic advice**:
-   ```markdown
-   ❌ "Follow coding best practices"
-   ❌ "Write clean code"
-   ❌ "Test thoroughly"
-   ```
+Auto-accept under `OSX_AUTONOMOUS=1`. Otherwise, confirm before writing.
 
-8. **Show proposal and confirm**
+### 9. Write updates
 
-   Present changes with impact:
-
-   ```markdown
-   ## Documentation Updates: <change-name>
-
-   **Current state**:
-   - {{DOCS_FILE}}: 180 lines (~720 tokens)
-
-   **Proposed changes**:
-   - Add "Feature X" to Quick Reference (table format)
-   - Add pattern: "Use `useX()` hook for X state"
-
-   **After update**: ~195 lines (within target)
-
-    Apply these updates?
-    ```
-
-    Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question and auto-accept. Otherwise, use **{{ASK_TOOL}} tool** to confirm before writing.
-
-9. **Write updates**
-
-   - Preserve existing structure
-   - Add new content in appropriate sections
+For every row in step 6's table, either add the entry to its named section or record the skip in `osx log`. Preserve existing structure. Do not invent sections.
 
 ---
 
@@ -268,18 +201,6 @@ Proceed anyway, or address first?
 
 ---
 
-## Guardrails
-
-- **DO**: Preserve existing structure and sections
-- **DO**: Use tables for command/reference lists
-- **DO**: Confirm with user before writing changes
-- **DON'T**: Document standard patterns AI already knows
-- **DON'T**: Add verbose file-by-file descriptions
-- **DON'T**: Include tutorials, history, or generic advice
-- **DON'T**: Let files exceed 500 lines
-
----
-
 ## Anti-Patterns to Avoid
 
 ### Generic Advice
@@ -309,16 +230,8 @@ Proceed anyway, or address first?
 
 ---
 
-## Effectiveness Indicators
+## References
 
-### Positive Signs
-
-- AI follows new patterns without asking
-- File stays under 300 lines
-- No outdated or orphaned sections
-
-### Negative Signs (Fix Needed)
-
-- AI asks about documented items → improve clarity
-- File >300 lines → review and condense
-- File >500 lines → split immediately
+- `references/doc-structures.md` — per-artifact extraction rules
+- `references/update-rules.md` — full best-practice list
+- `references/update-examples.md` — worked before/after diffs
