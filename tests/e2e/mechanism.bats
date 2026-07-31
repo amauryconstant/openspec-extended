@@ -88,6 +88,19 @@ teardown() {
     [ -f .opencode/skills/osx-modify-artifacts/SKILL.md ]
     [ ! -e .opencode/skills/osx-review-artifacts/references/review-criteria.md ]
 
+    # Shared references are packaged into the skill's own references/ folder
+    # so the SKILL.md links resolve without depending on a sibling directory.
+    [ -f .opencode/skills/osx-modify-artifacts/references/store-selection.md ]
+    [ -f .opencode/skills/osx-modify-artifacts/references/schema-agnostic-contract.md ]
+    [ -f .opencode/skills/osx-modify-artifacts/references/osx-mode-conventions.md ]
+    [ -f .opencode/skills/osx-review-artifacts/references/store-selection.md ]
+    [ -f .opencode/skills/osx-review-artifacts/references/schema-agnostic-contract.md ]
+    [ -f .opencode/skills/osx-maintain-ai-docs/references/osx-mode-conventions.md ]
+    [ -f .opencode/skills/osx-review-test-compliance/references/scoring-rubric.md ]
+    # Skill-local references stay untouched.
+    [ -f .opencode/skills/osx-concepts/references/cli-reference.md ]
+    [ -f .opencode/skills/osx-maintain-ai-docs/references/doc-structures.md ]
+
     rm -rf "$fresh_dir"
 }
 
@@ -107,6 +120,18 @@ teardown() {
     [ -f .claude/skills/osx-review-artifacts/SKILL.md ]
     [ -f .claude/skills/osx-modify-artifacts/SKILL.md ]
     [ ! -e .claude/skills/osx-review-artifacts/references/review-criteria.md ]
+
+    # Shared references are packaged into the skill's own references/ folder.
+    [ -f .claude/skills/osx-modify-artifacts/references/store-selection.md ]
+    [ -f .claude/skills/osx-modify-artifacts/references/schema-agnostic-contract.md ]
+    [ -f .claude/skills/osx-modify-artifacts/references/osx-mode-conventions.md ]
+    [ -f .claude/skills/osx-review-artifacts/references/store-selection.md ]
+    [ -f .claude/skills/osx-review-artifacts/references/schema-agnostic-contract.md ]
+    [ -f .claude/skills/osx-maintain-ai-docs/references/osx-mode-conventions.md ]
+    [ -f .claude/skills/osx-review-test-compliance/references/scoring-rubric.md ]
+    # Skill-local references stay untouched.
+    [ -f .claude/skills/osx-concepts/references/cli-reference.md ]
+    [ -f .claude/skills/osx-maintain-ai-docs/references/doc-structures.md ]
 
     rm -rf "$fresh_dir"
 }

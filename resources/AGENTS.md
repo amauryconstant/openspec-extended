@@ -56,6 +56,17 @@ version = "0.1.0"
 version = "0.2.1"
 ```
 
+Skills can also declare which shared references they consume (from the
+`skills/references/` pool) so the deploy copies them into the skill's
+own `references/` folder at the target site. See
+`resources/opencode/skills/AGENTS.md` for the full semantics.
+
+```toml
+[resources.skills.osx-modify-artifacts]
+version = "0.3.4"
+references = ["store-selection.md", "schema-agnostic-contract.md", "osx-mode-conventions.md"]
+```
+
 Versions are bumped **per resource** (not per release) by `mise run version:update` — see root AGENTS.md "Version Bumping" section.
 
 ## Conventions

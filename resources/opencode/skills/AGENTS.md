@@ -21,16 +21,38 @@ Cross-cutting material that lives once and is reached by multiple skills. Each f
 
 | Reference | Used by |
 |---|---|
-| `store-selection.md` | osx-modify-artifacts, osx-review-artifacts, osx-review-test-compliance, osx-modify, osx-review |
+| `store-selection.md` | osx-modify-artifacts, osx-review-artifacts (skills) + osx-modify, osx-review (commands) |
 | `schema-agnostic-contract.md` | osx-modify-artifacts, osx-review-artifacts |
 | `osx-mode-conventions.md` | osx-modify-artifacts, osx-maintain-ai-docs |
-| `phase-protocol-common.md` | osx-phase0..6 |
-| `blocker-semantics.md` | osx-phase0..6 |
-| `osx-decision-logging.md` | osx-phase0..6 |
-| `shell-argument-safety.md` | osx-phase0..6 |
+| `phase-protocol-common.md` | osx-phase0..6 (commands) |
+| `blocker-semantics.md` | osx-phase0..6 (commands) |
+| `osx-decision-logging.md` | osx-phase0..6 (commands) |
+| `shell-argument-safety.md` | osx-phase0..6 (commands) |
 | `scoring-rubric.md` | osx-review-test-compliance |
 
 Shared references are excluded from `mise run version:check` (they don't map to a single manifest entry).
+
+### Per-skill packaging
+
+`install`/`update` copies the source `resources/<tool>/skills/references/` pool into **each consuming skill's own `references/` subdir** at the target site. This makes every skill self-sufficient: a `references/<file>.md` link in any `<skill>/SKILL.md` resolves to a sibling file inside the skill's own directory, regardless of where the skill is dropped.
+
+A skill declares which shared references it consumes via the manifest's `references = [...]` list:
+
+```toml
+[resources.skills.osx-modify-artifacts]
+version = "0.3.4"
+references = [
+    "store-selection.md",
+    "schema-agnostic-contract.md",
+    "osx-mode-conventions.md",
+]
+```
+
+The deploy reads each filename from the shared pool and copies it into `<target>/skills/<skill>/references/`. Skill-local references (already inside the skill's own `references/` subdir) are copied by `shutil.copytree` as before and are not declared in the manifest.
+
+Phase commands (`osx-phase0..6`) link to the shared pool via `references/<file>.md` prose and use the command-level `{{PLATFORM_DIR}}/skills/references/...` template where platform-aware linking is needed. They are not packaged per-skill.
+
+The mirror script (`mise run sync-mirrors`) propagates the `references = [...]` lists from `resources/opencode/manifest.toml` to `resources/claude/manifest.toml`. The Claude deploy reads the same field.
 
 ## Frontmatter
 

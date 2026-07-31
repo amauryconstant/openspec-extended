@@ -186,13 +186,30 @@ def get_target_path(resource_type: str, target_dir: Path, name: str) -> Path:
     return target_dir / resource_type / name
 
 
-def deploy_skills(source_base: Path, target_dir: Path, name: str) -> None:
+def deploy_skills(
+    source_base: Path,
+    target_dir: Path,
+    name: str,
+    shared_refs: list[str] | None = None,
+) -> None:
     target_skills = target_dir / "skills"
     target_skills.mkdir(parents=True, exist_ok=True)
     target_path = target_skills / name
     if target_path.exists():
         shutil.rmtree(target_path)
     shutil.copytree(source_base / name, target_path)
+
+    if shared_refs:
+        target_refs = target_path / "references"
+        target_refs.mkdir(parents=True, exist_ok=True)
+        shared_refs_dir = source_base / "references"
+        for ref_name in shared_refs:
+            src = shared_refs_dir / ref_name
+            dst = target_refs / ref_name
+            if src.is_file():
+                shutil.copy2(src, dst)
+            else:
+                log_warn(f"Shared reference not found: {src}")
 
 
 def deploy_commands(source_base: Path, target_dir: Path, name: str) -> None:
@@ -270,15 +287,20 @@ def deploy_type(
         )
 
         if decision in ("install", "upgrade", "update"):
-            deploy_func_map = {
-                "skills": deploy_skills,
-                "commands": deploy_commands,
-                "agents": deploy_agents,
-            }
-            func = deploy_func_map.get(resource_type)
-            if func:
-                func(source_type_dir, target_dir, name)
-            count += 1
+            if resource_type == "skills":
+                deploy_skills(
+                    source_type_dir,
+                    target_dir,
+                    name,
+                    shared_refs=info.get("references", []),
+                )
+                count += 1
+            elif resource_type == "commands":
+                deploy_commands(source_type_dir, target_dir, name)
+                count += 1
+            elif resource_type == "agents":
+                deploy_agents(source_type_dir, target_dir, name)
+                count += 1
         elif decision == "skip":
             skipped += 1
 

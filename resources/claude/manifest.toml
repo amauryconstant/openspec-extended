@@ -12,15 +12,19 @@ version = "0.2.6"
 
 [resources.skills.osx-maintain-ai-docs]
 version = "0.2.6"
+references = ["osx-mode-conventions.md"]
 
 [resources.skills.osx-modify-artifacts]
 version = "0.3.4"
+references = ["store-selection.md", "schema-agnostic-contract.md", "osx-mode-conventions.md"]
 
 [resources.skills.osx-review-artifacts]
 version = "0.3.3"
+references = ["schema-agnostic-contract.md", "store-selection.md"]
 
 [resources.skills.osx-review-test-compliance]
 version = "0.2.6"
+references = ["scoring-rubric.md"]
 
 [resources.agents.osx-analyzer]
 version = "0.2.3"

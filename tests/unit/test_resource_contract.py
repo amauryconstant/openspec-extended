@@ -532,3 +532,166 @@ class TestStaleRefs:
             f"`/osx:verify` (should be `/opsx:verify`)"
         )
         assert "/osx:verify\n" not in scrubbed
+
+
+# ============================================================================
+# Shared references packaging
+# ============================================================================
+
+
+def _read_manifest_references(manifest_path: Path) -> dict[str, list[str]]:
+    """Return a mapping of ``skills.<name>`` -> ``references`` list from
+    the given manifest. Skills without a ``references`` field are omitted."""
+    manifest = toml.loads(_read(manifest_path))
+    out: dict[str, list[str]] = {}
+    skills = manifest.get("resources", {}).get("skills", {})
+    if not isinstance(skills, dict):
+        return out
+    for name, meta in skills.items():
+        if not isinstance(meta, dict):
+            continue
+        refs = meta.get("references")
+        if isinstance(refs, list):
+            out[f"skills.{name}"] = [str(r) for r in refs]
+    return out
+
+
+def _skill_linked_references(skill_path: Path) -> set[str]:
+    """Return the set of bare filenames referenced via ``references/<x>.md``
+    links inside a SKILL.md body. Frontmatter and code fences are skipped.
+    Files that already exist in the skill's own ``references/`` subdir are
+    excluded (those are skill-local, not shared)."""
+    text = _read(skill_path)
+    body = text
+    if body.startswith("---"):
+        parts = body.split("---", 2)
+        if len(parts) >= 3:
+            body = parts[2]
+    skill_local = set()
+    local_refs = skill_path.parent / "references"
+    if local_refs.is_dir():
+        skill_local = {p.name for p in local_refs.glob("*.md")}
+    links: set[str] = set()
+    for raw in body.split("`"):
+        if not raw.startswith("references/"):
+            continue
+        head, _, _ = raw.partition("#")
+        if not head.endswith(".md"):
+            continue
+        name = head[len("references/") :]
+        if name in skill_local:
+            continue
+        links.add(name)
+    return links
+
+
+@pytest.mark.unit
+class TestSharedReferencesPackaging:
+    """Skills that link to ``references/<file>.md`` must declare every such
+    link in the manifest's ``references = [...]`` list, and every filename
+    declared must exist in the shared ``resources/<tool>/skills/references/``
+    pool. The deploy step copies the declared files into the skill's own
+    ``references/`` subdir so the link resolves in isolation."""
+
+    @pytest.mark.parametrize(
+        "platform_root,manifest_path",
+        [
+            (OPENCODE, OPENCODE_MANIFEST),
+            (CLAUDE, CLAUDE_MANIFEST),
+        ],
+        ids=["opencode", "claude"],
+    )
+    def test_manifest_references_resolve_to_shared_pool(
+        self, platform_root: Path, manifest_path: Path
+    ):
+        shared_dir = platform_root / "skills" / "references"
+        for key, refs in _read_manifest_references(manifest_path).items():
+            for ref_name in refs:
+                assert (shared_dir / ref_name).is_file(), (
+                    f"{manifest_path.relative_to(REPO_ROOT)} declares "
+                    f"{ref_name!r} for {key} but it is missing from "
+                    f"{shared_dir.relative_to(REPO_ROOT)}"
+                )
+
+    @pytest.mark.parametrize(
+        "platform_root,manifest_path",
+        [
+            (OPENCODE, OPENCODE_MANIFEST),
+            (CLAUDE, CLAUDE_MANIFEST),
+        ],
+        ids=["opencode", "claude"],
+    )
+    def test_skill_references_match_manifest(
+        self, platform_root: Path, manifest_path: Path
+    ):
+        declared = _read_manifest_references(manifest_path)
+        for key, refs in declared.items():
+            skill_name = key.split(".", 1)[1]
+            skill_path = platform_root / "skills" / skill_name / "SKILL.md"
+            if not skill_path.is_file():
+                continue
+            linked = _skill_linked_references(skill_path)
+            declared_set = set(refs)
+            missing = linked - declared_set
+            assert not missing, (
+                f"{skill_path.relative_to(REPO_ROOT)} links to "
+                f"{sorted(missing)!r} but the manifest entry does not "
+                f"declare them under `references = [...]`. Shared "
+                f"references must be listed so the deploy copies them "
+                f"into the skill's own references/ folder."
+            )
+
+    def test_shared_pool_files_all_used(self):
+        """Every file in the shared pool must be claimed by at least one
+        skill or command (so the deploy never copies an unused file).
+        Skill claims come from the manifest; command claims come from
+        ``references/...`` links in command files."""
+        shared_dir = OPENCODE / "skills" / "references"
+        if not shared_dir.is_dir():
+            return
+        declared = _read_manifest_references(OPENCODE_MANIFEST)
+        claimed: set[str] = set()
+        for refs in declared.values():
+            claimed.update(refs)
+
+        commands_dir = OPENCODE / "commands"
+        if commands_dir.is_dir():
+            for cmd in commands_dir.glob("*.md"):
+                text = _read(cmd)
+                for raw in text.split("`"):
+                    if not raw.startswith("references/"):
+                        continue
+                    head, _, _ = raw.partition("#")
+                    if head.endswith(".md"):
+                        claimed.add(head[len("references/") :])
+
+        orphans = {
+            p.name
+            for p in shared_dir.glob("*.md")
+            if p.name not in claimed
+        }
+        assert not orphans, (
+            f"Shared references pool contains files not referenced by "
+            f"any skill or command: {sorted(orphans)!r}. "
+            f"Either add a consumer or remove the file."
+        )
+
+    @pytest.mark.parametrize(
+        "platform_root,manifest_path",
+        [
+            (OPENCODE, OPENCODE_MANIFEST),
+            (CLAUDE, CLAUDE_MANIFEST),
+        ],
+        ids=["opencode", "claude"],
+    )
+    def test_manifest_references_parity(
+        self, platform_root: Path, manifest_path: Path
+    ):
+        """The OpenCode and Claude manifests must agree on the ``references``
+        lists, since the deploy uses the same manifest on both sides."""
+        oc = _read_manifest_references(OPENCODE_MANIFEST)
+        cl = _read_manifest_references(CLAUDE_MANIFEST)
+        assert oc == cl, (
+            f"references list drift between opencode and claude manifests: "
+            f"opencode={oc!r} claude={cl!r}. Run `mise run sync-mirrors`."
+        )
