@@ -102,3 +102,9 @@ Migration guide: docs/migration/renderer.md
 ❌ feat(core): Add feature (uppercase description)
 ❌ feat(core): add feature. (period at end)
 ```
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-commit/references/examples/angular.md
+Regenerate: `mise run sync:mirrors`
+-->

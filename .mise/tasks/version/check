@@ -21,13 +21,17 @@ source "$SCRIPT_DIR/lib/state.sh"
 FILES_JSON="[]"
 
 get_staged_files() {
+    # OpenCode is the canonical source. The Claude mirror is auto-generated
+    # by `mise run sync-mirrors` and inherits versions from the opencode
+    # manifest. Skip claude-side files here so version bumps happen once,
+    # on the opencode side — sync-mirrors carries the new versions to claude.
     git diff --cached --name-only --diff-filter=ACMR -- \
-        "resources/*/skills/*/SKILL.md" \
-        "resources/*/skills/*/references/*.md" \
-        "resources/*/skills/*/scripts/*" \
-        "resources/*/agents/*.md" \
-        "resources/*/commands/*.md" \
-        "resources/*/commands/*/*.md" 2>/dev/null \
+        "resources/opencode/skills/*/SKILL.md" \
+        "resources/opencode/skills/*/references/*.md" \
+        "resources/opencode/skills/*/scripts/*" \
+        "resources/opencode/agents/*.md" \
+        "resources/opencode/commands/*.md" \
+        "resources/opencode/commands/*/*.md" 2>/dev/null \
         | grep -v "/AGENTS\.md$" || true
 }
 

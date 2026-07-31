@@ -60,8 +60,8 @@ Without a store, commands act on the nearest local `openspec/` root.
 
 Adopt the `openspec-update-change` policy: **never auto-select**. If the
 argument is missing or matches more than one active change, ask the user
-to choose (use the **`Ask`** tool). Mark the most-recently modified active
-change as `(Recommended)`.
+to choose (use `Ask` / `**Ask**`). Mark the most-recently
+modified active change as `(Recommended)`.
 
 List candidates with:
 
@@ -251,3 +251,9 @@ route so the user or the next orchestrator step can act.
 - **`isComplete` is false and no `ready` artifact exists** — unusual state;
   surface as `Suggestion` and ask the user whether they want to archive or
   start a new change.
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-review-artifacts/SKILL.md
+Regenerate: `mise run sync:mirrors`
+-->

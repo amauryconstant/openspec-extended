@@ -184,7 +184,7 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
    ## Documentation Updates: <change-name>
 
    **Current state**:
-   - CLAUDE.md: 165 lines (~660 tokens)
+   - CLAUDE.md: 180 lines (~720 tokens)
 
    **Proposed changes**:
    - Add "Feature X" to Quick Reference (table format)
@@ -219,7 +219,7 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
 - Architecture overview from codebase
 - Conventions from recent changes
 
-**Next step**: Review and refine, then ready to archive with `/osx:archive`.
+**Next step**: Review and refine, then ready to archive with `/osc-archive-change`.
 ```
 
 **On updates applied**:
@@ -228,14 +228,14 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
 ## Documentation Updated: <change-name>
 
 **File modified**:
-- CLAUDE.md: +5 lines (165 → 170)
+- CLAUDE.md: +5 lines (180 → 185)
 
 **Changes applied**:
 - Added "Theme System" to Quick Reference
 - Added theme hook pattern
 - Updated architecture overview
 
-**Next step**: Ready to archive with `/osx:archive`.
+**Next step**: Ready to archive with `/osc-archive-change`.
 ```
 
 **On no updates needed**:
@@ -248,7 +248,7 @@ Implementation doesn't require documentation updates:
 - Existing documentation covers functionality
 - Changes are inferable from code structure
 
-Ready to archive with `/osx:archive`.
+Ready to archive with `/osc-archive-change`.
 ```
 
 **On length warning**:
@@ -322,3 +322,9 @@ Proceed anyway, or address first?
 - AI asks about documented items → improve clarity
 - File >300 lines → review and condense
 - File >500 lines → split immediately
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-maintain-ai-docs/SKILL.md
+Regenerate: `mise run sync:mirrors`
+-->

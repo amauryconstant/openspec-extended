@@ -133,3 +133,9 @@ No arguments required. The AI will guide you through scope selection.
 ---
 
 See `.claude/skills/osx-generate-changelog/SKILL.md` for detailed categorization algorithm and version management.
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/commands/osx-changelog.md
+Regenerate: `mise run sync:mirrors`
+-->

@@ -29,14 +29,14 @@ Positional `<change-name>` (required) and optional `<artifact-id>`. If
 **Patterns**:
 | Input | Behavior |
 |-------|----------|
-| `/osx-modify add-auth specs/auth` | Edit specific artifact in change |
-| `/osx-modify add-auth` | Prompt for artifact selection |
-| `/osx-modify` | Prompt for change and artifact |
+| `/{{CMD_PREFIX}}modify add-auth specs/auth` | Edit specific artifact in change |
+| `/{{CMD_PREFIX}}modify add-auth` | Prompt for artifact selection |
+| `/{{CMD_PREFIX}}modify` | Prompt for change and artifact |
 
 ## Steps
 
 1. **Load the skill body**.
-   Read `.opencode/skills/osx-modify-artifacts/SKILL.md` and follow the nine
+   Read `{{PLATFORM_DIR}}/skills/{{CMD_PREFIX}}modify-artifacts/SKILL.md` and follow the nine
    steps in `## Workflow`. This command wraps that skill; do not duplicate
    rules here.
 
@@ -59,5 +59,5 @@ Positional `<change-name>` (required) and optional `<artifact-id>`. If
   the user confirms. Rejected revisions are left unchanged.
 - **Carry `--store <id>`** when the change is store-backed.
 
-See `.opencode/skills/osx-modify-artifacts/SKILL.md` for the full contract,
+See `{{PLATFORM_DIR}}/skills/{{CMD_PREFIX}}modify-artifacts/SKILL.md` for the full contract,
 intent-level change detection, and hand-off templates.

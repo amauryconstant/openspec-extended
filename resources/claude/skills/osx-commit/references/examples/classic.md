@@ -139,3 +139,9 @@ Improve test coverage for auth module
 - Mock external services in tests
 - Increase coverage from 45% to 78%
 ```
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-commit/references/examples/classic.md
+Regenerate: `mise run sync:mirrors`
+-->

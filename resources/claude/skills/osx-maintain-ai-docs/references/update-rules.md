@@ -23,12 +23,12 @@ Rules for updating AGENTS.md and CLAUDE.md documentation files when adding, upda
 ### Entry Format
 
 ```markdown
-- `openspec-new-skill`: Start a new OpenSpec change
-- `openspec-review-artifacts`: Review artifacts for quality and consistency
+- `osc-new-change`: Start a new OpenSpec change
+- `osx-review-artifacts`: Review artifacts for quality and consistency
 ```
 
 **Components**:
-- Skill name in backticks (e.g., `openspec-new-skill`)
+- Skill name in backticks (e.g., `osc-new-change`)
 - Colon separator (space before and after)
 - Brief description (30-60 characters)
 - Sentence case for first letter
@@ -41,16 +41,16 @@ Rules for updating AGENTS.md and CLAUDE.md documentation files when adding, upda
 **Grouped by purpose** (if applicable):
 ```markdown
 **Core Skills**:
-- `openspec-concepts`: Framework understanding
-- `openspec-modify-artifact`: Artifact modification
+- `osx-concepts`: Framework understanding
+- `osx-modify-artifacts`: Artifact modification
 
 **Quality Skills**:
-- `openspec-review-artifacts`: Artifact review
-- `openspec-verify-change`: Implementation verification
+- `osx-review-artifacts`: Artifact review
+- `osc-verify-change`: Implementation verification
 
 **Utility Skills**:
-- `openspec-new-change`: Change creation
-- `openspec-apply-change`: Implementation
+- `osc-new-change`: Change creation
+- `osc-apply-change`: Implementation
 ```
 
 **Grouping rules**:
@@ -200,8 +200,8 @@ def update_skills_distributed(content, skill_name, new_description):
 
 | Command | Purpose |
 |----------|----------|
-| `openspec-maintain-ai-docs`: Maintain AGENTS.md and CLAUDE.md |
-| `openspec-new-skill`: Start a new OpenSpec change |
+| `osx-maintain-ai-docs`: Maintain AGENTS.md and CLAUDE.md |
+| `osc-new-change`: Start a new OpenSpec change |
 ```
 
 **Update command description**:
@@ -227,7 +227,7 @@ def update_skills_distributed(content, skill_name, new_description):
 
 Some changes should apply to both files:
 
-- Core framework skills (openspec-concepts, openspec-modify-artifact)
+- Core framework skills (osx-concepts, osx-modify-artifacts)
 - General utility skills
 - Project configuration changes
 
@@ -357,3 +357,9 @@ Before finalizing updates:
 2. Verify entry removed cleanly
 3. Verify no orphaned references remain
 4. Check formatting preserved
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-maintain-ai-docs/references/update-rules.md
+Regenerate: `mise run sync:mirrors`
+-->

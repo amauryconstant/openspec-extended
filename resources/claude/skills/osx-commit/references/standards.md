@@ -151,3 +151,9 @@ When detection fails, use Classic with:
 - Subject ≤50 chars, max 72
 - Body wrapped at 72 chars
 - Bullet points with `-`
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-commit/references/standards.md
+Regenerate: `mise run sync:mirrors`
+-->

@@ -1,0 +1,221 @@
+#!/usr/bin/env bash
+#MISE description="Generate resources/claude/{skills,commands}/ and claude/manifest.toml from resources/opencode/ via token substitution. Run after editing opencode resources. Use --check for CI to fail on drift."
+#USAGE flag "--check" help="Verify claude mirrors are in sync; exit non-zero on drift"
+
+set -euo pipefail
+
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+readonly OPENCODE_ROOT="$PROJECT_ROOT/resources/opencode"
+readonly CLAUDE_ROOT="$PROJECT_ROOT/resources/claude"
+
+CHECK_ONLY="false"
+[[ "${1:-}" == "--check" ]] && CHECK_ONLY="true"
+
+# Per-platform token values. Add new tokens here; both sides must declare them.
+# OpenCode (canonical source) ships these tokens literally in its files.
+# The script substitutes them when writing the Claude mirror.
+readonly TOKENS=(
+    "ASK_TOOL"
+    "DOCS_FILE"
+    "CMD_PREFIX"
+    "TOOL_NAME"
+    "PLATFORM_DIR"
+)
+
+# Claude-side substitution values. OpenCode files carry the tokens literally
+# ({{ASK_TOOL}}, etc.); the script substitutes them when writing the mirror.
+declare -A CD_VAL=(
+    [ASK_TOOL]="Ask"
+    [DOCS_FILE]="CLAUDE.md"
+    [CMD_PREFIX]="osx:"
+    [TOOL_NAME]="Claude Code"
+    [PLATFORM_DIR]=".claude"
+)
+
+# Header prepended to every generated file.
+readonly GEN_HEADER="# AUTO-GENERATED from opencode via \`mise run sync:mirrors\` — do not edit by hand."
+
+log_info() { printf '  -> %s\n' "$*"; }
+log_warn() { printf '  !! %s\n' "$*" >&2; }
+
+# Compute the claude-side path for a given opencode-side relative path.
+# Two layout differences:
+#   - commands/<X>.md (opencode) → commands/osx/<X-without-prefix>.md (claude)
+#   - everything else: same directory layout, just swap "opencode/" for "claude/"
+claude_path_for() {
+    local rel="$1"
+    local rel_no_oc="${rel#opencode/}"
+    case "$rel_no_oc" in
+        commands/osx-*.md)
+            local stem="${rel_no_oc#commands/osx-}"
+            printf '%s\n' "$CLAUDE_ROOT/commands/osx/${stem}"
+            ;;
+        *)
+            printf '%s\n' "$CLAUDE_ROOT/${rel_no_oc}"
+            ;;
+    esac
+}
+
+# Substitute every {{TOKEN}} in stdin and print the result to stdout.
+# The function takes the platform ("cd" for Claude) and looks up values
+# in the corresponding globals.
+substitute_tokens() {
+    local platform="$1"
+    local content
+    content=$(cat)
+    local tok val
+    for tok in "${TOKENS[@]}"; do
+        case "$platform" in
+            cd) val="${CD_VAL[$tok]:-}" ;;
+            *) printf 'Error: unknown platform %s\n' "$platform" >&2; return 1 ;;
+        esac
+        # Escape sed replacement: only & and \ need backslash-escaping in BRE.
+        val="${val//\\/\\\\}"
+        val="${val//&/\\&}"
+        content=$(printf '%s' "$content" | sed "s|{{${tok}}}|${val}|g")
+    done
+    printf '%s\n' "$content"
+}
+
+# Header lines for generated files. The marker is appended AFTER the
+# frontmatter so tools that read the file expecting it to start with `---`
+# (e.g. tests, validators) still see the frontmatter at the top.
+append_header() {
+    local rel="$1"
+    cat <<HDR
+
+<!--
+$GEN_HEADER
+Source: resources/opencode/$rel
+Regenerate: \`mise run sync:mirrors\`
+-->
+
+HDR
+}
+
+# Mirror one file from opencode to claude.
+# In --check mode, exits 1 if the destination would change.
+# In write mode, writes the destination if it would change.
+mirror_file() {
+    local rel="$1"
+    local src="$OPENCODE_ROOT/$rel"
+    local dst
+    dst=$(claude_path_for "$rel")
+
+    if [[ ! -f "$src" ]]; then
+        log_warn "source missing: $rel"
+        return 0
+    fi
+
+    # AGENTS.md files are platform-specific and hand-maintained. Skip.
+    case "$rel" in
+        */AGENTS.md) return 0 ;;
+    esac
+
+    local body_with_header
+    body_with_header=$( {
+        substitute_tokens cd < "$src"
+        append_header "$rel"
+    } )
+
+    local current=""
+    if [[ -f "$dst" ]]; then
+        current=$(cat "$dst")
+    fi
+
+    if [[ "$current" == "$body_with_header" ]]; then
+        return 0
+    fi
+
+    if [[ "$CHECK_ONLY" == "true" ]]; then
+        log_warn "DRIFT: resources/claude/${rel#opencode/}"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$dst")"
+    printf '%s\n' "$body_with_header" > "$dst"
+    log_info "wrote resources/claude/${rel#opencode/}"
+}
+
+# Mirror the manifest file. The manifest has no platform-specific content;
+# the opencode manifest is the canonical source.
+mirror_manifest() {
+    local src="$OPENCODE_ROOT/manifest.toml"
+    local dst="$CLAUDE_ROOT/manifest.toml"
+
+    if [[ ! -f "$src" ]]; then
+        log_warn "opencode manifest missing"
+        return 0
+    fi
+
+    # Manifest has no {{TOKENS}} by design; substitute is a no-op.
+    local generated
+    generated=$( {
+        substitute_tokens cd < "$src"
+        echo
+        echo "# AUTO-GENERATED from resources/opencode/manifest.toml via \`mise run sync:mirrors\`."
+        echo "# Regenerate: \`mise run sync:mirrors\`"
+    } )
+
+    local current=""
+    if [[ -f "$dst" ]]; then
+        current=$(cat "$dst")
+    fi
+
+    if [[ "$current" == "$generated" ]]; then
+        return 0
+    fi
+
+    if [[ "$CHECK_ONLY" == "true" ]]; then
+        log_warn "DRIFT: resources/claude/manifest.toml"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$dst")"
+    printf '%s\n' "$generated" > "$dst"
+    log_info "wrote resources/claude/manifest.toml"
+}
+
+main() {
+    if [[ ! -d "$OPENCODE_ROOT" ]]; then
+        echo "Error: opencode resources directory not found at $OPENCODE_ROOT" >&2
+        exit 1
+    fi
+
+    local drift=0
+
+    # Mirror all SKILL.md and references/*.md under skills/.
+    while IFS= read -r -d '' src; do
+        local rel="${src#"$OPENCODE_ROOT"/}"
+        mirror_file "$rel" || drift=1
+    done < <(find "$OPENCODE_ROOT/skills" \
+                \( -path "*/SKILL.md" -o -path "*/references/*.md" -o -path "*/scripts/*" \) \
+                -type f \
+                -print0 2>/dev/null)
+
+    # Mirror all command files.
+    while IFS= read -r -d '' src; do
+        local rel="${src#"$OPENCODE_ROOT"/}"
+        mirror_file "$rel" || drift=1
+    done < <(find "$OPENCODE_ROOT/commands" \
+                -type f -name "*.md" \
+                -print0 2>/dev/null)
+
+    # Mirror the manifest.
+    mirror_manifest || drift=1
+
+    if [[ "$CHECK_ONLY" == "true" ]]; then
+        if (( drift )); then
+            echo
+            echo "Mirror drift detected. Run: mise run sync:mirrors" >&2
+            exit 1
+        fi
+        echo "Mirror sync OK."
+        exit 0
+    fi
+
+    echo "Mirror sync complete."
+}
+
+main "$@"

@@ -83,6 +83,16 @@ with `RELEASE_ALLOW_BRANCH=true`).
 and gates staged changes to resource files and `install.sh`. `version:update`
 applies the bumps detected by `version:check`.
 
+**Resource mirrors** (owned by `mise run sync:mirrors` / `sync-mirrors --check`):
+- `resources/opencode/{skills,commands}/` is the canonical source for skills and commands.
+- `resources/claude/{skills,commands}/` is auto-generated from opencode via token substitution (defined in `.mise/tasks/sync-mirrors`).
+- `resources/opencode/manifest.toml` is the canonical manifest; `resources/claude/manifest.toml` is generated from it.
+- A pre-commit hook (`sync-mirrors-check`) fails the commit if the Claude mirror drifts.
+- `mise run sync-mirrors` regenerates the mirror after editing opencode files.
+- `mise run sync-mirrors --check` verifies without writing (used by CI and `mise run verify`).
+
+Shared references live once at `resources/opencode/skills/references/` (cross-cutting, no single owning resource) and are auto-mirrored. See `resources/opencode/skills/AGENTS.md` for the table.
+
 ### Testing
 
 ```bash

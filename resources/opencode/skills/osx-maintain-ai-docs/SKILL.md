@@ -1,6 +1,6 @@
 ---
 name: osx-maintain-ai-docs
-description: Update AGENTS.md after implementing an OpenSpec change. Use between sync and archive to document what was built for future OpenCode sessions.
+description: Update {{DOCS_FILE}} after implementing an OpenSpec change. Use between sync and archive to document what was built for future {{TOOL_NAME}} sessions.
 license: MIT
 ---
 
@@ -38,7 +38,7 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
     - Infer from conversation context if the user mentioned a change
     - Auto-select if only one active change exists
     - If ambiguous, run `openspec list --json` to get available changes.
-      Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question and use the first candidate. Otherwise, use the **AskUserQuestion tool** to let the user select
+      Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question and use the first candidate. Otherwise, use the **{{ASK_TOOL}} tool** to let the user select
 
 
    Always announce: "Using change: <name>" and how to override.
@@ -90,13 +90,13 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
 4. **Detect or create documentation file**
 
    ```bash
-   test -f AGENTS.md && echo "AGENTS.md found"
+   test -f {{DOCS_FILE}} && echo "{{DOCS_FILE}} found"
    ```
 
-   **If AGENTS.md doesn't exist**, create minimal documentation:
+   **If {{DOCS_FILE}} doesn't exist**, create minimal documentation:
 
    ```markdown
-   # Project - OpenCode Reference
+   # Project - {{TOOL_NAME}} Reference
 
    ## Quick Reference
 
@@ -121,10 +121,10 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
    - Identify sections to preserve
 
    **Warn if**:
-   - AGENTS.md > 300 lines
+   - {{DOCS_FILE}} > 300 lines
 
    **Error if**:
-   - AGENTS.md > 500 lines (split required before adding content)
+   - {{DOCS_FILE}} > 500 lines (split required before adding content)
 
 6. **Assess documentation needs**
 
@@ -165,7 +165,7 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
 
    **Progressive disclosure**:
    ```markdown
-   ✅ "See `src/auth/AGENTS.md` for auth patterns"
+   ✅ "See `src/auth/{{DOCS_FILE}}` for auth patterns"
    ❌ [500 lines of auth documentation embedded]
    ```
 
@@ -184,7 +184,7 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
    ## Documentation Updates: <change-name>
 
    **Current state**:
-   - AGENTS.md: 180 lines (~720 tokens)
+   - {{DOCS_FILE}}: 180 lines (~720 tokens)
 
    **Proposed changes**:
    - Add "Feature X" to Quick Reference (table format)
@@ -195,7 +195,7 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
     Apply these updates?
     ```
 
-    Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question and auto-accept. Otherwise, use **AskUserQuestion tool** to confirm before writing.
+    Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question and auto-accept. Otherwise, use **{{ASK_TOOL}} tool** to confirm before writing.
 
 9. **Write updates**
 
@@ -212,7 +212,7 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
 ## Documentation Created: <change-name>
 
 **File created**:
-- AGENTS.md (new, 45 lines)
+- {{DOCS_FILE}} (new, 45 lines)
 
 **Initial content**:
 - Quick Reference with detected commands
@@ -228,7 +228,7 @@ When invoked by `openspec-extended orchestrate`, `OSX_AUTONOMOUS=1` is set. In t
 ## Documentation Updated: <change-name>
 
 **File modified**:
-- AGENTS.md: +5 lines (180 → 185)
+- {{DOCS_FILE}}: +5 lines (180 → 185)
 
 **Changes applied**:
 - Added "Theme System" to Quick Reference
@@ -256,10 +256,10 @@ Ready to archive with `/osc-archive-change`.
 ```markdown
 ## Documentation Warning
 
-**AGENTS.md**: 420 lines (exceeds 300 line target)
+**{{DOCS_FILE}}**: 420 lines (exceeds 300 line target)
 
 Recommendations:
-1. Move detailed patterns to subdirectory AGENTS.md files
+1. Move detailed patterns to subdirectory {{DOCS_FILE}} files
 2. Use progressive disclosure (reference, don't embed)
 3. Convert verbose lists to tables
 

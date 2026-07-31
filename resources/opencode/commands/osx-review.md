@@ -24,19 +24,19 @@ commands act on the nearest local `openspec/` root.
 
 ## Input
 
-Optionally specify `[change-name] [artifact-id]` after `/osx-review`. If omitted, the agent will infer from context or prompt for selection.
+Optionally specify `[change-name] [artifact-id]` after `/{{CMD_PREFIX}}review`. If omitted, the agent will infer from context or prompt for selection.
 
 **Patterns**:
 | Input | Behavior |
 |-------|----------|
-| `/osx-review add-auth specs/auth` | Audit specific artifact in specific change |
-| `/osx-review add-auth` | Audit the entire change |
-| `/osx-review` | Infer from context or prompt |
+| `/{{CMD_PREFIX}}review add-auth specs/auth` | Audit specific artifact in specific change |
+| `/{{CMD_PREFIX}}review add-auth` | Audit the entire change |
+| `/{{CMD_PREFIX}}review` | Infer from context or prompt |
 
 ## Steps
 
 1. **Load the skill body**.
-   Read `.opencode/skills/osx-review-artifacts/SKILL.md` and follow the seven
+   Read `{{PLATFORM_DIR}}/skills/{{CMD_PREFIX}}review-artifacts/SKILL.md` and follow the seven
    steps in `## Workflow`. This command wraps that skill; do not duplicate
    rules here.
 
@@ -45,12 +45,12 @@ Optionally specify `[change-name] [artifact-id]` after `/osx-review`. If omitted
 ## Guardrails
 
 - **Read-only.** Never edit planning artifacts from inside this command. The
-  routed editor (`/osx-modify <name> <id>` for single-artifact defects;
+  routed editor (`/{{CMD_PREFIX}}modify <name> <id>` for single-artifact defects;
   `/opsx:update <name>` for multi-artifact drift) does the writing.
 - **No code edits.** Findings that imply code changes route to `/opsx:apply`.
 - **No hardcoded artifact names.** Read ids and paths from
   `openspec status --change <name> --json` and `openspec instructions --json`.
 - **Carry `--store <id>`** when the change is store-backed.
 
-See `.opencode/skills/osx-review-artifacts/SKILL.md` for the full contract,
+See `{{PLATFORM_DIR}}/skills/{{CMD_PREFIX}}review-artifacts/SKILL.md` for the full contract,
 output templates, and severity calibration.

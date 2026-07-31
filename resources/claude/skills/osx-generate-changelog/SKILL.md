@@ -215,9 +215,9 @@ Write to CHANGELOG.md? [Y/n]
 No changes found in `openspec/changes/archive/`.
 
 **To archive changes:**
-1. Complete implementation: `/osx:apply <name>`
-2. Verify implementation: `/osx:verify <name>`
-3. Archive the change: `/osx:archive <name>`
+1. Complete implementation: `/osc-apply-change <name>`
+2. Verify implementation: `/osc-verify-change <name>`
+3. Archive the change: `/osc-archive-change <name>`
 4. Re-run changelog generation: `/osx:changelog`
 ```
 
@@ -259,3 +259,9 @@ This skill does NOT automatically version - that's a manual release decision.
 - If proposal.md is missing, use design.md or tasks.md as fallback
 - Don't auto-version - that's a release-time decision
 - Sort entries within categories by date (newest first)
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-generate-changelog/SKILL.md
+Regenerate: `mise run sync:mirrors`
+-->

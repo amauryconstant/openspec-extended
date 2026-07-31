@@ -1,11 +1,15 @@
 ---
-name: osx-modify
 description: Surgical single-artifact edit with forward-only dependent propagation
 license: MIT
 allowed-tools: Bash(openspec:*)
-category: openspec-extended
-tags: [openspec-extended, workflow, schema-agnostic]
 ---
+
+## Tools Available
+
+| Tool | Type | Usage |
+|------|------|-------|
+| `openspec` | Upstream CLI | `openspec <command> [options]` — npm package |
+| `osx ctx` | Local script | `openspec-extended osx ctx get <change>` — load change context |
 
 Single-artifact surgical edit with forward-only `unlocks` propagation. For
 multi-artifact reconciliation, run `/opsx:update <name>` instead.
@@ -32,7 +36,7 @@ Positional `<change-name>` (required) and optional `<artifact-id>`. If
 ## Steps
 
 1. **Load the skill body**.
-   Read `.claude/skills/osx-modify-artifacts/SKILL.md` and follow the nine
+   Read `.claude/skills/osx:modify-artifacts/SKILL.md` and follow the nine
    steps in `## Workflow`. This command wraps that skill; do not duplicate
    rules here.
 
@@ -55,5 +59,11 @@ Positional `<change-name>` (required) and optional `<artifact-id>`. If
   the user confirms. Rejected revisions are left unchanged.
 - **Carry `--store <id>`** when the change is store-backed.
 
-See `.claude/skills/osx-modify-artifacts/SKILL.md` for the full contract,
+See `.claude/skills/osx:modify-artifacts/SKILL.md` for the full contract,
 intent-level change detection, and hand-off templates.
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/commands/osx-modify.md
+Regenerate: `mise run sync:mirrors`
+-->

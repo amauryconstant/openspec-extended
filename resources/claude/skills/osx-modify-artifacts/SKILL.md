@@ -70,8 +70,8 @@ Without a store, commands act on the nearest local `openspec/` root.
 
 Adopt the `openspec-update-change` policy: **never auto-select**. If the
 argument matches multiple active changes, mode check: if `OSX_AUTONOMOUS=1`
-is set in the environment, skip `AskUserQuestion` and use the most-recently
-modified active change. Otherwise, ask the user (use the **`Ask`** tool)
+is set in the environment, skip `Ask` and use the most-recently
+modified active change. Otherwise, ask the user (`Ask` / `**Ask**`)
 marked `(Recommended)`.
 
 ### Step 2 — Load schema state
@@ -142,7 +142,7 @@ artifact. Compose the proposal by:
 - Showing the diff (`file_path:line` ranges and the new content) inline.
 
 Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question
-and auto-accept. Otherwise, confirm with the **`Ask`** tool before writing.
+and auto-accept. Otherwise, confirm with `Ask` / `**Ask**` before writing.
 
 If the user rejects, leave the file untouched and exit. Do not cascade.
 
@@ -175,8 +175,8 @@ reject the request and route to `/opsx:update`.
 Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question
 and auto-accept. Otherwise, confirm every dependent proposal individually:
 
-- For each dependent: show the diff, propose the change with the **`Ask`**
-  tool, write only after confirmation.
+- For each dependent: show the diff, propose the change with `Ask`
+  / `**Ask**`, write only after confirmation.
 - Provide an explicit "cascade all" affordance: a single confirmation that
   then walks each dependent through its own confirmation in sequence.
 - A rejected dependent is left unchanged; remaining dependents are still
@@ -221,7 +221,7 @@ After all proposed edits are confirmed (or rejected), surface:
 - [ ] <dependent-id>: <rejected by user>
 
 ### Next steps
-- Re-review: `/osx-review <name>`
+- Re-review: `/osx:review <name>`
 - Multi-artifact drift: `/opsx:update <name>`
 - Code implications: `/opsx:apply <name>`
 ```
@@ -238,7 +238,7 @@ This is better handled by starting a fresh change.
 
 ### Recommendation
 - Start fresh: `/opsx:new <new-name>`
-- Or override: re-run `/osx-modify <name> <artifact-id>` and explicitly confirm the intent change.
+- Or override: re-run `/osx:modify <name> <artifact-id>` and explicitly confirm the intent change.
 ```
 
 ---
@@ -272,3 +272,9 @@ This is better handled by starting a fresh change.
   which dependent failed, leave prior confirmed writes in place.
 - **`actionContext.allowedEditRoots` is empty** — refuse with a clear
   message and recommend `/opsx:update` (which validates its own context).
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-modify-artifacts/SKILL.md
+Regenerate: `mise run sync:mirrors`
+-->

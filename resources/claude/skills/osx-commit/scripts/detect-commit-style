@@ -32,3 +32,9 @@ elif [[ $classic -ge $MIN_MATCHES ]]; then
 else
     echo "UNKNOWN (fallback: CLASSIC)"
 fi
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-commit/scripts/detect-commit-style
+Regenerate: `mise run sync:mirrors`
+-->

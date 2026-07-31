@@ -245,3 +245,9 @@ For migration instructions, see [Migration Guide](docs/migration-v1-to-v2.md).
 - [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - [Semantic Versioning](https://semver.org/)
 - [Conventional Commits](https://www.conventionalcommits.org/) - Alternative approach
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-generate-changelog/references/changelog-format.md
+Regenerate: `mise run sync:mirrors`
+-->

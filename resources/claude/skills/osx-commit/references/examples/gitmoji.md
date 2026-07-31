@@ -106,3 +106,9 @@ Migration deadline: 2024-03-01
 ❌ ✨ Add feature. (period at end)
 ❌ 🐛 Fix stuff (too vague)
 ```
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-commit/references/examples/gitmoji.md
+Regenerate: `mise run sync:mirrors`
+-->

@@ -26,7 +26,7 @@ No arguments required. The AI will guide you through scope selection.
 
 2. **Prompt for scope selection**
 
-   If multiple archived changes exist, use **AskUserQuestion** to ask:
+   If multiple archived changes exist, use **{{ASK_TOOL}}** to ask:
    - All archived changes
    - Changes since a specific date
    - Specific changes by name
@@ -77,7 +77,7 @@ No arguments required. The AI will guide you through scope selection.
    - Categorization summary (X Added, Y Changed, Z Fixed)
    - Preview of generated entries
 
-   Use **AskUserQuestion** to confirm before writing.
+   Use **{{ASK_TOOL}}** to confirm before writing.
 
 7. **Update or create CHANGELOG.md**
 
@@ -132,4 +132,4 @@ No arguments required. The AI will guide you through scope selection.
 
 ---
 
-See `.opencode/skills/osx-generate-changelog/SKILL.md` for detailed categorization algorithm and version management.
+See `{{PLATFORM_DIR}}/skills/osx-generate-changelog/SKILL.md` for detailed categorization algorithm and version management.

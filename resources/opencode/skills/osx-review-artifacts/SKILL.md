@@ -4,6 +4,9 @@ description: Schema-driven audit of planning artifacts before implementation. Va
 license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
+metadata:
+  audience: agents running pre-implementation artifact review (PHASE0, ad-hoc /{{CMD_PREFIX}}review)
+  workflow: pre-implementation — between artifact creation and /opsx:apply
 ---
 
 # osx-review-artifacts
@@ -16,12 +19,12 @@ Adopted verbatim from core's `openspec-update-change` (`/opsx:update`):
 
 - Schema is the source of truth. No hardcoded artifact names.
 - Glob safety: write only to `existingOutputPaths`; never to a glob `resolvedOutputPath`.
-- Read-only by design: any edit handoff points the user at `/osx-modify` or `/opsx:update`.
+- Read-only by design: any edit handoff points the user at `/{{CMD_PREFIX}}modify` or `/opsx:update`.
 - Per-edit confirmation and severity calibration belong to the editing skills, not here.
 
 This skill sits in the pre-implementation workflow between artifact creation
 (`/opsx:continue`, `/opsx:propose`, `/opsx:ff`) and implementation (`/opsx:apply`).
-Use it standalone via `/osx-review <change>` or as part of PHASE0.
+Use it standalone via `/{{CMD_PREFIX}}review <change>` or as part of PHASE0.
 
 ---
 
@@ -57,7 +60,7 @@ Without a store, commands act on the nearest local `openspec/` root.
 
 Adopt the `openspec-update-change` policy: **never auto-select**. If the
 argument is missing or matches more than one active change, ask the user
-to choose (use `AskUserQuestion` / `**Ask**`). Mark the most-recently
+to choose (use `{{ASK_TOOL}}` / `**Ask**`). Mark the most-recently
 modified active change as `(Recommended)`.
 
 List candidates with:
@@ -173,7 +176,7 @@ for the aggregate finding set, following this matrix:
 
 | Finding pattern | Recommended route |
 |---|---|
-| Single-artifact defect (1 artifact, format/content) | `/osx-modify <name> <artifact-id>` |
+| Single-artifact defect (1 artifact, format/content) | `/{{CMD_PREFIX}}modify <name> <artifact-id>` |
 | Multi-artifact coherence drift (≥2 artifacts OR any coherence-level finding) | `/opsx:update <name>` |
 | Missing artifact (referenced but not created) | `/opsx:continue <name>` |
 | All clean, pre-impl (PHASE0) | `/opsx:apply <name>` (hand off to implementation) |
@@ -197,14 +200,14 @@ route so the user or the next orchestrator step can act.
 ### <Severity> findings
 - **<artifact-id>:<file:line>**: <issue>
   - Fix: <concrete fix>
-  - Route: </osx-modify|/opsx:update|/opsx:continue|/opsx:apply|/opsx:new> <name> [<artifact-id>]
+  - Route: </{{CMD_PREFIX}}modify|/opsx:update|/opsx:continue|/opsx:apply|/opsx:new> <name> [<artifact-id>]
 
 ### Routing recommendation
 <single sentence picking ONE of the routes from §Step 7>
 
 ### Next steps
 - Address findings via the routed command above.
-- Re-run review after fixes: `/osx-review <name>`
+- Re-run review after fixes: `/{{CMD_PREFIX}}review <name>`
 ```
 
 ### All checks passed
@@ -227,7 +230,7 @@ route so the user or the next orchestrator step can act.
 ## Guardrails
 
 - **Read-only.** This skill emits findings; it never edits artifacts. The user
-  (or a follow-up `/osx-modify` or `/opsx:update` invocation) writes.
+  (or a follow-up `/{{CMD_PREFIX}}modify` or `/opsx:update` invocation) writes.
 - **No code edits.** If a finding implies code changes — for instance, a
   proposal that discovered the implementation contract is wrong — do not
   invent code diffs. Surface the issue and route the user to `/opsx:apply`.

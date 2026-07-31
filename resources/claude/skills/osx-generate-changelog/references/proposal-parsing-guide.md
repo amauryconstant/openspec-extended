@@ -309,28 +309,28 @@ Add user authentication with OAuth2 support:
 
 ## Integration with Other Skills
 
-### Using openspec-explore
+### Using osc-explore
 
 Before generating changelog, user may want to explore context:
 
 ```bash
 # Understand recent changes
-openspec-explore "What were the main changes in Q1 2026?"
+osc-explore "What were the main changes in Q1 2026?"
 
 # Then generate changelog
-openspec-generate-changelog --since 2026-01-01 --until 2026-03-31
+osx-generate-changelog --since 2026-01-01 --until 2026-03-31
 ```
 
-### Using openspec-verify
+### Using osc-verify-change
 
 Verify changes are complete before changelog:
 
 ```bash
 # Verify implementation
-openspec-verify <change-name>
+osc-verify-change <change-name>
 
 # Then generate changelog for verified changes
-openspec-generate-changelog --changes <verified-changes>
+osx-generate-changelog --changes <verified-changes>
 ```
 
 ## Error Handling
@@ -380,3 +380,9 @@ def validate_proposal_structure(content):
 5. **Group related changes**: Multiple bullets about one feature → single entry
 6. **Include migration links**: For breaking changes, link to migration guide
 7. **Version appropriately**: Use semantic versioning based on change impact
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-generate-changelog/references/proposal-parsing-guide.md
+Regenerate: `mise run sync:mirrors`
+-->

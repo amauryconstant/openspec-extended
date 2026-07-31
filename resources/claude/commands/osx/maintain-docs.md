@@ -3,7 +3,7 @@ description: Update AGENTS.md and CLAUDE.md after implementing an OpenSpec chang
 license: MIT
 ---
 
-Update project documentation after implementing an OpenSpec change. Runs after `/osx:sync` and before `/osx:archive`.
+Update project documentation after implementing an OpenSpec change. Runs after `/osc-sync-specs` and before `/osc-archive-change`.
 
 **Input**: Optionally specify a change name. If omitted, infer from context or prompt for selection.
 
@@ -64,7 +64,7 @@ Update project documentation after implementing an OpenSpec change. Runs after `
 - Added "Feature X" to Quick Reference
 - Added pattern for Y
 
-**Next step**: Ready to archive with `/osx:archive`.
+**Next step**: Ready to archive with `/osc-archive-change`.
 ```
 
 **Guardrails**
@@ -77,8 +77,14 @@ Update project documentation after implementing an OpenSpec change. Runs after `
 
 ---
 
-See `.claude/skills/openspec-maintain-ai-docs/SKILL.md` for:
+See `.claude/skills/osx-maintain-ai-docs/SKILL.md` for:
 - Core principles (conciseness, progressive disclosure)
 - Best practices for documentation updates
 - Anti-patterns to avoid
 - Effectiveness indicators
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/commands/osx-maintain-docs.md
+Regenerate: `mise run sync:mirrors`
+-->

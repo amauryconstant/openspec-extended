@@ -106,3 +106,9 @@ Fixes #456
 ❌ feat add feature (no colon)
 ❌ feature: add something (invalid type)
 ```
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-commit/references/examples/conventional.md
+Regenerate: `mise run sync:mirrors`
+-->

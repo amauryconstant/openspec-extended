@@ -1,10 +1,7 @@
 ---
-name: osx-verify-tests
 description: Review test coverage for OpenSpec changes to ensure spec requirements have tests
 license: MIT
 allowed-tools: Bash(openspec:*)
-category: openspec-extended
-tags: [openspec-extended, workflow, testing]
 ---
 
 Review test coverage for OpenSpec changes, ensuring spec requirements have corresponding tests.
@@ -153,4 +150,10 @@ Optionally specify `[change-name]` after `/osx:verify-tests`. If omitted, the AI
 
 ---
 
-See `.claude/skills/openspec-review-test-compliance/SKILL.md` for detailed semantic matching and gap analysis methodology.
+See `.claude/skills/osx:review-test-compliance/SKILL.md` for detailed semantic matching and gap analysis methodology.
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/commands/osx-verify-tests.md
+Regenerate: `mise run sync:mirrors`
+-->

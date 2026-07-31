@@ -12,7 +12,7 @@ Review test coverage for OpenSpec changes, ensuring spec requirements have corre
 
 ## Input
 
-Optionally specify `[change-name]` after `/osx-verify-tests`. If omitted, the AI will infer from context or prompt for selection.
+Optionally specify `[change-name]` after `/{{CMD_PREFIX}}verify-tests`. If omitted, the AI will infer from context or prompt for selection.
 
 ---
 
@@ -23,7 +23,7 @@ Optionally specify `[change-name]` after `/osx-verify-tests`. If omitted, the AI
    If name provided: use it. Otherwise:
    - Infer from conversation context
    - Auto-select if only one active change
-   - If ambiguous: run `openspec list --json` and use **AskUserQuestion** to prompt
+   - If ambiguous: run `openspec list --json` and use **{{ASK_TOOL}}** to prompt
 
    Announce: "Reviewing tests for change: <name>" and how to override.
 
@@ -101,7 +101,7 @@ Optionally specify `[change-name]` after `/osx-verify-tests`. If omitted, the AI
 
 8. **Generate report**
 
-   Ask user for confirmation using **AskUserQuestion** before saving.
+   Ask user for confirmation using **{{ASK_TOOL}}** before saving.
 
    Default output: `openspec/changes/<name>/test-compliance-report.md`
 
@@ -150,4 +150,4 @@ Optionally specify `[change-name]` after `/osx-verify-tests`. If omitted, the AI
 
 ---
 
-See `.opencode/skills/osx-review-test-compliance/SKILL.md` for detailed semantic matching and gap analysis methodology.
+See `{{PLATFORM_DIR}}/skills/{{CMD_PREFIX}}review-test-compliance/SKILL.md` for detailed semantic matching and gap analysis methodology.

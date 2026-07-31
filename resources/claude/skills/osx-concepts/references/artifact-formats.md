@@ -367,3 +367,9 @@ rules:
 - `references/cli-reference.md` - CLI commands for status and instructions
 - `../osx-workflow/references/autonomous-workflow.md` - Workflow lifecycle details
 - `references/change-guidance.md` - When to update vs. start fresh
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-concepts/references/artifact-formats.md
+Regenerate: `mise run sync:mirrors`
+-->

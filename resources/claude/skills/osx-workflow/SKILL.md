@@ -404,3 +404,9 @@ For framework-level edge cases (missing CLI on the user's machine, choosing the 
 3. Using `git commit --no-verify` to bypass pre-commit hooks
 4. Calling `osx state complete` for PHASE6 (PHASE6 detects completion via archive dir, not state)
 5. Setting `complete.json` for issues that are actually fixable in the current phase |
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-workflow/SKILL.md
+Regenerate: `mise run sync:mirrors`
+-->

@@ -173,10 +173,10 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 3. Add test `TestSessionTimeout()` to cover session timeout
 4. Document orphaned tests `TestHelperFunction` as utility functions
 
-### Next steps
+### Next Steps
 - Address gaps: Add recommended tests
 - Re-run compliance: `/osx:verify-tests <name>`
-- Verify implementation: `/opsx:verify <name>`
+- Verify implementation: `/osc-verify <name>`
 ```
 
 **Quick Summary** (for clean changes):
@@ -190,7 +190,7 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 - All scenarios have corresponding tests
 - 0 coverage gaps
 
-Ready to verify: `/opsx:verify <name>`
+Ready to verify: `/osc-verify <name>`
 ```
 
 ---
@@ -225,3 +225,9 @@ Use these patterns when analyzing test-to-spec correspondence:
 - Don't require 100% coverage - focus on critical path scenarios
 - Confidence scores are subjective - explain reasoning
 - If no tests exist, report that clearly rather than failing
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-review-test-compliance/SKILL.md
+Regenerate: `mise run sync:mirrors`
+-->

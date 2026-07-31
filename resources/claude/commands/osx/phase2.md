@@ -1,10 +1,6 @@
 ---
-name: osx-phase2
 description: PHASE2 - Review
-category: openspec-orchestrator
-tags: [openspec-extended, autonomous, orchestrator]
-license: MIT
-allowed-tools: Bash(openspec:*)
+agent: osx-reviewer
 ---
 
 > **Phase name**: the engine's canonical phase name is `REVIEW`; the skill loaded in this phase is `osc-verify-change` (still often called "Verification"). Both names refer to PHASE2. See `osx-workflow` §2 for the full cross-reference.
@@ -225,3 +221,9 @@ When passing free-text to `--summary`, `--next-steps`, or any other shell argume
 - Markdown `code` (which uses backticks in raw form, NOT shell backticks) — fine only when the argument is not passed through a shell
 
 If `osx log append` returns `input_too_long` or `input_tainted`, remove the backticks from the offending argument and retry.
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/commands/osx-phase2.md
+Regenerate: `mise run sync:mirrors`
+-->

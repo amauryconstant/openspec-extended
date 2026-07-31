@@ -297,3 +297,9 @@ When you realize you've made a mistake:
 - Main skill: `../SKILL.md`
 - `references/cli-reference.md` - CLI commands for status and instructions
 - `references/change-guidance.md` - When to update vs. start fresh
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-concepts/references/anti-patterns.md
+Regenerate: `mise run sync:mirrors`
+-->

@@ -4,6 +4,9 @@ description: Analyze spec-to-test alignment for OpenSpec changes. Use after impl
 license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
+metadata:
+  audience: agents running post-implementation spec-to-test alignment review (PHASE1 end, ad-hoc /{{CMD_PREFIX}}verify-tests)
+  workflow: post-implementation — after `osc-apply-change` and before `osc-verify-change`
 ---
 
 Analyze spec-to-test alignment to identify missing test coverage for OpenSpec changes.
@@ -19,7 +22,7 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 **Arguments**: `[change-name]`
 
 **Examples**:
-- `/osx-verify-tests add-auth` - Analyze test coverage for "add-auth"
+- `/{{CMD_PREFIX}}verify-tests add-auth` - Analyze test coverage for "add-auth"
 - "Check test coverage" - Infer change from context
 
 ---
@@ -172,7 +175,7 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 
 ### Next Steps
 - Address gaps: Add recommended tests
-- Re-run compliance: `/osx-verify-tests <name>`
+- Re-run compliance: `/{{CMD_PREFIX}}verify-tests <name>`
 - Verify implementation: `/osc-verify <name>`
 ```
 

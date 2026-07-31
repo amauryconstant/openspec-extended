@@ -18,6 +18,7 @@ postinstall = ["mise run sync-core", "uv sync --all-extras"]
 description = "Ensure the quality of the project"
 depends = ["build --log-level FATAL"]
 run = [
+    { task = "sync-mirrors --check" },
     { task = "typecheck" },
     { task = "format" },
     { task = "lint" },
@@ -66,7 +67,7 @@ run = "bats tests/e2e/full-workflow.bats"
 description = "Lint Python files with ruff, shellcheck on bash tasks"
 run = [
     "ruff check --fix -q source/",
-    "shellcheck -x .mise/tasks/release .mise/tasks/sync-core .mise/tasks/version/check .mise/tasks/version/update .mise/tasks/version/lib/*.sh install.sh",
+    "shellcheck -x .mise/tasks/release .mise/tasks/sync-core .mise/tasks/sync-mirrors .mise/tasks/version/check .mise/tasks/version/update .mise/tasks/version/lib/*.sh install.sh",
 ]
 
 [tasks.format]

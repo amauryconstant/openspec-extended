@@ -8,19 +8,19 @@ version = "0.9.4"
 version = "0.3.4"
 
 [resources.skills.osx-generate-changelog]
-version = "0.2.3"
+version = "0.2.4"
 
 [resources.skills.osx-maintain-ai-docs]
-version = "0.2.3"
+version = "0.2.4"
 
 [resources.skills.osx-modify-artifacts]
-version = "0.3.1"
+version = "0.3.2"
 
 [resources.skills.osx-review-artifacts]
-version = "0.3.0"
+version = "0.3.1"
 
 [resources.skills.osx-review-test-compliance]
-version = "0.2.3"
+version = "0.2.4"
 
 [resources.agents.osx-analyzer]
 version = "0.2.3"
@@ -35,13 +35,13 @@ version = "0.2.3"
 version = "0.1.0"
 
 [resources.commands.osx-changelog]
-version = "0.1.1"
+version = "0.1.2"
 
 [resources.commands.osx-maintain-docs]
-version = "0.2.2"
+version = "0.2.3"
 
 [resources.commands.osx-modify]
-version = "0.2.0"
+version = "0.2.1"
 
 [resources.commands.osx-phase0]
 version = "0.3.1"
@@ -65,7 +65,7 @@ version = "0.3.5"
 version = "0.3.8"
 
 [resources.commands.osx-review]
-version = "0.2.0"
+version = "0.2.1"
 
 [resources.commands.osx-verify-tests]
-version = "0.1.2"
+version = "0.1.3"

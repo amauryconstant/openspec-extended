@@ -9,7 +9,7 @@ Update project documentation after implementing an OpenSpec change. Runs after `
 
 **Steps**
 
-1. **Select the change** - Infer from context, auto-select if only one active, or prompt with **AskUserQuestion tool**
+1. **Select the change** - Infer from context, auto-select if only one active, or prompt with **{{ASK_TOOL}} tool**
 
 2. **Read change artifacts** from `openspec/changes/<name>/`:
    - `proposal.md` - Intent, scope, new capabilities
@@ -47,7 +47,7 @@ Update project documentation after implementing an OpenSpec change. Runs after `
    - Progressive disclosure (reference, don't embed)
    - Cut generic advice
 
-8. **Show proposal and confirm** with **AskUserQuestion tool**
+8. **Show proposal and confirm** with **{{ASK_TOOL}} tool**
 
 9. **Write updates** - Preserve structure, sync both platforms
 
@@ -77,7 +77,7 @@ Update project documentation after implementing an OpenSpec change. Runs after `
 
 ---
 
-See `.opencode/skills/osx-maintain-ai-docs/SKILL.md` for:
+See `{{PLATFORM_DIR}}/skills/osx-maintain-ai-docs/SKILL.md` for:
 - Core principles (conciseness, progressive disclosure)
 - Best practices for documentation updates
 - Anti-patterns to avoid

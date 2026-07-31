@@ -95,3 +95,9 @@ After drafting, verify message matches detected standard:
 | Angular | `^(build|ci|docs|feat|fix|perf|refactor|test)\([a-z-]+\):\s.+` |
 | Gitmoji | `^[\x{1F300}-\x{1F9FF}]\s.+` |
 | Classic | `^[A-Z][a-z]+\s.+[^.]$` |
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-commit/references/detection.md
+Regenerate: `mise run sync:mirrors`
+-->

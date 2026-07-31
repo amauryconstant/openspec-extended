@@ -51,7 +51,7 @@ Project-level documentation for OpenSpec-extended. Serves as:
 
 ```bash
 # Example test command
-./bin/openspecx init claude
+./bin/openspecx install claude
 ```
 
 ---
@@ -148,9 +148,9 @@ Patterns unique to Claude Code development
 **Format**:
 ```markdown
 **Skills Distributed**:
-- `openspec-concepts`: Teaches AI agents about OpenSpec framework
-- `openspec-modify-artifact`: Modifies OpenSpec artifacts with dependency tracking
-- `openspec-review-artifacts`: Reviews OpenSpec artifacts for quality
+- `osx-concepts`: Teaches AI agents about OpenSpec framework
+- `osx-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
+- `osx-review-artifacts`: Reviews OpenSpec artifacts for quality
 ```
 
 **Entry format**:
@@ -168,8 +168,8 @@ Patterns unique to Claude Code development
 
 | Command | Purpose |
 |----------|----------|
-| `openspecx init claude` | Install skills to `.claude/skills/` |
-| `openspecx init opencode` | Install skills to `.opencode/skills/` |
+| `openspecx install claude` | Install skills to `.claude/skills/` |
+| `openspecx install opencode` | Install skills to `.opencode/skills/` |
 ```
 
 **Properties**:
@@ -280,3 +280,9 @@ For CLAUDE.md:
 - Skill entries use consistent bullet style (- or *)
 - Tables have proper syntax (| separators)
 - No trailing whitespace
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-maintain-ai-docs/references/doc-structures.md
+Regenerate: `mise run sync:mirrors`
+-->

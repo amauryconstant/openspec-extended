@@ -1,9 +1,6 @@
 ---
-name: osx-phase5
 description: PHASE5 - Self-Reflection
-category: openspec-orchestrator
-tags: [openspec-extended, autonomous, orchestrator]
-license: MIT
+agent: osx-reviewer
 ---
 
 ## Tools Available
@@ -177,3 +174,9 @@ When passing free-text to `--summary`, `--next-steps`, or any other shell argume
 - Markdown `code` (which uses backticks in raw form, NOT shell backticks) — fine only when the argument is not passed through a shell
 
 If `osx log append` returns `input_too_long` or `input_tainted`, remove the backticks from the offending argument and retry.
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/commands/osx-phase5.md
+Regenerate: `mise run sync:mirrors`
+-->

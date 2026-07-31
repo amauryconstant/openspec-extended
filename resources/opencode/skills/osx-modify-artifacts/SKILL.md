@@ -4,6 +4,9 @@ description: Surgical single-artifact edit with forward-only dependent propagati
 license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
+metadata:
+  audience: agents making single-artifact edits before implementation (PHASE0 fallback, ad-hoc /{{CMD_PREFIX}}modify)
+  workflow: pre-implementation — surgical edit; multi-artifact drift routes to /opsx:update
 ---
 
 # osx-modify-artifacts
@@ -25,7 +28,7 @@ Adopted verbatim from core's `openspec-update-change` (`/opsx:update`):
 - Per-edit confirmation. Rejected revisions are left unchanged.
 - Severity calibration does not apply (this skill makes edits, not findings).
 
-Triggered by `/osx-modify <change> [artifact-id]` or as a routing target from
+Triggered by `/{{CMD_PREFIX}}modify <change> [artifact-id]` or as a routing target from
 `osx-review-artifacts`. Multi-artifact drift is out of scope — route to
 `/opsx:update` instead.
 
@@ -67,8 +70,8 @@ Without a store, commands act on the nearest local `openspec/` root.
 
 Adopt the `openspec-update-change` policy: **never auto-select**. If the
 argument matches multiple active changes, mode check: if `OSX_AUTONOMOUS=1`
-is set in the environment, skip `AskUserQuestion` and use the most-recently
-modified active change. Otherwise, ask the user (`AskUserQuestion` / `**Ask**`)
+is set in the environment, skip `{{ASK_TOOL}}` and use the most-recently
+modified active change. Otherwise, ask the user (`{{ASK_TOOL}}` / `**Ask**`)
 marked `(Recommended)`.
 
 ### Step 2 — Load schema state
@@ -81,7 +84,7 @@ Capture `schemaName`, `planningHome`, `changeRoot`, every
 `artifactPaths.<id>`, and `actionContext.allowedEditRoots`. Reject the request
 if the change's `allowedEditRoots` does not include the current project root.
 
-> **v1.7.0 contract**: also capture `artifacts[].requires` per artifact. The root's `requires` list enumerates the artifacts that **must not** be edited here (`/osx-modify` is forward-only); `unlocks` from `instructions` covers the forward direction.
+> **v1.7.0 contract**: also capture `artifacts[].requires` per artifact. The root's `requires` list enumerates the artifacts that **must not** be edited here (`/{{CMD_PREFIX}}modify` is forward-only); `unlocks` from `instructions` covers the forward direction.
 
 ### Step 3 — Select the root artifact
 
@@ -112,7 +115,7 @@ Capture `template`, `instruction`, `context`, `rules`, `dependencies[]`,
 that is still a pattern).
 
 Stop if `existingOutputPaths` is empty. That means the artifact has not been
-created yet — `/osx-modify` cannot create it; route the user to
+created yet — `/{{CMD_PREFIX}}modify` cannot create it; route the user to
 `/opsx:continue`.
 
 ### Step 5 — Surface constraints
@@ -139,7 +142,7 @@ artifact. Compose the proposal by:
 - Showing the diff (`file_path:line` ranges and the new content) inline.
 
 Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question
-and auto-accept. Otherwise, confirm with `AskUserQuestion` / `**Ask**` before writing.
+and auto-accept. Otherwise, confirm with `{{ASK_TOOL}}` / `**Ask**` before writing.
 
 If the user rejects, leave the file untouched and exit. Do not cascade.
 
@@ -172,7 +175,7 @@ reject the request and route to `/opsx:update`.
 Mode check: if `OSX_AUTONOMOUS=1` is set in the environment, skip this question
 and auto-accept. Otherwise, confirm every dependent proposal individually:
 
-- For each dependent: show the diff, propose the change with `AskUserQuestion`
+- For each dependent: show the diff, propose the change with `{{ASK_TOOL}}`
   / `**Ask**`, write only after confirmation.
 - Provide an explicit "cascade all" affordance: a single confirmation that
   then walks each dependent through its own confirmation in sequence.
@@ -218,7 +221,7 @@ After all proposed edits are confirmed (or rejected), surface:
 - [ ] <dependent-id>: <rejected by user>
 
 ### Next steps
-- Re-review: `/osx-review <name>`
+- Re-review: `/{{CMD_PREFIX}}review <name>`
 - Multi-artifact drift: `/opsx:update <name>`
 - Code implications: `/opsx:apply <name>`
 ```
@@ -235,7 +238,7 @@ This is better handled by starting a fresh change.
 
 ### Recommendation
 - Start fresh: `/opsx:new <new-name>`
-- Or override: re-run `/osx-modify <name> <artifact-id>` and explicitly confirm the intent change.
+- Or override: re-run `/{{CMD_PREFIX}}modify <name> <artifact-id>` and explicitly confirm the intent change.
 ```
 
 ---

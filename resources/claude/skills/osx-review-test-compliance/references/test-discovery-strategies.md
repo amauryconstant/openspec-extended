@@ -45,21 +45,21 @@ find . -type f \( -name "*_test.go" -o -name "*_test.py" -o -name "*.test.ts" -o
 
 ```bash
 # Specify test directory
-openspec-review-test-compliance --test-dir ./tests
+osx-review-test-compliance --test-dir ./tests
 ```
 
 ### Custom Pattern
 
 ```bash
 # Use custom glob pattern
-openspec-review-test-compliance --test-pattern "**/*_spec.go"
+osx-review-test-compliance --test-pattern "**/*_spec.go"
 ```
 
 ### Multiple Sources
 
 ```bash
 # Search multiple directories
-openspec-review-test-compliance --test-dir src/tests --test-dir lib/tests
+osx-review-test-compliance --test-dir src/tests --test-dir lib/tests
 ```
 
 ## Using openspec config.yaml
@@ -262,3 +262,9 @@ rm .test_cache.json
 5. **Cache wisely**: For large codebases, cache discovery results
 6. **Exclude appropriately**: vendor/, node_modules/, build artifacts
 7. **Multi-language support**: Handle mixed-language projects
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-review-test-compliance/references/test-discovery-strategies.md
+Regenerate: `mise run sync:mirrors`
+-->

@@ -1,10 +1,6 @@
 ---
-name: osx-phase0
 description: PHASE0 - Artifact Review (read-only audit + routing; do not edit here)
-category: openspec-orchestrator
-tags: [openspec-extended, autonomous, orchestrator]
-license: MIT
-allowed-tools: Bash(openspec:*)
+agent: osx-analyzer
 ---
 
 ## Tools Available
@@ -151,3 +147,9 @@ When passing free-text to `--summary`, `--next-steps`, or any other shell argume
 - Markdown `code` (which uses backticks in raw form, NOT shell backticks) — fine only when the argument is not passed through a shell
 
 If `osx log append` returns `input_too_long` or `input_tainted`, remove the backticks from the offending argument and retry.
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/commands/osx-phase0.md
+Regenerate: `mise run sync:mirrors`
+-->

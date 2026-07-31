@@ -13,7 +13,9 @@ manifest_path_for_platform() {
 }
 
 # Parse resource info (type:name) from a staged file path.
-# Returns "type:name" on stdout, empty on miss.
+# Returns "type:name" on stdout, returns 1 on miss.
+# Shared references under skills/references/ are cross-cutting (no single
+# owning resource); return 1 so version:check skips them.
 resource_info_from_path() {
     local file_path="$1"
     local parts
@@ -28,9 +30,20 @@ resource_info_from_path() {
     if (( idx < 0 )) || (( ${#parts[@]} <= idx + 3 )); then
         return 1
     fi
+    # Shared references: resources/<platform>/skills/references/<name>.md.
+    # Skip these — they don't map to a single resource in the manifest.
+    if [[ "${parts[$idx + 2]}" == "skills" \
+            && "${parts[$idx + 3]}" == "references" ]]; then
+        return 1
+    fi
     local resource_type="${parts[$idx + 2]}"
     local resource_name
-    if (( ${#parts[@]} > idx + 4 )) && [[ "${parts[$idx + 4]}" == *".md" ]] \
+    # Skill files: the directory is the resource, not the file. Treat
+    # `skills/<name>/SKILL.md` as the resource `skills/<name>`.
+    if [[ "${parts[$idx + 2]}" == "skills" ]] \
+            && [[ "${parts[$idx + 4]}" == "SKILL.md" ]]; then
+        resource_name="${parts[$idx + 3]}"
+    elif (( ${#parts[@]} > idx + 4 )) && [[ "${parts[$idx + 4]}" == *".md" ]] \
             && [[ "${parts[$idx + 3]}" != *".md" ]]; then
         resource_name="${parts[$idx + 3]}-${parts[$idx + 4]%.md}"
     else

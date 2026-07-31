@@ -595,3 +595,9 @@ Thin wrapper around `openspec instructions` for use from `osx` workflows.
 - `../osx-workflow/references/autonomous-workflow.md` — phase protocols and orchestrator state
 - `references/artifact-formats.md` — artifact structure and templates
 - `research/openspec-cli.md` — upstream CLI reference (project-level, may be older)
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-concepts/references/cli-reference.md
+Regenerate: `mise run sync:mirrors`
+-->

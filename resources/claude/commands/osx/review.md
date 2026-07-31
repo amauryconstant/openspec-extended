@@ -1,11 +1,15 @@
 ---
-name: osx-review
 description: Schema-driven pre-implementation artifact audit (read-only) plus routing to the right editor
 license: MIT
 allowed-tools: Bash(openspec:*)
-category: openspec-extended
-tags: [openspec-extended, workflow, schema-agnostic]
 ---
+
+## Tools Available
+
+| Tool | Type | Usage |
+|------|------|-------|
+| `openspec` | Upstream CLI | `openspec <command> [options]` — npm package |
+| `osx ctx` | Local script | `openspec-extended osx ctx get <change>` — load change context |
 
 Schema-driven, **read-only** audit of planning artifacts in a change. Emits a
 routing report; never edits files. Editors (`osx-modify-artifacts` or
@@ -32,7 +36,7 @@ Optionally specify `[change-name] [artifact-id]` after `/osx:review`. If omitted
 ## Steps
 
 1. **Load the skill body**.
-   Read `.claude/skills/osx-review-artifacts/SKILL.md` and follow the seven
+   Read `.claude/skills/osx:review-artifacts/SKILL.md` and follow the seven
    steps in `## Workflow`. This command wraps that skill; do not duplicate
    rules here.
 
@@ -48,5 +52,11 @@ Optionally specify `[change-name] [artifact-id]` after `/osx:review`. If omitted
   `openspec status --change <name> --json` and `openspec instructions --json`.
 - **Carry `--store <id>`** when the change is store-backed.
 
-See `.claude/skills/osx-review-artifacts/SKILL.md` for the full contract,
+See `.claude/skills/osx:review-artifacts/SKILL.md` for the full contract,
 output templates, and severity calibration.
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/commands/osx-review.md
+Regenerate: `mise run sync:mirrors`
+-->

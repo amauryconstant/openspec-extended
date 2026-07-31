@@ -139,13 +139,15 @@ class TestCommandFrontmatter:
 
     def test_opencode_review_command_wraps_skill(self):
         text = _read(OPENCODE / "commands/osx-review.md")
-        assert "osx-review-artifacts/SKILL.md" in text, (
+        # The command points at the skill via {{CMD_PREFIX}}review-artifacts.
+        assert "review-artifacts/SKILL.md" in text, (
             "osx-review.md must tail the rewritten skill body"
         )
 
     def test_opencode_modify_command_wraps_skill(self):
         text = _read(OPENCODE / "commands/osx-modify.md")
-        assert "osx-modify-artifacts/SKILL.md" in text, (
+        # The command points at the skill via {{CMD_PREFIX}}modify-artifacts.
+        assert "modify-artifacts/SKILL.md" in text, (
             "osx-modify.md must tail the rewritten skill body"
         )
 
@@ -395,17 +397,17 @@ class TestManifestParity:
     @pytest.mark.parametrize(
         "key,expected",
         [
-            ("skills.osx-review-artifacts", "0.3.0"),
-            ("skills.osx-modify-artifacts", "0.3.1"),
+            ("skills.osx-review-artifacts", "0.3.1"),
+            ("skills.osx-modify-artifacts", "0.3.2"),
             ("skills.osx-workflow", "0.3.4"),
             ("skills.osx-concepts", "0.9.4"),
-            ("skills.osx-review-test-compliance", "0.2.3"),
-            ("skills.osx-generate-changelog", "0.2.3"),
-            ("skills.osx-maintain-ai-docs", "0.2.3"),
-            ("commands.osx-review", "0.2.0"),
-            ("commands.osx-modify", "0.2.0"),
-            ("commands.osx-verify-tests", "0.1.2"),
-            ("commands.osx-maintain-docs", "0.2.2"),
+            ("skills.osx-review-test-compliance", "0.2.4"),
+            ("skills.osx-generate-changelog", "0.2.4"),
+            ("skills.osx-maintain-ai-docs", "0.2.4"),
+            ("commands.osx-review", "0.2.1"),
+            ("commands.osx-modify", "0.2.1"),
+            ("commands.osx-verify-tests", "0.1.3"),
+            ("commands.osx-maintain-docs", "0.2.3"),
             ("commands.osx-phase0", "0.3.1"),
             ("commands.osx-phase2", "0.3.2"),
         ],

@@ -675,3 +675,9 @@ openspec instructions apply --change "$CHANGE_ID" --json
 | PHASE4 | osx-maintainer | sync-specs | Merge deltas into main specs |
 | PHASE5 | osx-analyzer | None | Analyze workflow history |
 | PHASE6 | osx-maintainer | archive-change, bulk-archive | **ATOMIC EXECUTION** - all steps in one call |
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-workflow/references/autonomous-workflow.md
+Regenerate: `mise run sync:mirrors`
+-->

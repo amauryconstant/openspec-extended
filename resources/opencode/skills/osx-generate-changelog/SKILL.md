@@ -18,9 +18,9 @@ Optionally specify filters. If omitted, processes all archived changes.
 **Arguments**: `[filter]`
 
 **Examples**:
-- `/osx-changelog` - Generate from all archived changes
-- `/osx-changelog --since 2025-01-01` - Changes after date
-- `/osx-changelog add-dark-mode` - Only specific change(s)
+- `/{{CMD_PREFIX}}changelog` - Generate from all archived changes
+- `/{{CMD_PREFIX}}changelog --since 2025-01-01` - Changes after date
+- `/{{CMD_PREFIX}}changelog add-dark-mode` - Only specific change(s)
 
 ---
 
@@ -218,7 +218,7 @@ No changes found in `openspec/changes/archive/`.
 1. Complete implementation: `/osc-apply-change <name>`
 2. Verify implementation: `/osc-verify-change <name>`
 3. Archive the change: `/osc-archive-change <name>`
-4. Re-run changelog generation: `/osx-changelog`
+4. Re-run changelog generation: `/{{CMD_PREFIX}}changelog`
 ```
 
 ---

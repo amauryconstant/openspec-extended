@@ -231,3 +231,9 @@ This works because:
 - `references/cli-reference.md` - CLI commands for status and instructions
 - `../osx-workflow/references/autonomous-workflow.md` - Workflow lifecycle details
 - `references/artifact-formats.md` - Artifact structure
+
+<!--
+# AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
+Source: resources/opencode/skills/osx-concepts/references/change-guidance.md
+Regenerate: `mise run sync:mirrors`
+-->
