@@ -3,199 +3,106 @@ description: PHASE2 - Review
 agent: osx-reviewer
 ---
 
-> **Phase name**: the engine's canonical phase name is `REVIEW`; the skill loaded in this phase is `osc-verify-change` (still often called "Verification"). Both names refer to PHASE2. See `osx-workflow` §2 for the full cross-reference.
-
-## Tools Available
-
-| Tool | Type | Usage |
-|------|------|-------|
-| `openspec` | Upstream CLI | `openspec <command> [options]` - npm package |
-| `osx` | Local script | `openspec-extended osx <domain> <action> [args]` - unified OpenSpec tool |
-| Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
-
 # PHASE2: Review
 
 Change: $1
 
+> **Phase name**: engine canonical is `REVIEW`; skill is `osc-verify-change` ("Verification"). Both names refer to PHASE2. See `osx-workflow` §2.
+> **Tools** — see `osx-workflow` §1.
+
 ## MANDATORY START
 
-1. Load context:
-  !`openspec-extended osx ctx get "$1"`
-2. Confirm `phase` is PHASE2
-3. Review `history.iterations_recorded` for previous attempts
-4. Load skills: `osx-concepts` and `osx-workflow` (both reference only)
+See `references/phase-protocol-common.md#mandatory-start`.
 
 ## MANDATORY CHECKPOINT: CLI Output Logging
 
-Before starting PHASE2:
+Before PHASE2 verification:
 
-1. Run: `openspec status --change "$1" --json`
-2. Log via `osx log` with `cli_status` field
-3. Run: `openspec instructions apply --change "$1" --json`
-4. Log via `osx log` with `cli_instructions` field
+1. `openspec status --change "$1" --json` → log via `osx log` with `cli_status` field
+2. `openspec instructions apply --change "$1" --json` → log via `osx log` with `cli_instructions` field
 
 ## PURPOSE
 
-Validate implementation matches artifacts - completeness, correctness, coherence.
+Validate implementation matches artifacts — completeness, correctness, coherence.
 
 ## PROCESS
 
-1. Load and use `osc-verify-change` (originally `openspec-verify-change`) skill for change "$1"
-2. Execute the skill's verification instructions exactly
-3. Log the verification report via `osx log` in `verification_report` field
-4. Do NOT modify the skill's verification report format
+Load `osc-verify-change` (originally `openspec-verify-change`) skill for change "$1". Execute the skill's verification instructions exactly. Log the verification report via `osx log` in `verification_report` field. Do NOT modify the skill's verification report format.
 
-The skill provides:
-- Verification dimensions (completeness, correctness, coherence)
-- Issue classification (CRITICAL, WARNING, SUGGESTION)
-- Specific recommendations for each issue
+The skill provides verification dimensions (completeness, correctness, coherence), issue classification (CRITICAL / WARNING / SUGGESTION), and specific recommendations for each issue.
 
 ## AFTER VERIFICATION
 
-IF CRITICAL OR WARNING ISSUES FOUND:
+**If CRITICAL or WARNING issues found**, determine the root cause:
 
-First, determine the root cause:
+**Case A — Artifacts are wrong** (specs/design unclear or incomplete):
 
-**Case A: Artifacts are wrong (specs/design unclear or incomplete)**
-1. Use `osc-update-change` (`/opsx:update`) skill to reconcile the affected
-   artifacts — the typical verify-blamed-artifact case spans ≥2 artifacts
-   (specs + design + tasks move together). For a clearly isolated
-   single-artifact defect, `osx-modify-artifacts` is acceptable.
-2. Commit the artifact changes
+1. Use `osc-update-change` (`/opsx:update`) skill to reconcile the affected artifacts. The typical verify-blamed-artifact case spans ≥2 artifacts (specs + design + tasks move together). For a clearly isolated single-artifact defect, `osx-modify-artifacts` is acceptable.
+2. Commit the artifact changes.
 3. Signal transition back to PHASE1:
    ```bash
    openspec-extended osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "Brief description of what was fixed"
    ```
-4. Log: "Artifacts modified via /opsx:update, transitioning to PHASE1 for re-implementation"
+4. Log: "Artifacts modified via /opsx:update, transitioning to PHASE1 for re-implementation".
 
-**Case B: Artifacts are correct, implementation is wrong**
-1. DO NOT modify artifacts
-2. Signal transition back to PHASE1:
+**Case B — Artifacts are correct, implementation is wrong**:
+
+1. DO NOT modify artifacts.
+2. Signal transition:
    ```bash
    openspec-extended osx state transition "$1" --target PHASE1 --reason implementation_incorrect --details "Brief description of what needs fixing"
    ```
-3. Log: "Implementation incorrect, transitioning to PHASE1 for fixes"
+3. Log: "Implementation incorrect, transitioning to PHASE1 for fixes".
 
-**Case C: Same phase needs retry with different approach**
-1. Signal retry:
-   ```bash
-   openspec-extended osx state transition "$1" --target PHASE2 --reason retry_requested --details "Brief description of alternative approach"
-   ```
-2. Log: "Requesting retry with different approach"
+**Case C — Same phase needs retry with different approach**:
 
-IF NO CRITICAL OR WARNING ISSUES (SUGGESTIONS OK):
+```bash
+openspec-extended osx state transition "$1" --target PHASE2 --reason retry_requested --details "Brief description of alternative approach"
+```
 
-1. Log: "Verification passed, no CRITICAL or WARNING issues"
-2. Log any SUGGESTION issues for future reference
-3. Mark phase complete via `osx state`:
+Log: "Requesting retry with different approach".
+
+**If NO CRITICAL or WARNING issues** (SUGGESTIONS OK):
+
+1. Log: "Verification passed, no CRITICAL or WARNING issues". Log any SUGGESTION issues for future reference.
+2. Mark phase complete:
    ```bash
    openspec-extended osx state complete "$1"
    ```
-4. Script will advance to PHASE3
+3. Script advances to PHASE3.
 
 ## SUGGESTION TRACKING
 
-IF SUGGESTION issues found (even if verification passed):
-
-1. Create or append to suggestions.md:
-
-```bash
-cat >> "openspec/changes/$1/suggestions.md" <<EOF
-
-## $(date -u +%Y-%m-%d) - PHASE2 Verification
-
-- [ ] **[cosmetic]** Brief description
-  - Location: file:line
-  - Impact: Low
-  - Notes: Optional context
-
-EOF
-```
-
-2. Categories:
-   - `[cosmetic]` - Typos, minor grammar, formatting
-   - `[performance]` - Optimization opportunities
-   - `[future]` - Future enhancement ideas
-   - `[docs]` - Documentation improvements
-
-3. Each suggestion is a checkbox for future follow-up
-
-4. This file will be archived with the change for future reference
+If SUGGESTION issues found (even when verification passed): append to `openspec/changes/$1/suggestions.md` as checkboxes with category tag (`[cosmetic]` / `[performance]` / `[future]` / `[docs]`). Each suggestion is a checkbox for future follow-up. This file is archived with the change.
 
 ## MANDATORY END
 
-IF artifacts were modified during this phase (CRITICAL/WARNING fixes):
+If artifacts were modified during this phase (CRITICAL/WARNING fixes): invoke `osx-commit` skill, commit changes, record commit hash in decision log and `iterations.json`.
 
-1. Invoke osx-commit skill
-2. Commit changes:
-
-   ```bash
-   git add openspec/changes/$1/
-   git commit -m "Fix artifacts after verification for $1"
-   ```
-
-3. Record commit hash in decision log and iterations.json
+See `references/phase-protocol-common.md#mandatory-end` for the standard end sequence.
 
 ## STATE FILE UPDATES
 
-Phase complete (verification passed):
 ```bash
+# Verification passed
 openspec-extended osx state complete "$1"
 ```
 
-## DECISION LOG
-
-Write verification report to file, then log:
+## LOGGING
 
 ```bash
-# Write verification report (full markdown allowed)
-cat > "openspec/changes/$1/verification-report.md" << 'EOF'
-## Verification Report: $1
-
-### Summary
-| Dimension    | Status                        |
-|--------------|-------------------------------|
-| Completeness | X/X tasks, X/X reqs covered   |
-| Correctness  | X/X reqs implemented          |
-| Coherence    | Design followed               |
-
-### CRITICAL Issues (Must fix before archive)
-None.
-
-### WARNING Issues (Should fix)
-None.
-
-### SUGGESTION Issues (Nice to fix)
-None.
-
-### Detailed Findings
-[Full verification details here]
-
-### Final Assessment
-[PASS/FAIL with reasoning]
-EOF
-
-# Log with path reference (not inline content)
-openspec-extended osx log append "$1" \
-  --phase REVIEW \
-  --iteration N \
-  --summary "Verification results summary" \
-  --commit-hash "<hash or null>" \
-  --next-steps "Proceed to PHASE3 or restart PHASE1" \
+# decision log
+openspec-extended osx log append "$1" --phase REVIEW --iteration N \
+  --summary "..." --commit-hash "<hash or null>" --next-steps "..." \
   --extra '{"verification_result":"passed|failed","issues_found":{"critical":N,"warning":N,"suggestion":N},"verification_report_path":"openspec/changes/$1/verification-report.md","artifacts_modified":false}'
+
+# iterations log
+openspec-extended osx iterations append "$1" --phase REVIEW --iteration N \
+  --commit-hash "<hash or null>" --notes "..." \
+  --extra '{"verification_result":"passed|failed","issues_found":{},"artifacts_modified":false}'
 ```
 
-## ITERATIONS.JSON
-
-Append entry:
-```bash
-openspec-extended osx iterations append "$1" \
-  --phase REVIEW \
-  --iteration N \
-  --commit-hash "<hash or null>" \
-  --notes "Brief summary" \
-  --extra '{"verification_result":"passed|failed","issues_found":{"critical":N,"warning":N,"suggestion":N},"artifacts_modified":false}'
-```
+Full schema in `references/osx-decision-logging.md`. Write the verification report to `openspec/changes/$1/verification-report.md` (full markdown allowed; do not modify the format).
 
 ## TRANSITION
 
@@ -203,21 +110,18 @@ Use `osx state transition` for explicit phase control:
 
 | Scenario | Command | Reason |
 |----------|---------|--------|
-| Artifacts fixed | `osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "..."` | Specs/design updated via `/opsx:update` (or `osx-modify-artifacts` for isolated single-artifact defects), re-implement |
+| Artifacts fixed | `osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "..."` | Specs/design updated via `/opsx:update` (or `osx-modify-artifacts` for isolated defects) |
 | Implementation wrong | `osx state transition "$1" --target PHASE1 --reason implementation_incorrect --details "..."` | Artifacts correct, code needs fix |
 | Retry with new approach | `osx state transition "$1" --target PHASE2 --reason retry_requested --details "..."` | Try different solution |
 | Review passed | `osx state complete "$1"` | Normal advance to PHASE3 |
 
+## BLOCKER HANDLING
+
+See `references/blocker-semantics.md` for the canonical signal. Phase-specific reasons:
+
+- Verification fails with contradictory findings (Case A vs B unclear)
+- Three failed retry attempts (Case C) without resolution
 
 ## SHELL ARGUMENT SAFETY
 
-When passing free-text to `--summary`, `--next-steps`, or any other shell argument, **DO NOT use backticks** (`` `like this` ``) for inline code references. Backticks are interpreted as command substitution by bash/zsh — the shell will execute whatever is inside the backticks and substitute its output. In zsh, `` `local` `` dumps the entire shell environment (PATH, tokens, internal variables) into your string, which then gets stored verbatim in `decision-log.json`.
-
-**Use instead:**
-
-- Single quotes: `'local'`
-- Double quotes: `"local"`
-- Plain text: `local`
-- Markdown `code` (which uses backticks in raw form, NOT shell backticks) — fine only when the argument is not passed through a shell
-
-If `osx log append` returns `input_too_long` or `input_tainted`, remove the backticks from the offending argument and retry.
+See `references/shell-argument-safety.md`.

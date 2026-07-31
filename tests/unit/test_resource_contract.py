@@ -152,6 +152,64 @@ class TestCommandFrontmatter:
         )
 
 
+@pytest.mark.unit
+class TestSkillDescriptionLeadingWord:
+    """Lock in the PR2 description-rewriting invariant: every model-invoked
+    skill's ``description`` frontmatter leads with a known token.
+
+    Per writing-great-skills "front-load the leading word" — the first word
+    of a description is what the model uses to decide whether to fire the
+    skill. Pinning it in a test means a casual description edit cannot
+    silently change firing behaviour.
+
+    ``osx-generate-changelog`` is excluded because it's user-invoked
+    (``disable-model-invocation: true``); its description is human-facing
+    rather than trigger-facing.
+    """
+
+    EXPECTED_LEADING_WORDS: dict[str, str] = {
+        "skills/osx-commit/SKILL.md": "Detect",
+        "skills/osx-concepts/SKILL.md": "OpenSpec-extended",
+        "skills/osx-maintain-ai-docs/SKILL.md": "Document",
+        "skills/osx-modify-artifacts/SKILL.md": "Single-artifact",
+        "skills/osx-review-artifacts/SKILL.md": "Audit",
+        "skills/osx-review-test-compliance/SKILL.md": "Surface",
+        "skills/osx-workflow/SKILL.md": "7-phase",
+    }
+
+    @pytest.mark.parametrize(
+        "relpath,expected",
+        list(EXPECTED_LEADING_WORDS.items()),
+    )
+    def test_opencode_description_leads_with_expected_word(
+        self, relpath: str, expected: str
+    ):
+        fm = _read_frontmatter(OPENCODE / relpath)
+        desc = fm.get("description", "")
+        first = desc.split(maxsplit=1)[0] if desc else ""
+        assert first == expected, (
+            f"{relpath} description leading word changed: "
+            f"expected {expected!r}, got {first!r}. "
+            f"Update the allowlist AND the description together."
+        )
+
+    @pytest.mark.parametrize(
+        "relpath,expected",
+        list(EXPECTED_LEADING_WORDS.items()),
+    )
+    def test_claude_description_matches_opencode(
+        self, relpath: str, expected: str
+    ):
+        fm = _read_frontmatter(CLAUDE / relpath)
+        desc = fm.get("description", "")
+        first = desc.split(maxsplit=1)[0] if desc else ""
+        assert first == expected, (
+            f"Claude mirror {relpath} drifted from opencode: "
+            f"expected leading word {expected!r}, got {first!r}. "
+            f"Run `mise run sync-mirrors`."
+        )
+
+
 # ============================================================================
 # Schema-agnostic contract wording
 # ============================================================================
@@ -407,12 +465,12 @@ class TestManifestParity:
             ("skills.osx-review-test-compliance", "0.2.6"),
             ("skills.osx-generate-changelog", "0.2.6"),
             ("skills.osx-maintain-ai-docs", "0.2.6"),
-            ("commands.osx-review", "0.2.1"),
-            ("commands.osx-modify", "0.2.1"),
-            ("commands.osx-verify-tests", "0.1.3"),
-            ("commands.osx-maintain-docs", "0.2.3"),
-            ("commands.osx-phase0", "0.3.1"),
-            ("commands.osx-phase2", "0.3.2"),
+            ("commands.osx-review", "0.2.2"),
+            ("commands.osx-modify", "0.2.2"),
+            ("commands.osx-verify-tests", "0.1.4"),
+            ("commands.osx-maintain-docs", "0.2.4"),
+            ("commands.osx-phase0", "0.3.2"),
+            ("commands.osx-phase2", "0.3.3"),
         ],
     )
     def test_target_versions(self, key: str, expected: str):

@@ -3,133 +3,68 @@ description: PHASE4 - Sync Specs
 agent: osx-maintainer
 ---
 
-## Tools Available
-
-| Tool | Usage |
-|------|-------|
-| `osx` | `openspec-extended osx <domain> <action> [args]` - unified OpenSpec tool |
-| Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
-
 # PHASE4: Sync Specs
 
 Change: $1
 
+> **Tools** — see `osx-workflow` §1.
+
 ## MANDATORY START
 
-1. Load context:
-  !`openspec-extended osx ctx get "$1"`
-2. Confirm `phase` is PHASE4
-3. Review `history.iterations_recorded` for previous attempts
-4. Load skills: `osx-concepts` and `osx-workflow` (both reference only)
+See `references/phase-protocol-common.md#mandatory-start`.
 
 ## PURPOSE
 
-Merge delta specs from the change to main specs.
+Merge delta specs from the change into main specs, completing the spec-sync step before archive.
 
 ## PROCESS
 
-1. Check for delta specs:
-   - Look in `openspec/changes/$1/specs/`
-   - If no delta specs exist: Skip to transition with log note
-
-2. Load skill: Use `osc-sync-specs` (originally `openspec-sync-specs`) skill
-
-3. Sync delta specs:
-   - ADDED → Append to main spec
-   - MODIFIED → Merge changes intelligently
-   - REMOVED → Delete from main
-   - RENAMED → Rename in main
-
-4. Log sync summary:
-   - Specs synced: <capability-list>
-   - Changes: adds/modifications/removals/renames
+1. Load and use `osc-sync-specs` (originally `openspec-sync-specs`) skill for change "$1".
+2. Execute the skill's sync instructions.
+3. Log sync operations (delta specs merged, conflicts resolved) via `osx log` and `osx iterations`.
 
 ## MANDATORY END
 
-IF delta specs were synced:
+If sync produced changes: invoke `osx-commit` skill, commit changes, record commit hash in decision log and `iterations.json`.
 
-1. Invoke osx-commit skill
-2. Commit changes:
-
-   ```bash
-   git add openspec/specs/
-   git commit -m "Sync $1 specs to main"
-   ```
-
-3. Record commit hash in decision log and iterations.json
-
-## BLOCKER HANDLING
-
-If you encounter an unrecoverable issue that prevents progress:
-
-```bash
-openspec-extended osx complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
-```
-
-The orchestrator will detect this and halt the workflow.
-
-**When to use:**
-- Spec merge conflicts that cannot be resolved
-- Main specs have been modified in ways incompatible with delta specs
-- Sync would break existing functionality
+See `references/phase-protocol-common.md#mandatory-end` for the standard end sequence.
 
 ## STATE FILE UPDATES
 
-Phase complete:
 ```bash
 openspec-extended osx state complete "$1"
 ```
 
-## DECISION LOG
+## LOGGING
 
-Append entry:
 ```bash
-openspec-extended osx log append "$1" \
-  --phase SYNC \
-  --iteration N \
-  --summary "Specs synced successfully" \
-  --commit-hash "<hash or null>" \
-  --next-steps "Proceeding to PHASE5 (SELF_REFLECTION)" \
-  --extra '{"delta_specs_found":["spec1.md","spec2.md"],"sync_operations":{"added":N,"modified":N,"removed":N,"renamed":N}}'
+# decision log
+openspec-extended osx log append "$1" --phase SYNC --iteration N \
+  --summary "..." --commit-hash "<hash or null>" --next-steps "Proceeding to PHASE5 (SELF_REFLECTION)" \
+  --extra '{"delta_specs_found":["..."],"sync_operations":["..."]}'
+
+# iterations log
+openspec-extended osx iterations append "$1" --phase SYNC --iteration N \
+  --commit-hash "<hash or null>" --notes "..." \
+  --extra '{"delta_specs_found":["..."],"sync_operations":["..."]}'
 ```
 
-## ITERATIONS.JSON
+Full schema in `references/osx-decision-logging.md`.
 
-Append entry:
-```bash
-openspec-extended osx iterations append "$1" \
-  --phase SYNC \
-  --iteration N \
-  --commit-hash "<hash or null>" \
-  --notes "Specs synced successfully" \
-  --extra '{"specs_synced":["spec1.md","spec2.md"],"operations":{"added":N,"modified":N,"removed":N,"renamed":N}}'
-```
+## BLOCKER HANDLING
+
+See `references/blocker-semantics.md` for the canonical signal. Phase-specific reasons:
+
+- Sync conflicts between two changes touching the same spec (resolve via `osc-bulk-archive-change` first)
+- Delta spec format invalid (route via `osx-review-artifacts`)
 
 ## TRANSITION
 
-IF delta specs exist and were synced:
-1. Log: "Specs synced, proceeding to ARCHIVE"
-2. Mark phase complete via `osx state`
-3. Script will advance to PHASE5
-
-IF no delta specs:
-1. Log: "No delta specs, skipping SYNC"
-2. Mark phase complete via `osx state`
-3. Script will advance to PHASE5
-
+Log: "Sync complete, proceeding to SELF_REFLECTION". Mark phase complete via `osx state`. Script advances to PHASE5.
 
 ## SHELL ARGUMENT SAFETY
 
-When passing free-text to `--summary`, `--next-steps`, or any other shell argument, **DO NOT use backticks** (`` `like this` ``) for inline code references. Backticks are interpreted as command substitution by bash/zsh — the shell will execute whatever is inside the backticks and substitute its output. In zsh, `` `local` `` dumps the entire shell environment (PATH, tokens, internal variables) into your string, which then gets stored verbatim in `decision-log.json`.
-
-**Use instead:**
-
-- Single quotes: `'local'`
-- Double quotes: `"local"`
-- Plain text: `local`
-- Markdown `code` (which uses backticks in raw form, NOT shell backticks) — fine only when the argument is not passed through a shell
-
-If `osx log append` returns `input_too_long` or `input_tainted`, remove the backticks from the offending argument and retry.
+See `references/shell-argument-safety.md`.
 
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.

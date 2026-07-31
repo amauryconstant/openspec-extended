@@ -3,156 +3,92 @@ description: PHASE3 - Maintain Documentation
 agent: osx-maintainer
 ---
 
-## Tools Available
-
-| Tool | Usage |
-|------|-------|
-| `osx` | `openspec-extended osx <domain> <action> [args]` - unified OpenSpec tool |
-| Domains: `ctx`, `state`, `iterations`, `log`, `complete`, `validate` |
-
 # PHASE3: Maintain Documentation
 
 Change: $1
 
+> **Tools** — see `osx-workflow` §1.
+
 ## MANDATORY START
 
-1. Load context:
-  !`openspec-extended osx ctx get "$1"`
-2. Confirm `phase` is PHASE3
-3. Review `history.iterations_recorded` for previous attempts
-4. Load skills: `osx-concepts` and `osx-workflow` (both reference only)
+See `references/phase-protocol-common.md#mandatory-start`.
 
 ## PURPOSE
 
-Update AGENTS.md and CLAUDE.md files to reflect ALL changes made during implementation. If there is an available skill for that process, load it first.
+Update `AGENTS.md` and `CLAUDE.md` files to reflect ALL changes made during implementation. If a skill exists for this process, load it first.
 
-**Scope - What to update:**
-- Root AGENTS.md with new commands, patterns, or conventions
-- Package-level AGENTS.md files (e.g., `internal/library/AGENTS.md`)
-- CLAUDE.md if project supports both platforms
+**Scope — what to update:**
+
+- Root `AGENTS.md` with new commands, patterns, or conventions
+- Package-level `AGENTS.md` files (e.g., `internal/library/AGENTS.md`)
+- `CLAUDE.md` if project supports both platforms
 - Any other AI context documentation
 
-**What to include:**
-- New packages and their purpose
-- New CLI commands and usage
-- New architectural patterns
-- Updated command references
-- New capabilities added to the codebase
+**What to include:** new packages and purpose, new CLI commands and usage, new architectural patterns, updated command references, new capabilities.
 
-**NOT in scope:**
-- Inline code comments (done in PHASE1)
-- README files (done in PHASE1)
-- Test files (done in PHASE1)
+**NOT in scope:** inline code comments (PHASE1), README files (PHASE1), test files (PHASE1).
 
 ## PROCESS
 
-1. Load and use `osx-maintain-ai-docs` skill
-2. Read change artifacts: `openspec/changes/$1/proposal.md`, `openspec/changes/$1/specs/`, `openspec/changes/$1/design.md`, `openspec/changes/$1/tasks.md`
-3. Read recent git changes: `git log --oneline -10`
-4. Update project documentation:
-   - AGENTS.md - Update with new commands, patterns, or conventions
-   - CLAUDE.md - Update if Claude-specific patterns changed (if applicable)
-   - Other docs as needed based on the change
-
-5. Apply best practices:
-   - Use tables over verbose lists
-   - Be specific (concrete commands, not vague descriptions)
-   - Progressive disclosure (summary first, details later)
-   - Target <300 lines per file
+1. Load and use `osx-maintain-ai-docs` skill.
+2. Read change artifacts: `proposal.md`, `specs/`, `design.md`, `tasks.md`.
+3. Read recent git changes: `git log --oneline -10`.
+4. Update project documentation: root `AGENTS.md`, package-level `AGENTS.md`, `CLAUDE.md`, other docs as needed.
+5. Apply best practices: tables over prose, concrete commands, progressive disclosure, target <300 lines per file.
 
 ## AGENTS.md TASKS FROM TASKS.MD
 
-If tasks.md contains AGENTS.md documentation tasks (e.g., "12.1 Update cmd/AGENTS.md"):
+If `tasks.md` contains AGENTS.md documentation tasks (e.g., "12.1 Update cmd/AGENTS.md"):
 
-1. These tasks were intentionally deferred from PHASE1
-2. Complete them now as part of this phase
-3. Mark them complete in tasks.md after updating
-4. Include in the single PHASE3 commit
+1. These were intentionally deferred from PHASE1.
+2. Complete them now as part of this phase.
+3. Mark them complete in `tasks.md` after updating.
+4. Include in the single PHASE3 commit.
 
-This consolidation ensures:
-- Single documentation commit for review
-- Accurate representation of final codebase state
-- No duplicate documentation work
+This consolidation ensures a single documentation commit for review, accurate representation of final codebase state, no duplicate documentation work.
 
 ## MANDATORY END
 
-IF documentation was updated during this phase:
+If documentation was updated during this phase: invoke `osx-commit` skill, commit changes, record commit hash in decision log and `iterations.json`.
 
-1. Invoke osx-commit skill
-2. Commit changes:
-
-   ```bash
-   git add AGENTS.md CLAUDE.md
-   git commit -m "Update documentation for $1"
-   ```
-
-3. Record commit hash in decision log and iterations.json
-
-## BLOCKER HANDLING
-
-If you encounter an unrecoverable issue that prevents progress:
-
-```bash
-openspec-extended osx complete set "$1" BLOCKED --blocker-reason "[Describe the specific blocking issue]"
-```
-
-The orchestrator will detect this and halt the workflow.
-
-**When to use:**
-- Documentation conflicts that cannot be resolved
-- AGENTS.md/CLAUDE.md structure fundamentally incompatible with changes
+See `references/phase-protocol-common.md#mandatory-end` for the standard end sequence.
 
 ## STATE FILE UPDATES
 
-Phase complete:
 ```bash
 openspec-extended osx state complete "$1"
 ```
 
-## DECISION LOG
+## LOGGING
 
-Append entry:
 ```bash
-openspec-extended osx log append "$1" \
-  --phase MAINTAIN_DOCS \
-  --iteration N \
-  --summary "Documentation updated successfully" \
-  --commit-hash "<hash or null>" \
-  --next-steps "Proceeding to PHASE4 (SYNC)" \
-  --extra '{"docs_updated":["AGENTS.md","CLAUDE.md"],"changes_made":["Specific change 1","Specific change 2"]}'
-```
+# decision log
+openspec-extended osx log append "$1" --phase MAINTAIN_DOCS --iteration N \
+  --summary "..." --commit-hash "<hash or null>" --next-steps "Proceeding to PHASE4 (SYNC)" \
+  --extra '{"docs_updated":["AGENTS.md","CLAUDE.md"],"changes_made":["..."]}'
 
-## ITERATIONS.JSON
-
-Append entry:
-```bash
-openspec-extended osx iterations append "$1" \
-  --phase MAINTAIN_DOCS \
-  --iteration N \
-  --commit-hash "<hash or null>" \
-  --notes "Documentation updated successfully" \
+# iterations log
+openspec-extended osx iterations append "$1" --phase MAINTAIN_DOCS --iteration N \
+  --commit-hash "<hash or null>" --notes "..." \
   --extra '{"docs_updated":["AGENTS.md","CLAUDE.md"]}'
 ```
 
+Full schema in `references/osx-decision-logging.md`.
+
+## BLOCKER HANDLING
+
+See `references/blocker-semantics.md` for the canonical signal. Phase-specific reasons:
+
+- Documentation conflicts that cannot be resolved
+- `AGENTS.md` / `CLAUDE.md` structure fundamentally incompatible with changes
+
 ## TRANSITION
 
-1. Log: "Documentation updated, proceeding to SYNC"
-2. Mark phase complete via `osx state`
-3. Script will advance to PHASE4
-
+Log: "Documentation updated, proceeding to SYNC". Mark phase complete via `osx state`. Script advances to PHASE4.
 
 ## SHELL ARGUMENT SAFETY
 
-When passing free-text to `--summary`, `--next-steps`, or any other shell argument, **DO NOT use backticks** (`` `like this` ``) for inline code references. Backticks are interpreted as command substitution by bash/zsh — the shell will execute whatever is inside the backticks and substitute its output. In zsh, `` `local` `` dumps the entire shell environment (PATH, tokens, internal variables) into your string, which then gets stored verbatim in `decision-log.json`.
-
-**Use instead:**
-
-- Single quotes: `'local'`
-- Double quotes: `"local"`
-- Plain text: `local`
-- Markdown `code` (which uses backticks in raw form, NOT shell backticks) — fine only when the argument is not passed through a shell
-
-If `osx log append` returns `input_too_long` or `input_tainted`, remove the backticks from the offending argument and retry.
+See `references/shell-argument-safety.md`.
 
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.

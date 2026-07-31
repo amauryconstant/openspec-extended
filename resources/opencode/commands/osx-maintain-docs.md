@@ -5,80 +5,32 @@ license: MIT
 
 Update project documentation after implementing an OpenSpec change. Runs after `/osc-sync-specs` and before `/osc-archive-change`.
 
-**Input**: Optionally specify a change name. If omitted, infer from context or prompt for selection.
+**Input**: optionally specify a change name. If omitted, infer from context or prompt for selection.
 
-**Steps**
+## Steps
 
-1. **Select the change** - Infer from context, auto-select if only one active, or prompt with **{{ASK_TOOL}} tool**
+Load the skill body — read `{{PLATFORM_DIR}}/skills/osx-maintain-ai-docs/SKILL.md` and follow the `## Steps` section. This command wraps that skill; do not duplicate steps here.
 
-2. **Read change artifacts** from `openspec/changes/<name>/`:
-   - `proposal.md` - Intent, scope, new capabilities
-   - `specs/` - New requirements, modified behaviors
-   - `design.md` - Architectural decisions, new patterns
-   - `tasks.md` - Checked items = what was built
-
-3. **Read recent code changes** using git:
-   ```bash
-   git log --oneline -20
-   git diff HEAD~5..HEAD --stat
-   git diff HEAD~5..HEAD --name-only
-   ```
-   Cross-reference with artifacts to identify what was actually implemented.
-
-4. **Detect or create documentation files**:
-   ```bash
-   test -f AGENTS.md && echo "AGENTS.md found"
-   test -f CLAUDE.md && echo "CLAUDE.md found"
-   ```
-   If neither exists, create minimal docs with Quick Reference, Architecture, Conventions.
-
-5. **Read current documentation** - Parse structure, note line counts (warn if >300, error if >500)
-
-6. **Assess documentation needs** - For each implemented item, determine if docs need updating:
-   - New CLI commands → Add to Quick Reference
-   - New components → Add brief entry
-   - New patterns → Add specific pattern
-   - Architecture changes → Update overview
-   - Internal/refactor → Usually skip
-
-7. **Generate proposed updates** - Apply best practices:
-   - Tables for lists
-   - Specific commands (not vague instructions)
-   - Progressive disclosure (reference, don't embed)
-   - Cut generic advice
-
-8. **Show proposal and confirm** with **{{ASK_TOOL}} tool**
-
-9. **Write updates** - Preserve structure, sync both platforms
-
-**Output**
+## Output
 
 ```
 ## Documentation Updated: <change-name>
 
 **Files modified**:
-- AGENTS.md: +5 lines (180 → 185)
-- CLAUDE.md: +5 lines (165 → 170)
+- {{DOCS_FILE}}: +N lines (X → Y)
 
 **Changes applied**:
-- Added "Feature X" to Quick Reference
-- Added pattern for Y
+- ...
 
 **Next step**: Ready to archive with `/osc-archive-change`.
 ```
 
-**Guardrails**
+## Guardrails
 
-- Preserve existing structure
-- Keep both platforms synchronized
-- Don't document what AI can infer from code
-- Files must stay <500 lines
-- Confirm before writing
+- Preserve existing structure.
+- Keep both platforms synchronized (`AGENTS.md` ↔ `CLAUDE.md`).
+- Document only what AI cannot infer from code.
+- Files must stay <500 lines (warn at 300).
+- Confirm before writing.
 
----
-
-See `{{PLATFORM_DIR}}/skills/osx-maintain-ai-docs/SKILL.md` for:
-- Core principles (conciseness, progressive disclosure)
-- Best practices for documentation updates
-- Anti-patterns to avoid
-- Effectiveness indicators
+See `{{PLATFORM_DIR}}/skills/osx-maintain-ai-docs/SKILL.md` for the full contract, core principles, and anti-patterns.
