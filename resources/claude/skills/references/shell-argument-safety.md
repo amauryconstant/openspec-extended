@@ -32,7 +32,6 @@ openspec-extended osx log append "$1" --summary 'Used local scope for x'
 # RIGHT: double quotes work too
 openspec-extended osx log append "$1" --summary "Used local scope for x"
 ```
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/references/shell-argument-safety.md

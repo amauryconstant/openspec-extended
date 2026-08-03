@@ -59,7 +59,6 @@ For each scenario, score the best-matching test (if any). For each test, list th
 
 - `references/semantic-extraction.md` — how to extract actions, entities, conditions, outcomes from specs and tests.
 - `references/test-discovery-strategies.md` — finding the test files.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/references/scoring-rubric.md

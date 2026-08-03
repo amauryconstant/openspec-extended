@@ -3,6 +3,7 @@
 Integration tests for install flow.
 """
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -221,6 +222,101 @@ class TestInstallClaudeDualEmit:
         # The skill directory should not exist for this command-derived skill
         # on OpenCode. (osx-workflow as a real skill is separate.)
         assert not (test_env / ".opencode" / "skills" / "osx-phase0").is_dir()
+
+
+class TestInstallTokenSubstitution:
+    """Token substitution regression: the deploy step must rewrite every
+    ``{{TOKEN}}`` placeholder in shipped resources. A regression here means
+    the deploy drops literal ``{{CMD_PREFIX}}``, ``{{PLATFORM_DIR}}``, etc.
+    into users' projects, which is the bug that motivated this class.
+
+    The pytest entry points mirror the e2e bats cases so the regression
+    guard runs both in the source tree (pytest) and against the built
+    binary (bats).
+    """
+
+    LEFTOVER_TOKEN_RE = re.compile(r"\{\{[A-Z_]+\}\}")
+
+    def _leftover_files(self, root: Path) -> list[Path]:
+        if not root.is_dir():
+            return []
+        return [
+            md
+            for md in root.rglob("*.md")
+            if self.LEFTOVER_TOKEN_RE.search(md.read_text())
+        ]
+
+    @pytest.mark.parametrize("tool", ["opencode", "claude"])
+    def test_install_leaves_no_token_placeholders(self, test_env, tool: str):
+        """No deployed ``.md`` should still contain a ``{{TOKEN}}``."""
+        result = run_osx(
+            ["install", tool, "--with-autonomous"], cwd=test_env
+        )
+        assert result.returncode == 0, result.stderr
+
+        leftovers = self._leftover_files(test_env / TOOL_DIRS[tool])
+        assert not leftovers, (
+            f"{tool}: deployed files still contain {{TOKEN}} placeholders: "
+            + ", ".join(str(p.relative_to(test_env)) for p in leftovers)
+        )
+
+    def test_install_opencode_uses_hyphen_slash_command(self, test_env):
+        """OpenCode deploy uses the hyphen slash-command form (``/osx-modify``)."""
+        result = run_osx(
+            ["install", "opencode", "--with-autonomous"], cwd=test_env
+        )
+        assert result.returncode == 0, result.stderr
+
+        cmd = (test_env / ".opencode" / "commands" / "osx-modify.md").read_text()
+        assert "/osx-modify" in cmd
+        # The Claude colon form must NOT appear in an opencode deploy.
+        assert "/osx:modify" not in cmd
+        # The platform dir token must be substituted.
+        assert ".opencode/skills" in cmd
+        # The skill-path reference must use the literal hyphenated directory.
+        assert ".opencode/skills/osx-modify-artifacts/SKILL.md" in cmd
+
+    def test_install_claude_uses_colon_slash_command(self, test_env):
+        """Claude deploy uses the colon slash-command form (``/osx:modify``)."""
+        result = run_osx(
+            ["install", "claude", "--with-autonomous"], cwd=test_env
+        )
+        assert result.returncode == 0, result.stderr
+
+        # The Claude deploy writes the legacy command form at
+        # ``commands/osx/modify.md`` (matching the Claude mirror layout).
+        cmd = (test_env / ".claude" / "commands" / "osx" / "modify.md").read_text()
+        assert "/osx:modify" in cmd
+        # The opencode hyphen slash-command form must NOT appear in a claude
+        # deploy (modulo the skill-path reference which is hyphenated on both
+        # platforms).
+        slash_labels = re.findall(r"\| `/osx[-:][\w-]+`", cmd)
+        assert slash_labels and all("`/osx:" in lbl for lbl in slash_labels), (
+            f"slash-command labels must be Claude form on Claude: {slash_labels}"
+        )
+        # The substituted platform dir is `.claude/...`.
+        assert ".claude/skills" in cmd
+        # The skill-path reference must use the literal hyphenated directory
+        # (NOT the broken `osx:modify-artifacts` form that the old
+        # sync-mirrors substitution produced).
+        assert ".claude/skills/osx-modify-artifacts/SKILL.md" in cmd
+        assert "osx:modify-artifacts" not in cmd
+
+    def test_install_claude_skill_mirror_path_resolves(self, test_env):
+        """The dual-emit Claude skill mirror must point at the real
+        ``osx-modify-artifacts`` directory (hyphen, not colon)."""
+        result = run_osx(
+            ["install", "claude", "--with-autonomous"], cwd=test_env
+        )
+        assert result.returncode == 0, result.stderr
+
+        skill_md = test_env / ".claude" / "skills" / "osx-modify" / "SKILL.md"
+        assert skill_md.is_file()
+        text = skill_md.read_text()
+        assert "osx-modify-artifacts" in text
+        assert "osx:modify-artifacts" not in text
+        # The referenced skill directory must actually exist on disk.
+        assert (test_env / ".claude" / "skills" / "osx-modify-artifacts").is_dir()
 
 
 class TestInstallWithCore:

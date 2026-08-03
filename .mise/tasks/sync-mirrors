@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Generate resources/claude/{skills,commands}/ and claude/manifest.toml from resources/opencode/ via token substitution. Run after editing opencode resources. Use --check for CI to fail on drift. On Claude, every opencode command dual-emits as both a legacy .claude/commands/<name>.md and a modern .claude/skills/<name>/SKILL.md (mirrors upstream OpenSpec v1.7.0)."
+#MISE description="Generate resources/claude/{skills,commands}/ and claude/manifest.toml from resources/opencode/ as a pure mirror (no token substitution). Run after editing opencode resources. Use --check for CI to fail on drift. On Claude, every opencode command dual-emits as both a legacy .claude/commands/<name>.md and a modern .claude/skills/<name>/SKILL.md (mirrors upstream OpenSpec v1.7.0)."
 #USAGE flag "--check" help="Verify claude mirrors are in sync; exit non-zero on drift"
 
 set -euo pipefail
@@ -12,29 +12,13 @@ readonly CLAUDE_ROOT="$PROJECT_ROOT/resources/claude"
 CHECK_ONLY="false"
 [[ "${1:-}" == "--check" ]] && CHECK_ONLY="true"
 
-# Per-platform token values. Add new tokens here; both sides must declare them.
-# OpenCode (canonical source) ships these tokens literally in its files.
-# The script substitutes them when writing the Claude mirror.
-readonly TOKENS=(
-    "ASK_TOOL"
-    "DOCS_FILE"
-    "CMD_PREFIX"
-    "TOOL_NAME"
-    "PLATFORM_DIR"
-)
-
-# Claude-side substitution values. OpenCode files carry the tokens literally
-# ({{ASK_TOOL}}, etc.); the script substitutes them when writing the mirror.
-declare -A CD_VAL=(
-    [ASK_TOOL]="Ask"
-    [DOCS_FILE]="CLAUDE.md"
-    [CMD_PREFIX]="osx:"
-    [TOOL_NAME]="Claude Code"
-    [PLATFORM_DIR]=".claude"
-)
-
 # Header prepended to every generated file.
 readonly GEN_HEADER="# AUTO-GENERATED from opencode via \`mise run sync:mirrors\` — do not edit by hand."
+
+# Token substitution is the deploy step's responsibility (Python side, see
+# ``source/cli.py:_substitute_tokens``). Mirrors carry ``{{TOKEN}}`` placeholders
+# verbatim; the deploy substitutes per-platform values at install/update time.
+# This script is a pure mirror — it does NOT rewrite tokens.
 
 log_info() { printf '  -> %s\n' "$*"; }
 log_warn() { printf '  !! %s\n' "$*" >&2; }
@@ -80,27 +64,6 @@ claude_skill_path_for_command() {
     esac
 }
 
-# Substitute every {{TOKEN}} in stdin and print the result to stdout.
-# The function takes the platform ("cd" for Claude) and looks up values
-# in the corresponding globals.
-substitute_tokens() {
-    local platform="$1"
-    local content
-    content=$(cat)
-    local tok val
-    for tok in "${TOKENS[@]}"; do
-        case "$platform" in
-            cd) val="${CD_VAL[$tok]:-}" ;;
-            *) printf 'Error: unknown platform %s\n' "$platform" >&2; return 1 ;;
-        esac
-        # Escape sed replacement: only & and \ need backslash-escaping in BRE.
-        val="${val//\\/\\\\}"
-        val="${val//&/\\&}"
-        content=$(printf '%s' "$content" | sed "s|{{${tok}}}|${val}|g")
-    done
-    printf '%s\n' "$content"
-}
-
 # Header lines for generated files. The marker is appended AFTER the
 # frontmatter so tools that read the file expecting it to start with `---`
 # (e.g. tests, validators) still see the frontmatter at the top.
@@ -138,7 +101,7 @@ mirror_file() {
 
     local body_with_header
     body_with_header=$( {
-        substitute_tokens cd < "$src"
+        cat "$src"
         append_header "$rel"
     } )
 
@@ -227,10 +190,6 @@ mirror_command_skill() {
         append_header "$rel"
     } )
 
-    # Apply token substitution (drops the markdown comment tokens embedded
-    # in command bodies) on the rendered output.
-    generated=$(printf '%s\n' "$generated" | substitute_tokens cd)
-
     local current=""
     if [[ -f "$dst" ]]; then
         current=$(cat "$dst")
@@ -261,10 +220,9 @@ mirror_manifest() {
         return 0
     fi
 
-    # Manifest has no {{TOKENS}} by design; substitute is a no-op.
     local generated
     generated=$( {
-        substitute_tokens cd < "$src"
+        cat "$src"
         echo
         echo "# AUTO-GENERATED from resources/opencode/manifest.toml via \`mise run sync:mirrors\`."
         echo "# Regenerate: \`mise run sync:mirrors\`"

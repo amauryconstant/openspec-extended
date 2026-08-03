@@ -73,7 +73,6 @@ Each phase uses `--extra` to record phase-specific metadata. Common keys:
 
 - `references/shell-argument-safety.md` — backticks in `--summary`/`--next-steps` corrupt the log.
 - `references/phase-protocol-common.md` — when to append vs when to mark complete.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/references/osx-decision-logging.md

@@ -14,7 +14,7 @@ Optionally specify `[change-name]` after `/{{CMD_PREFIX}}verify-tests`. If omitt
 
 ## Steps
 
-Load the skill body — read `{{PLATFORM_DIR}}/skills/{{CMD_PREFIX}}review-test-compliance/SKILL.md` and follow the `## Steps` section. This command wraps that skill; do not duplicate steps here.
+Load the skill body — read `{{PLATFORM_DIR}}/skills/osx-review-test-compliance/SKILL.md` and follow the `## Steps` section. This command wraps that skill; do not duplicate steps here.
 
 ## Output
 
@@ -29,4 +29,4 @@ Default output path: `openspec/changes/<name>/test-compliance-report.md`. Use th
 - **Reality check.** Acknowledge unit tests ≠ scenario tests.
 - **Confidence transparency.** Show scores and explain matching.
 
-See `{{PLATFORM_DIR}}/skills/{{CMD_PREFIX}}review-test-compliance/SKILL.md` for the full contract, semantic matching methodology, and gap analysis.
+See `{{PLATFORM_DIR}}/skills/osx-review-test-compliance/SKILL.md` for the full contract, semantic matching methodology, and gap analysis.

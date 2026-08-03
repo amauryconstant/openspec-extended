@@ -73,7 +73,6 @@ Follow detected standard. See references for examples.
 ## Scripts
 
 - `scripts/detect-commit-style` — auto-detect commit standard from git history
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/osx-commit/SKILL.md

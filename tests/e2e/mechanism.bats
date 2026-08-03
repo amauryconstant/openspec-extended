@@ -175,6 +175,90 @@ teardown() {
     rm -rf "$fresh_dir"
 }
 
+# ========== Token substitution regression ==========
+#
+# Resources ship with {{TOKEN}} placeholders that the deploy step must
+# rewrite per platform. A regression here means the deploy drops literal
+# `{{CMD_PREFIX}}` / `{{PLATFORM_DIR}}` strings into users' projects,
+# which is the bug that motivated this section. The skill-path reference
+# must also resolve to a real on-disk directory.
+
+@test "mechanism: install opencode substitutes {{TOKEN}} placeholders" {
+    local fresh_dir
+    fresh_dir=$(mktemp -d)
+    cd "$fresh_dir" || exit 1
+
+    run "$OPENSPEC_BIN" install opencode --with-autonomous
+    echo "STATUS=$status"
+    echo "OUTPUT=$output"
+    [ "$status" -eq 0 ]
+
+    # No deployed file should still carry a `{{TOKEN}}` placeholder. The
+    # `AUTO-GENERATED` header in the Claude mirror is the only place that
+    # legitimately mentions token names — and that's not deployed to
+    # users' projects, only kept in resources/claude/ for audit.
+    leftovers="$(find .opencode -name '*.md' -exec grep -lE '\{\{[A-Z_]+\}\}' {} + 2>/dev/null || true)"
+    if [ -n "$leftovers" ]; then
+        echo "FAIL: deployed files still contain {{TOKEN}} placeholders:"
+        echo "$leftovers"
+        return 1
+    fi
+
+    # OpenCode slash-command form: `/osx-modify` (hyphen).
+    grep -q '/osx-modify\b' .opencode/commands/osx-modify.md
+    # OpenCode platform dir: `.opencode/skills/...`.
+    grep -q '\.opencode/skills/' .opencode/commands/osx-modify.md
+    # Skill-path reference is the literal hyphenated form on both platforms.
+    grep -q '\.opencode/skills/osx-modify-artifacts/SKILL.md' .opencode/commands/osx-modify.md
+    # The hardcoded opencode slash-command form must NOT carry the colon
+    # separator (Claude form). Defensive — token substitution is per platform.
+    if grep -q '/osx:modify\b' .opencode/commands/osx-modify.md; then
+        echo "FAIL: opencode deploy leaked Claude slash-command form /osx:modify"
+        return 1
+    fi
+
+    rm -rf "$fresh_dir"
+}
+
+@test "mechanism: install claude substitutes {{TOKEN}} placeholders" {
+    local fresh_dir
+    fresh_dir=$(mktemp -d)
+    cd "$fresh_dir" || exit 1
+
+    run "$OPENSPEC_BIN" install claude --with-autonomous
+    echo "STATUS=$status"
+    echo "OUTPUT=$output"
+    [ "$status" -eq 0 ]
+
+    leftovers="$(find .claude -name '*.md' -exec grep -lE '\{\{[A-Z_]+\}\}' {} + 2>/dev/null || true)"
+    if [ -n "$leftovers" ]; then
+        echo "FAIL: deployed files still contain {{TOKEN}} placeholders:"
+        echo "$leftovers"
+        return 1
+    fi
+
+    # Claude deploy writes the legacy command form at ``commands/osx/modify.md``
+    # (matching the Claude mirror layout, not the opencode file name).
+    local cmd=".claude/commands/osx/modify.md"
+    [ -f "$cmd" ]
+    # Claude slash-command form: `/osx:modify` (colon).
+    grep -q '/osx:modify\b' "$cmd"
+    # The dual-emit Claude skill mirror must point at the real
+    # `osx-modify-artifacts` skill directory (hyphen, not colon).
+    local skill_md=".claude/skills/osx-modify/SKILL.md"
+    [ -f "$skill_md" ]
+    grep -q '\.claude/skills/osx-modify-artifacts/SKILL.md' "$skill_md"
+    if grep -q 'osx:modify-artifacts' "$skill_md"; then
+        echo "FAIL: Claude skill mirror points at non-existent osx:modify-artifacts"
+        return 1
+    fi
+    # The referenced skill directory must actually exist on disk.
+    [ -d .claude/skills/osx-modify-artifacts ]
+    [ -f .claude/skills/osx-modify-artifacts/SKILL.md ]
+
+    rm -rf "$fresh_dir"
+}
+
 # ========== osx subcommand surface ==========
 #
 # Round-trip the osx subcommand (the 10-domain CLI surface from

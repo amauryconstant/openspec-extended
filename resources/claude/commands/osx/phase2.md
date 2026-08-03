@@ -125,7 +125,6 @@ See `references/blocker-semantics.md` for the canonical signal. Phase-specific r
 ## SHELL ARGUMENT SAFETY
 
 See `references/shell-argument-safety.md`.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/commands/osx-phase2.md

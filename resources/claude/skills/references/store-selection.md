@@ -38,7 +38,6 @@ Commands act on the nearest local `openspec/` root.
 ## See also
 
 - `references/schema-agnostic-contract.md` — the contract these store-selection rules belong to.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/references/store-selection.md

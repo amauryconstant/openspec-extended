@@ -142,7 +142,6 @@ Detailed guidance (parallel changes, bulk archive, naming): `references/change-g
 | `references/cli-reference.md` | Need JSON output schema for any CLI command |
 | `references/change-guidance.md` | Deciding update vs new, parallel work, bulk archive |
 | `references/anti-patterns.md` | Made a mistake; need full catalog of what to avoid |
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/osx-concepts/SKILL.md

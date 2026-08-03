@@ -89,7 +89,6 @@ Log: "Documentation updated, proceeding to SYNC". Mark phase complete via `osx s
 ## SHELL ARGUMENT SAFETY
 
 See `references/shell-argument-safety.md`.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/commands/osx-phase3.md

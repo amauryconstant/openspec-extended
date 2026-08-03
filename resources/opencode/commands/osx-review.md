@@ -20,7 +20,7 @@ Optionally specify `[change-name] [artifact-id]` after `/{{CMD_PREFIX}}review`. 
 
 ## Steps
 
-1. **Load the skill body** — read `{{PLATFORM_DIR}}/skills/{{CMD_PREFIX}}review-artifacts/SKILL.md` and follow `## Workflow`. This command wraps that skill; do not duplicate rules here.
+1. **Load the skill body** — read `{{PLATFORM_DIR}}/skills/osx-review-artifacts/SKILL.md` and follow `## Workflow`. This command wraps that skill; do not duplicate rules here.
 2. **Load change context** when needed via `openspec-extended osx ctx get <change>` (per the skill's protocol).
 3. **Persist the routing report** once the skill completes its work.
 
@@ -30,4 +30,4 @@ Optionally specify `[change-name] [artifact-id]` after `/{{CMD_PREFIX}}review`. 
 - **No code edits.** Findings that imply code changes route to `/opsx:apply`.
 - **No hardcoded artifact names.** Read ids and paths from `openspec status` and `openspec instructions` JSON.
 
-See `{{PLATFORM_DIR}}/skills/{{CMD_PREFIX}}review-artifacts/SKILL.md` for the full contract, output templates, and severity calibration.
+See `{{PLATFORM_DIR}}/skills/osx-review-artifacts/SKILL.md` for the full contract, output templates, and severity calibration.

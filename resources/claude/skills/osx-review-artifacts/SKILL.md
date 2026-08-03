@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
 metadata:
-  audience: agents running pre-implementation artifact review (PHASE0, ad-hoc /osx:review)
+  audience: agents running pre-implementation artifact review (PHASE0, ad-hoc /{{CMD_PREFIX}}review)
   workflow: pre-implementation — between artifact creation and /opsx:apply
 ---
 
@@ -16,7 +16,7 @@ Read-only, schema-driven audit of the planning artifacts in a change. Emits a ro
 > **Schema-agnostic contract** — see `references/schema-agnostic-contract.md`.
 > **Store selection** — see `references/store-selection.md`.
 
-Sits in the pre-implementation workflow between artifact creation (`/opsx:continue`, `/opsx:propose`, `/opsx:ff`) and implementation (`/opsx:apply`). Use it standalone via `/osx:review <change>` or as part of PHASE0.
+Sits in the pre-implementation workflow between artifact creation (`/opsx:continue`, `/opsx:propose`, `/opsx:ff`) and implementation (`/opsx:apply`). Use it standalone via `/{{CMD_PREFIX}}review <change>` or as part of PHASE0.
 
 ---
 
@@ -30,7 +30,7 @@ Sits in the pre-implementation workflow between artifact creation (`/opsx:contin
 
 ### Step 1 — Select the change
 
-Adopt the `openspec-update-change` policy: **never auto-select**. If the argument is missing or matches more than one active change, ask the user to choose with `Ask`. Mark the most-recently modified active change as `(Recommended)`.
+Adopt the `openspec-update-change` policy: **never auto-select**. If the argument is missing or matches more than one active change, ask the user to choose with `{{ASK_TOOL}}`. Mark the most-recently modified active change as `(Recommended)`.
 
 List candidates with:
 
@@ -113,7 +113,7 @@ Produce one routing line per finding category. Pick the single best editor for t
 
 | Finding pattern | Recommended route |
 |---|---|
-| Single-artifact defect (1 artifact, format/content) | `/osx:modify <name> <artifact-id>` |
+| Single-artifact defect (1 artifact, format/content) | `/{{CMD_PREFIX}}modify <name> <artifact-id>` |
 | Multi-artifact coherence drift (≥2 artifacts OR any coherence-level finding) | `/opsx:update <name>` |
 | Missing artifact (referenced but not created) | `/opsx:continue <name>` |
 | All clean, pre-impl (PHASE0) | `/opsx:apply <name>` |
@@ -138,14 +138,14 @@ The review skill never invokes the routed command itself. It only emits the rout
 ### <Severity> findings
 - **<artifact-id>:<file:line>**: <issue>
   - Fix: <concrete fix>
-  - Route: </osx:modify|/opsx:update|/opsx:continue|/opsx:apply|/opsx:new> <name> [<artifact-id>]
+  - Route: </{{CMD_PREFIX}}modify|/opsx:update|/opsx:continue|/opsx:apply|/opsx:new> <name> [<artifact-id>]
 
 ### Routing recommendation
 <single sentence picking ONE of the routes from §Step 7>
 
 ### Next steps
 - Address findings via the routed command above.
-- Re-run review after fixes: `/osx:review <name>`
+- Re-run review after fixes: `/{{CMD_PREFIX}}review <name>`
 ```
 
 ### All checks passed
@@ -179,7 +179,6 @@ The review skill never invokes the routed command itself. It only emits the rout
 - **`openspec status` returns no change** — confirm the change name (and `--store` if applicable); offer `openspec list --json` to help the user.
 - **`openspec instructions` errors mid-audit** — report which artifact failed and stop; do not invent instructions from the schema body.
 - **`isComplete` is false and no `ready` artifact exists** — unusual state; surface as `Suggestion` and ask the user whether they want to archive or start a new change.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/osx-review-artifacts/SKILL.md

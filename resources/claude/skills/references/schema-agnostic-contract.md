@@ -25,7 +25,6 @@ When the change lives in a registered store, pass `--store <id>` on every `opens
 
 - `references/store-selection.md`
 - `references/osx-mode-conventions.md`
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/references/schema-agnostic-contract.md

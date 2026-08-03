@@ -40,7 +40,6 @@ openspec-extended orchestrate <change> --from-phase PHASE3
 ## See also
 
 - `references/phase-protocol-common.md` — the full phase command spine.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/references/blocker-semantics.md

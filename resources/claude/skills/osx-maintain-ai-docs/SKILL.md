@@ -1,6 +1,6 @@
 ---
 name: osx-maintain-ai-docs
-description: Document only what AI cannot infer from code. Use between /opsx:apply and /opsx:archive to update CLAUDE.md after an OpenSpec change.
+description: Document only what AI cannot infer from code. Use between /opsx:apply and /opsx:archive to update {{DOCS_FILE}} after an OpenSpec change.
 license: MIT
 ---
 
@@ -60,13 +60,13 @@ Cross-reference: match git changes to `tasks.md` checked items; identify impleme
 ### 4. Detect or create documentation file
 
 ```bash
-test -f CLAUDE.md && echo "CLAUDE.md found"
+test -f {{DOCS_FILE}} && echo "{{DOCS_FILE}} found"
 ```
 
-If `CLAUDE.md` doesn't exist, create minimal documentation:
+If `{{DOCS_FILE}}` doesn't exist, create minimal documentation:
 
 ```markdown
-# Project - Claude Code Reference
+# Project - {{TOOL_NAME}} Reference
 
 ## Quick Reference
 
@@ -88,7 +88,7 @@ If `CLAUDE.md` doesn't exist, create minimal documentation:
 
 Parse existing structure and sections. Note current line count.
 
-**Warn if** `CLAUDE.md` > 300 lines. **Error if** > 500 lines (split required before adding content).
+**Warn if** `{{DOCS_FILE}}` > 300 lines. **Error if** > 500 lines (split required before adding content).
 
 ### 6. Assess documentation needs
 
@@ -118,7 +118,7 @@ Present changes with impact:
 ## Documentation Updates: <change-name>
 
 **Current state**:
-- CLAUDE.md: 180 lines (~720 tokens)
+- {{DOCS_FILE}}: 180 lines (~720 tokens)
 
 **Proposed changes**:
 - Add "Feature X" to Quick Reference (table format)
@@ -145,7 +145,7 @@ For every row in step 6's table, either add the entry to its named section or re
 ## Documentation Created: <change-name>
 
 **File created**:
-- CLAUDE.md (new, 45 lines)
+- {{DOCS_FILE}} (new, 45 lines)
 
 **Initial content**:
 - Quick Reference with detected commands
@@ -161,7 +161,7 @@ For every row in step 6's table, either add the entry to its named section or re
 ## Documentation Updated: <change-name>
 
 **File modified**:
-- CLAUDE.md: +5 lines (180 → 185)
+- {{DOCS_FILE}}: +5 lines (180 → 185)
 
 **Changes applied**:
 - Added "Theme System" to Quick Reference
@@ -189,10 +189,10 @@ Ready to archive with `/osc-archive-change`.
 ```markdown
 ## Documentation Warning
 
-**CLAUDE.md**: 420 lines (exceeds 300 line target)
+**{{DOCS_FILE}}**: 420 lines (exceeds 300 line target)
 
 Recommendations:
-1. Move detailed patterns to subdirectory CLAUDE.md files
+1. Move detailed patterns to subdirectory {{DOCS_FILE}} files
 2. Use progressive disclosure (reference, don't embed)
 3. Convert verbose lists to tables
 
@@ -235,7 +235,6 @@ Proceed anyway, or address first?
 - `references/doc-structures.md` — per-artifact extraction rules
 - `references/update-rules.md` — full best-practice list
 - `references/update-examples.md` — worked before/after diffs
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/osx-maintain-ai-docs/SKILL.md

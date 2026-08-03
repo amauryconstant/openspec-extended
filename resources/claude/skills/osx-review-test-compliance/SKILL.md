@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
 metadata:
-  audience: agents running post-implementation spec-to-test alignment review (PHASE1 end, ad-hoc /osx:verify-tests)
+  audience: agents running post-implementation spec-to-test alignment review (PHASE1 end, ad-hoc /{{CMD_PREFIX}}verify-tests)
   workflow: post-implementation — after `osc-apply-change` and before `osc-verify-change`
 ---
 
@@ -22,7 +22,7 @@ Optionally specify a change name. If omitted, the skill will infer from context 
 **Arguments**: `[change-name]`
 
 **Examples**:
-- `/osx:verify-tests add-auth` — analyse test coverage for "add-auth"
+- `/{{CMD_PREFIX}}verify-tests add-auth` — analyse test coverage for "add-auth"
 - "Check test coverage" — infer change from context
 
 ---
@@ -154,7 +154,7 @@ Present the analysis with actionable recommendations.
 
 ### Next Steps
 - Address gaps: Add recommended tests
-- Re-run compliance: `/osx:verify-tests <name>`
+- Re-run compliance: `/{{CMD_PREFIX}}verify-tests <name>`
 - Verify implementation: `/osc-verify <name>`
 ```
 
@@ -182,7 +182,6 @@ Ready to verify: `/osc-verify <name>`
 - Don't require 100% coverage — focus on critical path scenarios.
 - Confidence scores are subjective — explain reasoning per the scoring rubric.
 - If no tests exist, report that clearly rather than failing.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/osx-review-test-compliance/SKILL.md

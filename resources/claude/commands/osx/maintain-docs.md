@@ -9,7 +9,7 @@ Update project documentation after implementing an OpenSpec change. Runs after `
 
 ## Steps
 
-Load the skill body — read `.claude/skills/osx-maintain-ai-docs/SKILL.md` and follow the `## Steps` section. This command wraps that skill; do not duplicate steps here.
+Load the skill body — read `{{PLATFORM_DIR}}/skills/osx-maintain-ai-docs/SKILL.md` and follow the `## Steps` section. This command wraps that skill; do not duplicate steps here.
 
 ## Output
 
@@ -17,7 +17,7 @@ Load the skill body — read `.claude/skills/osx-maintain-ai-docs/SKILL.md` and 
 ## Documentation Updated: <change-name>
 
 **Files modified**:
-- CLAUDE.md: +N lines (X → Y)
+- {{DOCS_FILE}}: +N lines (X → Y)
 
 **Changes applied**:
 - ...
@@ -33,8 +33,7 @@ Load the skill body — read `.claude/skills/osx-maintain-ai-docs/SKILL.md` and 
 - Files must stay <500 lines (warn at 300).
 - Confirm before writing.
 
-See `.claude/skills/osx-maintain-ai-docs/SKILL.md` for the full contract, core principles, and anti-patterns.
-
+See `{{PLATFORM_DIR}}/skills/osx-maintain-ai-docs/SKILL.md` for the full contract, core principles, and anti-patterns.
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/commands/osx-maintain-docs.md

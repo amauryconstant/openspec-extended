@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
 metadata:
-  audience: agents making single-artifact edits before implementation (PHASE0 fallback, ad-hoc /osx:modify)
+  audience: agents making single-artifact edits before implementation (PHASE0 fallback, ad-hoc /{{CMD_PREFIX}}modify)
   workflow: pre-implementation — surgical edit; multi-artifact drift routes to /opsx:update
 ---
 
@@ -17,7 +17,7 @@ Single-artifact surgical editor. Walks downstream `unlocks` for forward-only pro
 > **Store selection** — see `references/store-selection.md`.
 > **Mode** — see `references/osx-mode-conventions.md`. When `OSX_AUTONOMOUS=1` is set, skip interactive confirmation and proceed with reasonable defaults.
 
-Triggered by `/osx:modify <change> [artifact-id]` or as a routing target from `osx-review-artifacts`. Multi-artifact drift is out of scope — route to `/opsx:update` instead.
+Triggered by `/{{CMD_PREFIX}}modify <change> [artifact-id]` or as a routing target from `osx-review-artifacts`. Multi-artifact drift is out of scope — route to `/opsx:update` instead.
 
 ---
 
@@ -33,7 +33,7 @@ Triggered by `/osx:modify <change> [artifact-id]` or as a routing target from `o
 
 ### Step 1 — Select the change
 
-Adopt the `openspec-update-change` policy: **never auto-select**. If the argument matches multiple active changes, auto-select the most-recently modified under `OSX_AUTONOMOUS=1`; otherwise ask the user with `Ask` marked `(Recommended)`.
+Adopt the `openspec-update-change` policy: **never auto-select**. If the argument matches multiple active changes, auto-select the most-recently modified under `OSX_AUTONOMOUS=1`; otherwise ask the user with `{{ASK_TOOL}}` marked `(Recommended)`.
 
 ### Step 2 — Load schema state
 
@@ -65,7 +65,7 @@ openspec instructions "<root-id>" --change "<name>" [--store "<id>"] --json
 
 Capture `template`, `instruction`, `context`, `rules`, `dependencies[]`, `unlocks[]`, `existingOutputPaths`. Read the current concrete file(s) from `existingOutputPaths` (never from `resolvedOutputPath` — for glob artifacts that is still a pattern).
 
-Stop if `existingOutputPaths` is empty. That means the artifact has not been created yet — `/osx:modify` cannot create it; route the user to `/opsx:continue`.
+Stop if `existingOutputPaths` is empty. That means the artifact has not been created yet — `/{{CMD_PREFIX}}modify` cannot create it; route the user to `/opsx:continue`.
 
 ### Step 5 — Surface constraints
 
@@ -85,7 +85,7 @@ Based on the user's intent (natural language from the slash command, or by infer
 - Compose the new content per `template` + `rules`.
 - Show the diff (`file_path:line` ranges and the new content) inline.
 
-Auto-accept under `OSX_AUTONOMOUS=1`. Otherwise, confirm with `Ask` before writing.
+Auto-accept under `OSX_AUTONOMOUS=1`. Otherwise, confirm with `{{ASK_TOOL}}` before writing.
 
 If the user rejects, leave the file untouched and exit. Do not cascade.
 
@@ -105,7 +105,7 @@ Read the dependent's `existingOutputPaths` and check whether the root edit break
 
 Confirm every dependent proposal individually (auto-accept under `OSX_AUTONOMOUS=1`):
 
-- For each dependent: show the diff, propose with `Ask`, write only after confirmation.
+- For each dependent: show the diff, propose with `{{ASK_TOOL}}`, write only after confirmation.
 - Provide an explicit "cascade all" affordance: one confirmation that walks each dependent through its own confirmation in sequence.
 - A rejected dependent is left unchanged; remaining dependents are still proposed.
 
@@ -141,7 +141,7 @@ After all proposed edits are confirmed (or rejected), surface:
 - [ ] <dependent-id>: <rejected by user>
 
 ### Next steps
-- Re-review: `/osx:review <name>`
+- Re-review: `/{{CMD_PREFIX}}review <name>`
 - Multi-artifact drift: `/opsx:update <name>`
 - Code implications: `/opsx:apply <name>`
 ```
@@ -158,7 +158,7 @@ This is better handled by starting a fresh change.
 
 ### Recommendation
 - Start fresh: `/opsx:new <new-name>`
-- Or override: re-run `/osx:modify <name> <artifact-id>` and explicitly confirm the intent change.
+- Or override: re-run `/{{CMD_PREFIX}}modify <name> <artifact-id>` and explicitly confirm the intent change.
 ```
 
 ---
@@ -180,7 +180,6 @@ This is better handled by starting a fresh change.
 - **`existingOutputPaths` reads as glob pattern, not a file** — you read the wrong field. Re-read `existingOutputPaths`.
 - **`openspec instructions` errors mid-cascade** — stop the cascade, report which dependent failed, leave prior confirmed writes in place.
 - **`actionContext.allowedEditRoots` is empty** — refuse with a clear message and recommend `/opsx:update` (which validates its own context).
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/osx-modify-artifacts/SKILL.md

@@ -20,7 +20,7 @@ Positional `<change-name>` (required) and optional `<artifact-id>`. If `<artifac
 
 ## Steps
 
-1. **Load the skill body** — read `{{PLATFORM_DIR}}/skills/{{CMD_PREFIX}}modify-artifacts/SKILL.md` and follow the `## Workflow` section. This command wraps that skill; do not duplicate rules here.
+1. **Load the skill body** — read `{{PLATFORM_DIR}}/skills/osx-modify-artifacts/SKILL.md` and follow the `## Workflow` section. This command wraps that skill; do not duplicate rules here.
 2. **Load change context** when needed via `openspec-extended osx ctx get <change>` (per the skill's protocol).
 3. **Apply the per-artifact confirmation model** the skill spells out: confirm root edit, then confirm each propagated dependent individually.
 
@@ -33,4 +33,4 @@ Positional `<change-name>` (required) and optional `<artifact-id>`. If `<artifac
 - **No code edits.** Refuse and point to `/opsx:apply`.
 - **Per-edit confirmation.** Show each proposed revision; write only after confirmation.
 
-See `{{PLATFORM_DIR}}/skills/{{CMD_PREFIX}}modify-artifacts/SKILL.md` for the full contract, intent-level change detection, and hand-off templates.
+See `{{PLATFORM_DIR}}/skills/osx-modify-artifacts/SKILL.md` for the full contract, intent-level change detection, and hand-off templates.

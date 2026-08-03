@@ -26,6 +26,53 @@ SCRIPT_NAME = "openspec-extended"
 
 TOOL_DIRS = {"opencode": ".opencode", "claude": ".claude"}
 
+# Per-platform token values for resource rendering. Source files under
+# ``resources/opencode/`` carry ``{{TOKEN}}`` placeholders; the deploy step
+# substitutes them with the values for the active ``tool``. The OpenCode source
+# ships the same tokens literally — the Python side is the single source of
+# truth for substitution. The bash ``sync-mirrors`` script is a pure mirror
+# (no token substitution). New tokens MUST be added to both platforms; the
+# substitution is silent for unknown tokens so future additions don't crash.
+PLATFORM_TOKENS: dict[str, dict[str, str]] = {
+    "opencode": {
+        "ASK_TOOL": "AskUserQuestion",
+        "DOCS_FILE": "AGENTS.md",
+        "CMD_PREFIX": "osx-",
+        "TOOL_NAME": "OpenCode",
+        "PLATFORM_DIR": ".opencode",
+    },
+    "claude": {
+        "ASK_TOOL": "Ask",
+        "DOCS_FILE": "CLAUDE.md",
+        "CMD_PREFIX": "osx:",
+        "TOOL_NAME": "Claude Code",
+        "PLATFORM_DIR": ".claude",
+    },
+}
+
+_LEFTOVER_TOKEN_RE = re.compile(r"\{\{([A-Z_]+)\}\}")
+
+
+def _substitute_tokens(text: str, tool: str) -> str:
+    """Replace every ``{{TOKEN}}`` in ``text`` with the value for ``tool``.
+
+    Unknown tokens (or unknown tools) are left verbatim — that way a future
+    token added to the source but not yet to ``PLATFORM_TOKENS`` surfaces as a
+    literal in the deployed file rather than silently disappearing. The
+    substituter is the single source of truth for token values; the bash
+    ``sync-mirrors`` script no longer substitutes tokens.
+    """
+    mapping = PLATFORM_TOKENS.get(tool, {})
+
+    def repl(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key in mapping:
+            return mapping[key]
+        return match.group(0)
+
+    return _LEFTOVER_TOKEN_RE.sub(repl, text)
+
+
 console = Console()
 
 app = typer.Typer(
@@ -191,6 +238,7 @@ def deploy_skills(
     target_dir: Path,
     name: str,
     shared_refs: list[str] | None = None,
+    tool: str = "opencode",
 ) -> None:
     target_skills = target_dir / "skills"
     target_skills.mkdir(parents=True, exist_ok=True)
@@ -198,6 +246,7 @@ def deploy_skills(
     if target_path.exists():
         shutil.rmtree(target_path)
     shutil.copytree(source_base / name, target_path)
+    _substitute_tokens_in_tree(target_path, tool)
 
     if shared_refs:
         target_refs = target_path / "references"
@@ -208,8 +257,25 @@ def deploy_skills(
             dst = target_refs / ref_name
             if src.is_file():
                 shutil.copy2(src, dst)
+                _substitute_tokens_in_file(dst, tool)
             else:
                 log_warn(f"Shared reference not found: {src}")
+
+
+def _substitute_tokens_in_file(path: Path, tool: str) -> None:
+    """Rewrite ``path`` in place with ``{{TOKEN}}`` values for ``tool``.
+
+    Non-``.md`` files are skipped silently — only text files carry tokens.
+    """
+    if path.suffix != ".md":
+        return
+    path.write_text(_substitute_tokens(path.read_text(), tool))
+
+
+def _substitute_tokens_in_tree(root: Path, tool: str) -> None:
+    """Walk ``root`` and substitute tokens in every ``.md`` file (in place)."""
+    for md_file in root.rglob("*.md"):
+        _substitute_tokens_in_file(md_file, tool)
 
 
 def _build_claude_skill_from_command(source_path: Path, name: str) -> str:
@@ -267,7 +333,9 @@ def deploy_commands(
     target_commands.mkdir(parents=True, exist_ok=True)
     source_path = source_base / f"{name}.md"
     if source_path.exists():
-        shutil.copy2(source_path, target_commands / f"{name}.md")
+        target_cmd_path = target_commands / f"{name}.md"
+        shutil.copy2(source_path, target_cmd_path)
+        _substitute_tokens_in_file(target_cmd_path, tool)
     else:
         for subdir in source_base.iterdir():
             if subdir.is_dir():
@@ -278,9 +346,9 @@ def deploy_commands(
                 if alt_source.exists():
                     subdir_name = subdir.name
                     (target_commands / subdir_name).mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(
-                        alt_source, target_commands / subdir_name / f"{base_name}.md"
-                    )
+                    target_cmd_path = target_commands / subdir_name / f"{base_name}.md"
+                    shutil.copy2(alt_source, target_cmd_path)
+                    _substitute_tokens_in_file(target_cmd_path, tool)
                     source_path = alt_source
                     break
         else:
@@ -299,6 +367,7 @@ def deploy_commands(
     skill_dir.mkdir(parents=True, exist_ok=True)
     skill_md = skill_dir / "SKILL.md"
     skill_md.write_text(_build_claude_skill_from_command(source_path, name))
+    _substitute_tokens_in_file(skill_md, tool)
 
     # Copy any references/ files referenced from the body so the skill
     # is self-sufficient at deploy time. Source refs live once under
@@ -312,13 +381,19 @@ def deploy_commands(
         for ref_name in ref_names:
             src = source_refs_dir / ref_name
             if src.is_file():
-                shutil.copy2(src, target_refs_dir / ref_name)
+                dst = target_refs_dir / ref_name
+                shutil.copy2(src, dst)
+                _substitute_tokens_in_file(dst, tool)
 
 
-def deploy_agents(source_base: Path, target_dir: Path, name: str) -> None:
+def deploy_agents(
+    source_base: Path, target_dir: Path, name: str, tool: str = "opencode"
+) -> None:
     target_agents = target_dir / "agents"
     target_agents.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source_base / f"{name}.md", target_agents / f"{name}.md")
+    target_agent_path = target_agents / f"{name}.md"
+    shutil.copy2(source_base / f"{name}.md", target_agent_path)
+    _substitute_tokens_in_file(target_agent_path, tool)
 
 
 def get_source_type_dir(source_dir: Path, resource_type: str) -> Path:
@@ -373,13 +448,14 @@ def deploy_type(
                     target_dir,
                     name,
                     shared_refs=info.get("references", []),
+                    tool=tool,
                 )
                 count += 1
             elif resource_type == "commands":
                 deploy_commands(source_type_dir, target_dir, name, tool=tool)
                 count += 1
             elif resource_type == "agents":
-                deploy_agents(source_type_dir, target_dir, name)
+                deploy_agents(source_type_dir, target_dir, name, tool=tool)
                 count += 1
         elif decision == "skip":
             skipped += 1

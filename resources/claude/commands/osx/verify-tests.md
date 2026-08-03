@@ -10,11 +10,11 @@ Review test coverage for OpenSpec changes, ensuring spec requirements have corre
 
 ## Input
 
-Optionally specify `[change-name]` after `/osx:verify-tests`. If omitted, the AI will infer from context or prompt for selection.
+Optionally specify `[change-name]` after `/{{CMD_PREFIX}}verify-tests`. If omitted, the AI will infer from context or prompt for selection.
 
 ## Steps
 
-Load the skill body — read `.claude/skills/osx:review-test-compliance/SKILL.md` and follow the `## Steps` section. This command wraps that skill; do not duplicate steps here.
+Load the skill body — read `{{PLATFORM_DIR}}/skills/osx-review-test-compliance/SKILL.md` and follow the `## Steps` section. This command wraps that skill; do not duplicate steps here.
 
 ## Output
 
@@ -29,8 +29,7 @@ Default output path: `openspec/changes/<name>/test-compliance-report.md`. Use th
 - **Reality check.** Acknowledge unit tests ≠ scenario tests.
 - **Confidence transparency.** Show scores and explain matching.
 
-See `.claude/skills/osx:review-test-compliance/SKILL.md` for the full contract, semantic matching methodology, and gap analysis.
-
+See `{{PLATFORM_DIR}}/skills/osx-review-test-compliance/SKILL.md` for the full contract, semantic matching methodology, and gap analysis.
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/commands/osx-verify-tests.md

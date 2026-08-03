@@ -322,7 +322,6 @@ For framework-level edge cases, see `osx-concepts/SKILL.md`.
 | `references/autonomous-workflow.md` | Per-phase protocol, transition logic, error recovery |
 
 Anti-patterns catalog: see `osx-concepts/references/anti-patterns.md`.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/osx-workflow/SKILL.md

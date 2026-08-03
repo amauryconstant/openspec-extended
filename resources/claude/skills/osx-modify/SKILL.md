@@ -7,7 +7,7 @@ name: osx-modify
 
 Single-artifact surgical edit with forward-only `unlocks` propagation. For multi-artifact reconciliation, run `/opsx:update <name>` instead.
 
-> **Store selection** — see `.claude/skills/references/store-selection.md`.
+> **Store selection** — see `{{PLATFORM_DIR}}/skills/references/store-selection.md`.
 
 ## Input
 
@@ -15,13 +15,13 @@ Positional `<change-name>` (required) and optional `<artifact-id>`. If `<artifac
 
 | Input | Behavior |
 |-------|----------|
-| `/osx:modify add-auth specs/auth` | Edit specific artifact in change |
-| `/osx:modify add-auth` | Prompt for artifact selection |
-| `/osx:modify` | Prompt for change and artifact |
+| `/{{CMD_PREFIX}}modify add-auth specs/auth` | Edit specific artifact in change |
+| `/{{CMD_PREFIX}}modify add-auth` | Prompt for artifact selection |
+| `/{{CMD_PREFIX}}modify` | Prompt for change and artifact |
 
 ## Steps
 
-1. **Load the skill body** — read `.claude/skills/osx:modify-artifacts/SKILL.md` and follow the `## Workflow` section. This command wraps that skill; do not duplicate rules here.
+1. **Load the skill body** — read `{{PLATFORM_DIR}}/skills/osx-modify-artifacts/SKILL.md` and follow the `## Workflow` section. This command wraps that skill; do not duplicate rules here.
 2. **Load change context** when needed via `openspec-extended osx ctx get <change>` (per the skill's protocol).
 3. **Apply the per-artifact confirmation model** the skill spells out: confirm root edit, then confirm each propagated dependent individually.
 
@@ -34,7 +34,7 @@ Positional `<change-name>` (required) and optional `<artifact-id>`. If `<artifac
 - **No code edits.** Refuse and point to `/opsx:apply`.
 - **Per-edit confirmation.** Show each proposed revision; write only after confirmation.
 
-See `.claude/skills/osx:modify-artifacts/SKILL.md` for the full contract, intent-level change detection, and hand-off templates.
+See `{{PLATFORM_DIR}}/skills/osx-modify-artifacts/SKILL.md` for the full contract, intent-level change detection, and hand-off templates.
 
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.

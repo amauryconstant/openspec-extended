@@ -48,7 +48,6 @@ A blocker is **unrecoverable** within the current phase. Fixable failures stay i
 - `references/osx-decision-logging.md` — the `osx log` / `osx iterations` schemas.
 - `references/blocker-semantics.md` — when to halt vs continue.
 - `references/osx-mode-conventions.md` — `OSX_AUTONOMOUS=1` handling.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/references/phase-protocol-common.md

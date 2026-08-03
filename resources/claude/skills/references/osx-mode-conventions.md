@@ -29,7 +29,6 @@ Avoid restating this in every step. State it once at the top, then each step ass
 
 - `references/schema-agnostic-contract.md` — the rules autonomous mode operates within.
 - `references/phase-protocol-common.md` — how phase commands use this convention.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/skills/references/osx-mode-conventions.md

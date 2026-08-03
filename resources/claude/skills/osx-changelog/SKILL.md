@@ -14,7 +14,7 @@ No arguments required. The AI guides through scope selection.
 
 ## Steps
 
-Load the skill body — read `.claude/skills/osx-generate-changelog/SKILL.md` and follow the `## Steps` section. This command wraps that skill; do not duplicate steps here.
+Load the skill body — read `{{PLATFORM_DIR}}/skills/osx-generate-changelog/SKILL.md` and follow the `## Steps` section. This command wraps that skill; do not duplicate steps here.
 
 ## Output
 
@@ -29,7 +29,7 @@ Write to `CHANGELOG.md` (project root). Format: Keep a Changelog. New entries un
 - Confirm before writing — always preview and ask.
 - Preserve existing changelog content when updating.
 
-See `.claude/skills/osx-generate-changelog/SKILL.md` for the full contract, categorisation algorithm, and version management.
+See `{{PLATFORM_DIR}}/skills/osx-generate-changelog/SKILL.md` for the full contract, categorisation algorithm, and version management.
 
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.

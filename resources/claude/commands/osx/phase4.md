@@ -65,7 +65,6 @@ Log: "Sync complete, proceeding to SELF_REFLECTION". Mark phase complete via `os
 ## SHELL ARGUMENT SAFETY
 
 See `references/shell-argument-safety.md`.
-
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: resources/opencode/commands/osx-phase4.md
