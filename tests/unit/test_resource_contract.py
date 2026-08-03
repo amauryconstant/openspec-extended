@@ -197,9 +197,7 @@ class TestSkillDescriptionLeadingWord:
         "relpath,expected",
         list(EXPECTED_LEADING_WORDS.items()),
     )
-    def test_claude_description_matches_opencode(
-        self, relpath: str, expected: str
-    ):
+    def test_claude_description_matches_opencode(self, relpath: str, expected: str):
         fm = _read_frontmatter(CLAUDE / relpath)
         desc = fm.get("description", "")
         first = desc.split(maxsplit=1)[0] if desc else ""
@@ -665,11 +663,7 @@ class TestSharedReferencesPackaging:
                     if head.endswith(".md"):
                         claimed.add(head[len("references/") :])
 
-        orphans = {
-            p.name
-            for p in shared_dir.glob("*.md")
-            if p.name not in claimed
-        }
+        orphans = {p.name for p in shared_dir.glob("*.md") if p.name not in claimed}
         assert not orphans, (
             f"Shared references pool contains files not referenced by "
             f"any skill or command: {sorted(orphans)!r}. "
@@ -684,9 +678,7 @@ class TestSharedReferencesPackaging:
         ],
         ids=["opencode", "claude"],
     )
-    def test_manifest_references_parity(
-        self, platform_root: Path, manifest_path: Path
-    ):
+    def test_manifest_references_parity(self, platform_root: Path, manifest_path: Path):
         """The OpenCode and Claude manifests must agree on the ``references``
         lists, since the deploy uses the same manifest on both sides."""
         oc = _read_manifest_references(OPENCODE_MANIFEST)

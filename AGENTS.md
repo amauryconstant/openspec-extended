@@ -86,6 +86,7 @@ applies the bumps detected by `version:check`.
 **Resource mirrors** (owned by `mise run sync:mirrors` / `sync-mirrors --check`):
 - `resources/opencode/{skills,commands}/` is the canonical source for skills and commands.
 - `resources/claude/{skills,commands}/` is auto-generated from opencode via token substitution (defined in `.mise/tasks/sync-mirrors`).
+- On Claude, every opencode command dual-emits: a legacy `.claude/commands/osx/<name>.md` plus a modern `.claude/skills/osx-<name>/SKILL.md`. This mirrors upstream OpenSpec v1.7.0's strategy.
 - `resources/opencode/manifest.toml` is the canonical manifest; `resources/claude/manifest.toml` is generated from it.
 - A pre-commit hook (`sync-mirrors-check`) fails the commit if the Claude mirror drifts.
 - `mise run sync-mirrors` regenerates the mirror after editing opencode files.

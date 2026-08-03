@@ -202,9 +202,7 @@ def _abbreviated_hits(text: str, path: Path) -> list[tuple[int, str]]:
     """Return (line_no, line) for every abbreviated slash-command hit in text,
     except those allowed for this file.
     """
-    allowed = ALLOWED_ABBREVIATED_FORMS.get(
-        str(path.relative_to(REPO_ROOT)), set()
-    )
+    allowed = ALLOWED_ABBREVIATED_FORMS.get(str(path.relative_to(REPO_ROOT)), set())
     out: list[tuple[int, str]] = []
     for i, line in enumerate(text.splitlines(), start=1):
         for pat in ABBREVIATED_PATTERNS:

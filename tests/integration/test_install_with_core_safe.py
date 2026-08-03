@@ -123,7 +123,9 @@ class TestInstallWithCoreSeedsGlobalConfig:
         cfg_dir.mkdir(parents=True)
         cfg_path = cfg_dir / "config.json"
         cfg_path.write_text(
-            json.dumps({"profile": "core", "delivery": "skills", "workflows": ["apply"]})
+            json.dumps(
+                {"profile": "core", "delivery": "skills", "workflows": ["apply"]}
+            )
         )
 
         _run_osx(["install", "opencode", "--with-core"], cwd=fresh_env)
@@ -138,7 +140,9 @@ class TestInstallWithCoreSeedsGlobalConfig:
         assert data["global_config"]["profile"] == "core"
         assert data["global_config"]["workflows"] == ["apply"]
 
-    def test_clean_install_with_no_prior_config_writes_no_baseline(self, fresh_env: Path):
+    def test_clean_install_with_no_prior_config_writes_no_baseline(
+        self, fresh_env: Path
+    ):
         """No prior global config AND no prior deployment → no baseline file.
         Guards against ``.openspec-extended-baseline.json`` appearing for
         genuine first-time installs.
@@ -233,3 +237,65 @@ class TestGitignoreIncludesBaseline:
             pytest.skip("no .gitignore produced")
         content = gi.read_text()
         assert ".openspec-extended-baseline.json" in content
+
+
+EXPECTED_OSC_SKILLS = {
+    "osc-propose",
+    "osc-explore",
+    "osc-new-change",
+    "osc-continue-change",
+    "osc-apply-change",
+    "osc-update-change",
+    "osc-ff-change",
+    "osc-verify-change",
+    "osc-sync-specs",
+    "osc-archive-change",
+    "osc-bulk-archive-change",
+    "osc-onboard",
+}
+
+
+class TestInstallWithCoreRenamesTwelveSkills:
+    """``install --with-core`` calls ``rename_core_resources`` which must
+    walk BOTH the legacy ``commands/`` tree and the modern ``skills/`` tree.
+    Upstream OpenSpec v1.7.0 emits 12 ``openspec-*/SKILL.md`` files alongside
+    the legacy ``opsx-*.md`` commands; the migrator must rename all 12 of the
+    skill directories (and rewrite their ``name:`` frontmatter) so the user
+    ends up with 12 ``osc-*`` skills, never ``openspec-*``.
+    """
+
+    def _deployed_skill_names(self, env: Path, tool: str) -> set[str]:
+        skills_dir = env / f".{tool}" / "skills"
+        if not skills_dir.is_dir():
+            return set()
+        return {
+            p.name
+            for p in skills_dir.iterdir()
+            if p.is_dir() and (p / "SKILL.md").is_file()
+        }
+
+    def test_opencode_with_core_renames_all_twelve_core_skills(self, fresh_env: Path):
+        _run_osx(["install", "opencode", "--with-core"], cwd=fresh_env)
+        skills = self._deployed_skill_names(fresh_env, "opencode")
+        missing = EXPECTED_OSC_SKILLS - skills
+        assert not missing, f"missing renamed core skills: {sorted(missing)}"
+        leaked = {s for s in skills if s.startswith("openspec-")}
+        assert not leaked, f"un-renamed core skills leaked: {sorted(leaked)}"
+
+    def test_claude_with_core_renames_all_twelve_core_skills(self, fresh_env: Path):
+        _run_osx(["install", "claude", "--with-core"], cwd=fresh_env)
+        skills = self._deployed_skill_names(fresh_env, "claude")
+        missing = EXPECTED_OSC_SKILLS - skills
+        assert not missing, f"missing renamed core skills: {sorted(missing)}"
+        leaked = {s for s in skills if s.startswith("openspec-")}
+        assert not leaked, f"un-renamed core skills leaked: {sorted(leaked)}"
+
+    def test_renamed_core_skill_carries_osc_name_frontmatter(self, fresh_env: Path):
+        """Each renamed core skill's ``name:`` frontmatter is rewritten to
+        the ``osc-*`` form so Claude Code's slash resolver picks it up."""
+        _run_osx(["install", "opencode", "--with-core"], cwd=fresh_env)
+        skill_md = fresh_env / ".opencode" / "skills" / "osc-apply-change" / "SKILL.md"
+        if not skill_md.is_file():
+            pytest.skip("openspec init did not run (binary missing or upstream error)")
+        content = skill_md.read_text()
+        assert "\nname: osc-apply-change\n" in content, content

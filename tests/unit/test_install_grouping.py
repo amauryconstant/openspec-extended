@@ -121,9 +121,7 @@ class TestInstallGrouping:
     def test_utility_set_is_complement(self):
         """Utility resources are everything declared minus the autonomous set."""
         resources = _manifest_resources(OPENCODE / "manifest.toml")
-        all_names = {
-            name for entries in resources.values() for name in entries
-        }
+        all_names = {name for entries in resources.values() for name in entries}
         utility = all_names - osx.AUTONOMOUS_RESOURCE_NAMES
         assert len(utility) == 12, (
             f"Utility default should be 12 entries under utility-only install; "

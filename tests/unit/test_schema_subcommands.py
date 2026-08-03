@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Tests for openspec schema * subprocess wrappers."""
 
-
 import pytest
 
 from source.lib import osx as osx_lib

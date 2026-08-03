@@ -89,7 +89,9 @@ class TestStateTransitionNamedOptions:
         data = json.loads((change_dir / "state.json").read_text())
         assert data["transition"]["details"] == "Spec requirement 3.2 updated"
 
-    def test_transition_without_target_fails(self, change_dir: Path, tmp_path: Path) -> None:
+    def test_transition_without_target_fails(
+        self, change_dir: Path, tmp_path: Path
+    ) -> None:
         result = _run_osx(
             [
                 "state",
@@ -105,7 +107,9 @@ class TestStateTransitionNamedOptions:
         assert payload["error"] == "missing_field"
         assert "target" in payload
 
-    def test_transition_without_reason_fails(self, change_dir: Path, tmp_path: Path) -> None:
+    def test_transition_without_reason_fails(
+        self, change_dir: Path, tmp_path: Path
+    ) -> None:
         result = _run_osx(
             [
                 "state",
@@ -143,7 +147,9 @@ class TestStateTransitionNamedOptions:
         )
         assert result.returncode != 0, "old positional form must not succeed"
         data = json.loads((change_dir / "state.json").read_text())
-        assert "transition" not in data, "state must NOT be mutated by rejected invocation"
+        assert "transition" not in data, (
+            "state must NOT be mutated by rejected invocation"
+        )
 
 
 def _extract_bash_blocks(md_text: str) -> list[str]:
@@ -181,11 +187,7 @@ def _phase2_transition_blocks(platform: str) -> list[str]:
             / "resources/claude/commands/osx/phase2.md"
         )
     text = path.read_text()
-    return [
-        b
-        for b in _extract_bash_blocks(text)
-        if "osx state transition " in b
-    ]
+    return [b for b in _extract_bash_blocks(text) if "osx state transition " in b]
 
 
 @pytest.mark.integration
@@ -257,11 +259,7 @@ class TestPhase2TransitionExamplesAreRunnable:
 
         for case, block in zip(expected, blocks, strict=True):
             line = next(
-                (
-                    ln
-                    for ln in block.splitlines()
-                    if "osx state transition " in ln
-                ),
+                (ln for ln in block.splitlines() if "osx state transition " in ln),
                 None,
             )
             assert line is not None, f"{platform}: no transition line in:\n{block}"
@@ -269,7 +267,7 @@ class TestPhase2TransitionExamplesAreRunnable:
             tokens = shlex.split(line)
             assert "osx" in tokens, f"{platform}: tokens missing 'osx': {tokens}"
             sub_idx = tokens.index("osx")
-            osx_args = [t.replace("$1", "test-change") for t in tokens[sub_idx + 1:]]
+            osx_args = [t.replace("$1", "test-change") for t in tokens[sub_idx + 1 :]]
 
             assert "--target" in osx_args, (
                 f"{platform}: example missing --target — {line!r}"

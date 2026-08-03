@@ -111,7 +111,13 @@ class TestOsxSchemaSubapp:
         captured = {}
 
         def fake(
-            name, *, description=None, artifacts=None, set_default=False, force=False, store=None
+            name,
+            *,
+            description=None,
+            artifacts=None,
+            set_default=False,
+            force=False,
+            store=None,
         ):
             captured["fn"] = "schema_init"
             captured["name"] = name
@@ -150,7 +156,13 @@ class TestOsxSchemaSubapp:
         captured = {}
 
         def fake(
-            name, *, description=None, artifacts=None, set_default=False, force=False, store=None
+            name,
+            *,
+            description=None,
+            artifacts=None,
+            set_default=False,
+            force=False,
+            store=None,
         ):
             captured["artifacts"] = artifacts
             return {"ok": True}

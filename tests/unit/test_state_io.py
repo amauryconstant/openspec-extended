@@ -59,7 +59,10 @@ def test_engine_write_state_preserves_started_at_across_writes(tmp_path):
     engine.write_state(state, "PHASE1", iteration=2)
     second = json.loads((tmp_path / "state.json").read_text())
     assert second["started_at"] == started_at_1
-    assert second["last_updated"] != last_updated_1 or second["last_updated"] >= started_at_1
+    assert (
+        second["last_updated"] != last_updated_1
+        or second["last_updated"] >= started_at_1
+    )
 
 
 def test_get_next_phase_iteration_starts_at_one_when_no_state(tmp_path):

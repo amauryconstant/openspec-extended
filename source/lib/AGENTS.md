@@ -66,7 +66,7 @@ Keep the library and the CLI module separate so the library can be imported in-p
 | `PHASES` | `["PHASE0" ... "PHASE6"]` |
 | `VALID_TRANSITION_REASONS` | `implementation_incorrect`, `artifacts_modified`, `retry_requested` |
 | `REQUIRED_SKILLS` | 7 `osx-*` skills installed for changes (`osx-generate-changelog` is intentionally excluded; it has its own `/osx-changelog` dispatch) |
-| `REQUIRED_CORE_SKILLS` | 4 `osc-*` core skills (apply, verify, sync, archive) |
+| `REQUIRED_CORE_SKILLS` | All 12 `osc-*` core skills from upstream OpenSpec v1.7.0 (propose, explore, new-change, continue-change, apply-change, update-change, ff-change, verify-change, sync-specs, archive-change, bulk-archive-change, onboard). Bumped from 4 → 12 to track the full custom-profile set; see `source/lib/osx.py`. |
 | `AUTONOMOUS_RESOURCE_NAMES` | 12 names (4 agents + 7 phase commands + `osx-workflow` skill) gated by `install --with-autonomous`. Mirror in `deploy_type` (`source/cli.py:236`). |
 | `OSXError` | Exception class raised by library functions |
 

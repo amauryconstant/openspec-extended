@@ -85,9 +85,9 @@ class TestValidateCommandsPlatformAware:
         (tmp_path / ".claude" / "commands" / "osx").mkdir(parents=True)
         for phase, cmd_name in osx.PHASE_COMMANDS.items():
             deployed_name = cmd_name.replace("osx-", "", 1)
-            (tmp_path / ".claude" / "commands" / "osx" / f"{deployed_name}.md").write_text(
-                f"# {cmd_name}"
-            )
+            (
+                tmp_path / ".claude" / "commands" / "osx" / f"{deployed_name}.md"
+            ).write_text(f"# {cmd_name}")
 
         result = osx.validate_commands(tmp_path)
         assert result["valid"] is True, result
@@ -132,3 +132,68 @@ class TestValidateCommandsPlatformAware:
         messages = [err["message"] for err in result["errors"]]
         assert any("phase0" in m for m in messages)
         assert not any("osx-phase0" in m for m in messages)
+
+
+class TestValidateCommandsEitherForm:
+    """Claude Code dual-emits slash commands as both a legacy
+    ``.claude/commands/<name>.md`` file and a modern
+    ``.claude/skills/<name>/SKILL.md`` directory. Either form satisfies a
+    phase command's contract — mirroring upstream OpenSpec v1.7.0.
+    """
+
+    def test_claude_skill_only_is_valid(self, tmp_path):
+        """A slash command present only as a skill (no legacy command file)
+        is valid on Claude. Mirrors the post-migration world where Claude
+        Code resolves every slash command through the skills surface."""
+        (tmp_path / ".claude").mkdir()
+        for phase, cmd_name in osx.PHASE_COMMANDS.items():
+            skill_path = tmp_path / ".claude" / "skills" / cmd_name
+            skill_path.mkdir(parents=True, exist_ok=True)
+            (skill_path / "SKILL.md").write_text(f"---\nname: {cmd_name}\n---\n# x")
+
+        result = osx.validate_commands(tmp_path)
+        assert result["valid"] is True, result
+
+    def test_claude_command_only_still_valid(self, tmp_path):
+        """The legacy command-only form is still valid on Claude — back-compat."""
+        (tmp_path / ".claude" / "commands" / "osx").mkdir(parents=True)
+        for phase, cmd_name in osx.PHASE_COMMANDS.items():
+            deployed_name = cmd_name.replace("osx-", "", 1)
+            (
+                tmp_path / ".claude" / "commands" / "osx" / f"{deployed_name}.md"
+            ).write_text(f"# {cmd_name}")
+
+        result = osx.validate_commands(tmp_path)
+        assert result["valid"] is True, result
+
+    def test_claude_both_forms_is_valid(self, tmp_path):
+        """Dual-emit (both forms present) is valid."""
+        (tmp_path / ".claude" / "commands" / "osx").mkdir(parents=True)
+        for phase, cmd_name in osx.PHASE_COMMANDS.items():
+            deployed_name = cmd_name.replace("osx-", "", 1)
+            (
+                tmp_path / ".claude" / "commands" / "osx" / f"{deployed_name}.md"
+            ).write_text(f"# {cmd_name}")
+            skill_path = tmp_path / ".claude" / "skills" / cmd_name
+            skill_path.mkdir(parents=True, exist_ok=True)
+            (skill_path / "SKILL.md").write_text(f"---\nname: {cmd_name}\n---\n# x")
+
+        result = osx.validate_commands(tmp_path)
+        assert result["valid"] is True, result
+
+    def test_claude_partial_skill_only_some_phases_invalid(self, tmp_path):
+        """If some phases have skills and others don't, validation fails for
+        the missing ones but the existing ones still satisfy."""
+        (tmp_path / ".claude").mkdir()
+        # Only phase0 as a skill — the rest should fail validation.
+        phase0_name = osx.PHASE_COMMANDS["PHASE0"]
+        skill_path = tmp_path / ".claude" / "skills" / phase0_name
+        skill_path.mkdir(parents=True)
+        (skill_path / "SKILL.md").write_text(f"---\nname: {phase0_name}\n---")
+
+        result = osx.validate_commands(tmp_path)
+        assert result["valid"] is False
+        messages = [err["message"] for err in result["errors"]]
+        # The error names use the deployed filename convention (e.g. "phase1"
+        # not "osx-phase1") on Claude.
+        assert any("phase1" in m for m in messages)

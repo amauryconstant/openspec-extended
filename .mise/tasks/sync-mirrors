@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Generate resources/claude/{skills,commands}/ and claude/manifest.toml from resources/opencode/ via token substitution. Run after editing opencode resources. Use --check for CI to fail on drift."
+#MISE description="Generate resources/claude/{skills,commands}/ and claude/manifest.toml from resources/opencode/ via token substitution. Run after editing opencode resources. Use --check for CI to fail on drift. On Claude, every opencode command dual-emits as both a legacy .claude/commands/<name>.md and a modern .claude/skills/<name>/SKILL.md (mirrors upstream OpenSpec v1.7.0)."
 #USAGE flag "--check" help="Verify claude mirrors are in sync; exit non-zero on drift"
 
 set -euo pipefail
@@ -40,9 +40,15 @@ log_info() { printf '  -> %s\n' "$*"; }
 log_warn() { printf '  !! %s\n' "$*" >&2; }
 
 # Compute the claude-side path for a given opencode-side relative path.
-# Two layout differences:
-#   - commands/<X>.md (opencode) → commands/osx/<X-without-prefix>.md (claude)
+# Three layout differences:
+#   - commands/osx-<X>.md (opencode) → commands/osx/<X>.md (claude, legacy form)
+#   - commands/osx-<X>.md (opencode) also emits skills/osx-<X>/SKILL.md
+#     (claude, modern form — mirrors upstream OpenSpec v1.7.0's dual-emit).
 #   - everything else: same directory layout, just swap "opencode/" for "claude/"
+#
+# Returns the *primary* target (the legacy command file). The skill mirror
+# runs separately via mirror_command_skill() so that we always emit both
+# forms even when only one side has changed.
 claude_path_for() {
     local rel="$1"
     local rel_no_oc="${rel#opencode/}"
@@ -53,6 +59,23 @@ claude_path_for() {
             ;;
         *)
             printf '%s\n' "$CLAUDE_ROOT/${rel_no_oc}"
+            ;;
+    esac
+}
+
+# Compute the claude-side skill path for an opencode command file.
+# commands/osx-<X>.md → skills/osx-<X>/SKILL.md
+claude_skill_path_for_command() {
+    local rel="$1"
+    local rel_no_oc="${rel#opencode/}"
+    case "$rel_no_oc" in
+        commands/osx-*.md)
+            local stem="${rel_no_oc#commands/osx-}"
+            local base="${stem%.md}"
+            printf '%s\n' "$CLAUDE_ROOT/skills/osx-${base}/SKILL.md"
+            ;;
+        *)
+            return 1
             ;;
     esac
 }
@@ -138,6 +161,95 @@ mirror_file() {
     log_info "wrote resources/claude/${rel#opencode/}"
 }
 
+# Emit the Claude skill mirror for an opencode command file.
+# OpenCode commands carry `agent:` frontmatter (opencode-specific dispatch) but
+# no `name:` field; the Claude skill needs `name:` and no `agent:`. We also
+# copy skill-shared references referenced from the command body so the skill
+# is self-sufficient at deploy time.
+#
+# References are detected as relative `references/<file>.md` prose mentions
+# in the command body. Their opencode source lives at
+# resources/opencode/skills/references/<file>.md; the Claude copy lands at
+# resources/claude/skills/references/<file>.md (auto-mirrored by the regular
+# skill-mirror pass over resources/opencode/skills/references/*.md below).
+mirror_command_skill() {
+    local rel="$1"
+    local src="$OPENCODE_ROOT/$rel"
+    local dst
+    if ! dst=$(claude_skill_path_for_command "$rel"); then
+        return 0
+    fi
+
+    if [[ ! -f "$src" ]]; then
+        return 0
+    fi
+
+    # Hand-maintained AGENTS.md files never reach this script.
+    case "$rel" in
+        */AGENTS.md) return 0 ;;
+    esac
+
+    local base_name
+    base_name=$(basename "${rel%.md}")
+    # base_name is "osx-<X>" — slash command name will be /<base_name>.
+    local skill_name="$base_name"
+
+    # Build the SKILL.md body: re-emit the frontmatter with `name:` set, drop
+    # the opencode-only `agent:` field, then append the original body.
+    local body
+    body=$(awk '
+        BEGIN { in_fm=0; seen_fm=0 }
+        /^---[[:space:]]*$/ {
+            if (in_fm == 0) { in_fm = 1; print; next }
+            else {
+                if (seen_fm == 0) {
+                    print "name: '"$skill_name"'"
+                    seen_fm = 1
+                    print "---"
+                    in_fm = 0
+                    next
+                }
+            }
+        }
+        in_fm == 1 {
+            # Keep description/license/compatibility/allowed-tools;
+            # drop agent: (opencode-only dispatch).
+            if ($0 ~ /^agent:[[:space:]]/) next
+            print
+            next
+        }
+        in_fm == 0 { print }
+    ' "$src")
+
+    local generated
+    generated=$( {
+        printf '%s\n' "$body"
+        append_header "$rel"
+    } )
+
+    # Apply token substitution (drops the markdown comment tokens embedded
+    # in command bodies) on the rendered output.
+    generated=$(printf '%s\n' "$generated" | substitute_tokens cd)
+
+    local current=""
+    if [[ -f "$dst" ]]; then
+        current=$(cat "$dst")
+    fi
+
+    if [[ "$current" == "$generated" ]]; then
+        return 0
+    fi
+
+    if [[ "$CHECK_ONLY" == "true" ]]; then
+        log_warn "DRIFT: resources/claude/${dst#"$CLAUDE_ROOT"/}"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "$dst")"
+    printf '%s\n' "$generated" > "$dst"
+    log_info "wrote resources/claude/${dst#"$CLAUDE_ROOT"/}"
+}
+
 # Mirror the manifest file. The manifest has no platform-specific content;
 # the opencode manifest is the canonical source.
 mirror_manifest() {
@@ -194,10 +306,12 @@ main() {
                 -type f \
                 -print0 2>/dev/null)
 
-    # Mirror all command files.
+    # Mirror all command files. Each opencode command also dual-emits on
+    # the Claude side as a skill (mirroring upstream OpenSpec v1.7.0).
     while IFS= read -r -d '' src; do
         local rel="${src#"$OPENCODE_ROOT"/}"
         mirror_file "$rel" || drift=1
+        mirror_command_skill "$rel" || drift=1
     done < <(find "$OPENCODE_ROOT/commands" \
                 -type f -name "*.md" \
                 -print0 2>/dev/null)

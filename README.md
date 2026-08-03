@@ -245,11 +245,14 @@ OpenSpec-extended/
 ├── openspec.spec            # PyInstaller spec
 ├── openspec-core/           # Core workflows (synced from upstream)
 ├── resources/
-│   ├── opencode/            # OpenCode resources
+│   ├── opencode/            # OpenCode resources (canonical source)
 │   │   ├── skills/          # 8 extension skills
 │   │   ├── agents/          # 4 agent definitions
 │   │   └── commands/        # Phase commands + osx-* utilities
-│   └── claude/              # Claude Code resources (same structure)
+│   └── claude/              # Claude Code resources (auto-generated mirror)
+│       ├── skills/          # 8 extension skills + osx-* skill mirror per
+│       │                    # command (mirrors upstream v1.7.0 dual-emit)
+│       └── commands/osx/    # Phase commands + osx-* utilities (legacy form)
 ├── tests/                   # pytest + bats suite (unit/integration/mechanism/e2e)
 ├── docs/                    # User-facing documentation
 ├── .mise/tasks/             # sync-core, release, version/{check,update} (bash)

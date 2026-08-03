@@ -9,7 +9,6 @@ import pytest
 from typer.testing import CliRunner
 
 
-
 @pytest.fixture
 def test_env(tmp_path):
     """Create a test environment with git repo."""
@@ -68,6 +67,7 @@ def invoke(args):
     """Invoke osx CLI with given args using CliRunner."""
     runner = CliRunner()
     from source.osx_cli import osx_app
+
     return runner.invoke(osx_app, args)
 
 

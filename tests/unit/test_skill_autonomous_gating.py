@@ -10,7 +10,14 @@ import pytest
 )
 @pytest.mark.parametrize("platform", ["opencode", "claude"])
 def test_skill_autonomous_gates_precede_questions(skill: str, platform: str) -> None:
-    path = Path(__file__).parents[2] / "resources" / platform / "skills" / skill / "SKILL.md"
+    path = (
+        Path(__file__).parents[2]
+        / "resources"
+        / platform
+        / "skills"
+        / skill
+        / "SKILL.md"
+    )
     text = path.read_text()
     lines = text.splitlines()
     # The ask-tool name varies by platform and form:
@@ -38,7 +45,7 @@ def test_skill_autonomous_gates_precede_questions(skill: str, platform: str) -> 
     assert "OSX_AUTONOMOUS=1" in text, (
         f"{path} must declare the OSX_AUTONOMOUS=1 convention"
     )
-    assert ("auto-accept" in text.lower() or "skip" in text.lower()), (
+    assert "auto-accept" in text.lower() or "skip" in text.lower(), (
         f"{path} must include the auto-accept/skip phrasing of the convention"
     )
     # Per-step gating only matters when the skill actually has ask-tool
@@ -51,10 +58,7 @@ def test_skill_autonomous_gates_precede_questions(skill: str, platform: str) -> 
     # leading word.
     for index in question_lines:
         preceding = "\n".join(lines[max(0, index - 4) : index + 1])
-        gated = (
-            "OSX_AUTONOMOUS=1" in preceding
-            or "auto-accept" in preceding.lower()
-        )
+        gated = "OSX_AUTONOMOUS=1" in preceding or "auto-accept" in preceding.lower()
         assert gated, (
             f"{path}:{index + 1} ask-tool reference must be preceded by "
             "`OSX_AUTONOMOUS=1` gating or the auto-accept leading word"

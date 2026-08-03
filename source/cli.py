@@ -212,7 +212,57 @@ def deploy_skills(
                 log_warn(f"Shared reference not found: {src}")
 
 
-def deploy_commands(source_base: Path, target_dir: Path, name: str) -> None:
+def _build_claude_skill_from_command(source_path: Path, name: str) -> str:
+    """Read an opencode command file and render it as a Claude SKILL.md body.
+
+    Strips opencode-only ``agent:`` frontmatter (Claude has no equivalent
+    dispatch model), injects ``name: <name>`` so the skill carries a slash
+    command identifier, and preserves everything else verbatim. Returns the
+    rendered string; callers write it to disk.
+    """
+    raw = source_path.read_text()
+    in_fm = False
+    seen_close = False
+    out_lines: list[str] = []
+    for line in raw.splitlines(keepends=True):
+        stripped = line.strip()
+        if stripped == "---":
+            if not in_fm:
+                in_fm = True
+                out_lines.append(line)
+                continue
+            if not seen_close:
+                out_lines.append(f"name: {name}\n")
+                seen_close = True
+                in_fm = False
+            out_lines.append(line)
+            continue
+        if in_fm and line.lstrip().startswith("agent:"):
+            continue
+        out_lines.append(line)
+    if not seen_close:
+        # File had no closing frontmatter fence; still inject name on a fresh header.
+        return f"---\nname: {name}\n---\n{raw}"
+    return "".join(out_lines)
+
+
+def _referenced_skill_refs(body: str) -> list[str]:
+    """Extract ``references/<file>.md`` paths referenced in a command body.
+
+    Phase commands point at the shared ``skills/references/`` pool via prose
+    like ``See ``references/phase-protocol-common.md#mandatory-start`.`` The
+    Claude skill mirror needs to copy those reference files into its own
+    ``references/`` subdir so the skill is self-sufficient at deploy time.
+    """
+    seen: set[str] = set()
+    for match in re.finditer(r"`?references/([A-Za-z0-9_\-]+\.md)", body):
+        seen.add(match.group(1))
+    return sorted(seen)
+
+
+def deploy_commands(
+    source_base: Path, target_dir: Path, name: str, tool: str = "opencode"
+) -> None:
     target_commands = target_dir / "commands"
     target_commands.mkdir(parents=True, exist_ok=True)
     source_path = source_base / f"{name}.md"
@@ -231,8 +281,38 @@ def deploy_commands(source_base: Path, target_dir: Path, name: str) -> None:
                     shutil.copy2(
                         alt_source, target_commands / subdir_name / f"{base_name}.md"
                     )
-                    return
-        raise FileNotFoundError(f"Command not found: {name}")
+                    source_path = alt_source
+                    break
+        else:
+            raise FileNotFoundError(f"Command not found: {name}")
+
+    if tool != "claude":
+        # OpenCode: single-emit command file only (its native shape).
+        return
+
+    # Claude: dual-emit. Also write the command as a skill at
+    # ``<target>/skills/<name>/SKILL.md`` so the slash command resolves
+    # against the modern skills surface as well — mirrors upstream
+    # OpenSpec v1.7.0's dual-emit strategy. The legacy .claude/commands/
+    # file written above remains in place for back-compat.
+    skill_dir = target_dir / "skills" / name
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_md = skill_dir / "SKILL.md"
+    skill_md.write_text(_build_claude_skill_from_command(source_path, name))
+
+    # Copy any references/ files referenced from the body so the skill
+    # is self-sufficient at deploy time. Source refs live once under
+    # the source skills/references/ pool.
+    body = skill_md.read_text()
+    ref_names = _referenced_skill_refs(body)
+    if ref_names:
+        source_refs_dir = source_base.parent / "skills" / "references"
+        target_refs_dir = skill_dir / "references"
+        target_refs_dir.mkdir(parents=True, exist_ok=True)
+        for ref_name in ref_names:
+            src = source_refs_dir / ref_name
+            if src.is_file():
+                shutil.copy2(src, target_refs_dir / ref_name)
 
 
 def deploy_agents(source_base: Path, target_dir: Path, name: str) -> None:
@@ -296,7 +376,7 @@ def deploy_type(
                 )
                 count += 1
             elif resource_type == "commands":
-                deploy_commands(source_type_dir, target_dir, name)
+                deploy_commands(source_type_dir, target_dir, name, tool=tool)
                 count += 1
             elif resource_type == "agents":
                 deploy_agents(source_type_dir, target_dir, name)
@@ -931,6 +1011,12 @@ def validate_deployment(target_dir: Path, manifest: dict) -> None:
                         if subdir.is_dir() and (subdir / f"{base_name}.md").is_file():
                             found = True
                             break
+                # Modern Claude form: slash command emitted as a skill
+                # (dual-emit mirrors upstream OpenSpec v1.7.0).
+                if not found:
+                    skill_path = target_dir / "skills" / name / "SKILL.md"
+                    if skill_path.is_file():
+                        found = True
 
             if not found:
                 log_warn(f"Resource '{name}' in manifest but not deployed")

@@ -73,7 +73,9 @@ class TestResolveChangePaths:
         result = osx.resolve_change_paths("foo")
         assert result["change_root"] == store_root
         assert result["source"] == "cli"
-        assert result["archive_dir"] == planning_root / "openspec" / "changes" / "archive"
+        assert (
+            result["archive_dir"] == planning_root / "openspec" / "changes" / "archive"
+        )
 
     def test_explicit_store_kwarg_takes_precedence(self, tmp_path, monkeypatch):
         """store= kwarg overrides the contextvar."""
@@ -149,7 +151,9 @@ class TestFindChangeDir:
     def test_archived_change(self, tmp_path, monkeypatch):
         """Finds change in archive when not in active location."""
         monkeypatch.chdir(tmp_path)
-        archive = tmp_path / "openspec" / "changes" / "archive" / "2024-01-15-test-change"
+        archive = (
+            tmp_path / "openspec" / "changes" / "archive" / "2024-01-15-test-change"
+        )
         archive.mkdir(parents=True)
         monkeypatch.setattr(osx.subprocess, "run", make_run(exc=FileNotFoundError()))
         result = osx._find_change_dir("test-change")

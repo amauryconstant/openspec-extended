@@ -116,10 +116,18 @@ REQUIRED_SKILLS = [
 # osx-generate-changelog is intentionally absent: it has its own /osx-changelog dispatch.
 
 REQUIRED_CORE_SKILLS = [
+    "osc-propose",
+    "osc-explore",
+    "osc-new-change",
+    "osc-continue-change",
     "osc-apply-change",
+    "osc-update-change",
+    "osc-ff-change",
     "osc-verify-change",
     "osc-sync-specs",
     "osc-archive-change",
+    "osc-bulk-archive-change",
+    "osc-onboard",
 ]
 
 AUTONOMOUS_RESOURCE_NAMES = frozenset(
@@ -1300,11 +1308,38 @@ def _install_hint(platform: str) -> str:
     return f"Re-run: openspec-extended install {platform} --with-autonomous"
 
 
+def _command_resolved_for_phase(
+    root: Path, platform: str, cmd_name: str
+) -> Path | None:
+    """Return the on-disk path of a slash command, accepting either the
+    legacy ``<target>/commands/<name>.md`` form or the modern
+    ``<target>/skills/<name>/SKILL.md`` form (Claude dual-emits both —
+    mirrors upstream OpenSpec v1.7.0's dual-emit strategy).
+
+    Returns ``None`` if neither form resolves.
+    """
+    base = commands_dir(root)
+    if platform == "claude" and cmd_name.startswith("osx-"):
+        deployed_name = cmd_name.replace("osx-", "", 1)
+    else:
+        deployed_name = cmd_name
+
+    cmd_path = base / f"{deployed_name}.md"
+    if cmd_path.exists():
+        return cmd_path
+
+    if platform == "claude":
+        skill_path = root / ".claude" / "skills" / cmd_name / "SKILL.md"
+        if skill_path.exists():
+            return skill_path
+
+    return None
+
+
 def validate_commands(project_root: Path | None = None) -> dict:
     root = project_root if project_root is not None else Path.cwd()
     errors: list[dict] = []
 
-    base = commands_dir(root)
     platform = detect_platform(root)
     install_hint = _install_hint(platform)
     missing_phase_commands: list[str] = []
@@ -1316,8 +1351,8 @@ def validate_commands(project_root: Path | None = None) -> dict:
             deployed_name = cmd_name.replace("osx-", "", 1)
         else:
             deployed_name = cmd_name
-        cmd_path = base / f"{deployed_name}.md"
-        if not cmd_path.exists():
+        resolved = _command_resolved_for_phase(root, platform, cmd_name)
+        if resolved is None:
             missing_phase_commands.append(deployed_name)
             errors.append(
                 {

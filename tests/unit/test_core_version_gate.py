@@ -32,9 +32,11 @@ class TestGetCoreVersion:
             "the canonical version lives in source.__version__"
         )
         assert hasattr(cli_mod, "__version__")
-        assert cli_mod.__version__ == osx.__version__ if hasattr(
-            osx, "__version__"
-        ) else True  # osx is a library module; just assert cli imports it
+        assert (
+            cli_mod.__version__ == osx.__version__
+            if hasattr(osx, "__version__")
+            else True
+        )  # osx is a library module; just assert cli imports it
 
     def test_version_callback_uses_dunder_version(self):
         """The `--version` callback prints `__version__`, not SCRIPT_VERSION."""
@@ -56,7 +58,6 @@ class TestGetCoreVersion:
         from source import __version__
 
         assert __version__ in joined
-
 
     def test_returns_none_when_binary_missing(self, monkeypatch):
         """No `openspec` on PATH → None (not an exception)."""

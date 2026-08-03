@@ -54,7 +54,9 @@ def e2e_repo(tmp_path):
 
     # Regardless of source, ensure stub skills + phase commands exist so the
     # orchestrator's preflight (Fix 5: always runs) can pass validate_skills
-    # and validate_commands.
+    # and validate_commands. REQUIRED_CORE_SKILLS expanded to all 12 in
+    # dual-emit refactor; everything except osx-generate-changelog (which
+    # has its own /osx-changelog dispatch) must be stubbed.
     skills_dir = opencode_target / "skills"
     for skill in (
         "osx-concepts",
@@ -64,10 +66,18 @@ def e2e_repo(tmp_path):
         "osx-review-test-compliance",
         "osx-maintain-ai-docs",
         "osx-commit",
+        "osc-propose",
+        "osc-explore",
+        "osc-new-change",
+        "osc-continue-change",
         "osc-apply-change",
+        "osc-update-change",
+        "osc-ff-change",
         "osc-verify-change",
         "osc-sync-specs",
         "osc-archive-change",
+        "osc-bulk-archive-change",
+        "osc-onboard",
     ):
         skill_path = skills_dir / skill / "SKILL.md"
         if not skill_path.exists():

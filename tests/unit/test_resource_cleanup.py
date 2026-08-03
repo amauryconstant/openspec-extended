@@ -59,7 +59,12 @@ def _seed_claude_legacy(target_dir: Path) -> None:
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # Skills
-    for skill in ("osx-concepts", "osx-workflow", "osx-old-skill", "osc-archive-change"):
+    for skill in (
+        "osx-concepts",
+        "osx-workflow",
+        "osx-old-skill",
+        "osc-archive-change",
+    ):
         _write(target_dir / "skills" / skill / "SKILL.md", skill)
     _write(target_dir / "skills" / "custom-review" / "SKILL.md", "kept")
 
@@ -102,9 +107,7 @@ class TestOpenCodeCleanup:
         _seed_opencode_legacy(target)
         keep = {"osx-phase0", "osx-concepts", "osx-workflow", "osx-analyzer"}
 
-        purge_managed_resources(
-            target, "opencode", keep_names=keep, prefixes=("osx-",)
-        )
+        purge_managed_resources(target, "opencode", keep_names=keep, prefixes=("osx-",))
 
         assert not (target / "commands" / "osx-old-cmd.md").exists()
         assert (target / "commands" / "osx-phase0.md").is_file()
@@ -115,9 +118,7 @@ class TestOpenCodeCleanup:
         _seed_opencode_legacy(target)
         keep = {"osx-analyzer", "osx-concepts", "osx-workflow", "osx-phase0"}
 
-        purge_managed_resources(
-            target, "opencode", keep_names=keep, prefixes=("osx-",)
-        )
+        purge_managed_resources(target, "opencode", keep_names=keep, prefixes=("osx-",))
 
         assert not (target / "agents" / "osx-old-agent.md").exists()
         assert (target / "agents" / "osx-analyzer.md").is_file()
@@ -128,9 +129,7 @@ class TestOpenCodeCleanup:
         _seed_opencode_legacy(target)
         keep = {"osx-concepts", "osx-workflow", "osx-phase0", "osx-analyzer"}
 
-        purge_managed_resources(
-            target, "opencode", keep_names=keep, prefixes=("osx-",)
-        )
+        purge_managed_resources(target, "opencode", keep_names=keep, prefixes=("osx-",))
 
         assert not (target / "commands" / "openspec-old-legacy.md").exists()
 
@@ -140,9 +139,7 @@ class TestOpenCodeCleanup:
         _seed_opencode_legacy(target)
         keep = {"osx-concepts", "osx-workflow", "osx-phase0", "osx-analyzer"}
 
-        purge_managed_resources(
-            target, "opencode", keep_names=keep, prefixes=("osx-",)
-        )
+        purge_managed_resources(target, "opencode", keep_names=keep, prefixes=("osx-",))
 
         assert (target / "skills" / "osc-apply-change").is_dir()
 
@@ -179,9 +176,7 @@ class TestClaudeCleanup:
             "osx-phase0",
         }
 
-        purge_managed_resources(
-            target, "claude", keep_names=keep, prefixes=("osc-",)
-        )
+        purge_managed_resources(target, "claude", keep_names=keep, prefixes=("osc-",))
 
         assert not (target / "commands" / "osc" / "old-osc-cmd.md").exists()
         assert (target / "commands" / "osc" / "apply-change.md").is_file()
@@ -192,9 +187,7 @@ class TestClaudeCleanup:
         _seed_claude_legacy(target)
         keep = {"osx-phase0", "osx-concepts", "osx-workflow"}
 
-        purge_managed_resources(
-            target, "claude", keep_names=keep, prefixes=("osx-",)
-        )
+        purge_managed_resources(target, "claude", keep_names=keep, prefixes=("osx-",))
 
         # openspec-* flat files were always considered legacy junk
         assert not (target / "commands" / "openspec-legacy-flat.md").exists()
@@ -204,9 +197,7 @@ class TestClaudeCleanup:
         _seed_claude_legacy(target)
         keep = {"osx-phase0", "osx-concepts", "osx-workflow"}
 
-        purge_managed_resources(
-            target, "claude", keep_names=keep, prefixes=("osx-",)
-        )
+        purge_managed_resources(target, "claude", keep_names=keep, prefixes=("osx-",))
 
         assert (target / "commands" / "custom" / "my-command.md").is_file()
 
@@ -259,9 +250,7 @@ class TestPrefixSafety:
         _write(target / "skills" / "osc-remove" / "SKILL.md")
         keep: set[str] = {"osx-keep"}
 
-        purge_managed_resources(
-            target, "opencode", keep_names=keep, prefixes=("osc-",)
-        )
+        purge_managed_resources(target, "opencode", keep_names=keep, prefixes=("osc-",))
 
         assert (target / "skills" / "osx-keep").is_dir()
         assert not (target / "skills" / "osc-remove").exists()
@@ -435,7 +424,9 @@ class TestRenameCoreResources:
     def test_renames_opencode_flat_command(self, tmp_path: Path, monkeypatch, wid: str):
         target = tmp_path / ".opencode"
         (target / "commands").mkdir(parents=True)
-        (target / "commands" / f"opsx-{wid}.md").write_text(f"---\ndescription: {wid}\n---\n")
+        (target / "commands" / f"opsx-{wid}.md").write_text(
+            f"---\ndescription: {wid}\n---\n"
+        )
 
         monkeypatch.chdir(tmp_path)
         rename_core_resources("opencode")

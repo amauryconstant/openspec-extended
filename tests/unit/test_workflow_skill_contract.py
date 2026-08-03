@@ -83,7 +83,9 @@ def _extract_tldr_rows(text: str) -> list[tuple[str, str]]:
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("skill_path", SKILL_PATHS, ids=lambda p: p.relative_to(REPO_ROOT).as_posix())
+@pytest.mark.parametrize(
+    "skill_path", SKILL_PATHS, ids=lambda p: p.relative_to(REPO_ROOT).as_posix()
+)
 class TestWorkflowSkillContract:
     """Phase rows in osx-workflow/SKILL.md must match PHASE_AGENTS."""
 
@@ -171,8 +173,7 @@ class TestWorkflowSkillContract:
         """
         text = skill_path.read_text()
         assert "PHASE0" in text and "read-only" in text, (
-            f"{skill_path.relative_to(REPO_ROOT)} must distinguish PHASE0 as "
-            "read-only"
+            f"{skill_path.relative_to(REPO_ROOT)} must distinguish PHASE0 as read-only"
         )
         # PHASE2/PHASE5 should be characterized as write-capable (not read-only).
         assert "write-capable" in text or "edit: allow" in text, (

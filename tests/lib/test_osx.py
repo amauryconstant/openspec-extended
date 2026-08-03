@@ -370,9 +370,7 @@ class TestLog:
         assert "input_too_long" in result.output
         assert not (change_dir / "decision-log.json").exists()
 
-    def test_log_append_rejects_zsh_env_dump_fingerprint(
-        self, change_dir, monkeypatch
-    ):
+    def test_log_append_rejects_zsh_env_dump_fingerprint(self, change_dir, monkeypatch):
         """`local` backtick-expanded in zsh produces 'integer 10 readonly ...'.
 
         Any string containing that fingerprint (or the other zsh dump
@@ -476,9 +474,7 @@ class TestComplete:
         """Test setting complete status."""
         monkeypatch.chdir(change_dir.parent.parent.parent)
 
-        result = runner.invoke(
-            osx_app, ["complete", "set", "test-change", "COMPLETE"]
-        )
+        result = runner.invoke(osx_app, ["complete", "set", "test-change", "COMPLETE"])
         assert result.exit_code == 0, (
             f"Output: {result.output}, Exception: {result.exception}"
         )

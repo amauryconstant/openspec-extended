@@ -156,9 +156,11 @@ def _dataclass_fields(path: Path, class_name: str) -> set[str] | None:
                 if isinstance(stmt, ast.AnnAssign) and isinstance(
                     stmt.target, ast.Name
                 ):
-                    return {child.id for child in stmt.annotation.elts} if isinstance(
-                        stmt.annotation, ast.Tuple
-                    ) else {stmt.target.id}
+                    return (
+                        {child.id for child in stmt.annotation.elts}
+                        if isinstance(stmt.annotation, ast.Tuple)
+                        else {stmt.target.id}
+                    )
             return set()
     return None
 

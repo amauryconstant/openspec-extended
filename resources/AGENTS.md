@@ -10,11 +10,15 @@ resources/
 │   ├── manifest.toml        # Per-resource version manifest (canonical)
 │   ├── skills/osx-*/        # Skills
 │   ├── agents/osx-*.md      # Agents
-│   └── commands/osx-*.md    # Slash commands
+│   └── commands/osx-*.md    # Slash commands (single-emit on opencode)
 └── claude/                  # Claude Code platform resources (auto-generated)
     ├── manifest.toml        # Generated from opencode/manifest.toml
     ├── skills/osx-*/        # Generated from opencode/skills/osx-*/
-    └── commands/osx/        # Generated from opencode/commands/osx-*.md (osx/ subdir)
+    │   osx-commands/...     # Plus, every opencode command dual-emits here
+    │                        # as osx-<X>/SKILL.md (modern form — mirrors
+    │                        # upstream OpenSpec v1.7.0)
+    └── commands/osx/        # Generated from opencode/commands/osx-*.md
+                             # (legacy form — kept for back-compat)
 ```
 
 ## Claude mirror

@@ -44,7 +44,9 @@ def _run_calls():
 
 def _assert_single_json_last():
     cmd = _run_calls()
-    assert cmd.count("--json") == 1, f"expected one --json, got {cmd.count('--json')} in {cmd}"
+    assert cmd.count("--json") == 1, (
+        f"expected one --json, got {cmd.count('--json')} in {cmd}"
+    )
     assert cmd[-1] == "--json", f"--json should be last (helper appends it); got {cmd}"
 
 

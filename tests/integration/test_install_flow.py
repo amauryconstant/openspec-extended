@@ -59,9 +59,7 @@ class TestInstallOpencode:
 
     def test_install_opencode_creates_structure(self, test_env):
         """Install opencode creates .opencode structure."""
-        result = run_osx(
-            ["install", "opencode", "--with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         assert (test_env / ".opencode" / "skills").is_dir()
@@ -80,9 +78,7 @@ class TestInstallOpencode:
 
     def test_install_opencode_copies_agents(self, test_env):
         """Install opencode with --with-autonomous copies agents."""
-        result = run_osx(
-            ["install", "opencode", "--with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         assert (test_env / ".opencode" / "agents" / "osx-analyzer.md").is_file()
@@ -91,9 +87,7 @@ class TestInstallOpencode:
 
     def test_install_opencode_copies_commands(self, test_env):
         """Install opencode with --with-autonomous copies phase commands."""
-        result = run_osx(
-            ["install", "opencode", "--with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         assert (test_env / ".opencode" / "commands" / "osx-phase0.md").is_file()
@@ -151,6 +145,84 @@ class TestInstallClaude:
         assert (test_env / ".claude" / "skills" / "osx-concepts").is_dir()
 
 
+class TestInstallClaudeDualEmit:
+    """Claude Code merges commands and skills. Each opencode slash command
+    must dual-emit on Claude as both a legacy ``.claude/commands/osx/<name>.md``
+    and a modern ``.claude/skills/osx-<name>/SKILL.md``. Mirrors upstream
+    OpenSpec v1.7.0's own dual-emit strategy.
+    """
+
+    def test_install_claude_autonomous_emits_command_and_skill(self, test_env):
+        """``install claude --with-autonomous`` writes BOTH the legacy command
+        file and the modern skill form for every phase command."""
+        result = run_osx(["install", "claude", "--with-autonomous"], cwd=test_env)
+        assert result.returncode == 0, result.stderr
+
+        for phase in range(7):
+            cmd_name = f"osx-phase{phase}"
+            base = f"phase{phase}"
+            cmd_file = test_env / ".claude" / "commands" / "osx" / f"{base}.md"
+            skill_md = test_env / ".claude" / "skills" / cmd_name / "SKILL.md"
+            assert cmd_file.is_file(), f"missing command file for {cmd_name}"
+            assert skill_md.is_file(), f"missing skill mirror for {cmd_name}"
+
+    def test_install_claude_autonomous_skill_has_name_field(self, test_env):
+        """The Claude skill mirror carries an explicit ``name: osx-<X>``
+        frontmatter so Claude Code's slash-command resolver picks it up."""
+        result = run_osx(["install", "claude", "--with-autonomous"], cwd=test_env)
+        assert result.returncode == 0, result.stderr
+
+        skill_md = test_env / ".claude" / "skills" / "osx-phase0" / "SKILL.md"
+        assert skill_md.is_file()
+        content = skill_md.read_text()
+        assert "\nname: osx-phase0\n" in content, content
+
+    def test_install_claude_autonomous_skill_drops_agent_field(self, test_env):
+        """The opencode-only ``agent:`` directive is stripped from the
+        Claude skill mirror (Claude has no equivalent dispatch model)."""
+        result = run_osx(["install", "claude", "--with-autonomous"], cwd=test_env)
+        assert result.returncode == 0, result.stderr
+
+        for phase in range(7):
+            skill_md = (
+                test_env / ".claude" / "skills" / f"osx-phase{phase}" / "SKILL.md"
+            )
+            content = skill_md.read_text()
+            assert "\nagent:" not in content, (
+                f"phase{phase} skill leaked agent: field: {content[:200]}"
+            )
+
+    def test_install_claude_autonomous_skill_copies_referenced_refs(self, test_env):
+        """Phase commands reference ``references/<file>.md`` paths in the
+        shared skill-references pool. The Claude skill mirror copies those
+        references into the per-skill ``references/`` directory so the
+        skill is self-sufficient at deploy time."""
+        result = run_osx(["install", "claude", "--with-autonomous"], cwd=test_env)
+        assert result.returncode == 0, result.stderr
+
+        refs_dir = test_env / ".claude" / "skills" / "osx-phase0" / "references"
+        assert refs_dir.is_dir(), refs_dir
+        assert (refs_dir / "phase-protocol-common.md").is_file()
+        assert (refs_dir / "blocker-semantics.md").is_file()
+        assert (refs_dir / "osx-decision-logging.md").is_file()
+        assert (refs_dir / "shell-argument-safety.md").is_file()
+
+    def test_install_opencode_autonomous_does_not_emit_skill_for_command(
+        self, test_env
+    ):
+        """OpenCode is single-emit: phase commands stay as
+        ``.opencode/commands/osx-phase0.md`` and do NOT produce a parallel
+        skill. This is the asymmetry of the dual-emit rule."""
+        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
+        assert result.returncode == 0, result.stderr
+
+        cmd_file = test_env / ".opencode" / "commands" / "osx-phase0.md"
+        assert cmd_file.is_file()
+        # The skill directory should not exist for this command-derived skill
+        # on OpenCode. (osx-workflow as a real skill is separate.)
+        assert not (test_env / ".opencode" / "skills" / "osx-phase0").is_dir()
+
+
 class TestInstallWithCore:
     """Tests for 'install --with-core' command."""
 
@@ -187,9 +259,7 @@ class TestInstallWithCore:
 
         assert result.returncode == 0, result.stderr
         osc_dir = test_env / ".claude" / "commands" / "osc"
-        deployed = (
-            {p.stem for p in osc_dir.glob("*.md")} if osc_dir.is_dir() else set()
-        )
+        deployed = {p.stem for p in osc_dir.glob("*.md")} if osc_dir.is_dir() else set()
         missing = EXPECTED_CORE_COMMANDS_CLAUDE - deployed
         assert not missing, (
             f"missing core commands after install --with-core: {sorted(missing)}"
@@ -198,9 +268,7 @@ class TestInstallWithCore:
     def test_update_with_core_reinstalls_all_12_core_commands(self, test_env):
         """``update --with-core --force`` regenerates the full 12-workflow set."""
         run_osx(["install", "opencode", "--with-core"], cwd=test_env)
-        result = run_osx(
-            ["update", "opencode", "--with-core", "--force"], cwd=test_env
-        )
+        result = run_osx(["update", "opencode", "--with-core", "--force"], cwd=test_env)
 
         assert result.returncode == 0, result.stderr
         commands_dir = test_env / ".opencode" / "commands"
@@ -392,8 +460,7 @@ class TestVersionAwareUpgrade:
 
         assert len(manifest_data["resources"]["agents"]) > 0
         assert (
-            manifest_data["resources"]["agents"]["osx-analyzer"]["version"]
-            is not None
+            manifest_data["resources"]["agents"]["osx-analyzer"]["version"] is not None
         )
 
     def test_update_always_deploys_regardless_of_version(self, test_env):
@@ -430,9 +497,7 @@ class TestInstallAutonomousFlag:
 
     def test_install_without_autonomous_skips_phase_commands(self, test_env):
         """`--no-with-autonomous` install does not deploy osx-phase0..6 commands."""
-        result = run_osx(
-            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--no-with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         commands_dir = test_env / ".opencode" / "commands"
@@ -443,9 +508,7 @@ class TestInstallAutonomousFlag:
 
     def test_install_without_autonomous_skips_agents(self, test_env):
         """`--no-with-autonomous` install leaves no osx-* agents on disk."""
-        result = run_osx(
-            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--no-with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         agents_dir = test_env / ".opencode" / "agents"
@@ -458,9 +521,7 @@ class TestInstallAutonomousFlag:
 
     def test_install_without_autonomous_skips_workflow_skill(self, test_env):
         """`--no-with-autonomous` install does not deploy the osx-workflow skill."""
-        result = run_osx(
-            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--no-with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         skills_dir = test_env / ".opencode" / "skills"
@@ -470,9 +531,7 @@ class TestInstallAutonomousFlag:
 
     def test_install_without_autonomous_deploys_utility_skills(self, test_env):
         """`--no-with-autonomous` install still deploys utility skills."""
-        result = run_osx(
-            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--no-with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         skills_dir = test_env / ".opencode" / "skills"
@@ -483,9 +542,7 @@ class TestInstallAutonomousFlag:
 
     def test_install_without_autonomous_deploys_utility_commands(self, test_env):
         """`--no-with-autonomous` install still deploys utility commands."""
-        result = run_osx(
-            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--no-with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         commands_dir = test_env / ".opencode" / "commands"
@@ -496,9 +553,7 @@ class TestInstallAutonomousFlag:
 
     def test_install_with_autonomous_deploys_phase_commands(self, test_env):
         """`--with-autonomous` (or default) install deploys osx-phase0..6 commands."""
-        result = run_osx(
-            ["install", "opencode", "--with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         commands_dir = test_env / ".opencode" / "commands"
@@ -509,9 +564,7 @@ class TestInstallAutonomousFlag:
 
     def test_install_with_autonomous_deploys_agents(self, test_env):
         """`--with-autonomous` install deploys osx-analyzer, builder, maintainer, reviewer."""
-        result = run_osx(
-            ["install", "opencode", "--with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         agents_dir = test_env / ".opencode" / "agents"
@@ -522,9 +575,7 @@ class TestInstallAutonomousFlag:
 
     def test_install_without_autonomous_skips_gitignore_markers(self, test_env):
         """`--no-with-autonomous` install does not add orchestrator gitignore markers."""
-        result = run_osx(
-            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--no-with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         gitignore = test_env / ".gitignore"
@@ -536,9 +587,7 @@ class TestInstallAutonomousFlag:
 
     def test_install_with_autonomous_adds_gitignore_markers(self, test_env):
         """`--with-autonomous` install adds the orchestrator gitignore markers."""
-        result = run_osx(
-            ["install", "opencode", "--with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
         gitignore = test_env / ".gitignore"
@@ -676,9 +725,7 @@ class TestUpdateRemovesStale:
         for skill in ("my-review", "team-onboarding", "my-osx-helper"):
             (target / "skills" / skill).mkdir(parents=True, exist_ok=True)
             (target / "skills" / skill / "SKILL.md").write_text(skill)
-        (target / "agents" / "my-agent.md").parent.mkdir(
-            parents=True, exist_ok=True
-        )
+        (target / "agents" / "my-agent.md").parent.mkdir(parents=True, exist_ok=True)
         (target / "agents" / "my-agent.md").write_text("# agent")
         (target / "commands" / "my-command.md").write_text("# cmd")
         (target / "commands" / "oscillator.md").write_text("# cmd")
@@ -699,12 +746,8 @@ class TestUpdateAutonomousToggleCleanup:
     resources are removed when ``--no-with-autonomous`` is set.
     """
 
-    def test_update_drops_autonomous_resources_when_toggled_off(
-        self, test_env
-    ):
-        run_osx(
-            ["install", "opencode", "--with-autonomous"], cwd=test_env
-        )
+    def test_update_drops_autonomous_resources_when_toggled_off(self, test_env):
+        run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         # Sanity check: autonomous resources present after first install.
         target = test_env / ".opencode"
@@ -712,9 +755,7 @@ class TestUpdateAutonomousToggleCleanup:
         assert (target / "agents" / "osx-analyzer.md").is_file()
         assert (target / "skills" / "osx-workflow").is_dir()
 
-        result = run_osx(
-            ["update", "opencode", "--no-with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["update", "opencode", "--no-with-autonomous"], cwd=test_env)
         assert result.returncode == 0
 
         # Autonomous resources are gone
@@ -731,19 +772,13 @@ class TestUpdateAutonomousToggleCleanup:
         assert (target / "skills" / "osx-concepts").is_dir()
         assert (target / "commands" / "osx-modify.md").is_file()
 
-    def test_update_adds_autonomous_resources_when_toggled_on(
-        self, test_env
-    ):
-        run_osx(
-            ["install", "opencode", "--no-with-autonomous"], cwd=test_env
-        )
+    def test_update_adds_autonomous_resources_when_toggled_on(self, test_env):
+        run_osx(["install", "opencode", "--no-with-autonomous"], cwd=test_env)
 
         target = test_env / ".opencode"
         assert not (target / "skills" / "osx-workflow").exists()
 
-        result = run_osx(
-            ["update", "opencode", "--with-autonomous"], cwd=test_env
-        )
+        result = run_osx(["update", "opencode", "--with-autonomous"], cwd=test_env)
         assert result.returncode == 0
 
         assert (target / "skills" / "osx-workflow").is_dir()
