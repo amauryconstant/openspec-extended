@@ -724,6 +724,42 @@ def _capture_global_config() -> dict:
     return {}
 
 
+# Canonical 12-workflow custom profile written to ~/.config/openspec/config.json
+# before `openspec init` is invoked. Mirrors the profile written by
+# .mise/tasks/sync-core (write_custom_profile) so install/update --with-core
+# produces the same artifact set regardless of the user's prior global config.
+CANONICAL_CORE_WORKFLOWS = [
+    "propose",
+    "explore",
+    "new",
+    "continue",
+    "apply",
+    "update",
+    "ff",
+    "sync",
+    "archive",
+    "bulk-archive",
+    "verify",
+    "onboard",
+]
+
+
+def _write_canonical_core_config() -> Path:
+    """Seed ``~/.config/openspec/config.json`` with the canonical 12-workflow
+    custom profile. Returns the path written.
+    """
+    config_dir = Path.home() / ".config" / "openspec"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    target = config_dir / "config.json"
+    canonical = {
+        "profile": "custom",
+        "delivery": "both",
+        "workflows": CANONICAL_CORE_WORKFLOWS,
+    }
+    target.write_text(json.dumps(canonical, indent=2) + "\n")
+    return target
+
+
 def _write_core_baseline(tool: str, project_root: Path | None = None) -> Path | None:
     """Write ``.openspec-extended-baseline.json`` capturing the user's prior
     openspec core setup. Returns the path written, or None if nothing to save.
@@ -745,9 +781,34 @@ def _write_core_baseline(tool: str, project_root: Path | None = None) -> Path | 
         return None
 
 
+def _ensure_baseline_for_global_config(project_root: Path) -> Path | None:
+    """Snapshot the global openspec config when it exists but no prior core
+    deployment is detectable. Returns the path written, or None if the prior
+    global config was empty/missing (nothing meaningful to restore).
+    """
+    from datetime import datetime
+
+    prior = _capture_global_config()
+    if not prior:
+        return None
+    snapshot = {
+        "captured_at": datetime.now(UTC).isoformat(),
+        "tool": "(global-config)",
+        "global_config": prior,
+        "project_root": str(project_root),
+    }
+    path = project_root / CORE_BASELINE_FILENAME
+    try:
+        path.write_text(json.dumps(snapshot, indent=2))
+        return path
+    except OSError:
+        return None
+
+
 def deploy_core(tool: str, force: bool = False) -> None:
     target_dir = Path.cwd() / get_tool_dir(tool)
     target_manifest = target_dir / "manifest.toml"
+    project_root = Path.cwd()
 
     # Non-destructive: refuse to overwrite an existing deployment without --force.
     if _detect_existing_core_deployment(tool) and not force:
@@ -759,16 +820,37 @@ def deploy_core(tool: str, force: bool = False) -> None:
         console.print("  Restore later with: openspec-extended restore-core")
         raise SystemExit(2)
 
-    # With --force on an existing deploy, capture a baseline first.
+    # Snapshot whatever we are about to overwrite. Two cases:
+    #   1. A prior core deployment exists AND --force: capture the prior
+    #      deployment via _write_core_baseline (records tool + global_config).
+    #   2. No prior deployment, but ~/.config/openspec/config.json already
+    #      exists (e.g. user ran plain `openspec init` previously): capture
+    #      that global config so restore-core can put it back.
     baseline_path: Path | None = None
     if force and _detect_existing_core_deployment(tool):
         baseline_path = _write_core_baseline(tool)
-        if baseline_path:
-            log_info(f"Saved pre-overwrite baseline to {baseline_path.name}")
+    else:
+        baseline_path = _ensure_baseline_for_global_config(project_root)
+
+    # Seed the canonical 12-workflow custom profile so `openspec init` installs
+    # the full set regardless of the user's prior global config. Mirrors
+    # .mise/tasks/sync-core (write_custom_profile + generate_ai_files).
+    config_path = _write_canonical_core_config()
+    if baseline_path:
+        log_info(f"Saved pre-overwrite baseline to {baseline_path.name}")
+    log_info(f"Wrote canonical 12-workflow profile to {config_path}")
 
     try:
         subprocess.run(
-            ["openspec", "init", "--tools", tool, "--force"],
+            [
+                "openspec",
+                "init",
+                "--tools",
+                tool,
+                "--profile",
+                "custom",
+                "--force",
+            ],
             check=True,
             capture_output=True,
         )
@@ -932,6 +1014,12 @@ def _expected_extension_names(tool: str, with_autonomous: bool) -> set[str]:
 def _core_keep_set(target_dir: Path) -> set[str]:
     """Build the keep-set for the ``osc-*`` cleanup pass from the resources
     currently present on disk in the deployed core tree.
+
+    Layout-aware:
+
+    - Skills: ``<target>/skills/<dir>`` whose name starts with ``osc-``.
+    - Commands (Claude): ``<target>/commands/osc/<id>.md`` → ``osc-<id>``.
+    - Commands (OpenCode): ``<target>/commands/osc-<id>.md`` flat files.
     """
     keep: set[str] = set()
 
@@ -943,11 +1031,20 @@ def _core_keep_set(target_dir: Path) -> set[str]:
 
     commands_dir = target_dir / "commands"
     if commands_dir.is_dir():
+        # Claude layout: commands/osc/<id>.md
         osc_dir = commands_dir / "osc"
         if osc_dir.is_dir():
             for entry in osc_dir.iterdir():
                 if entry.is_file() and entry.suffix == ".md":
                     keep.add(f"osc-{entry.stem}")
+        # OpenCode layout: commands/osc-<id>.md (flat)
+        for entry in commands_dir.iterdir():
+            if (
+                (entry.is_file() or entry.is_symlink())
+                and entry.suffix == ".md"
+                and entry.stem.startswith("osc-")
+            ):
+                keep.add(entry.stem)
 
     return keep
 

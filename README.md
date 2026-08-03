@@ -78,9 +78,16 @@ openspec-extended install opencode
 # Add the autonomous workflow (phase commands, agents, workflow skill)
 openspec-extended install opencode --with-autonomous
 
-# Include core OpenSpec workflows (12 commands)
+# Include core OpenSpec workflows (all 12 canonical: apply, archive, bulk-archive,
+# continue, explore, ff, new, onboard, propose, sync, update, verify)
 openspec-extended install opencode --with-core
 ```
+
+The `--with-core` flag writes the canonical 12-workflow custom profile to
+`~/.config/openspec/config.json` before invoking `openspec init`, so all 12
+commands land regardless of any pre-existing global config. If a prior global
+config exists, it is snapshotted to `.openspec-extended-baseline.json` and can
+be restored with `openspec-extended restore-core`.
 
 ### Verify Installation
 

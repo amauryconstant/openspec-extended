@@ -164,15 +164,84 @@ class TestInstallWithCore:
             skills = list(skills_dir.iterdir())
             assert len(skills) > 6
 
-    def test_install_with_core_includes_core_commands(self, test_env):
-        """Install --with-core includes core commands."""
+    def test_install_with_core_includes_all_12_core_commands(self, test_env):
+        """Install --with-core deploys all 12 canonical core commands (renamed
+        to ``osc-*`` on disk). Guards against the v1.5.0+ regression where
+        ``openspec init`` defaulted to ``profile=core`` and only emitted 6.
+        """
         result = run_osx(["install", "opencode", "--with-core"], cwd=test_env)
 
-        assert result.returncode == 0
+        assert result.returncode == 0, result.stderr
         commands_dir = test_env / ".opencode" / "commands"
-        if commands_dir.is_dir():
-            cmd_files = list(commands_dir.glob("*.md"))
-            assert len(cmd_files) > 7 or (commands_dir / "osx").is_dir()
+        deployed = {p.stem for p in commands_dir.glob("*.md")}
+        missing = EXPECTED_CORE_COMMANDS_OPENCODE - deployed
+        assert not missing, (
+            f"missing core commands after install --with-core: {sorted(missing)}"
+        )
+
+    def test_install_with_core_includes_all_12_core_commands_claude(self, test_env):
+        """Claude variant: --with-core deploys all 12 commands under
+        ``.claude/commands/osc/`` (the Claude layout nests files under
+        ``osc/`` with the prefix stripped)."""
+        result = run_osx(["install", "claude", "--with-core"], cwd=test_env)
+
+        assert result.returncode == 0, result.stderr
+        osc_dir = test_env / ".claude" / "commands" / "osc"
+        deployed = (
+            {p.stem for p in osc_dir.glob("*.md")} if osc_dir.is_dir() else set()
+        )
+        missing = EXPECTED_CORE_COMMANDS_CLAUDE - deployed
+        assert not missing, (
+            f"missing core commands after install --with-core: {sorted(missing)}"
+        )
+
+    def test_update_with_core_reinstalls_all_12_core_commands(self, test_env):
+        """``update --with-core --force`` regenerates the full 12-workflow set."""
+        run_osx(["install", "opencode", "--with-core"], cwd=test_env)
+        result = run_osx(
+            ["update", "opencode", "--with-core", "--force"], cwd=test_env
+        )
+
+        assert result.returncode == 0, result.stderr
+        commands_dir = test_env / ".opencode" / "commands"
+        deployed = {p.stem for p in commands_dir.glob("*.md")}
+        missing = EXPECTED_CORE_COMMANDS_OPENCODE - deployed
+        assert not missing, (
+            f"missing core commands after update --with-core: {sorted(missing)}"
+        )
+
+
+# Canonical 12-workflow set delivered by `openspec init --profile custom`
+# then renamed osc-* by `rename_core_resources`. Order is not significant.
+EXPECTED_CORE_COMMANDS_OPENCODE = {
+    "osc-apply",
+    "osc-archive",
+    "osc-bulk-archive",
+    "osc-continue",
+    "osc-explore",
+    "osc-ff",
+    "osc-new",
+    "osc-onboard",
+    "osc-propose",
+    "osc-sync",
+    "osc-update",
+    "osc-verify",
+}
+
+EXPECTED_CORE_COMMANDS_CLAUDE = {
+    "apply",
+    "archive",
+    "bulk-archive",
+    "continue",
+    "explore",
+    "ff",
+    "new",
+    "onboard",
+    "propose",
+    "sync",
+    "update",
+    "verify",
+}
 
 
 class TestUpdateCommand:

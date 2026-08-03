@@ -55,7 +55,9 @@ class TestInstallWithCoreRefuses:
     def test_clean_install_succeeds(self, fresh_env: Path):
         _run_osx(["install", "opencode", "--with-core"], cwd=fresh_env)
         # May fail because real openspec may have downstream issues; but
-        # baseline file must NOT be written for a fresh install.
+        # baseline file must NOT be written for a fresh install (no prior
+        # deployment AND no prior global config → nothing meaningful to
+        # restore, so we skip the snapshot).
         assert not (fresh_env / ".openspec-extended-baseline.json").exists()
 
     def test_existing_deploy_refuses_without_force(self, pre_deployed: Path):
@@ -87,6 +89,96 @@ class TestInstallWithCoreRefuses:
         assert "captured_at" in data
         assert "global_config" in data
         assert "tool" in data
+
+
+class TestInstallWithCoreSeedsGlobalConfig:
+    """``install --with-core`` must seed ``~/.config/openspec/config.json``
+    with the canonical 12-workflow custom profile before invoking
+    ``openspec init`` so the user gets all 12 commands (the v1.5.0+
+    regression: ``openspec init`` defaults to ``profile=core`` and only
+    installs 6 workflows).
+    """
+
+    def _global_config(self, fresh_env: Path) -> Path:
+        return fresh_env.parent / "fake-home" / ".config" / "openspec" / "config.json"
+
+    def test_clean_install_writes_canonical_global_config(self, fresh_env: Path):
+        """First-time ``--with-core`` writes the 12-workflow custom profile."""
+        _run_osx(["install", "opencode", "--with-core"], cwd=fresh_env)
+
+        cfg = self._global_config(fresh_env)
+        if not cfg.exists():
+            pytest.skip("openspec init did not run (binary missing or upstream error)")
+        data = json.loads(cfg.read_text())
+        assert data["profile"] == "custom"
+        assert data["delivery"] == "both"
+        assert set(data["workflows"]) == CANONICAL_WORKFLOWS
+
+    def test_existing_global_config_is_snapshotted(self, fresh_env: Path):
+        """A pre-existing ``~/.config/openspec/config.json`` is captured into
+        ``.openspec-extended-baseline.json`` before being overwritten so
+        ``restore-core`` can revert it.
+        """
+        cfg_dir = fresh_env.parent / "fake-home" / ".config" / "openspec"
+        cfg_dir.mkdir(parents=True)
+        cfg_path = cfg_dir / "config.json"
+        cfg_path.write_text(
+            json.dumps({"profile": "core", "delivery": "skills", "workflows": ["apply"]})
+        )
+
+        _run_osx(["install", "opencode", "--with-core"], cwd=fresh_env)
+
+        baseline = fresh_env / ".openspec-extended-baseline.json"
+        assert baseline.exists(), (
+            "Baseline must be written when the prior global config existed, "
+            "even without a prior deployment"
+        )
+        data = json.loads(baseline.read_text())
+        assert data["tool"] == "(global-config)"
+        assert data["global_config"]["profile"] == "core"
+        assert data["global_config"]["workflows"] == ["apply"]
+
+    def test_clean_install_with_no_prior_config_writes_no_baseline(self, fresh_env: Path):
+        """No prior global config AND no prior deployment → no baseline file.
+        Guards against ``.openspec-extended-baseline.json`` appearing for
+        genuine first-time installs.
+        """
+        _run_osx(["install", "opencode", "--with-core"], cwd=fresh_env)
+        assert not (fresh_env / ".openspec-extended-baseline.json").exists()
+
+    def test_restore_round_trip_with_prior_global_config(self, fresh_env: Path):
+        """If a prior global config was overwritten, ``restore-core`` puts
+        the original ``profile`` and ``workflows`` back."""
+        cfg_dir = fresh_env.parent / "fake-home" / ".config" / "openspec"
+        cfg_dir.mkdir(parents=True)
+        cfg_path = cfg_dir / "config.json"
+        prior = {"profile": "core", "delivery": "skills", "workflows": ["apply"]}
+        cfg_path.write_text(json.dumps(prior))
+
+        _run_osx(["install", "opencode", "--with-core"], cwd=fresh_env)
+        if (fresh_env / ".openspec-extended-baseline.json").exists():
+            restore = _run_osx(["restore-core"], cwd=fresh_env)
+            assert restore.returncode == 0, (
+                f"restore-core failed: {restore.stdout}\n{restore.stderr}"
+            )
+            data = json.loads(cfg_path.read_text())
+            assert data == prior
+
+
+CANONICAL_WORKFLOWS = {
+    "propose",
+    "explore",
+    "new",
+    "continue",
+    "apply",
+    "update",
+    "ff",
+    "sync",
+    "archive",
+    "bulk-archive",
+    "verify",
+    "onboard",
+}
 
 
 class TestRestoreCore:

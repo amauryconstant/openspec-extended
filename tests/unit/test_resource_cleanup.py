@@ -16,6 +16,7 @@ from source.cli import (
     _core_keep_set,
     _expected_extension_names,
     purge_managed_resources,
+    rename_core_resources,
 )
 
 pytestmark = pytest.mark.unit
@@ -400,3 +401,69 @@ class TestCoreKeepSet:
 
         assert "osx-concepts" not in keep
         assert "osc-apply-change" in keep
+
+
+# ---------------------------------------------------------------------------
+# Core rename: opsx-* → osc-* (flat) and opsx/ → osc/ (Claude nested)
+# ---------------------------------------------------------------------------
+
+
+CANONICAL_CORE_WORKFLOW_IDS = [
+    "apply",
+    "archive",
+    "bulk-archive",
+    "continue",
+    "explore",
+    "ff",
+    "new",
+    "onboard",
+    "propose",
+    "sync",
+    "update",
+    "verify",
+]
+
+
+class TestRenameCoreResources:
+    """``rename_core_resources`` rewrites the artifacts produced by
+    ``openspec init --profile custom`` (``opsx-<id>.md`` / ``opsx/<id>.md``)
+    into the openspec-extended convention (``osc-<id>.md`` /
+    ``osc/<id>.md``). Every canonical workflow ID must round-trip cleanly.
+    """
+
+    @pytest.mark.parametrize("wid", CANONICAL_CORE_WORKFLOW_IDS)
+    def test_renames_opencode_flat_command(self, tmp_path: Path, monkeypatch, wid: str):
+        target = tmp_path / ".opencode"
+        (target / "commands").mkdir(parents=True)
+        (target / "commands" / f"opsx-{wid}.md").write_text(f"---\ndescription: {wid}\n---\n")
+
+        monkeypatch.chdir(tmp_path)
+        rename_core_resources("opencode")
+
+        assert (target / "commands" / f"osc-{wid}.md").is_file()
+        assert not (target / "commands" / f"opsx-{wid}.md").exists()
+
+    @pytest.mark.parametrize("wid", CANONICAL_CORE_WORKFLOW_IDS)
+    def test_renames_claude_nested_command(self, tmp_path: Path, monkeypatch, wid: str):
+        target = tmp_path / ".claude"
+        (target / "commands" / "opsx").mkdir(parents=True)
+        (target / "commands" / "opsx" / f"{wid}.md").write_text(
+            f"---\nname: {wid}\n---\n"
+        )
+
+        monkeypatch.chdir(tmp_path)
+        rename_core_resources("claude")
+
+        assert (target / "commands" / "osc" / f"{wid}.md").is_file()
+        assert not (target / "commands" / "opsx" / f"{wid}.md").exists()
+
+    def test_renames_skill_dirs(self, tmp_path: Path, monkeypatch):
+        target = tmp_path / ".opencode"
+        (target / "skills" / "openspec-apply-change").mkdir(parents=True)
+        (target / "skills" / "openspec-apply-change" / "SKILL.md").write_text("x")
+
+        monkeypatch.chdir(tmp_path)
+        rename_core_resources("opencode")
+
+        assert (target / "skills" / "osc-apply-change").is_dir()
+        assert not (target / "skills" / "openspec-apply-change").exists()
