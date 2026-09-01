@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Generate resources/claude/{skills,commands}/ and claude/manifest.toml from resources/opencode/ as a pure mirror (no token substitution). Run after editing opencode resources. Use --check for CI to fail on drift. On Claude, every opencode command dual-emits as both a legacy .claude/commands/<name>.md and a modern .claude/skills/<name>/SKILL.md (mirrors upstream OpenSpec v1.7.0)."
+#MISE description="Generate resources/claude/{skills,commands}/ and claude/manifest.toml from resources/opencode/ as a pure mirror (no token substitution). Run after editing opencode resources. Use --check for CI to fail on drift. On Claude, every opencode command dual-emits as both a legacy .claude/commands/<name>.md and a modern .claude/skills/<name>/SKILL.md (mirrors upstream OpenSpec's dual-emit strategy, introduced in v1.7.0, current as of v1.11.0)."
 #USAGE flag "--check" help="Verify claude mirrors are in sync; exit non-zero on drift"
 
 set -euo pipefail
@@ -27,7 +27,8 @@ log_warn() { printf '  !! %s\n' "$*" >&2; }
 # Three layout differences:
 #   - commands/osx-<X>.md (opencode) → commands/osx/<X>.md (claude, legacy form)
 #   - commands/osx-<X>.md (opencode) also emits skills/osx-<X>/SKILL.md
-#     (claude, modern form — mirrors upstream OpenSpec v1.7.0's dual-emit).
+#     (claude, modern form — mirrors upstream OpenSpec's dual-emit strategy,
+#      introduced in v1.7.0, current as of v1.11.0).
 #   - everything else: same directory layout, just swap "opencode/" for "claude/"
 #
 # Returns the *primary* target (the legacy command file). The skill mirror
@@ -265,7 +266,8 @@ main() {
                 -print0 2>/dev/null)
 
     # Mirror all command files. Each opencode command also dual-emits on
-    # the Claude side as a skill (mirroring upstream OpenSpec v1.7.0).
+    # the Claude side as a skill (mirroring upstream OpenSpec — introduced
+    # in v1.7.0, current as of v1.11.0).
     while IFS= read -r -d '' src; do
         local rel="${src#"$OPENCODE_ROOT"/}"
         mirror_file "$rel" || drift=1

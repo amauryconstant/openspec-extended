@@ -62,7 +62,7 @@ VALID_TRANSITION_REASONS = [
     "retry_requested",
 ]
 
-MIN_OPENSPEC_VERSION: tuple[int, int, int] = (1, 7, 0)
+MIN_OPENSPEC_VERSION: tuple[int, int, int] = (1, 11, 0)
 
 
 def get_core_version(timeout: int = 10) -> tuple[int, int, int] | None:
@@ -70,9 +70,21 @@ def get_core_version(timeout: int = 10) -> tuple[int, int, int] | None:
 
     Returns None if the binary is missing, errors, or the version cannot
     be parsed. Used by the orchestrator to enforce the minimum core version
-    before relying on v1.7.0 contracts: the ``requires`` field on each
-    artifact in ``openspec status --json`` and the new
-    ``openspec instructions archive`` read-only surface.
+    before relying on the v1.11.0 contract surface:
+
+    - store resolution and ``--store <id>`` (v1.5.0+)
+    - ``requires`` array on each artifact in ``openspec status --json``
+      (v1.7.0+)
+    - ``openspec instructions archive`` read-only surface (v1.7.0+)
+    - ``skip_specs: true`` change metadata (v1.7.0+)
+    - ``defaultStore`` machine-level fallback (v1.7.0+)
+    - ``isPlanningComplete`` field separating planning from implementation
+      (v1.8.0+)
+    - ``openspec validate --archived`` (v1.9.0+)
+    - ``openspec init --language <lang>`` (v1.10.0+)
+    - ``openspec status --all`` single-process sweep (v1.11.0+)
+    - ``openspec show --diff`` requirement-level diff (v1.11.0+)
+    - ``retire_capabilities: true`` change metadata (v1.8.0+)
     """
     try:
         result = subprocess.run(
@@ -1314,7 +1326,8 @@ def _command_resolved_for_phase(
     """Return the on-disk path of a slash command, accepting either the
     legacy ``<target>/commands/<name>.md`` form or the modern
     ``<target>/skills/<name>/SKILL.md`` form (Claude dual-emits both —
-    mirrors upstream OpenSpec v1.7.0's dual-emit strategy).
+    mirrors upstream OpenSpec's dual-emit strategy introduced in v1.7.0,
+    current as of v1.11.0).
 
     Returns ``None`` if neither form resolves.
     """

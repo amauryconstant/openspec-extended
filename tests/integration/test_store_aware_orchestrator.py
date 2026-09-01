@@ -4,9 +4,9 @@ Integration tests for store-aware orchestrator behavior.
 
 Covers:
   - OrchestratorState.store field (default None, accepts override)
-  - find_change_dir(change, store=...) consults the CLI (v1.5.0+ shape, current v1.7.0 compatible)
+  - find_change_dir(change, store=...) consults the CLI (v1.5.0+ shape, current v1.11.0 compatible)
   - parse_change_spec(spec) -> (store, change) for all forms
-  - _extract_changes() handles every v1.5.0+ list JSON shape (v1.7.0 unchanged)
+  - _extract_changes() handles every v1.5.0+ list JSON shape (current v1.11.0 unchanged)
 """
 
 import json

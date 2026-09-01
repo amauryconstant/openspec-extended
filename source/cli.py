@@ -361,8 +361,9 @@ def deploy_commands(
     # Claude: dual-emit. Also write the command as a skill at
     # ``<target>/skills/<name>/SKILL.md`` so the slash command resolves
     # against the modern skills surface as well — mirrors upstream
-    # OpenSpec v1.7.0's dual-emit strategy. The legacy .claude/commands/
-    # file written above remains in place for back-compat.
+    # OpenSpec's dual-emit strategy (introduced in v1.7.0, current as
+    # of v1.11.0). The legacy .claude/commands/ file written above
+    # remains in place for back-compat.
     skill_dir = target_dir / "skills" / name
     skill_dir.mkdir(parents=True, exist_ok=True)
     skill_md = skill_dir / "SKILL.md"
@@ -1088,7 +1089,8 @@ def validate_deployment(target_dir: Path, manifest: dict) -> None:
                             found = True
                             break
                 # Modern Claude form: slash command emitted as a skill
-                # (dual-emit mirrors upstream OpenSpec v1.7.0).
+                # (dual-emit mirrors upstream OpenSpec — introduced in
+                # v1.7.0, current as of v1.11.0).
                 if not found:
                     skill_path = target_dir / "skills" / name / "SKILL.md"
                     if skill_path.is_file():
@@ -1360,6 +1362,11 @@ def validate_cmd(
     specs: bool = typer.Option(False, "--specs", help="Validate only specs"),
     type_: str | None = typer.Option(None, "--type", help="Disambiguate: change|spec"),
     strict: bool = typer.Option(False, "--strict", help="Enable strict mode"),
+    archived: bool = typer.Option(
+        False,
+        "--archived",
+        help="Validate that every archived change has all tasks.md checkboxes ticked (v1.9.0+)",
+    ),
     json_output: bool = typer.Option(False, "--json", help="JSON output"),
     concurrency: int | None = typer.Option(
         None, "--concurrency", help="Max concurrent validations"
@@ -1382,6 +1389,8 @@ def validate_cmd(
         args.extend(["--type", type_])
     if strict:
         args.append("--strict")
+    if archived:
+        args.append("--archived")
     if json_output:
         args.append("--json")
     if concurrency is not None:
@@ -1439,6 +1448,11 @@ def show_cmd(
     requirement: str | None = typer.Option(
         None, "--requirement", "-r", help="Specific requirement id"
     ),
+    diff: bool = typer.Option(
+        False,
+        "--diff",
+        help="Render requirement-level diffs against the main spec (v1.11.0+)",
+    ),
     json_output: bool = typer.Option(False, "--json", help="JSON output"),
     store: str | None = typer.Option(None, "--store", help="OpenSpec store id"),
 ) -> None:
@@ -1459,6 +1473,8 @@ def show_cmd(
         args.append("--no-scenarios")
     if requirement:
         args.extend(["--requirement", requirement])
+    if diff:
+        args.append("--diff")
     if json_output:
         args.append("--json")
     if store:
@@ -1605,6 +1621,11 @@ def init_cmd(
     profile: str | None = typer.Option(
         None, "--profile", help="Override global config profile (core|custom)"
     ),
+    language: str | None = typer.Option(
+        None,
+        "--language",
+        help="Language used for artifacts in new projects (v1.10.0+)",
+    ),
 ) -> None:
     args: list[str] = []
     if path:
@@ -1615,6 +1636,8 @@ def init_cmd(
         args.append("--force")
     if profile:
         args.extend(["--profile", profile])
+    if language:
+        args.extend(["--language", language])
 
     code = run_openspec(["init", *args], timeout=60)
     raise typer.Exit(code=code)
@@ -1634,7 +1657,7 @@ def update_core_cmd(
     if force:
         args.append("--force")
 
-    # Skip the v1.7.0 interactive "upgrade CLI?" offer when invoked from
+    # Skip the v1.11.0 interactive "upgrade CLI?" offer when invoked from
     # openspec-extended so that automated contexts (CI, install --with-core)
     # don't hang on a prompt. The user can always run `openspec update`
     # directly to upgrade.

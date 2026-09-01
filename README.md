@@ -25,7 +25,7 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 
 ## Requirements
 
-- [OpenSpec](https://github.com/Fission-AI/OpenSpec) v1.7.0+ (required)
+- [OpenSpec](https://github.com/Fission-AI/OpenSpec) v1.11.0+ (required)
 - Python 3.12 or higher (only for building from source)
 - No Python needed when installing the prebuilt binary
 
@@ -251,7 +251,8 @@ OpenSpec-extended/
 │   │   └── commands/        # Phase commands + osx-* utilities
 │   └── claude/              # Claude Code resources (auto-generated mirror)
 │       ├── skills/          # 8 extension skills + osx-* skill mirror per
-│       │                    # command (mirrors upstream v1.7.0 dual-emit)
+│       │                    # command (mirrors upstream dual-emit strategy,
+│       │                    # introduced in v1.7.0, current as of v1.11.0)
 │       └── commands/osx/    # Phase commands + osx-* utilities (legacy form)
 ├── tests/                   # pytest + bats suite (unit/integration/mechanism/e2e)
 ├── docs/                    # User-facing documentation

@@ -908,28 +908,33 @@ def list_changes() -> None:
     print("Available OpenSpec changes:")
     print()
 
-    # Aggregate from registered stores
+    # v1.11.0+ `--all` flag consolidates the cross-store sweep into one process.
+    # Emits `{"changes": [...], "root": {...}}` sorted by change name; partial
+    # failures contribute a diagnostic entry in place rather than aborting.
+    seen: set[str] = set()
     try:
-        stores_data = osx_lib.store_list().get("data", {})
-        stores = []
-        if isinstance(stores_data, dict):
-            for key in ("stores", "items", "results"):
-                if isinstance(stores_data.get(key), list):
-                    stores = stores_data[key]
-                    break
-        elif isinstance(stores_data, list):
-            stores = stores_data
-        for s in stores:
-            store_id = s.get("id", "?") if isinstance(s, dict) else str(s)
-            try:
-                payload = osx_lib._run_openspec_json(["list", "--store", store_id])
-                for ch in _extract_changes(payload):
-                    if isinstance(ch, dict):
-                        print(f"  {store_id}:{ch.get('name', '')}")
-            except osx_lib.OSXError:
-                pass
+        payload = osx_lib._run_openspec_json(["status", "--all"])
     except osx_lib.OSXError:
-        pass
+        payload = None
+
+    if payload is not None:
+        for ch in _extract_changes(payload):
+            if not isinstance(ch, dict):
+                continue
+            name = ch.get("changeName") or ch.get("name", "")
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            root = ch.get("root")
+            store_id = ""
+            if isinstance(root, dict):
+                source = root.get("source", "")
+                if source == "store":
+                    store_id = root.get("store", "") or ch.get("store", "")
+                else:
+                    store_id = ch.get("store", "") or ""
+            prefix = f"{store_id}:" if store_id else ""
+            print(f"  {prefix}{name}")
 
     print()
     print("From openspec/changes/ directory:")
@@ -1060,7 +1065,7 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
         #    a phase that starts with missing skills / commands / a broken
         #    change dir will fail immediately anyway, so surface the error
         #    at the top of the run even when --from-phase is passed.
-        #  * Fresh-start-only checks (binary probes, openspec version floor,
+        #  * Fresh-start-only checks (binary probes, openspec version floor (>= v1.11.0),
         #    baseline): skipped with --from-phase because the user is
         #    resuming into an existing run, not starting a new one.
         try:
@@ -1093,8 +1098,9 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
                 raise SystemExit(1)
 
             # Enforce the orchestrator's minimum openspec core version.
-            # The v1.5 line lacks openspec-update-change, which PHASE2
-            # Case A routes to; orchestrator would silently no-op.
+            # Below v1.11.0, `openspec-update-change` and several other v1.6+
+            # workflows are missing or differ; orchestrator would silently no-op
+            # on older cores. The floor is set in source/lib/osx.py.
             core_version = osx_lib.get_core_version()
             if core_version is None or core_version < osx_lib.MIN_OPENSPEC_VERSION:
                 found = (

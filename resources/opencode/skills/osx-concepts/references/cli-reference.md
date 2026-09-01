@@ -1,6 +1,6 @@
 # CLI Reference for AI Agents
 
-Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes verified against `@fission-ai/openspec@1.7.0`, `openspec-extended@1.4.0` source, and the `osx` CLI subcommand.
+Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes verified against `@fission-ai/openspec@1.11.0`, `openspec-extended@1.4.0` source, and the `osx` CLI subcommand. The orchestrator enforces `@fission-ai/openspec >= 1.11.0` (see `source/lib/osx.py:MIN_OPENSPEC_VERSION`); agents running under the orchestrator are guaranteed the v1.11.0 contract surface.
 
 > **Quick rule**: use **`openspec`** to query workflow state, **`openspec-extended`** to drive the lifecycle, and **`osx`** to mutate change state.
 
@@ -16,7 +16,11 @@ Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes v
   - [schemas](#openspec-schemas)
   - [templates](#openspec-templates)
   - [show](#openspec-show)
-  - [store and the `--store` flag *(v1.5.0+; v1.7.0 adds defaultStore)*](#openspec-store-and-the---store-flag-v150-v170-adds-defaultstore)
+  - [status --all *(v1.11.0)*](#openspec-status--all-v1110)
+  - [validate --archived *(v1.9.0)*](#openspec-validate--archived-v190)
+  - [init --language *(v1.10.0)*](#openspec-init--language-language-v1100)
+  - [store and the `--store` flag *(v1.5.0+; v1.7.0 adds defaultStore; v1.8.0 adds `view` and `schemas`)*](#openspec-store-and-the---store-flag-v150-v170-adds-defaultstore-v180-adds-view-and-schemas)
+  - [retire_capabilities *(v1.8.0)*](#retire_capabilities-true-change-metadata-v180)
   - [other commands](#openspec-other-commands)
 - [B. `openspec-extended` (this project)](#b-openspec-extended-this-project)
   - [install](#openspec-extended-install)
@@ -44,7 +48,7 @@ Complete reference for the three CLI surfaces in OpenSpec-extended. All shapes v
 The `openspec` binary is installed via `npm install -g @fission-ai/openspec`. It implements the spec-driven workflow: query state, get instructions for creating artifacts, validate, list changes, etc.
 
 ```bash
-openspec --version    # 1.7.0
+openspec --version    # 1.11.0
 openspec <subcommand> [options]
 ```
 
@@ -57,7 +61,7 @@ Artifact completion state for a change. **Most commonly used command for agents.
 openspec status --change <name> --json
 ```
 
-**JSON output** (v1.7.0, verified):
+**JSON output** (v1.11.0, verified):
 ```json
 {
   "changeName": "add-dark-mode",
@@ -96,7 +100,9 @@ openspec status --change <name> --json
 }
 ```
 
-> **v1.7.0 addition**: each entry in `artifacts[]` now carries a `requires` array of the artifact ids it directly depends on. Agents can derive the full transitive required set from this single call (used by core's `openspec-propose` and `openspec-ff-change` to avoid finishing a change with no spec written). Present for every status (including `done`), additive and backward-compatible.
+> **v1.7.0+ `requires` array** (unchanged through v1.11.0): each entry in `artifacts[]` carries a `requires` array of the artifact ids it directly depends on. Agents can derive the full transitive required set from this single call (used by core's `openspec-propose` and `openspec-ff-change` to avoid finishing a change with no spec written). Present for every status (including `done`), additive and backward-compatible.
+>
+> **v1.8.0+ `isPlanningComplete`**: distinct from `isComplete`. `isPlanningComplete` is true when every non-skipped planning artifact exists; `isComplete` (kept as alias) folds planning and implementation together. Use `isPlanningComplete` when you want to verify the plan is finished before triggering apply/archive.
 
 **Per-artifact `status` values**: `ready` (deps met) · `blocked` (deps missing, see `missingDeps`) · `done` (file exists).
 
@@ -127,7 +133,7 @@ openspec instructions <artifact> --change <name> --json
 openspec instructions apply --change <name> --json
 ```
 
-**JSON output** (v1.7.0, verified — `proposal` example):
+**JSON output** (v1.11.0, verified — `proposal` example):
 ```json
 {
   "changeName": "add-dark-mode",
@@ -145,7 +151,7 @@ openspec instructions apply --change <name> --json
 }
 ```
 
-**Apply-mode output** (v1.7.0, verified):
+**Apply-mode output** (v1.11.0, verified):
 ```json
 {
   "changeName": "add-dark-mode",
@@ -162,7 +168,7 @@ openspec instructions apply --change <name> --json
 
 **Critical**: The `instruction` and `template` strings are guidance for you, the agent. **Do not copy `<context>`, `<rules>`, or `<project_context>` blocks into artifact files.** Read them, internalize, write your own content.
 
-#### `openspec instructions archive` (v1.7.0)
+#### `openspec instructions archive` (introduced v1.7.0)
 
 Read-only mirror of the proposal/apply variants for the archive input surface. Returns the inputs the new `openspec-archive-change` skill reads when archiving a change: schema rules, archive constraints, what gets moved. Use it for archive-readiness pre-checks before invoking `openspec archive`.
 
@@ -175,7 +181,7 @@ Passthrough works through `openspec-extended osx instructions archive --change <
 
 ---
 
-#### `skip_specs: true` change metadata (v1.7.0)
+#### `skip_specs: true` change metadata (introduced v1.7.0)
 
 For pure refactors, tooling work, or docs changes that have **no spec-level behavior change**, declare `skip_specs: true` in the change's `.openspec.yaml`. Then:
 
@@ -206,7 +212,7 @@ openspec list --specs --json      # specs
 openspec list --sort name --json  # by name
 ```
 
-**JSON output** (v1.7.0, verified — changes):
+**JSON output** (v1.11.0, verified — changes):
 ```json
 {
   "changes": [
@@ -243,7 +249,7 @@ openspec validate --all --json          # all changes + specs
 openspec validate --all --strict --json # warnings become errors
 ```
 
-**JSON output** (v1.7.0, verified — empty project):
+**JSON output** (v1.11.0, verified — empty project):
 ```json
 {
   "items": [],
@@ -271,7 +277,7 @@ List available workflow schemas.
 openspec schemas --json
 ```
 
-**JSON output** (v1.7.0, verified — top-level array):
+**JSON output** (v1.11.0, verified — top-level array):
 ```json
 [
   {
@@ -302,7 +308,7 @@ Show resolved template paths for a schema.
 openspec templates --schema spec-driven --json
 ```
 
-**JSON output** (v1.7.0, verified):
+**JSON output** (v1.11.0, verified):
 ```json
 {
   "proposal": {"path": "/abs/path/to/schemas/spec-driven/templates/proposal.md", "source": "package"},
@@ -316,7 +322,7 @@ openspec templates --schema spec-driven --json
 
 ### `openspec show`
 
-Display a change or spec. **Note: in v1.7.0 this remains interactive-only and takes no positional `<item-name>`.** Running `openspec show <name>` returns `Unknown item '<name>'`. The v1.7.0 fix removes the spurious "scenarios" flag warning that v1.6.0 emitted on `openspec show <change>`.
+Display a change or spec.
 
 **Usage**:
 ```bash
@@ -327,13 +333,72 @@ openspec spec show                             # spec selector
 
 For programmatic change details, use `openspec status --change <name> --json` (gives artifact paths, deps, etc.) or `openspec list --json` (gives name + progress + last modified).
 
-**Note (v1.7.0)**: `openspec new change <name>` writes a `.openspec.yaml` file into the change folder alongside `proposal.md`. Archive (which moves the directory) preserves it automatically. v1.7.0 also accepts numeric-prefixed names like `100-add-feature` and any name that exists on disk (e.g. date-prefixed `2026-07-04-foo`); kebab-case still enforced on create, and names over 200 characters get a friendly validation error.
+**Note**: `openspec new change <name>` writes a `.openspec.yaml` file into the change folder alongside `proposal.md`. Archive (which moves the directory) preserves it automatically. Numeric-prefixed names like `100-add-feature` are accepted (since v1.7.0); kebab-case still enforced on create, and names over 200 characters get a friendly validation error.
+
+**Diff mode (v1.11.0)**: `openspec show <change> --diff` renders each MODIFIED requirement as a colorized unified diff against the requirement it replaces in the main spec; ADDED requirements print in full; REMOVED print authored Reason/Migration; RENAMED print FROM/TO. `--json --diff` extends each MODIFIED delta with a `diff` and `warning` field. Main specs resolve against the same root as the change, so `--store <id>` diffs against that store.
 
 ---
 
-### `openspec store` and the `--store` flag (v1.5.0+; v1.7.0 adds defaultStore)
+### `openspec status --all` (v1.11.0)
 
-A *store* is a standalone OpenSpec repo registered on this machine. Changes inside a store can live at any path the CLI reports — not necessarily under `<project>/openspec/changes/`. The following commands accept `--store <id>`: `new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`. Other commands (e.g. `apply`, `init`, `update`) do not.
+Single-process sweep of every active change across all stores. `--all --json` emits a single envelope sorted by change name:
+
+```bash
+openspec status --all --json
+```
+
+```json
+{
+  "changes": [
+    {"changeName": "add-dark-mode", "schemaName": "spec-driven", "isPlanningComplete": true, ...},
+    {"changeName": "refactor-auth", "schemaName": "spec-driven", "isPlanningComplete": false, ...}
+  ],
+  "root": {"kind": "repo", "root": "/abs/path", ...}
+}
+```
+
+A change that fails to load contributes `{ "changeName", "status": [diagnostic] }` in place rather than aborting the sweep. A partial failure exits 1 in both text and JSON modes while preserving the complete JSON envelope. Mutually exclusive with `--change`. The orchestrator's `orchestrate --list` uses this internally.
+
+---
+
+### `openspec validate --archived` (v1.9.0)
+
+Opt-in CI/pre-commit gate that every change under `changes/archive/` has all `tasks.md` checkboxes ticked. Exits non-zero if any are unchecked. Standalone scope: does not alter any existing `validate` invocation and does not re-validate already-applied spec deltas.
+
+```bash
+openspec validate --archived
+```
+
+---
+
+### `openspec init --language <language>` (v1.10.0)
+
+Configure the language used for artifacts in new projects:
+
+```bash
+openspec init --language french
+```
+
+---
+
+### `retire_capabilities: true` change metadata (v1.8.0)
+
+For changes that remove a capability's last requirement, declare the marker in `.openspec.yaml`:
+
+```yaml
+retire_capabilities: true
+schema: spec-driven
+```
+
+`openspec archive` then deletes that capability's main spec instead of aborting with "Spec must have at least one requirement". Without the marker the archive aborts as before.
+
+Caveat: an in-flight change that MODIFIED the retired capability will keep validating clean and then refuse to archive ("target spec does not exist; only ADDED requirements are allowed for new specs") — close or rework that change alongside the retirement.
+
+---
+
+### `openspec store` and the `--store` flag (v1.5.0+; v1.7.0 adds defaultStore; v1.8.0 adds `view` and `schemas`)
+
+A *store* is a standalone OpenSpec repo registered on this machine. Changes inside a store can live at any path the CLI reports — not necessarily under `<project>/openspec/changes/`. The following commands accept `--store <id>`: `new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `view`, `schemas`. Other commands (e.g. `apply`, `init`, `update`) do not.
 
 **Usage**:
 ```bash
@@ -348,7 +413,7 @@ openspec list --store <id> --json
 
 Without `--store`, the commands act on the nearest local `openspec/` root. The upstream workflow skills (`openspec-propose`, `openspec-new-change`, etc.) prepend a "store selection" step: if the user names a store, or the work lives in one, they call `openspec store list --json` first to discover ids and thread the flag through subsequent commands.
 
-**Machine-level default (v1.7.0)**: `openspec config set defaultStore <id>` sets a machine-level fallback root. Any command run outside a planning root, with no `--store` flag and no project `store:` pointer, resolves to that store. It sits at the bottom of the precedence list, so `--store`, a local root, and a project pointer all still win. The status root block reports the distinct provenance `source: "global_default"` so tooling can tell a machine-wide default from a repo's own pointer. A stale id degrades to the underlying store error with a fix that names `openspec config unset defaultStore`.
+**Machine-level default (v1.7.0+, unchanged through v1.11.0)**: `openspec config set defaultStore <id>` sets a machine-level fallback root. Any command run outside a planning root, with no `--store` flag and no project `store:` pointer, resolves to that store. It sits at the bottom of the precedence list, so `--store`, a local root, and a project pointer all still win. The status root block reports the distinct provenance `source: "global_default"` so tooling can tell a machine-wide default from a repo's own pointer. A stale id degrades to the underlying store error with a fix that names `openspec config unset defaultStore`.
 
 ---
 
@@ -571,7 +636,7 @@ Thin wrapper around `openspec instructions` for use from `osx` workflows.
 | `{"error":"invalid_json", ...}` | Malformed JSON passed for `--issues` / `--decisions` / etc. | Pass valid JSON strings |
 | `{"error":"input_too_long", ...}` | `log append` `--summary` or `--next-steps` exceeded 2,000 chars | Shorten the text; usually caused by backticks interpreted as command substitution |
 | `{"error":"input_tainted", ...}` | `log append` `--summary` or `--next-steps` contains a zsh/bash env-dump fingerprint | Remove backticks from the argument; use single quotes, double quotes, or plain text for inline code references |
-| `Unknown item 'X'` (from `openspec show`) | v1.7.0 `show` is interactive; no positional arg | Use `openspec status --change X --json` or `openspec list --json` instead |
+| `Unknown item 'X'` (from `openspec show`) | `openspec show` is interactive; no positional arg | Use `openspec status --change X --json` or `openspec list --json` instead |
 | `openspec: command not found` | Upstream CLI not installed | `npm install -g @fission-ai/openspec` |
 | `Not in a git repository` (from `orchestrate`) | Pre-flight requires git | `git init` first |
 

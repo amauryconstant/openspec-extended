@@ -127,7 +127,7 @@ class TestStoreRegisterFlags:
     """``openspec store register`` flag inventory."""
 
     def test_help_uses_id_not_name(self):
-        """v1.5+ stores renamed --name → --id (still enforced in v1.7.0)."""
+        """v1.5+ stores renamed --name → --id (still enforced in v1.11.0)."""
         rc, out, _ = _run(["store", "register", "--help"])
         assert rc == 0
         assert "--id" in out, (

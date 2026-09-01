@@ -150,7 +150,7 @@ class TestInstallClaudeDualEmit:
     """Claude Code merges commands and skills. Each opencode slash command
     must dual-emit on Claude as both a legacy ``.claude/commands/osx/<name>.md``
     and a modern ``.claude/skills/osx-<name>/SKILL.md``. Mirrors upstream
-    OpenSpec v1.7.0's own dual-emit strategy.
+    OpenSpec's dual-emit strategy (introduced in v1.7.0, current as of v1.11.0).
     """
 
     def test_install_claude_autonomous_emits_command_and_skill(self, test_env):

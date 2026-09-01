@@ -64,7 +64,7 @@ PHASE0 is read-only — it dispatches `osx-analyzer` (`edit: deny`) and emits a 
 |--------------------------|-----|
 | Know what artifacts exist for a change | Layer 1: `openspec status --change <name> --json` |
 | Get instructions for creating an artifact | Layer 1: `openspec instructions <art> --change <name> --json` |
-| Derive the full transitive required set | Layer 1: `openspec status --json` (v1.7.0+ `requires` array) |
+| Derive the full transitive required set | Layer 1: `openspec status --json` (v1.7.0+ `requires` array, unchanged through v1.11.0) |
 | Mark the current phase complete | Layer 3: `osx state complete <change>` |
 | Read state from inside Python | Layer 4: `osx.state_get(change)` |
 | Trigger the autonomous workflow | Layer 2: `openspec-extended orchestrate <change>` |
