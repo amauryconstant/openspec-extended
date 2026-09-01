@@ -397,6 +397,82 @@ class TestValidateAll:
 
 
 @pytest.mark.unit
+class TestConcurrencyEnv:
+    """A.7: ``OPENSPEC_CONCURRENCY`` env var propagates to ``openspec validate --all``.
+
+    Precedence: explicit ``concurrency`` arg > env var > default 6. Invalid env
+    values (non-int, <=0, empty) fall back to 6 silently.
+    """
+
+    @staticmethod
+    def _captured_run(captured):
+        def _run(*args, **kwargs):
+            captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
+            return MagicMock(
+                returncode=0,
+                stdout=json.dumps(
+                    {
+                        "items": [],
+                        "summary": {"totals": {}},
+                        "version": "1.0",
+                        "root": {},
+                    }
+                ),
+                stderr="",
+            )
+
+        return _run
+
+    def test_env_var_used_when_no_explicit(self, monkeypatch):
+        """OPENSPEC_CONCURRENCY=12 + concurrency=None -> subprocess gets --concurrency 12."""
+        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "12")
+        captured = {}
+        monkeypatch.setattr(
+            osx.subprocess, "run", self._captured_run(captured)
+        )
+        osx.validate_all()
+        assert "--concurrency" in captured["cmd"]
+        idx = captured["cmd"].index("--concurrency")
+        assert captured["cmd"][idx + 1] == "12"
+
+    def test_explicit_wins_over_env_var(self, monkeypatch):
+        """explicit concurrency=8 beats OPENSPEC_CONCURRENCY=12."""
+        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "12")
+        captured = {}
+        monkeypatch.setattr(
+            osx.subprocess, "run", self._captured_run(captured)
+        )
+        osx.validate_all(concurrency=8)
+        assert "--concurrency" in captured["cmd"]
+        idx = captured["cmd"].index("--concurrency")
+        assert captured["cmd"][idx + 1] == "8"
+
+    def test_invalid_env_falls_back_to_default(self, monkeypatch):
+        """Non-int env values fall back to 6."""
+        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "invalid")
+        captured = {}
+        monkeypatch.setattr(
+            osx.subprocess, "run", self._captured_run(captured)
+        )
+        osx.validate_all()
+        assert "--concurrency" in captured["cmd"]
+        idx = captured["cmd"].index("--concurrency")
+        assert captured["cmd"][idx + 1] == "6"
+
+    def test_zero_env_falls_back_to_default(self, monkeypatch):
+        """Env value of 0 falls back to 6 (must be > 0)."""
+        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "0")
+        captured = {}
+        monkeypatch.setattr(
+            osx.subprocess, "run", self._captured_run(captured)
+        )
+        osx.validate_all()
+        assert "--concurrency" in captured["cmd"]
+        idx = captured["cmd"].index("--concurrency")
+        assert captured["cmd"][idx + 1] == "6"
+
+
+@pytest.mark.unit
 class TestValidateChangesOnly:
     def test_uses_changes_flag(self, monkeypatch):
         captured = {}
@@ -601,3 +677,244 @@ class TestValidateManifestCrossCheck:
             e["check"] == "agents" and omitted_agent in e["message"]
             for e in result["errors"]
         )
+
+
+@pytest.mark.unit
+class TestReadChangeMetadata:
+    """A.3: ``read_change_metadata`` parses ``.openspec.yaml`` and exposes the
+    orchestration-relevant markers (schema, skip_specs, retire_capabilities).
+
+    Never raises — missing or malformed files return ``{}`` with a stderr
+    warning, mirroring ``resolve_schema``'s tolerance.
+    """
+
+    @staticmethod
+    def _write_metadata(change_root, body: str) -> None:
+        change_root.mkdir(parents=True, exist_ok=True)
+        (change_root / ".openspec.yaml").write_text(body)
+
+    def test_read_metadata_minimal(self, tmp_path):
+        """Only `schema:` set returns just that key."""
+        change = tmp_path / "openspec" / "changes" / "minimal"
+        self._write_metadata(change, "schema: spec-driven\n")
+        result = osx.read_change_metadata(change)
+        assert result == {"schema": "spec-driven"}
+
+    def test_read_metadata_retire_capabilities_true(self, tmp_path):
+        """`retire_capabilities: true` is exposed as a Python bool."""
+        change = tmp_path / "openspec" / "changes" / "retire"
+        self._write_metadata(
+            change,
+            "schema: spec-driven\nretire_capabilities: true\n",
+        )
+        result = osx.read_change_metadata(change)
+        assert result["schema"] == "spec-driven"
+        assert result["retire_capabilities"] is True
+
+    def test_read_metadata_skip_specs(self, tmp_path):
+        """`skip_specs: true` round-trips."""
+        change = tmp_path / "openspec" / "changes" / "skip"
+        self._write_metadata(change, "schema: spec-driven\nskip_specs: true\n")
+        result = osx.read_change_metadata(change)
+        assert result["skip_specs"] is True
+
+    def test_read_metadata_string_bool_tolerated(self, tmp_path):
+        """Quoted "true"/"false" strings are coerced to Python booleans."""
+        change = tmp_path / "openspec" / "changes" / "string-bool"
+        self._write_metadata(
+            change,
+            "schema: spec-driven\nretire_capabilities: \"true\"\n",
+        )
+        result = osx.read_change_metadata(change)
+        assert result["retire_capabilities"] is True
+
+    def test_read_metadata_string_bool_false(self, tmp_path):
+        """Quoted "false" coerces to False."""
+        change = tmp_path / "openspec" / "changes" / "string-bool-false"
+        self._write_metadata(
+            change,
+            "schema: spec-driven\nretire_capabilities: \"false\"\n",
+        )
+        result = osx.read_change_metadata(change)
+        assert result["retire_capabilities"] is False
+
+    def test_read_metadata_missing_file(self, tmp_path):
+        """No .openspec.yaml returns {} (no exception)."""
+        change = tmp_path / "openspec" / "changes" / "none"
+        change.mkdir(parents=True)
+        result = osx.read_change_metadata(change)
+        assert result == {}
+
+    def test_read_metadata_none_change_dir(self):
+        """None change_dir returns {} (no exception)."""
+        assert osx.read_change_metadata(None) == {}
+
+    def test_read_metadata_malformed_yaml(self, tmp_path, capsys):
+        """Invalid YAML returns {} and emits a warning, no exception."""
+        change = tmp_path / "openspec" / "changes" / "broken"
+        self._write_metadata(change, "schema: : invalid\n")
+        result = osx.read_change_metadata(change)
+        assert result == {}
+        captured = capsys.readouterr()
+        assert "Warning: Could not load change metadata" in captured.err
+        assert str(change / ".openspec.yaml") in captured.err
+
+    def test_read_metadata_non_bool_field_ignored(self, tmp_path):
+        """Non-bool/non-string values for boolean markers are ignored."""
+        change = tmp_path / "openspec" / "changes" / "weird"
+        self._write_metadata(
+            change, "schema: spec-driven\nretire_capabilities: 42\n"
+        )
+        result = osx.read_change_metadata(change)
+        assert "retire_capabilities" not in result
+
+    def test_read_metadata_top_level_not_dict(self, tmp_path):
+        """YAML root that is not a mapping returns {} (no fields)."""
+        change = tmp_path / "openspec" / "changes" / "scalar"
+        self._write_metadata(change, "just-a-string\n")
+        result = osx.read_change_metadata(change)
+        assert result == {}
+
+
+@pytest.mark.unit
+class TestValidateChangeDirPlanning:
+    """A.1: ``validate_change_dir`` consults core's ``isPlanningComplete``
+    signal (v1.8.0+) before falling back to a local file-existence check.
+
+    All tests mock ``_fetch_planning_status`` so they don't require a real
+    ``openspec`` binary on PATH. The helper returns ``None`` to simulate the
+    CLI being unavailable.
+    """
+
+    @staticmethod
+    def _write_minimal_change(change_root) -> None:
+        change_root.mkdir(parents=True, exist_ok=True)
+        (change_root / "proposal.md").write_text("# p")
+        (change_root / "design.md").write_text("# d")
+        (change_root / "tasks.md").write_text("- [ ] one\n- [ ] two\n")
+        specs = change_root / "specs"
+        specs.mkdir()
+        (specs / "auth.md").write_text("# auth")
+
+    def test_planning_complete_true(self, tmp_path, monkeypatch):
+        """Core says planning is complete and lists no pending artifacts."""
+        change_root = tmp_path / "openspec" / "changes" / "c1"
+        self._write_minimal_change(change_root)
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            osx,
+            "_fetch_planning_status",
+            lambda change_id, *, store=None: {
+                "isPlanningComplete": True,
+                "artifacts": [],
+            },
+        )
+
+        result = osx.validate_change_dir("c1")
+
+        assert result["valid"] is True
+        assert result["planning_complete"] is True
+        assert result["missing_artifacts"] == []
+
+    def test_planning_complete_false_lists_artifacts(self, tmp_path, monkeypatch):
+        """Core says planning is incomplete; pending artifacts are listed."""
+        change_root = tmp_path / "openspec" / "changes" / "c2"
+        change_root.mkdir(parents=True, exist_ok=True)
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            osx,
+            "_fetch_planning_status",
+            lambda change_id, *, store=None: {
+                "isPlanningComplete": False,
+                "artifacts": [
+                    {"id": "tasks", "status": "ready"},
+                    {"id": "design", "status": "done"},
+                ],
+            },
+        )
+
+        result = osx.validate_change_dir("c2")
+
+        assert result["valid"] is False
+        assert result["planning_complete"] is False
+        assert "tasks" in result["missing_artifacts"]
+        assert "design" not in result["missing_artifacts"]
+        assert any(
+            e["check"] == "change-dir" and "tasks" in e["message"]
+            for e in result["errors"]
+        )
+        assert not any(
+            e["check"] == "change-dir" and "design" in e["message"]
+            for e in result["errors"]
+        )
+
+    def test_cli_unavailable_falls_back_to_local(self, tmp_path, monkeypatch, capsys):
+        """When the CLI helper returns ``None``, the local fallback runs."""
+        change_root = tmp_path / "openspec" / "changes" / "c3"
+        self._write_minimal_change(change_root)
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(
+            osx, "_fetch_planning_status", lambda change_id, *, store=None: None
+        )
+
+        result = osx.validate_change_dir("c3")
+
+        assert result["valid"] is True
+        assert result["planning_complete"] is None
+        # Fallback warning is emitted exactly once on stderr.
+        captured = capsys.readouterr()
+        assert "falling back to local check" in captured.err
+
+    def test_planning_complete_true_but_tasks_missing(
+        self, tmp_path, monkeypatch
+    ):
+        """Core says complete but ``tasks.md`` is empty/absent — fail."""
+        change_root = tmp_path / "openspec" / "changes" / "c4"
+        change_root.mkdir(parents=True, exist_ok=True)
+        (change_root / "proposal.md").write_text("# p")
+        (change_root / "design.md").write_text("# d")
+        # Deliberately do NOT create tasks.md.
+        specs = change_root / "specs"
+        specs.mkdir()
+        (specs / "auth.md").write_text("# auth")
+        monkeypatch.chdir(tmp_path)
+
+        monkeypatch.setattr(
+            osx,
+            "_fetch_planning_status",
+            lambda change_id, *, store=None: {
+                "isPlanningComplete": True,
+                "artifacts": [],
+            },
+        )
+
+        result = osx.validate_change_dir("c4")
+
+        assert result["valid"] is False
+        assert result["planning_complete"] is True
+        assert "tasks.md" in result["missing_artifacts"]
+        assert any(
+            "tasks.md" in e["message"] for e in result["errors"]
+        )
+
+    def test_env_escape_hatch_skips_core(self, tmp_path, monkeypatch):
+        """``OPENSPEC_EXTENDED_NO_PLANNING_CORE=1`` forces the local path."""
+        change_root = tmp_path / "openspec" / "changes" / "c5"
+        self._write_minimal_change(change_root)
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("OPENSPEC_EXTENDED_NO_PLANNING_CORE", "1")
+
+        calls = {"n": 0}
+
+        def _spy(change_id, *, store=None):
+            calls["n"] += 1
+            return {"isPlanningComplete": True, "artifacts": []}
+
+        monkeypatch.setattr(osx, "_fetch_planning_status", _spy)
+
+        result = osx.validate_change_dir("c5")
+
+        # Helper is never reached when the env var is set.
+        assert calls["n"] == 0
+        assert result["valid"] is True
+        assert result["planning_complete"] is None

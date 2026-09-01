@@ -428,3 +428,89 @@ teardown() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"Missing argument"* ]] || [[ "$output" == *"required"* ]]
 }
+
+@test "mechanism: validate --help documents --concurrency and OPENSPEC_CONCURRENCY" {
+    run "$OPENSPEC_BIN" validate --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--concurrency"* ]]
+    [[ "$output" == *"OPENSPEC_CONCURRENCY"* ]]
+}
+
+@test "mechanism: install --help shows --language flag" {
+    run "$OPENSPEC_BIN" install --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--language"* ]]
+    [[ "$output" == *"OPENSPEC_LANGUAGE"* ]]
+}
+
+@test "mechanism: init --help shows --language flag" {
+    run "$OPENSPEC_BIN" init --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--language"* ]]
+    [[ "$output" == *"OPENSPEC_LANGUAGE"* ]]
+}
+
+# ========== A.2: show --diff flag (v1.11.0+) ==========
+#
+# PHASE2 (REVIEW) embeds the `openspec show <change> --diff --json` output
+# as the `## Requirement diff` appendix of `verification-report.md`. The
+# `--diff` flag is gated on OpenSpec core >= 1.11.0. Skip the test if the
+# upstream CLI is not on PATH (the binary's `show` passthrough forwards
+# to `openspec show`).
+
+@test "mechanism: openspec show --help documents --diff and applies to a change" {
+    if ! command -v openspec >/dev/null 2>&1; then
+        skip "openspec CLI not on PATH; --diff flag requires v1.11.0+ core"
+    fi
+
+    # Fresh tmpdir so we don't pollute the per-test openspec root.
+    local show_dir
+    show_dir=$(mktemp -d)
+    cd "$show_dir" || exit 1
+
+    # The binary's `show` subcommand is a passthrough to `openspec show`.
+    # We assert the help text contains the `--diff` flag introduced in
+    # v1.11.0; older cores won't list it (and PHASE2 would silently fall
+    # back to non-diff output).
+    run "$OPENSPEC_BIN" show --help
+    echo "STATUS=$status"
+    echo "OUTPUT=$output"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--diff"* ]] || {
+        echo "FAIL: openspec show --help does not document --diff flag"
+        rm -rf "$show_dir"
+        return 1
+    }
+
+    # Sanity: the `--json` flag must still be present (used together
+    # with `--diff` in PHASE2's MANDATORY CHECKPOINT).
+    [[ "$output" == *"--json"* ]]
+
+    rm -rf "$show_dir"
+}
+
+# ========== A.6: post-install `validate --archived` sweep ==========
+#
+# ``install --with-core`` and ``update --with-core`` (and ``update-core``)
+# run a non-fatal ``openspec validate --archived --json`` sweep so that
+# unfinished archive state surfaces immediately. The flag is opt-in strict
+# mode; the default is a yellow warning.
+
+@test "mechanism: install --help documents --strict-archived" {
+    run "$OPENSPEC_BIN" install --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--strict-archived"* ]]
+}
+
+@test "mechanism: update --help documents --strict-archived" {
+    run "$OPENSPEC_BIN" update --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--strict-archived"* ]]
+}
+
+@test "mechanism: update-core --help documents --strict-archived and OPENSPEC_VALIDATE_ARCHIVED_STRICT" {
+    run "$OPENSPEC_BIN" update-core --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--strict-archived"* ]]
+    [[ "$output" == *"OPENSPEC_VALIDATE_ARCHIVED_STRICT"* ]]
+}

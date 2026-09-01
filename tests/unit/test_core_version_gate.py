@@ -128,6 +128,7 @@ class TestCoreVersionGate:
         monkeypatch.setattr(osx_lib, "get_core_version", lambda: (1, 10, 5))
 
         # Stub validate_* and record_baseline so we hit only the gate
+        # A.1: validate_change_dir runs after the gate
         for fn in (
             "validate_skills",
             "validate_commands",

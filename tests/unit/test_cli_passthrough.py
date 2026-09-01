@@ -370,3 +370,152 @@ class TestOrchestrateSchemaFlag:
             f"Output: {result.output}, Exception: {result.exception}"
         )
         assert captured["schema_override"] == "my-explicit-schema"
+
+
+class TestValidateConcurrencyEnv:
+    """A.7: ``OPENSPEC_CONCURRENCY`` env var passes --concurrency through the
+    top-level ``openspec-extended validate`` passthrough command."""
+
+    @staticmethod
+    def _capture(monkeypatch):
+        from source import cli as cli_module
+
+        captured = {}
+
+        def fake_run_openspec(args, timeout=30):
+            captured["args"] = list(args)
+            return 0
+
+        monkeypatch.setattr(cli_module, "run_openspec", fake_run_openspec)
+        return captured
+
+    def test_env_var_propagates_to_subprocess(self, monkeypatch):
+        """OPENSPEC_CONCURRENCY=16 + no explicit flag -> args contain --concurrency 16."""
+        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "16")
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["validate", "--all", "--json"])
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert "--concurrency" in captured["args"]
+        idx = captured["args"].index("--concurrency")
+        assert captured["args"][idx + 1] == "16"
+
+    def test_no_env_var_omits_flag(self, monkeypatch):
+        """No env var and no explicit flag -> --concurrency is NOT in args (upstream default used)."""
+        monkeypatch.delenv("OPENSPEC_CONCURRENCY", raising=False)
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["validate", "--all", "--json"])
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert "--concurrency" not in captured["args"]
+
+    def test_invalid_env_var_omits_flag(self, monkeypatch):
+        """Invalid env value (non-int) -> --concurrency omitted."""
+        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "invalid")
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["validate", "--all", "--json"])
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert "--concurrency" not in captured["args"]
+
+    def test_zero_env_var_omits_flag(self, monkeypatch):
+        """Env value of 0 (must be > 0) -> --concurrency omitted."""
+        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "0")
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["validate", "--all", "--json"])
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert "--concurrency" not in captured["args"]
+
+    def test_explicit_flag_overrides_env_var(self, monkeypatch):
+        """Explicit --concurrency=8 wins over OPENSPEC_CONCURRENCY=16."""
+        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "16")
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(
+            app, ["validate", "--all", "--json", "--concurrency", "8"]
+        )
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert "--concurrency" in captured["args"]
+        idx = captured["args"].index("--concurrency")
+        assert captured["args"][idx + 1] == "8"
+
+
+class TestLanguageFlag:
+    """A.5: ``--language`` flag and ``OPENSPEC_LANGUAGE`` env var both flow
+    through to the upstream ``openspec init`` call. Precedence: explicit
+    flag > env > unset.
+    """
+
+    @staticmethod
+    def _capture(monkeypatch):
+        from source import cli as cli_module
+
+        captured = {}
+
+        def fake_run_openspec(args, timeout=60):
+            captured["args"] = list(args)
+            return 0
+
+        monkeypatch.setattr(cli_module, "run_openspec", fake_run_openspec)
+        return captured
+
+    def test_explicit_flag_propagates(self, monkeypatch):
+        """`init --language french` -> upstream args contain `--language french`."""
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["init", "--language", "french"])
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert "--language" in captured["args"]
+        idx = captured["args"].index("--language")
+        assert captured["args"][idx + 1] == "french"
+
+    def test_env_var_propagates_when_no_flag(self, monkeypatch):
+        """OPENSPEC_LANGUAGE=french + no flag -> upstream args contain `--language french`."""
+        monkeypatch.setenv("OPENSPEC_LANGUAGE", "french")
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["init"])
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert "--language" in captured["args"]
+        idx = captured["args"].index("--language")
+        assert captured["args"][idx + 1] == "french"
+
+    def test_explicit_flag_overrides_env_var(self, monkeypatch):
+        """`--language spanish` with OPENSPEC_LANGUAGE=french -> upstream gets `spanish`."""
+        monkeypatch.setenv("OPENSPEC_LANGUAGE", "french")
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["init", "--language", "spanish"])
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert "--language" in captured["args"]
+        idx = captured["args"].index("--language")
+        assert captured["args"][idx + 1] == "spanish"
+
+    def test_empty_env_var_omits_flag(self, monkeypatch):
+        """OPENSPEC_LANGUAGE='' (empty) + no flag -> --language NOT in args."""
+        monkeypatch.setenv("OPENSPEC_LANGUAGE", "")
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["init"])
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert "--language" not in captured["args"]
+
+    def test_no_flag_no_env_omits_flag(self, monkeypatch):
+        """No flag and no env var -> --language NOT in args."""
+        monkeypatch.delenv("OPENSPEC_LANGUAGE", raising=False)
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["init"])
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert "--language" not in captured["args"]

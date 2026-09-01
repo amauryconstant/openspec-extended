@@ -96,11 +96,23 @@ class TestOsxValidateAll:
         assert mock.called
         assert result.exit_code == 0
 
-    def test_default_concurrency_is_6(self):
+    def test_default_concurrency_is_none(self):
+        """Without --concurrency or env var, osx_cli passes None and lets
+        ``validate_all`` resolve OPENSPEC_CONCURRENCY (or fall back to 6)."""
         with patch("source.osx_cli.osx_lib.validate_all") as mock:
             mock.return_value = _make_validation_payload()
             runner.invoke(osx_app, ["validate", "all"])
-        assert mock.call_args.kwargs.get("concurrency") == 6
+        assert mock.call_args.kwargs.get("concurrency") is None
+
+    def test_default_concurrency_env_falls_back_in_library(self, monkeypatch):
+        """Without an explicit flag, the library resolves env-driven concurrency."""
+        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "12")
+        with patch(
+            "source.osx_cli.osx_lib.validate_all", side_effect=_make_validation_payload()
+        ) as mock:
+            runner.invoke(osx_app, ["validate", "all"])
+        assert mock.call_args.kwargs.get("concurrency") is None
+        # The library call itself received None; the env var is read inside validate_all.
 
     def test_custom_concurrency(self):
         with patch("source.osx_cli.osx_lib.validate_all") as mock:

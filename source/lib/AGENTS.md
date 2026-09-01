@@ -56,7 +56,7 @@ Keep the library and the CLI module separate so the library can be imported in-p
 | `iterations` | `iterations_get(change)`, `iterations_append(change, ...)` | `openspec-extended osx iterations ...` |
 | `log` | `log_get(change)`, `log_append(change, ...)` | `openspec-extended osx log ...` |
 | `complete` | `complete_check(change)`, `complete_get(change)`, `complete_set(change, status, blocker_reason)` | `openspec-extended osx complete ...` |
-| `validate` | `validate_json(target)`, `validate_skills(project_root=None)`, `validate_commands(project_root=None)`, `validate_change_dir(target)`, `validate_archive(target)`, `validate_iterations(target)`, `validate_completion(target)` | `openspec-extended osx validate ...` |
+| `validate` | `validate_json(target)`, `validate_skills(project_root=None)`, `validate_commands(project_root=None)`, `validate_change_dir(target)` (consults core's `isPlanningComplete` and falls back to a local file-existence check), `validate_archive(target)`, `validate_iterations(target)`, `validate_completion(target)` | `openspec-extended osx validate ...` |
 | `instructions` | (CLI-only proxy to `openspec instructions`) | `openspec-extended osx instructions ...` |
 
 ## Constants (top of `osx.py`)
@@ -67,9 +67,32 @@ Keep the library and the CLI module separate so the library can be imported in-p
 | `VALID_TRANSITION_REASONS` | `implementation_incorrect`, `artifacts_modified`, `retry_requested` |
 | `REQUIRED_SKILLS` | 7 `osx-*` skills installed for changes (`osx-generate-changelog` is intentionally excluded; it has its own `/osx-changelog` dispatch) |
 | `REQUIRED_CORE_SKILLS` | All 12 `osc-*` core skills from upstream OpenSpec (current v1.11.0; floor v1.11.0): propose, explore, new-change, continue-change, apply-change, update-change, ff-change, verify-change, sync-specs, archive-change, bulk-archive-change, onboard. Bumped from 4 → 12 to track the full custom-profile set; see `source/lib/osx.py`. |
-| `MIN_OPENSPEC_VERSION` | `(1, 11, 0)` — orchestrator refuses to start with older cores. The floor guarantees the v1.11.0 contract surface (`status --all`, `show --diff`, `validate --archived`, `init --language`, `isPlanningComplete`, `retire_capabilities`, etc.) is available without opportunistic fallback paths. | |
+| `MIN_OPENSPEC_VERSION` | `(1, 11, 0)` — orchestrator refuses to start with older cores. The floor guarantees the v1.11.0 contract surface (`status --all`, `show --diff`, `validate --archived`, `init --language`, `isPlanningComplete`, `retire_capabilities`, etc.) is available. The `OPENSPEC_EXTENDED_NO_PLANNING_CORE=1` env var is the CI escape hatch that bypasses the core planning-status call in `validate_change_dir`; without it, falls back to a local file-existence check. | |
 | `AUTONOMOUS_RESOURCE_NAMES` | 12 names (4 agents + 7 phase commands + `osx-workflow` skill) gated by `install --with-autonomous`. Mirror in `deploy_type` (`source/cli.py:236`). |
 | `OSXError` | Exception class raised by library functions |
+
+### Environment-variable propagation
+
+`validate_all` (`source/lib/osx.py`) honours the `OPENSPEC_CONCURRENCY` env
+var as a fallback for its `concurrency` arg. Resolution precedence:
+
+1. Explicit `concurrency` kwarg
+2. `OPENSPEC_CONCURRENCY` env var (must parse as an int and be > 0)
+3. Default `6` (matches upstream `openspec validate --all` default)
+
+Invalid env values (non-int, ≤ 0, empty) fall back to `6` silently. The same
+fallback applies via the top-level `openspec-extended validate --all`
+passthrough and the `osx validate all` subcommand — see
+`source/cli.py:validate_cmd` and `source/osx_cli.py:validate_cmd`.
+
+The helper `_resolve_concurrency(explicit)` centralises the resolution logic
+so each callsite reads identically.
+
+`OPENSPEC_LANGUAGE` is read by `openspec-extended init` and
+`openspec-extended install --with-core` (CLI layer in `source/cli.py` — not
+the `osx` library). Resolution helper: `_resolve_language(arg)` next to
+`run_openspec`. Same precedence as `OPENSPEC_CONCURRENCY`: explicit
+`--language` flag > env var > unset; empty string is treated as unset.
 
 ## Conventions
 

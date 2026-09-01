@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import toml
+import yaml
 
 import pytest
 
@@ -373,6 +374,53 @@ class TestInstallWithCore:
         assert not missing, (
             f"missing core commands after update --with-core: {sorted(missing)}"
         )
+
+
+class TestInstallWithCoreLanguage:
+    """A.5: ``--language`` flag and ``OPENSPEC_LANGUAGE`` env var propagate
+    through ``install --with-core`` into the generated ``openspec/config.yaml``.
+    """
+
+    def test_install_with_core_propagates_language(self, test_env):
+        """`install opencode --with-core --language french` -> config.yaml context
+        mentions 'french'."""
+        result = run_osx(
+            ["install", "opencode", "--with-core", "--language", "french"],
+            cwd=test_env,
+        )
+        assert result.returncode == 0, result.stderr
+
+        config_path = test_env / "openspec" / "config.yaml"
+        assert config_path.is_file(), (
+            f"openspec/config.yaml should exist after install --with-core; "
+            f"stdout={result.stdout}\nstderr={result.stderr}"
+        )
+        config = yaml.safe_load(config_path.read_text())
+        context = config.get("context", "") or ""
+        assert "french" in context, f"context missing 'french': {context!r}"
+
+    def test_install_with_core_env_language(self, test_env):
+        """OPENSPEC_LANGUAGE=portuguese + install --with-core (no flag) ->
+        config.yaml context mentions 'portuguese'."""
+        import os
+
+        env = os.environ.copy()
+        env["OPENSPEC_LANGUAGE"] = "portuguese"
+        cmd = [sys.executable, "-m", "source", "install", "opencode", "--with-core"]
+        result = subprocess.run(cmd, cwd=test_env, capture_output=True, text=True, env=env)
+
+        assert result.returncode == 0, (
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+
+        config_path = test_env / "openspec" / "config.yaml"
+        assert config_path.is_file(), (
+            f"openspec/config.yaml should exist after install --with-core; "
+            f"stdout={result.stdout}\nstderr={result.stderr}"
+        )
+        config = yaml.safe_load(config_path.read_text())
+        context = config.get("context", "") or ""
+        assert "portuguese" in context, f"context missing 'portuguese': {context!r}"
 
 
 # Canonical 12-workflow set delivered by `openspec init --profile custom`
@@ -881,3 +929,273 @@ class TestUpdateAutonomousToggleCleanup:
         for n in range(7):
             assert (target / "commands" / f"osx-phase{n}.md").is_file()
         assert (target / "agents" / "osx-analyzer.md").is_file()
+
+
+class _FakeOpenspec:
+    """Helper that builds a fake ``openspec`` shell script on a tmpdir and
+    adds it to PATH for the duration of one test.
+
+    The fake binary delegates everything to the real ``openspec`` (resolved
+    via ``OSX_REAL_OPENSPEC`` env var, which the test sets up) EXCEPT
+    ``validate --archived --json``, which exits with ``archived_returncode``
+    so we can simulate the "unfinished archives" state without seeding a
+    real archive directory on disk.
+
+    Set ``archived_returncode=0`` to simulate a clean tree.
+    """
+
+    def __init__(
+        self,
+        bin_dir: Path,
+        archived_returncode: int = 0,
+    ) -> None:
+        self.bin_dir = bin_dir
+        self.archived_returncode = archived_returncode
+
+    def install(self) -> Path:
+        self.bin_dir.mkdir(parents=True, exist_ok=True)
+        script = self.bin_dir / "openspec"
+        script.write_text(
+            "#!/usr/bin/env bash\n"
+            'if [ "$1" = "validate" ] && [ "$2" = "--archived" ]; then\n'
+            '  exit "${OSX_FAKE_ARCHIVED_RC:-0}"\n'
+            "fi\n"
+            'if [ -n "${OSX_REAL_OPENSPEC:-}" ] && [ -x "${OSX_REAL_OPENSPEC}" ]; then\n'
+            '  exec "${OSX_REAL_OPENSPEC}" "$@"\n'
+            "fi\n"
+            "exit 0\n"
+        )
+        script.chmod(0o755)
+        return script
+
+
+def _run_with_fake_openspec(
+    args: list[str],
+    cwd: Path,
+    tmp_path: Path,
+    archived_returncode: int = 0,
+) -> subprocess.CompletedProcess:
+    """Run ``openspec-extended <args>`` with a fake ``openspec`` binary on PATH.
+
+    The fake delegates everything to the real ``openspec`` (resolved via
+    ``OSX_REAL_OPENSPEC``) except ``validate --archived --json``, which it
+    exits with the supplied ``archived_returncode``.
+    """
+    import os
+    import shutil
+
+    real_openspec = shutil.which("openspec")
+    if real_openspec is None:
+        pytest.skip("openspec CLI not on PATH; cannot run install/update-core tests")
+
+    bin_dir = tmp_path / "fake-bin"
+    fake = _FakeOpenspec(bin_dir, archived_returncode=archived_returncode)
+    fake.install()
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+    env["OSX_FAKE_ARCHIVED_RC"] = str(archived_returncode)
+    env["OSX_REAL_OPENSPEC"] = real_openspec
+    env["HOME"] = str(tmp_path / "fake-home")
+    (tmp_path / "fake-home").mkdir()
+
+    if "OPENSPEC_NO_UPDATE_CHECK" not in env:
+        env["OPENSPEC_NO_UPDATE_CHECK"] = "1"
+
+    cmd = [sys.executable, "-m", "source", *args]
+    return subprocess.run(
+        cmd, cwd=cwd, capture_output=True, text=True, env=env, check=False
+    )
+
+
+class TestValidateArchivedSweep:
+    """A.6: ``install --with-core`` and ``update-core`` run a non-fatal
+    ``openspec validate --archived --json`` sweep after core deployment so
+    unfinished archive state surfaces immediately rather than the next
+    time ``osc-bulk-archive-change`` runs.
+    """
+
+    def test_install_with_core_warns_on_unfinished_archives(
+        self, test_env, tmp_path
+    ):
+        """Non-fatal default: a warning is printed, exit code is 0."""
+        result = _run_with_fake_openspec(
+            ["install", "opencode", "--with-core"],
+            cwd=test_env,
+            tmp_path=tmp_path,
+            archived_returncode=1,
+        )
+        output = result.stdout + result.stderr
+        assert result.returncode == 0, (
+            f"non-fatal sweep should not fail install; got {result.returncode}\n"
+            f"stdout={result.stdout}\nstderr={result.stderr}"
+        )
+        assert "Post-install sweep found unfinished archive state" in output, output
+        assert "validate --archived" in output, output
+        assert "tasks.md" in output, output
+
+    def test_install_with_core_strict_archived_exits_nonzero(
+        self, test_env, tmp_path
+    ):
+        """``--strict-archived`` makes a failing sweep exit non-zero."""
+        result = _run_with_fake_openspec(
+            ["install", "opencode", "--with-core", "--strict-archived"],
+            cwd=test_env,
+            tmp_path=tmp_path,
+            archived_returncode=1,
+        )
+        assert result.returncode != 0, (
+            f"--strict-archived should fail on unfinished archives; "
+            f"got {result.returncode}\nstdout={result.stdout}\nstderr={result.stderr}"
+        )
+        output = result.stdout + result.stderr
+        assert "Post-install sweep" in output
+
+    def test_install_with_core_strict_archived_env_var_exits_nonzero(
+        self, test_env, tmp_path, monkeypatch
+    ):
+        """``OPENSPEC_VALIDATE_ARCHIVED_STRICT=1`` env var triggers strict mode."""
+        import os
+        import shutil
+
+        real_openspec = shutil.which("openspec")
+        if real_openspec is None:
+            pytest.skip("openspec CLI not on PATH")
+
+        bin_dir = tmp_path / "fake-bin"
+        _FakeOpenspec(bin_dir, archived_returncode=1).install()
+
+        env = os.environ.copy()
+        env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+        env["OSX_FAKE_ARCHIVED_RC"] = "1"
+        env["OSX_REAL_OPENSPEC"] = real_openspec
+        env["HOME"] = str(tmp_path / "fake-home")
+        (tmp_path / "fake-home").mkdir()
+        env["OPENSPEC_VALIDATE_ARCHIVED_STRICT"] = "1"
+        env["OPENSPEC_NO_UPDATE_CHECK"] = "1"
+
+        cmd = [sys.executable, "-m", "source", "install", "opencode", "--with-core"]
+        result = subprocess.run(
+            cmd, cwd=test_env, capture_output=True, text=True, env=env, check=False
+        )
+        assert result.returncode != 0, (
+            f"OPENSPEC_VALIDATE_ARCHIVED_STRICT=1 should fail; got {result.returncode}\n"
+            f"stdout={result.stdout}\nstderr={result.stderr}"
+        )
+
+    def test_install_with_core_skips_sweep_when_openspec_missing(
+        self, test_env, tmp_path
+    ):
+        """With no ``openspec`` on PATH, the sweep silently skips and install exits 0."""
+        import os
+
+        env = os.environ.copy()
+        # Force PATH to an empty dir so openspec cannot be resolved.
+        empty_bin = tmp_path / "empty-bin"
+        empty_bin.mkdir()
+        env["PATH"] = str(empty_bin)
+        env["HOME"] = str(tmp_path / "fake-home")
+        (tmp_path / "fake-home").mkdir()
+
+        cmd = [sys.executable, "-m", "source", "install", "opencode", "--with-core"]
+        result = subprocess.run(
+            cmd, cwd=test_env, capture_output=True, text=True, env=env, check=False
+        )
+        # Install requires openspec init which will fail too — so we accept
+        # any non-strict result and only assert the sweep's FileNotFoundError
+        # path is handled gracefully (no traceback).
+        output = result.stdout + result.stderr
+        assert "Traceback" not in output, output
+
+    def test_update_core_also_runs_sweep(self, test_env, tmp_path):
+        """``update-core`` also runs the post-update sweep."""
+        result = _run_with_fake_openspec(
+            ["update-core"],
+            cwd=test_env,
+            tmp_path=tmp_path,
+            archived_returncode=1,
+        )
+        output = result.stdout + result.stderr
+        assert "Post-install sweep found unfinished archive state" in output, (
+            f"stdout={result.stdout}\nstderr={result.stderr}"
+        )
+        assert "validate --archived" in output, output
+
+
+class TestValidateArchivedSweepInProcess:
+    """Direct in-process unit-style tests of ``_post_install_archived_sweep``.
+
+    These tests patch ``subprocess.run`` at the module level so the function
+    can be exercised in isolation without shelling out to a real CLI.
+    """
+
+    def test_sweep_returns_true_on_success(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from source.cli import _post_install_archived_sweep
+
+        monkeypatch.setattr(
+            "source.cli.subprocess.run",
+            lambda *a, **kw: MagicMock(returncode=0, stdout="{}", stderr=""),
+        )
+        assert _post_install_archived_sweep() is True
+
+    def test_sweep_returns_false_on_nonzero(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from source.cli import _post_install_archived_sweep
+
+        monkeypatch.setattr(
+            "source.cli.subprocess.run",
+            lambda *a, **kw: MagicMock(
+                returncode=1, stdout="{}", stderr="unfinished archive"
+            ),
+        )
+        assert _post_install_archived_sweep() is False
+
+    def test_sweep_strict_exits_nonzero_on_failure(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from source.cli import _post_install_archived_sweep
+
+        monkeypatch.setattr(
+            "source.cli.subprocess.run",
+            lambda *a, **kw: MagicMock(returncode=1, stdout="{}", stderr=""),
+        )
+        with pytest.raises(SystemExit) as exc:
+            _post_install_archived_sweep(strict=True)
+        assert exc.value.code != 0
+
+    def test_sweep_skips_when_openspec_missing(self, monkeypatch):
+        from source.cli import _post_install_archived_sweep
+
+        def _raise_filenf(*a, **kw):
+            raise FileNotFoundError("openspec")
+
+        monkeypatch.setattr("source.cli.subprocess.run", _raise_filenf)
+        assert _post_install_archived_sweep() is True
+
+    def test_sweep_skips_on_timeout(self, monkeypatch):
+        from source.cli import _post_install_archived_sweep
+
+        def _raise_timeout(*a, **kw):
+            import subprocess as _sp
+
+            raise _sp.TimeoutExpired(cmd=["openspec"], timeout=30)
+
+        monkeypatch.setattr("source.cli.subprocess.run", _raise_timeout)
+        assert _post_install_archived_sweep() is True
+
+    def test_sweep_env_var_overrides_strict(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from source.cli import _post_install_archived_sweep
+
+        monkeypatch.setenv("OPENSPEC_VALIDATE_ARCHIVED_STRICT", "1")
+        monkeypatch.setattr(
+            "source.cli.subprocess.run",
+            lambda *a, **kw: MagicMock(returncode=1, stdout="{}", stderr=""),
+        )
+        with pytest.raises(SystemExit):
+            _post_install_archived_sweep(strict=False)
+        monkeypatch.delenv("OPENSPEC_VALIDATE_ARCHIVED_STRICT", raising=False)

@@ -1912,28 +1912,57 @@ def validate_spec(
     return _translate_validate_payload(_run_openspec_json(args))
 
 
+def _resolve_concurrency(explicit: int | None) -> int:
+    """Resolve the --concurrency value with environment-variable fallback.
+
+    Precedence:
+      1. Explicit value (CLI flag or programmatic)
+      2. ``OPENSPEC_CONCURRENCY`` env var (must parse as int and be > 0)
+      3. Default ``6`` (matches upstream ``openspec validate --all`` default)
+
+    Invalid env values (non-int, <=0, empty) fall back to 6 silently.
+    """
+    if explicit is not None:
+        return explicit
+    raw = os.environ.get("OPENSPEC_CONCURRENCY")
+    if not raw:
+        return 6
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return 6
+    if value <= 0:
+        return 6
+    return value
+
+
 def validate_all(
     *,
     store: str | None = None,
     strict: bool = False,
-    concurrency: int = 6,
+    concurrency: int | None = None,
 ) -> dict:
     """Validate all changes AND specs via `openspec validate --all --json`.
 
     Args:
       store: Optional OpenSpec store id
       strict: If True, warnings are treated as failures
-      concurrency: Max parallel validations (default 6, per upstream default)
+      concurrency: Max parallel validations. Resolution precedence:
+        1. Explicit value (this argument)
+        2. ``OPENSPEC_CONCURRENCY`` env var (must parse as int and be > 0)
+        3. Default ``6`` (matches upstream ``openspec validate --all`` default).
+        Invalid env values (non-int, <=0, empty) fall back to 6 silently.
 
     Returns: see _translate_validate_payload.
     Raises: OSXError on subprocess failures.
     """
+    resolved = _resolve_concurrency(concurrency)
     args = [
         "validate",
         "--all",
         "--no-interactive",
         "--concurrency",
-        str(concurrency),
+        str(resolved),
     ]
     if strict:
         args.append("--strict")
@@ -2074,6 +2103,84 @@ def resolve_schema(
                 )
 
     return {"name": "spec-driven", "source": "default"}
+
+
+# Operations whose advisory guidance the orchestrator injects into the AI
+# prompt. Core (OpenSpec v1.7.0+) surfaces these via ``openspec instructions
+# apply|archive --json`` (``operationGuidance`` field); the orchestrator reads
+# the same file directly so it can prepend the strings to the spawn prompt
+# without a subprocess round-trip. See A.4 in the implementation plan.
+_GUIDANCE_OPERATIONS = frozenset({"apply", "archive"})
+
+
+def fetch_operation_guidance(
+    operation: str,
+    project_root: Path | None = None,
+    store: str | None = None,
+) -> list[str]:
+    """Read ``operations.{operation}.guidance`` from ``openspec/config.yaml``.
+
+    The orchestrator (PHASE1/PHASE6) calls this to source project-level
+    advisory guidance for the matching AI spawn. Core's JSON envelope
+    exposes the same data via ``openspec instructions apply|archive
+    --json`` (the ``operationGuidance`` field, since v1.7.0); reading the
+    file directly avoids the subprocess round-trip and the store-aware
+    resolution the CLI does internally.
+
+    Args:
+      operation: ``"apply"`` or ``"archive"`` — the only operations core
+        supports guidance for. Any other value returns ``[]``.
+      project_root: project root containing the ``openspec/`` directory.
+        Falls back to ``Path.cwd()`` when ``None`` (mirrors
+        ``resolve_schema``).
+      store: unused for direct-file reads; kept for signature symmetry
+        with ``resolve_schema`` so a future store-aware variant can
+        extend without breaking callers.
+
+    Returns:
+      A list of advisory guidance strings. Empty when the file is
+      missing or malformed, when the operation has no guidance entry,
+      or when the operation is outside ``{apply, archive}``. Never raises.
+    """
+    if operation not in _GUIDANCE_OPERATIONS:
+        return []
+
+    if project_root is None:
+        project_root = Path.cwd()
+
+    data: dict | None = None
+    for config_name in ("config.yaml", "config.yml"):
+        config_path = project_root / "openspec" / config_name
+        if not config_path.exists():
+            continue
+        try:
+            loaded = yaml.safe_load(config_path.read_text())
+        except (yaml.YAMLError, OSError) as error:
+            print(
+                f"Warning: Could not load operations guidance from {config_path}: {error}",
+                file=sys.stderr,
+            )
+            return []
+        if isinstance(loaded, dict):
+            data = loaded
+            break
+
+    if not isinstance(data, dict):
+        return []
+
+    operations = data.get("operations")
+    if not isinstance(operations, dict):
+        return []
+
+    op_entry = operations.get(operation)
+    if not isinstance(op_entry, dict):
+        return []
+
+    guidance = op_entry.get("guidance")
+    if not isinstance(guidance, list):
+        return []
+
+    return [item for item in guidance if isinstance(item, str)]
 
 
 def list_artifacts_for_schema(

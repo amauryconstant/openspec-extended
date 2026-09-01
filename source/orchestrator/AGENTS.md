@@ -54,6 +54,7 @@ Each phase may iterate up to `DEFAULT_MAX_PHASE_ITERATIONS` times before the orc
 - State persists under the change directory (typically `openspec/changes/<id>/state.json`). Engine-specific wrappers (`read_state`, `write_state`, and related helpers at `engine.py:307+`) call `source.lib.state_io` directly rather than `osx.state_*`; all JSON writes are atomic. Read-only `json.loads` inspections in orchestration and display paths do not affect write atomicity. Cleanup deletes state files directly because file removal is atomic at the OS level.
 - Cancellation is via SIGINT/SIGTERM: the orchestrator kills the AI child and records the partial state.
 - After PHASE6, the orchestrator runs `archive_log_file()` to move the per-invocation log into the archive directory and amend the archive commit.
+- `RunRequest.extra_prompt` (A.4) is a low-level extension point for the runner. PHASE1 and PHASE6 populate it with `operations.{apply|archive}.guidance` from `openspec/config.yaml`; other phases leave it empty. The OpenCode runner attaches it via `--file`; the Claude runner prepends it to the slash-command prompt.
 
 ## Entry Point
 

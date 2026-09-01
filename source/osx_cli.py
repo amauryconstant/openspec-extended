@@ -322,8 +322,10 @@ def validate_cmd(
         None, help="Target (file path or change name depending on action)"
     ),
     strict: bool = typer.Option(False, "--strict", help="Treat warnings as failures"),
-    concurrency: int = typer.Option(
-        6, "--concurrency", help="Max parallel validations (validate all only)"
+    concurrency: int | None = typer.Option(
+        None,
+        "--concurrency",
+        help="Max parallel validations (validate all only). Falls back to OPENSPEC_CONCURRENCY env (must be a positive int), else default 6",
     ),
 ) -> None:
     if action == "json":

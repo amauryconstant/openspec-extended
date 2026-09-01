@@ -132,6 +132,17 @@ def compare_versions(v1: str, v2: str) -> int:
     return 0
 
 
+def _resolve_language(arg: str | None) -> str | None:
+    """Resolve --language value with env-var fallback.
+
+    Precedence: explicit flag > OPENSPEC_LANGUAGE env > unset.
+    Empty string treated as unset.
+    """
+    if arg:
+        return arg
+    return os.environ.get("OPENSPEC_LANGUAGE") or None
+
+
 def run_openspec(
     args: list[str], timeout: int = 30, extra_env: dict[str, str] | None = None
 ) -> int:
@@ -962,7 +973,12 @@ def _ensure_baseline_for_global_config(project_root: Path) -> Path | None:
         return None
 
 
-def deploy_core(tool: str, force: bool = False) -> None:
+def deploy_core(
+    tool: str,
+    force: bool = False,
+    language: str | None = None,
+    strict_archived: bool = False,
+) -> None:
     target_dir = Path.cwd() / get_tool_dir(tool)
     target_manifest = target_dir / "manifest.toml"
     project_root = Path.cwd()
@@ -998,16 +1014,19 @@ def deploy_core(tool: str, force: bool = False) -> None:
     log_info(f"Wrote canonical 12-workflow profile to {config_path}")
 
     try:
+        init_args = [
+            "openspec",
+            "init",
+            "--tools",
+            tool,
+            "--profile",
+            "custom",
+            "--force",
+        ]
+        if language:
+            init_args.extend(["--language", language])
         subprocess.run(
-            [
-                "openspec",
-                "init",
-                "--tools",
-                tool,
-                "--profile",
-                "custom",
-                "--force",
-            ],
+            init_args,
             check=True,
             capture_output=True,
         )
@@ -1049,6 +1068,7 @@ def deploy_core(tool: str, force: bool = False) -> None:
             raise SystemExit(1)
 
     log_success("Core resources installed (osc-*)")
+    _post_install_archived_sweep(strict=strict_archived)
 
     if manifest_updates and target_manifest.is_file():
         manifest_data = toml.loads(target_manifest.read_text())
@@ -1131,6 +1151,16 @@ def install(
             "automatically."
         ),
     ),
+    language: str | None = typer.Option(
+        None,
+        "--language",
+        help="Language used for artifacts in new projects (v1.10.0+). Precedence: --language > OPENSPEC_LANGUAGE > unset.",
+    ),
+    strict_archived: bool = typer.Option(
+        False,
+        "--strict-archived",
+        help="Fail on warnings from the post-install `openspec validate --archived` sweep.",
+    ),
 ) -> None:
     if tool not in TOOL_DIRS:
         log_error(f"Unknown tool: {tool}")
@@ -1144,7 +1174,13 @@ def install(
         update_gitignore()
 
     if with_core:
-        deploy_core(tool, force=force)
+        effective_language = _resolve_language(language)
+        deploy_core(
+            tool,
+            force=force,
+            language=effective_language,
+            strict_archived=strict_archived,
+        )
 
     target_manifest_path = target_dir / "manifest.toml"
     if target_manifest_path.is_file():
@@ -1173,6 +1209,52 @@ def _expected_extension_names(tool: str, with_autonomous: bool) -> set[str]:
                 continue
             expected.add(name)
     return expected
+
+
+def _post_install_archived_sweep(strict: bool = False, timeout: int = 30) -> bool:
+    """Run ``openspec validate --archived --json`` after install/update.
+
+    Non-fatal by default: on failure, log a yellow warning and return False.
+    With ``strict=True`` (or ``OPENSPEC_VALIDATE_ARCHIVED_STRICT=1``), exit non-zero.
+
+    Returns True on success or when openspec is missing (skipped).
+    """
+    if os.environ.get("OPENSPEC_VALIDATE_ARCHIVED_STRICT") == "1":
+        strict = True
+    try:
+        result = subprocess.run(
+            ["openspec", "validate", "--archived", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError:
+        log_info("openspec not installed; skipping post-install archived sweep")
+        return True
+    except subprocess.TimeoutExpired:
+        log_warn("openspec validate --archived timed out; skipping")
+        return True
+    if result.returncode == 0:
+        log_success("Post-install sweep: archives valid")
+        return True
+    log_warn("Post-install sweep found unfinished archive state")
+    stderr = (result.stderr or "").strip()
+    stdout = (result.stdout or "").strip()[:500]
+    if stderr:
+        log_warn(f"stderr: {stderr}")
+    if stdout:
+        log_warn(f"stdout (truncated): {stdout}")
+    log_warn(
+        "Remediation: run `openspec validate --archived --strict` to see issues, "
+        "then tick remaining tasks.md checkboxes or use `--no-validate` when archiving."
+    )
+    if strict:
+        log_error(
+            "Strict mode: exiting non-zero (set OPENSPEC_VALIDATE_ARCHIVED_STRICT=0 to disable)"
+        )
+        raise SystemExit(result.returncode or 1)
+    return False
 
 
 def _core_keep_set(target_dir: Path) -> set[str]:
@@ -1239,6 +1321,16 @@ def update(
             "automatically."
         ),
     ),
+    language: str | None = typer.Option(
+        None,
+        "--language",
+        help="Language used for artifacts in new projects (v1.10.0+). Precedence: --language > OPENSPEC_LANGUAGE > unset.",
+    ),
+    strict_archived: bool = typer.Option(
+        False,
+        "--strict-archived",
+        help="Fail on warnings from the post-update `openspec validate --archived` sweep.",
+    ),
 ) -> None:
     if tool not in TOOL_DIRS:
         log_error(f"Unknown tool: {tool}")
@@ -1263,7 +1355,13 @@ def update(
         update_gitignore()
 
     if with_core:
-        deploy_core(tool, force=force)
+        effective_language = _resolve_language(language)
+        deploy_core(
+            tool,
+            force=force,
+            language=effective_language,
+            strict_archived=strict_archived,
+        )
 
         # 2. After core deployment succeeds, reconcile ``osc-*`` resources
         #    against what was just generated. Anything previously deployed
@@ -1369,7 +1467,9 @@ def validate_cmd(
     ),
     json_output: bool = typer.Option(False, "--json", help="JSON output"),
     concurrency: int | None = typer.Option(
-        None, "--concurrency", help="Max concurrent validations"
+        None,
+        "--concurrency",
+        help="Max concurrent validations. Falls back to OPENSPEC_CONCURRENCY env (must be a positive int), else omitted (upstream default 6)",
     ),
     no_interactive: bool = typer.Option(
         True, "--no-interactive/--interactive", help="Disable prompts (default: true)"
@@ -1393,8 +1493,18 @@ def validate_cmd(
         args.append("--archived")
     if json_output:
         args.append("--json")
-    if concurrency is not None:
-        args.extend(["--concurrency", str(concurrency)])
+    effective_concurrency = concurrency
+    if effective_concurrency is None:
+        env_raw = os.environ.get("OPENSPEC_CONCURRENCY")
+        if env_raw:
+            try:
+                parsed = int(env_raw)
+            except (TypeError, ValueError):
+                parsed = None
+            if parsed is not None and parsed > 0:
+                effective_concurrency = parsed
+    if effective_concurrency is not None:
+        args.extend(["--concurrency", str(effective_concurrency)])
     if no_interactive:
         args.append("--no-interactive")
     if store:
@@ -1624,7 +1734,7 @@ def init_cmd(
     language: str | None = typer.Option(
         None,
         "--language",
-        help="Language used for artifacts in new projects (v1.10.0+)",
+        help="Language used for artifacts in new projects (v1.10.0+). Precedence: --language > OPENSPEC_LANGUAGE > unset.",
     ),
 ) -> None:
     args: list[str] = []
@@ -1636,8 +1746,9 @@ def init_cmd(
         args.append("--force")
     if profile:
         args.extend(["--profile", profile])
-    if language:
-        args.extend(["--language", language])
+    effective_language = _resolve_language(language)
+    if effective_language:
+        args.extend(["--language", effective_language])
 
     code = run_openspec(["init", *args], timeout=60)
     raise typer.Exit(code=code)
@@ -1650,6 +1761,12 @@ def init_cmd(
 def update_core_cmd(
     path: str | None = typer.Argument(None, help="Project path"),
     force: bool = typer.Option(False, "--force", help="Force update"),
+    strict_archived: bool = typer.Option(
+        False,
+        "--strict-archived",
+        help="Fail on warnings from the post-update `openspec validate --archived` sweep. "
+        "Alternatively set OPENSPEC_VALIDATE_ARCHIVED_STRICT=1.",
+    ),
 ) -> None:
     args: list[str] = []
     if path:
@@ -1664,6 +1781,7 @@ def update_core_cmd(
     code = run_openspec(
         ["update", *args], timeout=60, extra_env={"OPENSPEC_NO_UPDATE_CHECK": "1"}
     )
+    _post_install_archived_sweep(strict=strict_archived)
     raise typer.Exit(code=code)
 
 
