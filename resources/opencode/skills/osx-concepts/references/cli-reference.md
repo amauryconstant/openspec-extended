@@ -337,6 +337,14 @@ For programmatic change details, use `openspec status --change <name> --json` (g
 
 **Diff mode (v1.11.0)**: `openspec show <change> --diff` renders each MODIFIED requirement as a colorized unified diff against the requirement it replaces in the main spec; ADDED requirements print in full; REMOVED print authored Reason/Migration; RENAMED print FROM/TO. `--json --diff` extends each MODIFIED delta with a `diff` and `warning` field. Main specs resolve against the same root as the change, so `--store <id>` diffs against that store.
 
+#### When PHASE2 runs
+
+PHASE2 (REVIEW) fetches `openspec show <change> --diff --json` and embeds the
+per-requirement diff as the `## Requirement diff` appendix of
+`verification-report.md`. ADDED/REMOVED/RENAMED deltas are listed in the
+`## Delta inventory` section above the diff. See `osx-phase2` for the
+full protocol.
+
 ---
 
 ### `openspec status --all` (v1.11.0)
@@ -371,12 +379,22 @@ openspec validate --archived
 
 ---
 
-### `openspec init --language <language>` (v1.10.0)
+### `openspec init --language <language>` (v1.10.0; current as of v1.11.0)
 
 Configure the language used for artifacts in new projects:
 
 ```bash
 openspec init --language french
+```
+
+`openspec-extended init` and `openspec-extended install <tool> --with-core` honour the same `--language` flag and additionally accept the `OPENSPEC_LANGUAGE` env var as a fallback. Precedence: `--language` flag > `OPENSPEC_LANGUAGE` env > unset. Empty string is treated as unset.
+
+```bash
+# Explicit flag (highest priority)
+openspec-extended install opencode --with-core --language french
+
+# Or via env var
+OPENSPEC_LANGUAGE=portuguese openspec-extended install opencode --with-core
 ```
 
 ---
@@ -393,6 +411,33 @@ schema: spec-driven
 `openspec archive` then deletes that capability's main spec instead of aborting with "Spec must have at least one requirement". Without the marker the archive aborts as before.
 
 Caveat: an in-flight change that MODIFIED the retired capability will keep validating clean and then refuse to archive ("target spec does not exist; only ADDED requirements are allowed for new specs") — close or rework that change alongside the retirement.
+
+---
+
+### `operations.{apply,archive}.guidance` (v1.7.0+)
+
+Per-operation advisory guidance stored in `openspec/config.yaml` under
+`operations.apply.guidance` or `operations.archive.guidance`. Lists of
+strings; surfaced via the JSON envelope of `openspec instructions apply|archive
+--json` (`operationGuidance` field).
+
+The orchestrator's `osx_lib.fetch_operation_guidance` reads the same file
+directly and injects the strings as a `RunRequest.extra_prompt` for PHASE1
+and PHASE6 spawns only. Other phases ignore the guidance.
+
+Example `openspec/config.yaml`:
+
+```yaml
+schema: spec-driven
+operations:
+  apply:
+    guidance:
+      - "Always run unit tests after a milestone commit."
+      - "Prefer composition over inheritance."
+  archive:
+    guidance:
+      - "Move CHANGELOG.md entry above the v-next header."
+```
 
 ---
 
@@ -646,11 +691,12 @@ Thin wrapper around `openspec instructions` for use from `osx` workflows.
 
 | Variable | Default | Effect |
 |----------|---------|--------|
-| `OPENSPEC_CONCURRENCY` | `6` | Parallel validation threads |
+| `OPENSPEC_CONCURRENCY` | `6` | Parallel validation threads. Propagated through `openspec-extended validate --all` and `openspec-extended osx validate all`. Invalid values (non-int, ≤ 0, empty) fall back to the default silently. |
+| `OPENSPEC_LANGUAGE` | (unset) | Sets the artifact language for `openspec-extended init` and `openspec-extended install --with-core`. Overridden by the `--language` flag. Empty string is treated as unset. |
 | `NO_COLOR` | (unset) | Disable color in `openspec` output |
 | `OPENSPEC_CONFIG` | `openspec/config.yaml` | Path to project config |
 
-`openspec-extended` does not currently read any environment variables; behavior is fully flag-driven.
+`OPENSPEC_CONCURRENCY` (validate), `OPENSPEC_LANGUAGE` (init/install --with-core), and `NO_COLOR` are the env vars read by `openspec-extended`; all other behavior is flag-driven.
 
 ---
 

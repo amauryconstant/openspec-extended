@@ -23,8 +23,8 @@ When the change lives in a registered store, pass `--store <id>` on every `opens
 
 ## v1.8.0+ additions
 
-- `status --json` adds `isPlanningComplete` distinct from `isComplete`. Use `isPlanningComplete` when verifying the plan is finished before triggering apply/archive; treat `isComplete` as the legacy alias.
-- `retire_capabilities: true` change metadata — archive can delete a capability whose last requirement is removed. Coordinate with any in-flight MODIFIED change against the retired capability (it will refuse to archive cleanly).
+- `status --json` adds `isPlanningComplete` distinct from `isComplete`. Use `isPlanningComplete` when verifying the plan is finished before triggering apply/archive; treat `isComplete` as the legacy alias. `osx-review-artifacts` Step 2 and the orchestrator pre-flight consult this field directly; the local file-existence check is a fallback only.
+- `retire_capabilities: true` change metadata (v1.8.0+) — archive can delete a capability whose last requirement is removed. The orchestrator's PHASE0 pre-flight reads this marker; when set, the routing report points to `/opsx:archive <name>` instead of `/opsx:apply`. Coordinate with any in-flight MODIFIED change against the retired capability (it will refuse to archive cleanly).
 
 ## v1.11.0 additions
 

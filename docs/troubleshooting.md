@@ -222,6 +222,22 @@ If the archive directory exists but has the wrong name, rename it. If it does no
 openspec-extended orchestrate <change> --from-phase PHASE6
 ```
 
+### Orchestrator runs through PHASE1–PHASE5 even though the change is a retirement
+
+**Symptom**: A change with `## REMOVED Requirements` emptying a capability still
+goes through all 7 phases and aborts at PHASE6 with "Spec must have at least
+one requirement".
+
+**Cause**: The change's `.openspec.yaml` is missing the `retire_capabilities:
+true` marker. The orchestrator's PHASE0 reads `.openspec.yaml` once; if the
+marker is absent, PHASE0 cannot short-circuit and PHASE6 fails because core
+v1.8.0+ refuses to delete a capability unless the marker is declared.
+
+**Fix**: Add `retire_capabilities: true` to `.openspec.yaml` (alongside the
+mandatory `schema:` key). Re-run `openspec-extended orchestrate <change>
+--from-phase PHASE0` so the marker is re-read. The next PHASE0 will route
+directly to PHASE6.
+
 ## Installation Issues
 
 ### `install.sh: openspec-extended binary download failed`
@@ -249,3 +265,49 @@ Most ruff failures auto-fix with `ruff check --fix`.
 - [Orchestrator state machine](./orchestrator-state-machine.md) — phase model and transitions
 - `source/lib/osx.py` — full list of `OSXError` codes
 - `source/orchestrator/engine.py` — orchestrator error reporting
+
+## PHASE2 Verification Report
+
+### `verification-report.md` is missing the diff appendix
+
+**Symptom**: After PHASE2 completes, `verification-report.md` has no `## Requirement
+diff` or `## Delta inventory` section.
+
+**Cause**: Either the agent failed to call `openspec show <change> --diff --json`
+before writing the report (the protocol mandates the call in step 3 of the
+`osx-phase2` MANDATORY CHECKPOINT), or the installed OpenSpec core is older than
+v1.11.0 (the `--diff` flag was added in v1.11.0).
+
+**Fix**:
+1. Confirm the orchestrator pre-flight passed — `OpenSpec >= 1.11.0` is required.
+2. Re-run `openspec-extended orchestrate <change> --from-phase PHASE2` after
+   upgrading `openspec` if needed.
+3. If still missing, inspect `decision-log.json` for the latest PHASE2 entry —
+   it must carry a `cli_diff` field; absence means the AI skipped step 3.
+
+## Post-Install Sweep
+
+### Why is `install --with-core` printing a yellow warning about unfinished archives?
+
+**Symptom**: After `openspec-extended install <tool> --with-core` or
+`openspec-extended update-core`, a yellow warning mentions "Post-install sweep
+found unfinished archive state" with a hint about ticking `tasks.md`
+checkboxes.
+
+**Cause**: The post-install sweep runs `openspec validate --archived --json` and
+found at least one change under `openspec/changes/archive/` with unchecked
+`tasks.md` checkboxes. Core's `--archived` flag (v1.9.0+) is designed for this
+exact CI gate; the wrapper surfaces it at install time so the issue is visible
+immediately, not the next time someone runs `osc-bulk-archive-change`.
+
+**Fix**: Either tick the remaining `tasks.md` checkboxes, or pass
+`--strict-archived` only after explicitly opting in (the default is non-fatal
+so install/update never block on this). To silence for one run, set
+`OPENSPEC_VALIDATE_ARCHIVED_STRICT=0` (no effect — strict is opt-in) or just
+ignore the warning.
+
+To inspect:
+
+```bash
+openspec validate --archived --strict --json
+```

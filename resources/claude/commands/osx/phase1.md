@@ -7,6 +7,17 @@ agent: osx-builder
 
 Change: $1
 
+## Project Operation Guidance (advisory)
+
+If `openspec-extended` injects guidance at the top of this prompt (via
+`RunRequest.extra_prompt`, surfaced from `operations.apply.guidance` in
+`openspec/config.yaml`), treat it as authoritative project context. Read,
+internalize, and let it shape implementation choices that align with the
+project's conventions.
+
+**Do not** copy the guidance verbatim into artifacts or implementation
+files. It is meta-context about how to work, not content to ship.
+
 > **Tools** — see `osx-workflow` §1 for the 4 tool layers.
 
 ## MANDATORY START

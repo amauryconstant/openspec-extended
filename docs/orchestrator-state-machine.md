@@ -44,6 +44,11 @@ The full sequence is `PHASE0 -> PHASE1 -> PHASE2 -> PHASE3 -> PHASE4 -> PHASE5 -
 | PHASE5 | SELF-REFLECTION | `osx-phase5` | `osx-analyzer` | -- |
 | PHASE6 | ARCHIVE | `osx-phase6` | `osx-maintainer` | `validate_archive` |
 
+[^a4]: PHASE1 and PHASE6 receive project-level operation guidance
+(`operations.apply.guidance` / `operations.archive.guidance` from
+`openspec/config.yaml`) prepended to the AI prompt via
+`RunRequest.extra_prompt`. Other phases receive no guidance.
+
 The main loop is `source/orchestrator/engine.py:1009-1102`. PHASE0 and PHASE6 have library validation hooks; the intermediate phases delegate entirely to the AI command.
 
 ## Transition Reasons
@@ -86,6 +91,12 @@ Resolution precedence (4 levels, `source/lib/osx.py:1490-1547`):
 4. Default `spec-driven` (sources as `default`).
 
 When `--schema` overrides a project config that declares a different schema, the orchestrator logs a warning and proceeds (`engine.py:297-302`).
+
+## Planning-Completeness Gate
+
+Before the orchestrator hands a change to PHASE0, `validate_change_dir` (`source/lib/osx.py`) asks core whether the plan is finished. The signal is `isPlanningComplete` on the envelope returned by `openspec status --change <id> --json` (core v1.8.0+; the orchestrator's `MIN_OPENSPEC_VERSION` gate already guarantees this). When the field is `true`, planning is complete and the orchestrator only locally verifies `tasks.md` exists and is non-empty; when `false`, every artifact in the `artifacts` array with `status != "done"` is reported as a missing planning artifact.
+
+The fallback chain is: **core (preferred)** → **local file-existence check** → **CI escape hatch**. When `openspec` is off `PATH`, the call to `_fetch_planning_status` returns `None` and the original local check (`schema`'s required files plus the `specs/` glob for `spec-driven`) runs verbatim, with a single `Warning: openspec status --change <id> unavailable; falling back to local check` line on stderr. CI runners that ship without `openspec` can skip the upstream call entirely by setting `OPENSPEC_EXTENDED_NO_PLANNING_CORE=1` — the env var short-circuits before any subprocess is spawned.
 
 ## Cache: `_PATHS_CACHE`
 

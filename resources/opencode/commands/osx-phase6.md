@@ -7,6 +7,17 @@ agent: osx-maintainer
 
 Change: $1
 
+## Project Operation Guidance (advisory)
+
+If `openspec-extended` injects guidance at the top of this prompt (via
+`RunRequest.extra_prompt`, surfaced from `operations.archive.guidance` in
+`openspec/config.yaml`), treat it as authoritative project context. Read,
+internalize, and let it shape archive choices that align with the project's
+conventions.
+
+**Do not** copy the guidance verbatim into artifacts or implementation
+files. It is meta-context about how to work, not content to ship.
+
 > **Tools** — see `osx-workflow` §1.
 
 ## ATOMIC EXECUTION REQUIREMENT
@@ -30,6 +41,18 @@ Archive the completed change for historical reference.
 
 Complete ALL of these steps in order, without stopping. Transient state files (`state.json`, `complete.json`, `.openspec-baseline.json`, `.osx-orchestrate-<change>.log`) are removed by the orchestrator on success — do NOT delete them from this phase (the orchestrator needs the auto-log to move it into the archive after the archive commit).
 
+### Step 0: Precondition check
+
+- If `openspec-extended osx state get "$1"` shows `retire_capabilities: true`,
+  verify the change's `## REMOVED Requirements` block lists capability paths
+  that match the main spec names (otherwise core will abort with "Spec must
+  have at least one requirement"). Confirm with `openspec show "$1" --json`
+  that at least one REMOVED delta is present.
+- Surface the retirement intent in the decision log entry: include
+  `retirement_intent: true` in the `--extra` JSON.
+- Core v1.8.0+ honors the `retire_capabilities: true` marker in `.openspec.yaml`
+  automatically — no CLI flag to pass.
+
 ### Step 1: Execute Archive
 
 1. Load skill: `osc-archive-change` (originally `openspec-archive-change`).
@@ -40,9 +63,10 @@ Complete ALL of these steps in order, without stopping. Transient state files (`
 ### Step 2: Update Decision Log
 
 ```bash
+# When state.retire_capabilities is true, include retirement_intent in --extra
 openspec-extended osx log append "$1" --phase ARCHIVE --iteration N \
   --summary "Change successfully archived" --next-steps "Archive complete. Workflow finished." \
-  --extra '{"archive_path":"openspec/changes/archive/YYYY-MM-DD-$1/"}'
+  --extra '{"archive_path":"openspec/changes/archive/YYYY-MM-DD-$1/","retirement_intent":true}'
 ```
 
 Commit hash captured in git history, not duplicated in logs.

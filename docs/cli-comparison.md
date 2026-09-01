@@ -32,7 +32,7 @@ All commands in the second column are passthrough wrappers around the first. Exi
 | `openspec templates --schema <name>` | `openspec-extended templates --schema <name>` | `openspec-extended osx schema which <name>` |
 | `openspec schemas` | `openspec-extended schemas` | `openspec-extended osx schema list` |
 | `openspec schema <sub>` | `openspec-extended schema <sub>` | `openspec-extended osx schema which\|validate\|fork\|init` |
-| `openspec init [path]` | `openspec-extended init [path]` | -- |
+| `openspec init [path]` | `openspec-extended init [path]` (`--language <lang>`, `OPENSPEC_LANGUAGE`) | -- |
 | `openspec update [path]` | `openspec-extended update-core [path]` | -- |
 | `openspec feedback <msg>` | `openspec-extended feedback <msg>` | -- |
 | `openspec completion <shell>` | `openspec-extended completion <shell>` | -- |
@@ -47,10 +47,11 @@ These exist only in `openspec-extended`. They have no upstream equivalent.
 |---------|---------|----------------|
 | `openspec-extended install <tool>` | Copy utility `osx-*` skills and commands into the target platform's resource directory | `source/cli.py:670-707` |
 | `openspec-extended install opencode --with-autonomous` | Also deploy the 7 phase commands, 4 agents, and `osx-workflow` skill (orchestrator prerequisites) | `source/cli.py:670-707` |
-| `openspec-extended install opencode --with-core` | Same, plus the 12 upstream `osc-*` commands | `source/cli.py:670-707` |
+| `openspec-extended install opencode --with-core` | Same, plus the 12 upstream `osc-*` commands. Runs a non-fatal `openspec validate --archived` sweep at the end; pass `--strict-archived` (or `OPENSPEC_VALIDATE_ARCHIVED_STRICT=1`) to fail on warnings | `source/cli.py:670-707` |
 | `openspec-extended update <tool>` | Force-update (overwrite) utility resources | `source/cli.py:710-755` |
 | `openspec-extended update opencode --with-autonomous` | Refresh autonomous resources too | `source/cli.py:710-755` |
-| `openspec-extended update-core [path]` | Refresh upstream instruction files | `source/cli.py:1107-1124` |
+| `openspec-extended update opencode --with-core` | Force-update (overwrite) core resources too; runs the same post-update `validate --archived` sweep as `install --with-core` | `source/cli.py:710-755` |
+| `openspec-extended update-core [path]` | Refresh upstream instruction files. Runs the same post-update `validate --archived` sweep (use `--strict-archived` or `OPENSPEC_VALIDATE_ARCHIVED_STRICT=1` to fail on warnings) | `source/cli.py:1107-1124` |
 | `openspec-extended orchestrate <change>` | Run the 7-phase autonomous loop | `source/cli.py:583-645` and `source/orchestrator/engine.py` |
 | `openspec-extended osx ...` | Programmatic library access (12 domains) | `source/osx_cli.py` |
 
@@ -123,6 +124,10 @@ openspec-extended osx validate all --strict | jq '.summary.totals.failed'
 openspec-extended osx state get add-auth | jq -r '.phase'
 openspec-extended osx schema which --all | jq '.[].name'
 ```
+
+`OPENSPEC_CONCURRENCY=<n>` overrides the default parallelism (6) for
+`openspec-extended validate --all` and `openspec-extended osx validate all`.
+Invalid values (non-int, ≤ 0, empty) fall back to the default silently.
 
 `osx validate ...` is the right choice for CI: it returns the same shape upstream `openspec validate --json` produces, translated by `_translate_validate_payload` (`source/lib/osx.py:1320-1394`). You can wire it into GitHub Actions or GitLab CI without parsing markdown.
 

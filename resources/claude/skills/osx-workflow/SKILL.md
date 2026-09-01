@@ -68,6 +68,7 @@ PHASE0 is read-only — it dispatches `osx-analyzer` (`edit: deny`) and emits a 
 | Mark the current phase complete | Layer 3: `osx state complete <change>` |
 | Read state from inside Python | Layer 4: `osx.state_get(change)` |
 | Trigger the autonomous workflow | Layer 2: `openspec-extended orchestrate <change>` |
+| Read project-level operation guidance | Layer 1: `openspec instructions apply --json` (returns `operationGuidance` field) — Layer 4 wrapper at `osx_lib.fetch_operation_guidance` reads the config file directly |
 
 For the full action set of layer 3, see §4.
 
@@ -77,13 +78,18 @@ For the full action set of layer 3, see §4.
 
 | Phase | Name in `state.json` | Agent | Key skills | Purpose |
 |-------|----------------------|-------|------------|---------|
-| PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts` + `osc-update-change` (default) or `osx-modify-artifacts` (surgical fallback) | Schema-driven audit; routing report (read-only) |
+| PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts` + `osc-update-change` (default) or `osx-modify-artifacts` (surgical fallback) | Schema-driven audit; routing report (read-only)[^a3] |
 | PHASE1 | `IMPLEMENTATION` | `osx-builder` | `osc-apply-change`, `osx-review-test-compliance` | Implement `tasks.md`; milestone commits |
 | PHASE2 | `REVIEW` | `osx-reviewer` | `osc-verify-change`; Case A → `osc-update-change` (default) or `osx-modify-artifacts` (isolated defect) | Verify implementation; writes `verification-report.md` |
 | PHASE3 | `MAINTAIN_DOCS` | `osx-maintainer` | `osx-maintain-ai-docs` | Update `AGENTS.md` and `CLAUDE.md` |
 | PHASE4 | `SYNC` | `osx-maintainer` | `osc-sync-specs` | Merge delta specs into main specs |
 | PHASE5 | `SELF_REFLECTION` | `osx-reviewer` | (autonomous reasoning) | Evaluate the workflow; writes `reflections.md` |
 | PHASE6 | `ARCHIVE` | `osx-maintainer` | `osc-archive-change` or `osc-bulk-archive-change` | Archive change; clean transient files |
+
+[^a3]: When `.openspec.yaml` declares `retire_capabilities: true` and planning
+      is complete, PHASE0 short-circuits to PHASE6 via the routing report
+      (`/opsx:archive <name>`). See `osx-phase0` and `osx-phase6` for the
+      full protocol.
 
 > **Name disambiguation**: engine canonical is `REVIEW`; skill is `osc-verify-change`. Both refer to PHASE2.
 
@@ -135,6 +141,7 @@ All live in `openspec/changes/<change>/` (or `openspec/changes/archive/YYYY-MM-D
 | `complete` | `check`, `get` | `set` |
 | `validate` | `json`, `skills`, `commands`, `change-dir`, `archive`, `iterations`, `completion` | — |
 | `instructions` | `instructions <artifact> [--change <name>] [--json]` | — |
+| `guidance` | (CLI-only proxy to `operations.{apply,archive}.guidance`) | read project-level advisory guidance and inject into PHASE1/PHASE6 prompts |
 
 ### `ctx` — aggregate context
 
@@ -263,6 +270,14 @@ openspec-extended orchestrate <change> --from-phase PHASE3
 ### Auto-resume
 
 The orchestrator reads `state.json` at start. If it exists, it asks to resume that phase. `--force` auto-continues. A change in `openspec/changes/archive/` without `state.json` is complete; orchestrator exits `0` immediately.
+
+### Retirement changes (no blocker needed)
+
+Retirement changes (`retire_capabilities: true` in `.openspec.yaml`) exit
+cleanly via the PHASE0 short-circuit: there is no implementation, no review,
+no sync — just an archive. They do not need a `BLOCKED` signal; if the
+archive succeeds the workflow terminates normally. If it fails, the failure
+surfaces through the normal PHASE6 archive-validation path.
 
 ### Explicit transitions (PHASE2)
 

@@ -955,3 +955,404 @@ class TestBlockerFileRecheck:
 
         assert result is False
         assert agent_call_count["n"] == 1, "agent must not be re-invoked after blocker"
+
+
+@pytest.mark.integration
+class TestPhase2DiffLogField:
+    """A.2: PHASE2 must record the ``openspec show --diff --json`` envelope
+    in the decision-log entry's ``cli_diff`` field. The osx-phase2 command's
+    MANDATORY CHECKPOINT step 3 mandates this; the test mocks the agent
+    subprocess to emit the log entry and asserts the field round-trips."""
+
+    def test_phase2_emits_diff_log_field(self, test_env, monkeypatch):
+        """A mocked PHASE2 agent emits a decision-log entry whose ``--extra``
+        JSON carries a non-empty ``cli_diff`` object. ``osx log get`` then
+        returns the entry with the field intact."""
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE2","iteration":1,"phase_complete":false}',
+        )
+        monkeypatch.chdir(test_env)
+
+        # Diff envelope: shape mirrors the openspec show --diff --json
+        # payload (per-requirement diff blocks for MODIFIED deltas).
+        diff_envelope = {
+            "changeName": "test-change",
+            "deltas": [
+                {
+                    "delta": "MODIFIED",
+                    "capability": "auth",
+                    "requirement": "R1",
+                    "diff": (
+                        "--- a/openspec/specs/auth.md\n"
+                        "+++ b/openspec/specs/auth.md\n"
+                        "@@ -1,3 +1,3 @@\n"
+                        "-The system SHALL authenticate users.\n"
+                        "+The system SHALL authenticate users via OAuth2."
+                    ),
+                    "warning": None,
+                },
+                {
+                    "delta": "ADDED",
+                    "capability": "auth",
+                    "requirement": "R2",
+                },
+            ],
+        }
+
+        extra_json = json.dumps(
+            {
+                "verification_result": "passed",
+                "issues_found": {"critical": 0, "warning": 0, "suggestion": 0},
+                "verification_report_path": "openspec/changes/test-change/verification-report.md",
+                "artifacts_modified": False,
+                "cli_diff": diff_envelope,
+            }
+        )
+
+        def fake_run_agent(state, phase):
+            invoke(
+                [
+                    "log",
+                    "append",
+                    "test-change",
+                    "--phase",
+                    "REVIEW",
+                    "--iteration",
+                    "1",
+                    "--summary",
+                    "PHASE2 verification passed; embedded openspec show --diff appendix",
+                    "--extra",
+                    extra_json,
+                ]
+            )
+            invoke(["state", "complete", "test-change"])
+            return True
+
+        monkeypatch.setattr(eng, "run_agent", fake_run_agent)
+        monkeypatch.setattr(eng, "write_state", lambda *a, **kw: None)
+        monkeypatch.setattr(eng, "get_next_phase_iteration", lambda state, phase: 1)
+        monkeypatch.setattr(eng, "check_routes_pending", lambda state: [])
+
+        st = eng.OrchestratorState(change_id="test-change", change_dir=test_env / "openspec/changes/test-change")
+        assert eng.run_phase(st, "PHASE2") is True
+
+        # Round-trip: `osx log get` must surface the cli_diff field.
+        get_result = invoke(["log", "get", "test-change"])
+        assert get_result.exit_code == 0, get_result.stdout
+        payload = json.loads(get_result.stdout)
+        assert isinstance(payload, dict), f"log get payload should be a dict; got {payload!r}"
+        entries = payload.get("entries")
+        assert isinstance(entries, list) and entries, (
+            f"decision log must have at least one entry; got payload={payload!r}"
+        )
+        latest = entries[-1]
+        assert "cli_diff" in latest, (
+            f"PHASE2 decision-log entry missing cli_diff field; got keys: {list(latest.keys())}"
+        )
+        assert isinstance(latest["cli_diff"], dict), (
+            f"cli_diff should round-trip as a dict; got {type(latest['cli_diff']).__name__}"
+        )
+        assert latest["cli_diff"] == diff_envelope, (
+            "cli_diff payload must round-trip exactly; "
+            f"got {latest['cli_diff']!r}"
+        )
+        # Spot-check the MODIFIED delta's diff block survived intact.
+        deltas = latest["cli_diff"]["deltas"]
+        assert deltas[0]["delta"] == "MODIFIED"
+        assert "diff" in deltas[0]
+        assert "OAuth2" in deltas[0]["diff"]
+
+
+@pytest.mark.integration
+class TestRetireCapabilitiesRouting:
+    """A.3: PHASE0 pre-flight detects ``retire_capabilities: true`` in
+    ``.openspec.yaml`` and stamps ``state.retire_capabilities = True``.
+
+    The wrapper functions in the orchestrator engine (not the full
+    ``run_orchestrator`` loop, which would require a live AI subprocess)
+    are exercised directly so the routing signal is verified without a
+    real agent invocation.
+    """
+
+    def _setup_retirement_change(self, test_env, monkeypatch):
+        """Create a change with retire_capabilities: true in .openspec.yaml
+        and a minimal ``## REMOVED Requirements`` block to simulate a
+        retirement-ready change."""
+        change_dir = setup_change(
+            test_env,
+            "retire-cap",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false}',
+        )
+        (change_dir / ".openspec.yaml").write_text(
+            "schema: spec-driven\nretire_capabilities: true\n"
+        )
+        specs_dir = change_dir / "specs"
+        specs_dir.mkdir(exist_ok=True)
+        (specs_dir / "legacy.md").write_text(
+            "# Legacy capability\n\n## REMOVED Requirements\n\n"
+            "### R: legacy-thing\n\nThe system SHALL not retain legacy-thing.\n"
+        )
+        monkeypatch.chdir(test_env)
+        return change_dir
+
+    def test_validate_change_dir_stamps_retire_capabilities(
+        self, test_env, monkeypatch
+    ):
+        """``validate_change_dir`` wrapper reads .openspec.yaml and sets
+        ``state.retire_capabilities = True``."""
+        from source.lib import osx as osx_lib
+        from source.orchestrator import engine as eng
+
+        change_dir = self._setup_retirement_change(test_env, monkeypatch)
+
+        # Mock the underlying library call so we don't need a real
+        # ``openspec`` CLI on PATH.
+        def _fake_validate(change_id, *, store=None):
+            return {"valid": True, "planning_complete": True}
+
+        monkeypatch.setattr(osx_lib, "validate_change_dir", _fake_validate)
+
+        st = eng.OrchestratorState(
+            change_id="retire-cap", change_dir=change_dir
+        )
+        assert st.retire_capabilities is False
+        eng.validate_change_dir(st)
+        assert st.retire_capabilities is True
+
+    def test_validate_change_dir_emits_verbose_log(
+        self, test_env, monkeypatch, capsys
+    ):
+        """The verbose log line is emitted when retire_capabilities is true."""
+        from source.lib import osx as osx_lib
+        from source.orchestrator import engine as eng
+
+        change_dir = self._setup_retirement_change(test_env, monkeypatch)
+
+        def _fake_validate(change_id, *, store=None):
+            return {"valid": True, "planning_complete": True}
+
+        monkeypatch.setattr(osx_lib, "validate_change_dir", _fake_validate)
+
+        st = eng.OrchestratorState(
+            change_id="retire-cap",
+            change_dir=change_dir,
+            verbose=True,
+        )
+        eng.validate_change_dir(st)
+        captured = capsys.readouterr()
+        assert "Retire capabilities: true (from .openspec.yaml)" in captured.out
+
+    def test_validate_change_dir_no_marker_keeps_default(
+        self, test_env, monkeypatch
+    ):
+        """A change without ``retire_capabilities: true`` leaves the field
+        at its default (False)."""
+        from source.lib import osx as osx_lib
+        from source.orchestrator import engine as eng
+
+        change_dir = setup_change(
+            test_env,
+            "plain-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false}',
+        )
+        (change_dir / ".openspec.yaml").write_text("schema: spec-driven\n")
+        monkeypatch.chdir(test_env)
+
+        def _fake_validate(change_id, *, store=None):
+            return {"valid": True, "planning_complete": True}
+
+        monkeypatch.setattr(osx_lib, "validate_change_dir", _fake_validate)
+
+        st = eng.OrchestratorState(
+            change_id="plain-change", change_dir=change_dir
+        )
+        eng.validate_change_dir(st)
+        assert st.retire_capabilities is False
+
+    def test_validate_archive_stamps_retire_capabilities_from_archive_dir(
+        self, test_env, monkeypatch
+    ):
+        """``validate_archive`` wrapper also reads the metadata — but from
+        the archive directory once the change has moved."""
+        from source.lib import osx as osx_lib
+        from source.orchestrator import engine as eng
+
+        # Build a pre-archive change with retire_capabilities: true.
+        change_dir = self._setup_retirement_change(test_env, monkeypatch)
+
+        # Build a parallel archive directory with the same metadata.
+        archive = (
+            test_env / "openspec" / "changes" / "archive"
+            / "2024-09-01-retire-cap"
+        )
+        archive.mkdir(parents=True)
+        (archive / "decision-log.json").write_text("[]")
+        (archive / "iterations.json").write_text("[]")
+        (archive / "proposal.md").write_text("# Proposal")
+        (archive / ".openspec.yaml").write_text(
+            "schema: spec-driven\nretire_capabilities: true\n"
+        )
+
+        import subprocess
+
+        subprocess.run(["git", "add", "-A"], cwd=test_env, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "Archive retire-cap"],
+            cwd=test_env,
+            check=True,
+        )
+        osx_lib._PATHS_CACHE.clear()
+
+        def _fake_validate(change_id, *, store=None):
+            return {
+                "valid": True,
+                "archive": str(archive),
+            }
+
+        monkeypatch.setattr(osx_lib, "validate_archive", _fake_validate)
+        monkeypatch.chdir(test_env)
+
+        st = eng.OrchestratorState(
+            change_id="retire-cap", change_dir=change_dir
+        )
+        assert st.retire_capabilities is False
+        success, archive_dir = eng.validate_archive(st)
+        assert success is True
+        assert "retire-cap" in archive_dir
+        assert st.retire_capabilities is True
+
+
+@pytest.mark.integration
+class TestOperationGuidanceInjection:
+    """A.4: ``operations.{apply|archive}.guidance`` from
+    ``openspec/config.yaml`` reaches the dispatched AI prompt for PHASE1
+    and PHASE6 (and only those phases) via ``RunRequest.extra_prompt``.
+
+    Tests target ``build_run_request`` directly so the dispatch shape can
+    be asserted without spawning an AI subprocess. The runner-level
+    coverage (OpenCode ``--file`` flag, Claude prompt prepend) lives in
+    ``tests/unit/test_runner_abstraction.py::TestRunRequestExtraPrompt``.
+    """
+
+    def _setup_with_guidance(self, test_env, monkeypatch, guidance_yaml: str) -> Path:
+        """Lay down ``openspec/config.yaml`` and ``.opencode/`` so the
+        project_root derivation works."""
+        openspec = test_env / "openspec"
+        openspec.mkdir(exist_ok=True)
+        (openspec / "config.yaml").write_text(guidance_yaml)
+        change = openspec / "changes" / "op-test"
+        change.mkdir(parents=True, exist_ok=True)
+        monkeypatch.chdir(test_env)
+        return change
+
+    def test_phase1_injects_apply_guidance(self, test_env, monkeypatch):
+        """PHASE1 spawns receive the apply guidance joined by newlines."""
+        from source.orchestrator import engine as eng
+
+        change = self._setup_with_guidance(
+            test_env,
+            monkeypatch,
+            (
+                "operations:\n"
+                "  apply:\n"
+                "    guidance:\n"
+                "      - 'Always run unit tests.'\n"
+                "      - 'Prefer composition over inheritance.'\n"
+            ),
+        )
+        st = eng.OrchestratorState(change_id="op-test", change_dir=change)
+
+        request = eng.build_run_request(st, "PHASE1")
+
+        assert request.command == "osx-phase1"
+        assert request.agent == "osx-builder"
+        assert request.extra_prompt == (
+            "Always run unit tests.\nPrefer composition over inheritance."
+        )
+
+    def test_phase6_injects_archive_guidance(self, test_env, monkeypatch):
+        """PHASE6 spawns receive the archive guidance joined by newlines."""
+        from source.orchestrator import engine as eng
+
+        change = self._setup_with_guidance(
+            test_env,
+            monkeypatch,
+            "operations:\n  archive:\n    guidance:\n      - 'Move CHANGELOG.md entry above the v-next header.'\n",
+        )
+        st = eng.OrchestratorState(change_id="op-test", change_dir=change)
+
+        request = eng.build_run_request(st, "PHASE6")
+
+        assert request.command == "osx-phase6"
+        assert request.agent == "osx-maintainer"
+        assert request.extra_prompt == (
+            "Move CHANGELOG.md entry above the v-next header."
+        )
+
+    def test_other_phases_get_empty_extra_prompt(self, test_env, monkeypatch):
+        """PHASE0/PHASE2/PHASE3/PHASE4/PHASE5 ignore the guidance — even
+        when both operations define it. Only apply (PHASE1) and archive
+        (PHASE6) are surfaced."""
+        from source.orchestrator import engine as eng
+
+        change = self._setup_with_guidance(
+            test_env,
+            monkeypatch,
+            (
+                "operations:\n"
+                "  apply:\n"
+                "    guidance:\n"
+                "      - 'A1'\n"
+                "      - 'A2'\n"
+                "  archive:\n"
+                "    guidance:\n"
+                "      - 'Z1'\n"
+            ),
+        )
+        st = eng.OrchestratorState(change_id="op-test", change_dir=change)
+
+        for phase in ("PHASE0", "PHASE2", "PHASE3", "PHASE4", "PHASE5"):
+            request = eng.build_run_request(st, phase)
+            assert request.extra_prompt == "", (
+                f"{phase} must not surface operation guidance; "
+                f"got {request.extra_prompt!r}"
+            )
+
+    def test_missing_config_yields_empty_extra_prompt(
+        self, test_env, monkeypatch
+    ):
+        """No ``openspec/config.yaml`` means no guidance."""
+        from source.orchestrator import engine as eng
+
+        # Project root has no openspec/config.yaml.
+        openspec = test_env / "openspec"
+        openspec.mkdir(exist_ok=True)
+        change = openspec / "changes" / "op-test"
+        change.mkdir(parents=True, exist_ok=True)
+        monkeypatch.chdir(test_env)
+
+        st = eng.OrchestratorState(change_id="op-test", change_dir=change)
+        for phase in ("PHASE1", "PHASE6"):
+            request = eng.build_run_request(st, phase)
+            assert request.extra_prompt == ""
+
+    def test_apply_only_guidance_does_not_leak_into_archive(
+        self, test_env, monkeypatch
+    ):
+        """Archive spawns stay empty when only ``operations.apply`` has
+        guidance."""
+        from source.orchestrator import engine as eng
+
+        change = self._setup_with_guidance(
+            test_env,
+            monkeypatch,
+            "operations:\n  apply:\n    guidance:\n      - 'A only'\n",
+        )
+        st = eng.OrchestratorState(change_id="op-test", change_dir=change)
+
+        assert eng.build_run_request(st, "PHASE1").extra_prompt == "A only"
+        assert eng.build_run_request(st, "PHASE6").extra_prompt == ""

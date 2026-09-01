@@ -36,9 +36,18 @@ PHASE0 dispatches `osx-analyzer` (`edit: deny`). **Do not edit artifacts inside 
    | All findings target a single artifact AND no coherence-level finding | `/osx-modify <name> <artifact-id>` |
    | Findings span ≥2 artifacts OR any coherence-level finding | `/opsx:update <name>` |
    | Missing artifacts | `/opsx:continue <name>` |
+   | `retire_capabilities: true` in `.openspec.yaml` AND planning is complete | `/opsx:archive <name>` (skip PHASE1–PHASE5; orchestrator stamps `state.retire_capabilities = true` so PHASE6 runs directly) |
    | All clean | mark phase complete and hand off to PHASE1 |
 
 5. **Do not fix in this phase.** Surface the routing; the user (or a follow-up slash command) performs the fixes.
+
+When a retirement is detected, the routing report must include a one-line
+summary naming the capabilities being removed (parse `## REMOVED Requirements`
+for capability paths). The orchestrator's pre-flight reads `.openspec.yaml`
+once and stashes `retire_capabilities` on `state.json`. Subsequent phases
+PHASE1–PHASE5 should be skipped via `--from-phase PHASE6`; if the user
+re-invokes `orchestrate` without skipping, the orchestrator checks the
+marker and short-circuits to PHASE6 automatically.
 
 6. Track iteration via `osx log` and `osx iterations` per §DECISION LOG / §ITERATIONS.JSON below. Do **not** include an `artifacts-modified` list unless the change's artifacts were modified by something other than this phase.
 

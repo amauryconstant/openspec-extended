@@ -20,6 +20,7 @@ Before PHASE2 verification:
 
 1. `openspec status --change "$1" --json` → log via `osx log` with `cli_status` field
 2. `openspec instructions apply --change "$1" --json` → log via `osx log` with `cli_instructions` field
+3. `openspec show "$1" --diff --json` → log via `osx log` with `cli_diff` field (v1.11.0+; the envelope carries per-requirement `diff` blocks for MODIFIED deltas, `ADDED` payloads for new requirements, and `RENAMED` FROM/TO for renames)
 
 ## PURPOSE
 
@@ -30,6 +31,22 @@ Validate implementation matches artifacts — completeness, correctness, coheren
 Load `osc-verify-change` (originally `openspec-verify-change`) skill for change "$1". Execute the skill's verification instructions exactly. Log the verification report via `osx log` in `verification_report` field. Do NOT modify the skill's verification report format.
 
 The skill provides verification dimensions (completeness, correctness, coherence), issue classification (CRITICAL / WARNING / SUGGESTION), and specific recommendations for each issue.
+
+### Embed requirement-level diff in verification-report.md
+
+When writing `verification-report.md`, include a `## Delta inventory` section near
+the top listing every ADDED, REMOVED, and RENAMED delta requirement (one line
+each, citing the capability path and requirement id).
+
+Below the inventory, include a `## Requirement diff` section that copies each
+MODIFIED requirement's `diff` block verbatim from the `openspec show "$1" --diff
+--json` payload you logged in step 3. Use the colorized form when writing for a
+terminal; use the plain unified-diff form when writing to the file. Each diff
+block must be fenced (```diff ... ```) so downstream tooling can parse it.
+
+If `openspec show "$1" --diff --json` returns a `warning` field on any MODIFIED
+delta, surface it in the report's `## Verification warnings` section above the
+diff.
 
 ## AFTER VERIFICATION
 
@@ -94,12 +111,12 @@ openspec-extended osx state complete "$1"
 # decision log
 openspec-extended osx log append "$1" --phase REVIEW --iteration N \
   --summary "..." --commit-hash "<hash or null>" --next-steps "..." \
-  --extra '{"verification_result":"passed|failed","issues_found":{"critical":N,"warning":N,"suggestion":N},"verification_report_path":"openspec/changes/$1/verification-report.md","artifacts_modified":false}'
+  --extra '{"verification_result":"passed|failed","issues_found":{"critical":N,"warning":N,"suggestion":N},"verification_report_path":"openspec/changes/$1/verification-report.md","artifacts_modified":false,"cli_diff":{}}'
 
 # iterations log
 openspec-extended osx iterations append "$1" --phase REVIEW --iteration N \
   --commit-hash "<hash or null>" --notes "..." \
-  --extra '{"verification_result":"passed|failed","issues_found":{},"artifacts_modified":false}'
+  --extra '{"verification_result":"passed|failed","issues_found":{},"artifacts_modified":false,"cli_diff":{}}'
 ```
 
 Full schema in `references/osx-decision-logging.md`. Write the verification report to `openspec/changes/$1/verification-report.md` (full markdown allowed; do not modify the format).

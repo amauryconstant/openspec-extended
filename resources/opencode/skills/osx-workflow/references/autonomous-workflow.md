@@ -346,7 +346,7 @@ openspec-extended osx state complete "$1"
 **Agent**: `osx-analyzer` (read-only: `edit: deny`)
 **Tool**: `osc-verify-change` skill
 
-**Purpose**: Verify implementation matches artifacts.
+**Purpose**: Verify implementation matches artifacts. Writes `verification-report.md` with embedded requirement-level diff (v1.11.0+ via `openspec show --diff --json`). The report has three new sections when the diff envelope is non-empty: `## Delta inventory`, `## Requirement diff`, `## Verification warnings`.
 
 **Process**:
 1. Load context
@@ -670,7 +670,7 @@ openspec instructions apply --change "$CHANGE_ID" --json
 |--------|---------|-------------|---------------------|
 | PHASE0 | osx-analyzer | review-artifacts, modify-artifacts | Fix CRITICAL issues immediately |
 | PHASE1 | osx-builder | apply-change, review-test-compliance | Milestone commits (1-5 per iteration) |
-| PHASE2 | osx-analyzer | verify-change | Correct transition logic |
+| PHASE2 | osx-analyzer | verify-change | Correct transition logic; embeds openspec show --diff appendix (v1.11.0+) |
 | PHASE3 | osx-maintainer | maintain-ai-docs | Update AGENTS.md (not inline comments) |
 | PHASE4 | osx-maintainer | sync-specs | Merge deltas into main specs |
 | PHASE5 | osx-analyzer | None | Analyze workflow history |

@@ -104,7 +104,7 @@ ls .opencode/{skills,agents,commands}/
 | `openspec-extended install opencode`                 | Deploy utility skills + commands (default)    |
 | `openspec-extended install opencode --with-autonomous` | Also deploy 7 phase commands, 4 agents, workflow skill |
 | `openspec-extended install claude`                   | Same for Claude Code                          |
-| `openspec-extended install opencode --with-core`     | Include 12 core OpenSpec workflows            |
+| `openspec-extended install opencode --with-core`     | Include 12 core OpenSpec workflows (runs a non-fatal `openspec validate --archived` sweep; pass `--strict-archived` to fail); pass `--language <lang>` to set the artifact language |
 | `openspec-extended update opencode`                  | Refresh utility resources (overwrite existing)|
 | `openspec-extended update opencode --with-autonomous`| Refresh autonomous resources too              |
 | `openspec-extended update-core [path]`               | Refresh upstream OpenSpec instruction files   |
@@ -135,6 +135,16 @@ openspec-extended show my-change --deltas-only --json
 openspec-extended status --change my-change --json
 openspec-extended feedback "love the new flow" --body "Detailed description..."
 ```
+
+### Environment variables
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `OPENSPEC_CONCURRENCY=<n>` | `6` | Propagated to `openspec validate --all`. |
+| `OPENSPEC_LANGUAGE=<lang>` | (unset) | Sets the language for `openspec-extended init` and `openspec-extended install --with-core`. Overridden by the `--language` flag. |
+| `NO_COLOR` | (unset) | Disable color in upstream `openspec` output. |
+| `OPENSPEC_CONFIG` | `openspec/config.yaml` | Path to project OpenSpec config. |
+| `OPENSPEC_VALIDATE_ARCHIVED_STRICT=1` | unset | When set, the post-install/update `validate --archived` sweep exits non-zero on warnings. Same effect as `--strict-archived`. |
 
 ### Extension Skills
 
