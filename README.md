@@ -126,6 +126,15 @@ All upstream OpenSpec commands are available directly through `openspec-extended
 | `openspec-extended update-core [path]`   | Refresh upstream instruction files       |
 | `openspec-extended feedback <msg>`       | Submit feedback via `gh` issue           |
 | `openspec-extended completion <shell>`   | Manage shell completions (bash/zsh/fish) |
+| `openspec-extended view`                 | Interactive dashboard (v1.8.0+; requires TTY) |
+| `openspec-extended archive [change]`     | Archive a completed change                  |
+| `openspec-extended new change <id>`      | Create a new change directory (v1.7.0+)    |
+| `openspec-extended context`              | Print working context for resolved root (v1.5.0+) |
+| `openspec-extended doctor`               | Report root relationship health (v1.5.0+)  |
+| `openspec-extended store <sub>`          | Manage stores (v1.5.0+; passthrough to `openspec store`) |
+| `openspec-extended config <sub>`         | View/modify global OpenSpec config         |
+
+For programmatic JSON access to store/schema state, see `openspec-extended osx <domain>` (e.g., `osx store list`).
 
 Example:
 

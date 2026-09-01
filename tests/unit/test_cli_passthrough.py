@@ -50,7 +50,7 @@ class TestCommandRegistration:
     """Tests that all 11 new commands are registered on the Typer app."""
 
     def test_all_passthrough_commands_registered(self):
-        """All 12 passthrough commands are present in the Typer app."""
+        """All passthrough commands and groups are present in the Typer app."""
         result = runner.invoke(app, ["--help"])
         assert result.exit_code == 0
         for cmd in [
@@ -66,8 +66,22 @@ class TestCommandRegistration:
             "update-core",
             "feedback",
             "completion",
+            # v1.8.0+ interactive dashboard
+            "view",
+            # top-level archive
+            "archive",
+            # v1.5.0+ store / health / context
+            "context",
+            "doctor",
         ]:
             assert cmd in result.output, f"Missing command: {cmd}"
+
+    def test_subcommand_groups_registered(self):
+        """All new subcommand groups appear in top-level --help."""
+        result = runner.invoke(app, ["--help"])
+        assert result.exit_code == 0
+        for group in ["new", "store", "config"]:
+            assert group in result.output, f"Missing group: {group}"
 
     def test_validate_help(self):
         """validate --help shows all flags."""
@@ -142,6 +156,70 @@ class TestCommandRegistration:
         assert result.exit_code == 0
         for flag in ["--install", "--uninstall", "--yes"]:
             assert flag in result.output, f"Missing flag: {flag}"
+
+    def test_view_help(self):
+        """view --help shows --store and --json."""
+        result = runner.invoke(app, ["view", "--help"])
+        assert result.exit_code == 0
+        for flag in ["--store", "--json"]:
+            assert flag in result.output, f"Missing flag: {flag}"
+
+    def test_archive_help(self):
+        """archive --help shows the documented flags."""
+        result = runner.invoke(app, ["archive", "--help"])
+        assert result.exit_code == 0
+        for flag in [
+            "--yes",
+            "--skip-specs",
+            "--no-validate",
+            "--json",
+            "--store",
+        ]:
+            assert flag in result.output, f"Missing flag: {flag}"
+
+    def test_context_help(self):
+        """context --help shows --store, --json, --code-workspace, --force."""
+        result = runner.invoke(app, ["context", "--help"])
+        assert result.exit_code == 0
+        for flag in ["--store", "--json", "--code-workspace", "--force"]:
+            assert flag in result.output, f"Missing flag: {flag}"
+
+    def test_doctor_help(self):
+        """doctor --help shows --store and --json."""
+        result = runner.invoke(app, ["doctor", "--help"])
+        assert result.exit_code == 0
+        for flag in ["--store", "--json"]:
+            assert flag in result.output, f"Missing flag: {flag}"
+
+    def test_new_change_help(self):
+        """new change --help shows all documented flags."""
+        result = runner.invoke(app, ["new", "change", "--help"])
+        assert result.exit_code == 0
+        for flag in ["--description", "--goal", "--schema", "--json", "--store"]:
+            assert flag in result.output, f"Missing flag: {flag}"
+
+    def test_store_subcommands_help(self):
+        """store --help lists all 6 upstream subcommands."""
+        result = runner.invoke(app, ["store", "--help"])
+        assert result.exit_code == 0
+        for sub in ["setup", "register", "unregister", "remove", "list", "doctor"]:
+            assert sub in result.output, f"Missing subcommand: {sub}"
+
+    def test_config_subcommands_help(self):
+        """config --help lists all 8 upstream subcommands."""
+        result = runner.invoke(app, ["config", "--help"])
+        assert result.exit_code == 0
+        for sub in [
+            "path",
+            "list",
+            "get",
+            "set",
+            "unset",
+            "reset",
+            "edit",
+            "profile",
+        ]:
+            assert sub in result.output, f"Missing subcommand: {sub}"
 
 
 class TestPassthroughExecution:
@@ -519,3 +597,145 @@ class TestLanguageFlag:
             f"Output: {result.output}, Exception: {result.exception}"
         )
         assert "--language" not in captured["args"]
+
+
+class TestNewPassthroughsArgForwarding:
+    """Verifies the v1.5+ top-level passthroughs forward their flags verbatim."""
+
+    @staticmethod
+    def _capture(monkeypatch):
+        from source import cli as cli_module
+
+        captured = {}
+
+        def fake_run_openspec(args, timeout=30, extra_env=None):
+            captured["args"] = list(args)
+            return 0
+
+        monkeypatch.setattr(cli_module, "run_openspec", fake_run_openspec)
+        return captured
+
+    def test_view_forwards_store_and_json(self, monkeypatch) -> None:
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["view", "--store", "alpha", "--json"])
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert captured["args"][:1] == ["view"]
+        assert "--store" in captured["args"]
+        assert "alpha" in captured["args"]
+        assert "--json" in captured["args"]
+
+    def test_archive_forwards_all_flags(self, monkeypatch) -> None:
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(
+            app,
+            [
+                "archive",
+                "my-change",
+                "--yes",
+                "--skip-specs",
+                "--no-validate",
+                "--store",
+                "alpha",
+                "--json",
+            ],
+        )
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert captured["args"][:2] == ["archive", "my-change"]
+        for flag in ["--yes", "--skip-specs", "--no-validate", "--json", "--store"]:
+            assert flag in captured["args"], f"Missing flag in args: {flag}"
+        assert "alpha" in captured["args"]
+
+    def test_context_forwards_code_workspace_and_force(self, monkeypatch) -> None:
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(
+            app,
+            [
+                "context",
+                "--store",
+                "alpha",
+                "--code-workspace",
+                "/tmp/ws.code-workspace",
+                "--force",
+                "--json",
+            ],
+        )
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert captured["args"][:1] == ["context"]
+        assert "--store" in captured["args"]
+        assert "alpha" in captured["args"]
+        assert "--code-workspace" in captured["args"]
+        assert "/tmp/ws.code-workspace" in captured["args"]
+        assert "--force" in captured["args"]
+        assert "--json" in captured["args"]
+
+    def test_doctor_forwards_store_and_json(self, monkeypatch) -> None:
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["doctor", "--store", "alpha", "--json"])
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert captured["args"][:1] == ["doctor"]
+        assert "--store" in captured["args"]
+        assert "alpha" in captured["args"]
+        assert "--json" in captured["args"]
+
+
+class TestNewGroupArgForwarding:
+    """Verifies the 'new' subcommand group forwards args to upstream."""
+
+    @staticmethod
+    def _capture(monkeypatch):
+        from source import cli as cli_module
+
+        captured = {}
+
+        def fake_run_openspec(args, timeout=30, extra_env=None):
+            captured["args"] = list(args)
+            return 0
+
+        monkeypatch.setattr(cli_module, "run_openspec", fake_run_openspec)
+        return captured
+
+    def test_new_change_forwards_all_flags(self, monkeypatch) -> None:
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(
+            app,
+            [
+                "new",
+                "change",
+                "my-change",
+                "--description",
+                "My change",
+                "--goal",
+                "Add feature",
+                "--schema",
+                "spec-driven",
+                "--store",
+                "alpha",
+                "--json",
+            ],
+        )
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert captured["args"][:3] == ["new", "change", "my-change"]
+        for flag in [
+            "--description",
+            "--goal",
+            "--schema",
+            "--store",
+            "--json",
+        ]:
+            assert flag in captured["args"], f"Missing flag: {flag}"
+
+    def test_new_change_requires_name(self, monkeypatch) -> None:
+        captured = self._capture(monkeypatch)
+        result = runner.invoke(app, ["new", "change"])
+        assert result.exit_code != 0
+        assert captured == {}, "Should not invoke openspec when name is missing"

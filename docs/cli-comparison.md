@@ -36,6 +36,13 @@ All commands in the second column are passthrough wrappers around the first. Exi
 | `openspec update [path]` | `openspec-extended update-core [path]` | -- |
 | `openspec feedback <msg>` | `openspec-extended feedback <msg>` | -- |
 | `openspec completion <shell>` | `openspec-extended completion <shell>` | -- |
+| `openspec view` | `openspec-extended view` | -- |
+| `openspec archive <name>` | `openspec-extended archive [<name>]` | `openspec-extended osx complete check <change>` (one-change completion) |
+| `openspec new change <id>` | `openspec-extended new change <id>` | -- |
+| `openspec context` | `openspec-extended context` | -- |
+| `openspec doctor` | `openspec-extended doctor` | `openspec-extended osx store doctor [id]` |
+| `openspec store <sub>` | `openspec-extended store <sub>` | `openspec-extended osx store <sub>` (JSON-only facade; subset of subcommands) |
+| `openspec config <sub>` | `openspec-extended config <sub>` | -- |
 
 Most cells marked `--` mean: the upstream command has no direct programmatic equivalent in the `osx` library, because `osx` is a state/IO tool rather than an instruction-rendering tool.
 
@@ -54,6 +61,16 @@ These exist only in `openspec-extended`. They have no upstream equivalent.
 | `openspec-extended update-core [path]` | Refresh upstream instruction files. Runs the same post-update `validate --archived` sweep (use `--strict-archived` or `OPENSPEC_VALIDATE_ARCHIVED_STRICT=1` to fail on warnings) | `source/cli.py:1107-1124` |
 | `openspec-extended orchestrate <change>` | Run the 7-phase autonomous loop | `source/cli.py:583-645` and `source/orchestrator/engine.py` |
 | `openspec-extended osx ...` | Programmatic library access (12 domains) | `source/osx_cli.py` |
+
+## Mirrored upstream groups (v1.5.0+)
+
+| Group | Coexistence notes |
+|-------|-------------------|
+| `openspec-extended store <sub>` (v1.5.0+) | Coexists with `openspec-extended osx store <sub>`. The top-level group mirrors the upstream CLI exactly (`setup`, `register`, `unregister`, `remove`, `list`/`ls`, `doctor`); the `osx store` group is a JSON-only programmatic facade over the same surface (subset: `list`, `doctor`, `register`, `unregister`). Use the top-level form for humans, `osx store` for scripts/CI. |
+| `openspec-extended config <sub>` | Pure passthrough. Project-local config is not yet supported upstream; the `--scope` flag is intentionally not exposed here (it's an early-exit error in core). |
+| `openspec-extended new change <id>` | Pure passthrough. The hidden `--initiative` and `--areas` options are not exposed (upstream hides them as "No longer supported"). |
+
+Implementation: `source/cli.py` (Typer groups at the bottom of the file).
 
 ## `osx` Sub-App Domains
 

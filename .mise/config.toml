@@ -55,7 +55,7 @@ run = "uv run pytest -m mechanism -q"
 [tasks."test:mechanism:bats"]
 description = "Run bats mechanism tests against built binary (no AI calls)"
 depends = "build --log-level FATAL"
-run = "bats tests/e2e/mechanism.bats"
+run = "bats tests/e2e/mechanism.bats tests/e2e/store-and-config-passthrough.bats"
 
 [tasks."test:e2e"]
 description = "Run E2E full workflow tests"

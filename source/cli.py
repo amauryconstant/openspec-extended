@@ -1451,6 +1451,120 @@ def orchestrate(
 
 
 @app.command(
+    "view",
+    help="Display an interactive dashboard (passthrough to openspec view; v1.8.0+). Requires a TTY.",
+)
+def view_cmd(
+    store: str | None = typer.Option(None, "--store", help="OpenSpec store id"),
+    json_output: bool = typer.Option(
+        False, "--json", help="JSON output (when supported)"
+    ),
+) -> None:
+    args: list[str] = []
+    if store:
+        args.extend(["--store", store])
+    if json_output:
+        args.append("--json")
+
+    code = run_openspec(["view", *args])
+    raise typer.Exit(code=code)
+
+
+@app.command(
+    "archive", help="Archive a completed change (passthrough to openspec archive)"
+)
+def archive_cmd(
+    change_name: str | None = typer.Argument(
+        None, help="Change id (omit for interactive picker)"
+    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompts"),
+    skip_specs: bool = typer.Option(
+        False,
+        "--skip-specs",
+        help="Skip spec update operations (useful for infrastructure, tooling, or doc-only changes)",
+    ),
+    no_validate: bool = typer.Option(
+        False,
+        "--no-validate",
+        help="Skip validation (not recommended, requires confirmation upstream)",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="JSON output"),
+    no_interactive: bool = typer.Option(
+        False, "--no-interactive", help="Disable interactive prompts"
+    ),
+    store: str | None = typer.Option(None, "--store", help="OpenSpec store id"),
+) -> None:
+    args: list[str] = []
+    if change_name:
+        args.append(change_name)
+    if yes:
+        args.append("--yes")
+    if skip_specs:
+        args.append("--skip-specs")
+    if no_validate:
+        args.append("--no-validate")
+    if json_output:
+        args.append("--json")
+    if no_interactive:
+        args.append("--no-interactive")
+    if store:
+        args.extend(["--store", store])
+
+    code = run_openspec(["archive", *args])
+    raise typer.Exit(code=code)
+
+
+@app.command(
+    "context",
+    help="Print the working context for the resolved OpenSpec root (passthrough to openspec context; v1.5.0+)",
+)
+def context_cmd(
+    store: str | None = typer.Option(None, "--store", help="OpenSpec store id"),
+    json_output: bool = typer.Option(False, "--json", help="JSON output"),
+    code_workspace: str | None = typer.Option(
+        None,
+        "--code-workspace",
+        help="Also write a VS Code workspace file for the set",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Overwrite an existing --code-workspace file",
+    ),
+) -> None:
+    args: list[str] = []
+    if store:
+        args.extend(["--store", store])
+    if json_output:
+        args.append("--json")
+    if code_workspace:
+        args.extend(["--code-workspace", code_workspace])
+    if force:
+        args.append("--force")
+
+    code = run_openspec(["context", *args])
+    raise typer.Exit(code=code)
+
+
+@app.command(
+    "doctor",
+    help="Report relationship health for the resolved OpenSpec root (passthrough to openspec doctor; v1.5.0+)",
+)
+def doctor_cmd(
+    store: str | None = typer.Option(None, "--store", help="OpenSpec store id"),
+    json_output: bool = typer.Option(False, "--json", help="JSON output"),
+) -> None:
+    args: list[str] = []
+    if store:
+        args.extend(["--store", store])
+    if json_output:
+        args.append("--json")
+
+    code = run_openspec(["doctor", *args])
+    raise typer.Exit(code=code)
+
+
+@app.command(
     "validate", help="Validate changes and specs (passthrough to openspec validate)"
 )
 def validate_cmd(
@@ -1822,6 +1936,274 @@ def completion_cmd(
 
     code = run_openspec(["completion", *args])
     raise typer.Exit(code=code)
+
+
+# ---------------------------------------------------------------------------
+# Subcommand groups: 'new', 'store', 'config'
+#
+# Each group mirrors an upstream OpenSpec subcommand group as a thin Typer
+# sub-app. Coexists with `openspec-extended osx <group>` (the programmatic
+# JSON-only facade) where applicable — see `source/osx_cli.py`.
+# ---------------------------------------------------------------------------
+
+
+new_app = typer.Typer(help="Create new items (passthrough to openspec new)")
+
+
+@new_app.command(
+    "change",
+    help="Create a new change directory (v1.7.0+; passthrough to openspec new change)",
+)
+def new_change_cmd(
+    name: str = typer.Argument(..., help="Change name"),
+    description: str | None = typer.Option(
+        None, "--description", help="Description to add to README.md"
+    ),
+    goal: str | None = typer.Option(
+        None, "--goal", help="Optional goal metadata to store with the change"
+    ),
+    schema: str | None = typer.Option(
+        None, "--schema", help="Workflow schema name (default: spec-driven)"
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+    store: str | None = typer.Option(None, "--store", help="OpenSpec store id"),
+) -> None:
+    args: list[str] = ["new", "change", name]
+    if description:
+        args.extend(["--description", description])
+    if goal:
+        args.extend(["--goal", goal])
+    if schema:
+        args.extend(["--schema", schema])
+    if json_output:
+        args.append("--json")
+    if store:
+        args.extend(["--store", store])
+
+    code = run_openspec(args)
+    raise typer.Exit(code=code)
+
+
+app.add_typer(new_app, name="new")
+
+
+store_app = typer.Typer(
+    help=(
+        "Create and manage stores — standalone OpenSpec repos registered on this machine "
+        "(passthrough to openspec store; v1.5.0+). "
+        "For a JSON-only programmatic surface, see `openspec-extended osx store`."
+    )
+)
+
+
+@store_app.command("setup", help="Create and register a local store (v1.5.0+)")
+def store_setup_cmd(
+    store_id: str | None = typer.Argument(None, help="Store id"),
+    path: str | None = typer.Option(
+        None, "--path", help="Folder where the store should live (e.g. ~/openspec/<id>)"
+    ),
+    init_git: bool = typer.Option(
+        True,
+        "--init-git/--no-init-git",
+        help="Initialize a Git repository with an initial commit (default: on)",
+    ),
+    remote: str | None = typer.Option(
+        None, "--remote", help="Canonical clone source recorded in store.yaml"
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    args: list[str] = ["store", "setup"]
+    if store_id:
+        args.append(store_id)
+    if path:
+        args.extend(["--path", path])
+    if not init_git:
+        args.append("--no-init-git")
+    if remote:
+        args.extend(["--remote", remote])
+    if json_output:
+        args.append("--json")
+
+    code = run_openspec(args)
+    raise typer.Exit(code=code)
+
+
+@store_app.command("register", help="Register an existing local store (v1.5.0+)")
+def store_register_cmd(
+    path_arg: str | None = typer.Argument(
+        None, help="Filesystem path to the store repo"
+    ),
+    store_id: str | None = typer.Option(
+        None, "--id", help="Store id; defaults to metadata or folder name"
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        help="Confirm creating store identity metadata for a healthy OpenSpec root",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    args: list[str] = ["store", "register"]
+    if path_arg:
+        args.append(path_arg)
+    if store_id:
+        args.extend(["--id", store_id])
+    if yes:
+        args.append("--yes")
+    if json_output:
+        args.append("--json")
+
+    code = run_openspec(args)
+    raise typer.Exit(code=code)
+
+
+@store_app.command(
+    "unregister",
+    help="Forget a local store registration without deleting files (v1.5.0+)",
+)
+def store_unregister_cmd(
+    store_id: str = typer.Argument(..., help="Store id"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    args: list[str] = ["store", "unregister", store_id]
+    if json_output:
+        args.append("--json")
+
+    code = run_openspec(args)
+    raise typer.Exit(code=code)
+
+
+@store_app.command(
+    "remove",
+    help="Forget a local store registration and delete its local folder (v1.5.0+)",
+)
+def store_remove_cmd(
+    store_id: str = typer.Argument(..., help="Store id"),
+    yes: bool = typer.Option(
+        False, "--yes", help="Confirm local store folder deletion"
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    args: list[str] = ["store", "remove", store_id]
+    if yes:
+        args.append("--yes")
+    if json_output:
+        args.append("--json")
+
+    code = run_openspec(args)
+    raise typer.Exit(code=code)
+
+
+@store_app.command("list", help="List locally registered stores (v1.5.0+)")
+def store_list_cmd(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    args: list[str] = ["store", "list"]
+    if json_output:
+        args.append("--json")
+
+    code = run_openspec(args)
+    raise typer.Exit(code=code)
+
+
+@store_app.command(
+    "doctor", help="Check local store registration and metadata (v1.5.0+)"
+)
+def store_doctor_cmd(
+    store_id: str | None = typer.Argument(None, help="Store id (omit to check all)"),
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    args: list[str] = ["store", "doctor"]
+    if store_id:
+        args.append(store_id)
+    if json_output:
+        args.append("--json")
+
+    code = run_openspec(args)
+    raise typer.Exit(code=code)
+
+
+app.add_typer(store_app, name="store")
+
+
+config_app = typer.Typer(
+    help="View and modify global OpenSpec configuration (passthrough to openspec config)"
+)
+
+
+@config_app.command("path", help="Show config file location")
+def config_path_cmd() -> None:
+    raise typer.Exit(run_openspec(["config", "path"]))
+
+
+@config_app.command("list", help="Show all current settings")
+def config_list_cmd(
+    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+) -> None:
+    args: list[str] = ["config", "list"]
+    if json_output:
+        args.append("--json")
+    raise typer.Exit(run_openspec(args))
+
+
+@config_app.command("get", help="Get a specific value (raw, scriptable)")
+def config_get_cmd(
+    key: str = typer.Argument(..., help="Config key (dotted path)"),
+) -> None:
+    raise typer.Exit(run_openspec(["config", "get", key]))
+
+
+@config_app.command("set", help="Set a value (auto-coerce types)")
+def config_set_cmd(
+    key: str = typer.Argument(..., help="Config key (dotted path)"),
+    value: str = typer.Argument(..., help="Config value"),
+    string: bool = typer.Option(
+        False, "--string", help="Force value to be stored as string"
+    ),
+    allow_unknown: bool = typer.Option(
+        False,
+        "--allow-unknown",
+        help="Allow setting unknown keys (still enforces prototype-safety)",
+    ),
+) -> None:
+    args: list[str] = ["config", "set", key, value]
+    if string:
+        args.append("--string")
+    if allow_unknown:
+        args.append("--allow-unknown")
+    raise typer.Exit(run_openspec(args))
+
+
+@config_app.command("unset", help="Remove a setting")
+def config_unset_cmd(
+    key: str = typer.Argument(..., help="Config key (dotted path)"),
+) -> None:
+    raise typer.Exit(run_openspec(["config", "unset", key]))
+
+
+@config_app.command("reset", help="Reset config to defaults")
+def config_reset_cmd() -> None:
+    raise typer.Exit(run_openspec(["config", "reset"]))
+
+
+@config_app.command("edit", help="Open config in your editor")
+def config_edit_cmd() -> None:
+    raise typer.Exit(run_openspec(["config", "edit"]))
+
+
+@config_app.command("profile", help="Set or show the active workflow profile")
+def config_profile_cmd(
+    preset: str | None = typer.Argument(
+        None, help="Profile preset: core | custom | <name>"
+    ),
+) -> None:
+    args: list[str] = ["config", "profile"]
+    if preset:
+        args.append(preset)
+    raise typer.Exit(run_openspec(args))
+
+
+app.add_typer(config_app, name="config")
 
 
 @app.command(
