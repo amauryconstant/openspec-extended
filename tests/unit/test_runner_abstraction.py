@@ -5,6 +5,7 @@ Unit tests for source.orchestrator.runner.
 Tests the Runner abstraction without actually spawning AI subprocesses.
 """
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -44,6 +45,176 @@ class TestDetectRunner:
         with pytest.raises(OSXError) as e:
             detect_runner(tmp_path)
         assert e.value.code == "no_runner_detected"
+
+
+@pytest.mark.unit
+class TestRunRequestExtraPrompt:
+    """A.4: ``RunRequest.extra_prompt`` carries project-level operation
+    guidance to the runner. OpenCode attaches it via ``--file``; Claude
+    prepends it to the slash-command prompt."""
+
+    def test_extra_prompt_defaults_to_empty(self):
+        from source.orchestrator.runner import RunRequest
+
+        req = RunRequest(command="osx-phase1", agent="osx-builder", change_id="x")
+        assert req.extra_prompt == ""
+
+    def test_extra_prompt_round_trips(self):
+        from source.orchestrator.runner import RunRequest
+
+        req = RunRequest(
+            command="osx-phase1",
+            agent="osx-builder",
+            change_id="x",
+            extra_prompt="hello",
+        )
+        assert req.extra_prompt == "hello"
+
+    def test_opencode_attaches_extra_prompt_via_file_flag(self, monkeypatch):
+        from source.orchestrator.runner import OpencodeRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
+        captured: dict = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["cmd"] = cmd
+            # Read the guidance file *during* Popen — the runner deletes
+            # it in its ``finally`` block, so by the time the test sees
+            # the path it's gone.
+            captured["file_path"] = Path(cmd[cmd.index("--file") + 1])
+            captured["file_content"] = captured["file_path"].read_text()
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 4242
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        OpencodeRunner().run(
+            RunRequest(
+                command="osx-phase1",
+                agent="osx-builder",
+                change_id="my-change",
+                extra_prompt="Always run unit tests.",
+            )
+        )
+
+        # ``opencode run --file <path>`` is the documented way to attach
+        # additional context to the message (positional args are forwarded
+        # as ``$1``/``$2``/... to the slash command, so prepending there
+        # would break the templates).
+        cmd = captured["cmd"]
+        assert "--file" in cmd
+        assert cmd[cmd.index("--file") + 1].endswith(".md")
+        assert captured["file_content"] == "Always run unit tests."
+
+    def test_opencode_omits_file_flag_when_extra_prompt_empty(self, monkeypatch):
+        from source.orchestrator.runner import OpencodeRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
+        captured: dict = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["cmd"] = cmd
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 4242
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        OpencodeRunner().run(
+            RunRequest(
+                command="osx-phase1",
+                agent="osx-builder",
+                change_id="my-change",
+            )
+        )
+
+        assert "--file" not in captured["cmd"]
+
+    def test_opencode_cleans_up_temp_file_after_run(self, monkeypatch):
+        """The guidance temp file is removed once the subprocess returns."""
+        from source.orchestrator.runner import OpencodeRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
+        captured: dict = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["cmd"] = cmd
+            captured["file_path"] = Path(cmd[cmd.index("--file") + 1])
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 4242
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        OpencodeRunner().run(
+            RunRequest(
+                command="osx-phase1",
+                agent="osx-builder",
+                change_id="my-change",
+                extra_prompt="guidance body",
+            )
+        )
+
+        # Temp file existed during the run (file content was readable
+        # because Popen captured the path); afterwards it is gone.
+        assert not captured["file_path"].exists()
+
+    def test_claude_prepends_extra_prompt_to_slash_command(self, monkeypatch):
+        from source.orchestrator.runner import ClaudeRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/claude")
+        captured: dict = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["cmd"] = cmd
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 7777
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        ClaudeRunner().run(
+            RunRequest(
+                command="osx-phase1",
+                agent="osx-builder",
+                change_id="my-change",
+                extra_prompt="Always run unit tests.",
+            )
+        )
+
+        prompt = captured["cmd"][-1]
+        assert prompt.startswith("Always run unit tests.")
+        assert "/osx-phase1 my-change" in prompt
+
+    def test_claude_prompt_unchanged_when_extra_prompt_empty(self, monkeypatch):
+        from source.orchestrator.runner import ClaudeRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/claude")
+        captured: dict = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["cmd"] = cmd
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 7777
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        ClaudeRunner().run(
+            RunRequest(
+                command="osx-phase1",
+                agent="osx-builder",
+                change_id="my-change",
+            )
+        )
+
+        assert captured["cmd"][-1] == "/osx-phase1 my-change"
 
 
 @pytest.mark.unit

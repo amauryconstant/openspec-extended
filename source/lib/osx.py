@@ -19,6 +19,7 @@ parsing.
 """
 
 import json
+import os
 import re
 import select
 import subprocess
@@ -79,7 +80,9 @@ def get_core_version(timeout: int = 10) -> tuple[int, int, int] | None:
     - ``skip_specs: true`` change metadata (v1.7.0+)
     - ``defaultStore`` machine-level fallback (v1.7.0+)
     - ``isPlanningComplete`` field separating planning from implementation
-      (v1.8.0+)
+      (v1.8.0+). ``validate_change_dir`` consults this field directly;
+      pass ``OPENSPEC_EXTENDED_NO_PLANNING_CORE=1`` to force the local
+      file-existence fallback (offline CI without ``openspec`` on PATH).
     - ``openspec validate --archived`` (v1.9.0+)
     - ``openspec init --language <lang>`` (v1.10.0+)
     - ``openspec status --all`` single-process sweep (v1.11.0+)
@@ -240,6 +243,24 @@ def _run_openspec_json(args: list, timeout: int = 10) -> dict:
             "openspec returned non-JSON output",
             stdout=result.stdout[:200],
         ) from e
+
+
+def _fetch_planning_status(change_id: str, *, store: str | None = None) -> dict | None:
+    """Call ``openspec status --change <id> [--store <id>] --json`` and return
+    the parsed envelope, or ``None`` when the CLI is missing or the call fails.
+
+    Used by ``validate_change_dir`` to consult core's ``isPlanningComplete``
+    signal (v1.8.0+) before falling back to a local file-existence check.
+    """
+    effective_store = store if store is not None else current_store.get()
+    args = ["status", "--change", change_id]
+    if effective_store:
+        args.extend(["--store", effective_store])
+    try:
+        result = _run_openspec_json(args)
+    except OSXError:
+        return None
+    return result if isinstance(result, dict) else None
 
 
 def resolve_change_paths(change: str, store: str | None = None) -> dict:
@@ -1421,9 +1442,37 @@ def validate_commands(project_root: Path | None = None) -> dict:
 
 
 def validate_change_dir(target: str, *, store: str | None = None) -> dict:
+    """Validate that ``target`` points at a usable change directory.
+
+    Resolution precedence:
+
+    1. **Core signal** (``isPlanningComplete`` from
+       ``openspec status --change <id> --json``) — consulted first when
+       available (core v1.8.0+). When the field is ``true``, the change is
+       considered planned; we then locally verify ``tasks.md`` exists and is
+       non-empty so we don't accept an empty change. When ``false``, every
+       artifact whose ``status != "done"`` (from the ``artifacts`` array) is
+       reported as a missing planning artifact.
+    2. **Local heuristic** — when the core call fails (CLI missing, non-zero
+       exit, malformed JSON) or the response lacks ``isPlanningComplete``
+       (defensive path for very old cores; the orchestrator's
+       ``MIN_OPENSPEC_VERSION`` gate normally rules this out), the original
+       local file-existence check runs verbatim.
+    3. **CI escape hatch** — ``OPENSPEC_EXTENDED_NO_PLANNING_CORE=1`` skips
+       the core call entirely so offline CI without ``openspec`` on ``PATH``
+       never spawns the binary.
+
+    Return shape (backward-compatible):
+
+    - ``{"valid": True, "planning_complete": True, "missing_artifacts": []}``
+    - ``{"valid": False, "errors": [...], "planning_complete": False | None,
+       "missing_artifacts": [str]}``
+
+    Existing ``valid``/``errors`` keys are preserved on every path; the two
+    new keys are additive.
+    """
     paths = resolve_change_paths(target, store=store)
     change_path = paths["change_root"]
-    errors: list[dict] = []
 
     if not change_path.is_dir():
         return {
@@ -1434,7 +1483,77 @@ def validate_change_dir(target: str, *, store: str | None = None) -> dict:
                     "message": f"Change directory not found: {change_path}",
                 }
             ],
+            "planning_complete": None,
+            "missing_artifacts": [],
         }
+
+    if os.environ.get("OPENSPEC_EXTENDED_NO_PLANNING_CORE", "").strip() == "1":
+        return _validate_change_dir_local(change_path)
+
+    planning = _fetch_planning_status(target, store=store)
+
+    if isinstance(planning, dict) and "isPlanningComplete" in planning:
+        return _validate_with_planning_core(change_path, planning)
+
+    print(
+        f"Warning: openspec status --change {target} unavailable; "
+        f"falling back to local check",
+        file=sys.stderr,
+    )
+
+    return _validate_change_dir_local(change_path)
+
+
+def _validate_with_planning_core(change_path: Path, planning: dict) -> dict:
+    """Validate a change dir using core's ``isPlanningComplete`` signal."""
+    errors: list[dict] = []
+    missing: list[str] = []
+
+    if planning.get("isPlanningComplete") is True:
+        tasks_path = change_path / "tasks.md"
+        if not tasks_path.is_file() or tasks_path.stat().st_size == 0:
+            errors.append(
+                {
+                    "check": "change-dir",
+                    "message": "Required file missing: tasks.md",
+                }
+            )
+            missing.append("tasks.md")
+        return {
+            "valid": not errors,
+            "errors": errors,
+            "planning_complete": True,
+            "missing_artifacts": missing,
+        }
+
+    raw_artifacts = planning.get("artifacts")
+    if isinstance(raw_artifacts, list):
+        for artifact in raw_artifacts:
+            if not isinstance(artifact, dict):
+                continue
+            if artifact.get("status") == "done":
+                continue
+            artifact_id = artifact.get("id") or "<unknown>"
+            missing.append(str(artifact_id))
+            errors.append(
+                {
+                    "check": "change-dir",
+                    "message": f"Missing planning artifact: {artifact_id}",
+                }
+            )
+
+    return {
+        "valid": not errors,
+        "errors": errors,
+        "planning_complete": False,
+        "missing_artifacts": missing,
+    }
+
+
+def _validate_change_dir_local(change_path: Path) -> dict:
+    """Original file-existence validation, preserved verbatim as the fallback."""
+    errors: list[dict] = []
+    missing: list[str] = []
 
     schema_info = resolve_schema(change_dir=change_path)
     schema_name = schema_info["name"]
@@ -1442,6 +1561,7 @@ def validate_change_dir(target: str, *, store: str | None = None) -> dict:
     required_files = _required_artifact_files(schema_name)
     for file in required_files:
         if not (change_path / file).exists():
+            missing.append(file)
             errors.append(
                 {"check": "change-dir", "message": f"Required file missing: {file}"}
             )
@@ -1453,9 +1573,12 @@ def validate_change_dir(target: str, *, store: str | None = None) -> dict:
                 {"check": "change-dir", "message": "No spec files found in specs/"}
             )
 
-    if errors:
-        return {"valid": False, "errors": errors}
-    return {"valid": True}
+    return {
+        "valid": not errors,
+        "errors": errors,
+        "planning_complete": None,
+        "missing_artifacts": missing,
+    }
 
 
 def validate_archive(target: str, *, store: str | None = None) -> dict:
@@ -1837,6 +1960,58 @@ def validate_specs_only(*, store: str | None = None, strict: bool = False) -> di
     if store:
         args.extend(["--store", store])
     return _translate_validate_payload(_run_openspec_json(args))
+
+
+def read_change_metadata(change_dir: Path | None) -> dict:
+    """Read ``.openspec.yaml`` from ``change_dir`` and return its metadata.
+
+    Returns a dict with optional keys:
+      - schema: str                # workflow schema name (same key resolve_schema reads)
+      - skip_specs: bool           # zero-delta change marker
+      - retire_capabilities: bool  # allow archive to delete the spec when
+                                   # REMOVED entries empty it (v1.8.0+)
+
+    Returns ``{}`` if the file is missing or malformed. Never raises — same
+    tolerance as ``resolve_schema``.
+
+    Booleans are accepted both as native YAML booleans (``true``/``false``,
+    which ``yaml.safe_load`` parses to ``True``/``False``) and as quoted
+    strings (``"true"``/``"false"``) for human-authored files. Non-bool values
+    for boolean fields fall back to ``False``.
+    """
+    if change_dir is None:
+        return {}
+    change_meta = change_dir / ".openspec.yaml"
+    if not change_meta.exists():
+        return {}
+
+    try:
+        data = yaml.safe_load(change_meta.read_text())
+    except (yaml.YAMLError, OSError) as error:
+        print(
+            f"Warning: Could not load change metadata {change_meta}: {error}",
+            file=sys.stderr,
+        )
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    result: dict = {}
+
+    schema = data.get("schema")
+    if isinstance(schema, str) and schema:
+        result["schema"] = schema
+
+    for key in ("skip_specs", "retire_capabilities"):
+        value = data.get(key)
+        if isinstance(value, bool):
+            result[key] = value
+        elif isinstance(value, str) and value.lower() in ("true", "false"):
+            result[key] = value.lower() == "true"
+        # Non-bool values are silently ignored — the marker is opt-in.
+
+    return result
 
 
 def resolve_schema(

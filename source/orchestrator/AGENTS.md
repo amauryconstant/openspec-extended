@@ -31,6 +31,12 @@ A phase advances when the AI process exits 0 and reports completion. The orchest
 | `artifacts_modified` | Artifacts changed since the last iteration |
 | `retry_requested` | Manual or self-reflection request |
 
+Special-case short-circuits:
+
+| Reason | Trigger |
+|--------|---------|
+| Retirement (PHASE0 detects marker + planning complete) | Skip to PHASE6 | `retire_capabilities: true` in `.openspec.yaml` |
+
 Defined in `source/lib/osx.py:VALID_TRANSITION_REASONS`. Set on `state.json` by the AI agent and read by the orchestrator.
 
 ## Loop Shape

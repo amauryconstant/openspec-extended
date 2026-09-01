@@ -44,6 +44,11 @@ class RunRequest:
     env: dict[str, str] | None = None
     store: str | None = None
     schema_name: str | None = None
+    extra_prompt: str = ""
+    """Prepended to the AI prompt when non-empty. Used to inject project-level
+    operation guidance (A.4) on PHASE1 and PHASE6 spawns only; ignored for
+    other phases. See ``OpencodeRunner.run`` / ``ClaudeRunner.run`` for the
+    per-platform mechanism."""
 
 
 @dataclass
@@ -117,13 +122,40 @@ class OpencodeRunner:
         if request.model:
             cmd.append(f"--model={request.model}")
 
-        return _run_with_logging(
-            cmd,
-            request,
-            verbose=verbose,
-            label=request.agent,
-            on_pid=request.on_pid,
-        )
+        # A.4: when project-level operation guidance is provided, attach it
+        # to the message via ``--file``. ``opencode run`` has no ``--prompt``
+        # flag (``--prompt`` belongs to the TUI's ``--continue``/``--session``
+        # flow, not the ``run`` subcommand) and the positional message args
+        # are forwarded as ``$1``/``$2``/... args to the slash command —
+        # prepending to the positional would break the command templates.
+        # Writing the guidance to a temp file and attaching via ``--file``
+        # is the documented mechanism that keeps ``$1`` clean.
+        guidance_path: Path | None = None
+        if request.extra_prompt:
+            guidance_fd, guidance_name = tempfile.mkstemp(
+                prefix="osx-operation-guidance-", suffix=".md"
+            )
+            guidance_path = Path(guidance_name)
+            try:
+                with os.fdopen(guidance_fd, "w") as guidance_file:
+                    guidance_file.write(request.extra_prompt)
+            except OSError:
+                guidance_path.unlink(missing_ok=True)
+                guidance_path = None
+            if guidance_path is not None:
+                cmd.extend(["--file", str(guidance_path)])
+
+        try:
+            return _run_with_logging(
+                cmd,
+                request,
+                verbose=verbose,
+                label=request.agent,
+                on_pid=request.on_pid,
+            )
+        finally:
+            if guidance_path is not None:
+                guidance_path.unlink(missing_ok=True)
 
 
 class ClaudeRunner:
@@ -144,6 +176,8 @@ class ClaudeRunner:
             raise OSXError("runner_not_found", "claude binary not found in PATH")
 
         prompt = f"/{request.command} {request.change_id}"
+        if request.extra_prompt:
+            prompt = f"{request.extra_prompt}\n\n{prompt}"
         cmd = ["claude", "--print", "--dangerously-skip-permissions", prompt]
         if request.model:
             cmd.extend(["--model", request.model])

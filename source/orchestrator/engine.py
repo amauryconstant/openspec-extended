@@ -14,9 +14,11 @@ import shutil
 import signal
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from rich import print as rich_print
 
@@ -74,6 +76,7 @@ class OrchestratorState:
     schema_override: str | None = None
     schema_name: str | None = None
     schema_source: str | None = None
+    retire_capabilities: bool = False
 
 
 def get_timestamp() -> str:
@@ -246,6 +249,20 @@ def validate_change_dir(state: OrchestratorState) -> None:
         log_error(state, f"Change directory: {state.change_dir}")
         raise SystemExit(1)
 
+    if "planning_complete" in data:
+        if data["planning_complete"] is None:
+            log_verbose(state, "Planning complete: unknown (source: local-heuristic)")
+        else:
+            log_verbose(
+                state,
+                f"Planning complete: {data['planning_complete']} (source: core)",
+            )
+
+    meta = osx_lib.read_change_metadata(state.change_dir)
+    state.retire_capabilities = bool(meta.get("retire_capabilities", False))
+    if state.retire_capabilities:
+        log_verbose(state, "Retire capabilities: true (from .openspec.yaml)")
+
     log_verbose(state, "Change directory validated")
 
 
@@ -287,7 +304,28 @@ def validate_archive(state: OrchestratorState) -> tuple[bool, str]:
     data = osx_lib.validate_archive(state.change_id)
     if not data.get("valid", False):
         return False, ""
-    return True, data.get("archive", "")
+
+    archive_dir = data.get("archive", "")
+    archive_path = Path(archive_dir) if archive_dir else None
+
+    if archive_path is not None and archive_path.is_dir():
+        meta = osx_lib.read_change_metadata(archive_path)
+    elif state.change_dir is not None and "archive" in str(state.change_dir):
+        meta = osx_lib.read_change_metadata(state.change_dir)
+    else:
+        try:
+            paths = osx_lib.resolve_change_paths(
+                state.change_id, store=state.store or osx_lib.current_store.get()
+            )
+            meta = osx_lib.read_change_metadata(paths["change_root"])
+        except osx_lib.OSXError:
+            meta = {}
+
+    state.retire_capabilities = bool(meta.get("retire_capabilities", False))
+    if state.retire_capabilities:
+        log_verbose(state, "Retire capabilities: true (from .openspec.yaml)")
+
+    return True, archive_dir
 
 
 def record_baseline(state: OrchestratorState) -> None:
@@ -504,6 +542,60 @@ def advance_phase(current: str) -> str:
     return order.get(current, "COMPLETE")
 
 
+def build_run_request(
+    state: OrchestratorState,
+    phase: str,
+    *,
+    on_pid: Callable[[int], None] | None = None,
+) -> Any:
+    """Construct the RunRequest that ``run_agent`` would dispatch.
+
+    Factored out so tests can assert the dispatched ``extra_prompt``
+    without spawning an AI subprocess. Kept module-private
+    (no leading underscore because cross-test imports need it) but
+    not part of the public API — callers should go through ``run_agent``.
+
+    A.4: PHASE1 (apply) and PHASE6 (archive) consume project-level
+    operation guidance from ``openspec/config.yaml`` via the
+    ``operations.{apply|archive}.guidance`` key. Surface it as
+    ``extra_prompt`` so the runner can prepend/attach it for the AI.
+    Other phases ignore the guidance — the field stays empty.
+    """
+    from source.orchestrator.runner import RunRequest
+
+    cmd_name = PHASE_COMMANDS.get(phase, "")
+    agent_name = PHASE_AGENTS.get(phase, "")
+    title = f"OpenSpec: {state.change_id} - {PHASE_NAMES.get(phase, '')}"
+
+    guidance_op = ""
+    if phase == "PHASE1":
+        guidance_op = "apply"
+    elif phase == "PHASE6":
+        guidance_op = "archive"
+    extra_prompt = ""
+    if guidance_op:
+        guidance = osx_lib.fetch_operation_guidance(
+            guidance_op, project_root=_project_root(state)
+        )
+        if guidance:
+            extra_prompt = "\n".join(guidance)
+
+    return RunRequest(
+        command=cmd_name,
+        agent=agent_name,
+        change_id=state.change_id,
+        title=title,
+        model=state.model,
+        cwd=Path.cwd(),
+        timeout=state.timeout,
+        on_pid=on_pid,
+        env={"OSX_AUTONOMOUS": "1"},
+        store=state.store,
+        schema_name=state.schema_name,
+        extra_prompt=extra_prompt,
+    )
+
+
 def run_agent(state: OrchestratorState, phase: str) -> bool:
     if state.dry_run:
         log(state, "[DRY RUN] Would run command for " + phase)
@@ -530,27 +622,13 @@ def run_agent(state: OrchestratorState, phase: str) -> bool:
 
     log_verbose(state, f"Using runner: {runner.name}")
 
-    from source.orchestrator.runner import RunRequest
-
     # Child PID is captured *via callback* inside runner.run() before
     # the subprocess enters wait(). This keeps the SIGINT/SIGTERM handler
     # in handle_interrupt() able to cancel a live AI subprocess.
     def _capture_pid(pid: int) -> None:
         state.child_pid = pid
 
-    request = RunRequest(
-        command=cmd_name,
-        agent=agent_name,
-        change_id=state.change_id,
-        title=title,
-        model=state.model,
-        cwd=Path.cwd(),
-        timeout=state.timeout,
-        on_pid=_capture_pid,
-        env={"OSX_AUTONOMOUS": "1"},
-        store=state.store,
-        schema_name=state.schema_name,
-    )
+    request = build_run_request(state, phase, on_pid=_capture_pid)
 
     try:
         try:
