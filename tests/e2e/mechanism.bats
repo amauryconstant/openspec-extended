@@ -285,7 +285,7 @@ teardown() {
 @test "mechanism: osx schema --help lists all subcommands" {
     run "$OPENSPEC_BIN" osx schema --help
     [ "$status" -eq 0 ]
-    for cmd in which list validate fork init; do
+    for cmd in which list validate fork fork-diff init; do
         [[ "$output" == *"$cmd"* ]]
     done
 }
@@ -513,4 +513,30 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"--strict-archived"* ]]
     [[ "$output" == *"OPENSPEC_VALIDATE_ARCHIVED_STRICT"* ]]
+}
+
+# ========== C.5: osx validate archived (v1.9.0+ scope) ==========
+#
+# Brings `validate --archived` to parity with the other validate scopes
+# inside the osx sub-app (change, spec, all, changes, specs). The help
+# text must surface the new action plus the --change flag.
+
+@test "mechanism: osx validate --help lists archived action" {
+    run "$OPENSPEC_BIN" osx validate --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"archived"* ]]
+    [[ "$output" == *"--change"* ]]
+}
+
+# ========== C.3: osx instructions structured errors (v1.7.0+ mirror) ==========
+#
+# The osx instructions command routes through fetch_instructions, which
+# returns structured JSON errors on subprocess failure (vs. the prior
+# raw passthrough that surfaced upstream stderr text). Help text must
+# surface --change.
+
+@test "mechanism: osx instructions --help documents --change" {
+    run "$OPENSPEC_BIN" osx instructions --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--change"* ]]
 }

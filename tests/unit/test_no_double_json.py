@@ -155,3 +155,29 @@ class TestStoreHelpersPreserveSingleJson:
         osx.store_unregister("my-store")
         _assert_single_json_last()
         assert "unregister" in _run_calls()
+
+
+@pytest.mark.unit
+class TestNewHelpersPreserveSingleJson:
+    """New osx library helpers added in C.3 / C.5 — single --json invariant."""
+
+    def test_fetch_instructions(self, monkeypatch):
+        payload = json.dumps({"changeName": "x", "operationGuidance": []})
+        monkeypatch.setattr(osx.subprocess, "run", make_run(stdout=payload))
+        osx.fetch_instructions("archive", "my-change")
+        _assert_single_json_last()
+        assert "instructions" in _run_calls()
+        assert "archive" in _run_calls()
+
+    def test_validate_archived_all(self, monkeypatch):
+        monkeypatch.setattr(osx.subprocess, "run", make_run())
+        osx.validate_archived()
+        _assert_single_json_last()
+        assert "--archived" in _run_calls()
+
+    def test_validate_archived_specific(self, monkeypatch):
+        monkeypatch.setattr(osx.subprocess, "run", make_run())
+        osx.validate_archived("my-change")
+        _assert_single_json_last()
+        assert "my-change" in _run_calls()
+        assert "--archived" in _run_calls()

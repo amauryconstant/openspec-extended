@@ -28,7 +28,7 @@ import tempfile
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import toml
 import yaml
@@ -1981,6 +1981,43 @@ def validate_changes_only(*, store: str | None = None, strict: bool = False) -> 
     return _translate_validate_payload(_run_openspec_json(args))
 
 
+def validate_archived(
+    change_id: str | None = None,
+    *,
+    store: str | None = None,
+    strict: bool = False,
+) -> dict:
+    """Validate archived changes via `openspec validate --archived --json` (v1.9.0+).
+
+    Brings the ``--archived`` scope to parity with the other ``osx validate``
+    actions (``change``, ``spec``, ``all``, ``changes``, ``specs``): same
+    normalized envelope (via ``_translate_validate_payload``), same
+    structured error handling, same exit semantics.
+
+    Args:
+      change_id: optional — scope to a single archived change. When given,
+        the change id is passed as a positional alongside ``--archived``,
+        matching the existing top-level ``openspec-extended validate
+        <id> --archived`` passthrough (``source/cli.py:1570``).
+      store: optional store id.
+      strict: treat warnings as failures.
+
+    Returns: see ``_translate_validate_payload``.
+
+    Raises: OSXError on subprocess failures (delegated to
+      ``_run_openspec_json``).
+    """
+    if change_id:
+        args = ["validate", change_id, "--archived", "--no-interactive"]
+    else:
+        args = ["validate", "--archived", "--no-interactive"]
+    if strict:
+        args.append("--strict")
+    if store:
+        args.extend(["--store", store])
+    return _translate_validate_payload(_run_openspec_json(args, timeout=60))
+
+
 def validate_specs_only(*, store: str | None = None, strict: bool = False) -> dict:
     """Validate all main specs only via `openspec validate --specs --json`."""
     args = ["validate", "--specs", "--no-interactive"]
@@ -2103,6 +2140,40 @@ def resolve_schema(
                 )
 
     return {"name": "spec-driven", "source": "default"}
+
+
+def fetch_instructions(
+    operation: str,
+    change_id: str,
+    *,
+    store: str | None = None,
+) -> dict:
+    """Run `openspec instructions <operation> --change <id> --json` and return the envelope.
+
+    The read-only mirror surface introduced in OpenSpec v1.7.0. Works for
+    any of the supported operations (`proposal`, `apply`, `archive` and any
+    future additions). Used by ``osx instructions`` to provide structured
+    error handling and JSON output consistent with the rest of the osx
+    library — in-process callers (orchestrator, tests) should prefer
+    ``fetch_operation_guidance`` when they only need the operationGuidance
+    string list, since that helper reads the config file directly.
+
+    Args:
+      operation: OpenSpec instructions operation (e.g. ``"proposal"``,
+        ``"apply"``, ``"archive"``).
+      change_id: OpenSpec change id.
+      store: optional store id.
+
+    Returns: parsed JSON dict.
+
+    Raises: OSXError on subprocess failures (delegated to
+      ``_run_openspec_json``).
+    """
+    effective_store = store if store is not None else current_store.get()
+    args = ["instructions", operation, "--change", change_id]
+    if effective_store:
+        args.extend(["--store", effective_store])
+    return _run_openspec_json(args, timeout=30)
 
 
 # Operations whose advisory guidance the orchestrator injects into the AI
@@ -2272,6 +2343,130 @@ def schema_fork(
     if store:
         args.extend(["--store", store])
     return _run_openspec_json(args)
+
+
+def schema_fork_diff(
+    source: str,
+    target: str,
+    *,
+    force: bool = False,
+    project_root: Path | None = None,
+) -> dict:
+    """Fork a schema and assert YAML fidelity against the source.
+
+    Performs ``openspec schema fork <source> <target> [--force]`` and then
+    parses both the source and target ``schema.yaml`` to confirm semantic
+    equivalence after the fork. The v1.9.0+ core guarantees YAML fidelity
+    (comments, key order, scalar style preserved via the YAML Document API);
+    this helper makes the guarantee programmatically verifiable — useful as
+    a CI gate before customizing a forked schema.
+
+    Args:
+      source: source schema name (e.g. ``"spec-driven"``).
+      target: target schema name (the fork).
+      force: pass ``--force`` to upstream fork.
+      project_root: project root used to locate schema files. Defaults to
+        ``Path.cwd()``.
+
+    Returns:
+      {
+        "valid": bool,                 # fork succeeded AND fidelity is perfect
+        "schema_path": str,            # absolute path to the forked schema.yaml
+        "fidelity": "perfect"|"drifted"|"unverified",
+        "differences": [str],          # human-readable drift lines (empty when perfect)
+        "fidelity_warning": str | None # present when fidelity is "drifted" or "unverified"
+      }
+
+    Raises:
+      OSXError on subprocess failures or when either schema file is
+      missing or unparseable after the fork.
+    """
+    if project_root is None:
+        project_root = Path.cwd()
+
+    schema_fork(source, target, force=force)
+
+    source_path = project_root / "openspec" / "schemas" / source / "schema.yaml"
+    target_path = project_root / "openspec" / "schemas" / target / "schema.yaml"
+
+    if not source_path.is_file():
+        raise OSXError(
+            "schema_not_found",
+            f"Source schema.yaml not found: {source_path}",
+            path=str(source_path),
+        )
+    if not target_path.is_file():
+        raise OSXError(
+            "schema_not_found",
+            f"Target schema.yaml not found: {target_path}",
+            path=str(target_path),
+        )
+
+    try:
+        source_data = yaml.safe_load(source_path.read_text())
+        target_data = yaml.safe_load(target_path.read_text())
+    except yaml.YAMLError as e:
+        raise OSXError(
+            "invalid_yaml",
+            f"Failed to parse schema YAML: {e}",
+            path=str(target_path),
+        ) from e
+
+    differences = _yaml_diff(source_data, target_data)
+    perfect = not differences
+    fidelity = "perfect" if perfect else "drifted"
+    fidelity_warning = (
+        "Schema drifted from source after fork — YAML Document API fidelity "
+        "guarantee may have regressed. Review differences before customizing."
+        if not perfect
+        else None
+    )
+
+    return {
+        "valid": perfect,
+        "schema_path": str(target_path),
+        "fidelity": fidelity,
+        "differences": differences,
+        "fidelity_warning": fidelity_warning,
+    }
+
+
+def _yaml_diff(source: Any, target: Any, path: str = "") -> list[str]:
+    """Return human-readable drift lines between two parsed YAML trees.
+
+    Compares keys, scalar values, and list lengths recursively. The
+    MVP check uses ``yaml.safe_load`` (semantic equality, not byte
+    fidelity); the v1.9.0+ Document API guarantee is stronger than this
+    comparison, so any non-empty result here is a real signal of drift.
+    """
+    diffs: list[str] = []
+
+    if isinstance(source, dict) and isinstance(target, dict):
+        source_keys = cast(set[str], set(source.keys()))
+        target_keys = cast(set[str], set(target.keys()))
+        for missing in sorted(source_keys - target_keys):
+            diffs.append(f"{path or '.'}: missing key {missing!r}")
+        for extra in sorted(target_keys - source_keys):
+            diffs.append(f"{path or '.'}: extra key {extra!r}")
+        for key in sorted(source_keys & target_keys):
+            diffs.extend(
+                _yaml_diff(
+                    source[key], target[key], f"{path}.{key}" if path else str(key)
+                )
+            )
+    elif isinstance(source, list) and isinstance(target, list):
+        if len(source) != len(target):
+            diffs.append(
+                f"{path or '.'}: list length differs (source={len(source)}, target={len(target)})"
+            )
+        for i, (s_item, t_item) in enumerate(zip(source, target)):
+            diffs.extend(_yaml_diff(s_item, t_item, f"{path}[{i}]"))
+    else:
+        if source != target:
+            diffs.append(
+                f"{path or '.'}: value differs (source={source!r}, target={target!r})"
+            )
+    return diffs
 
 
 def schema_init(

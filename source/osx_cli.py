@@ -14,7 +14,6 @@ the Typer/CLI surface.
 """
 
 import json
-import subprocess
 import sys
 
 import typer
@@ -316,10 +315,15 @@ def complete_cmd(
 def validate_cmd(
     action: str = typer.Argument(
         ...,
-        help="Action: json, skills, commands, change-dir, archive, iterations, completion, change, spec, all, changes, specs",
+        help="Action: json, skills, commands, change-dir, archive, iterations, completion, change, spec, all, changes, specs, archived",
     ),
     target: str | None = typer.Argument(
         None, help="Target (file path or change name depending on action)"
+    ),
+    change: str | None = typer.Option(
+        None,
+        "--change",
+        help="Scope to a single archived change (validate archived only)",
     ),
     strict: bool = typer.Option(False, "--strict", help="Treat warnings as failures"),
     concurrency: int | None = typer.Option(
@@ -396,11 +400,19 @@ def validate_cmd(
             store=osx_lib.current_store.get(),
             strict=strict,
         )
+    elif action == "archived":
+        archived_target = target if target is not None else change
+        data = _call_library(
+            osx_lib.validate_archived,
+            archived_target,
+            store=osx_lib.current_store.get(),
+            strict=strict,
+        )
     else:
         osx_error(
             "invalid_action",
             f"Unknown action: {action}",
-            valid="json, skills, commands, change-dir, archive, iterations, completion, change, spec, all, changes, specs",
+            valid="json, skills, commands, change-dir, archive, iterations, completion, change, spec, all, changes, specs, archived",
         )
         return
 
@@ -411,24 +423,19 @@ def validate_cmd(
 
 @osx_app.command(name="instructions")
 def instructions_cmd(
-    artifact: str = typer.Argument(..., help="Artifact type (e.g., specs, apply)"),
-    change: str | None = typer.Option(None, "--change", help="Change name"),
-    json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
+    operation: str = typer.Argument(
+        ...,
+        help="Instructions operation: proposal, apply, archive, ...",
+    ),
+    change: str = typer.Option(..., "--change", help="Change id"),
 ) -> None:
-    cmd_args = ["openspec", "instructions", artifact]
-    if change:
-        cmd_args.extend(["--change", change])
-    if json_output:
-        cmd_args.append("--json")
-
-    try:
-        result = subprocess.run(cmd_args, capture_output=True, text=True, check=False)
-        print(result.stdout, end="")
-        if result.returncode != 0:
-            print(result.stderr, file=sys.stderr, end="")
-            raise typer.Exit(result.returncode)
-    except FileNotFoundError:
-        osx_error("cli_not_found", "openspec CLI not found in PATH")
+    data = _call_library(
+        osx_lib.fetch_instructions,
+        operation,
+        change,
+        store=osx_lib.current_store.get(),
+    )
+    osx_output(data)
 
 
 store_app = typer.Typer(help="OpenSpec store management")
@@ -513,6 +520,30 @@ def schema_fork_cmd(
     """Fork a schema to project-local (delegates to `openspec schema fork`)."""
     data = _call_library(osx_lib.schema_fork, source, name, force=force)
     osx_output(data)
+
+
+@schema_app.command("fork-diff")
+def schema_fork_diff_cmd(
+    source: str = typer.Argument(..., help="Source schema name"),
+    target: str = typer.Argument(..., help="Target schema name (the fork)"),
+    force: bool = typer.Option(False, "--force", help="Pass --force to schema fork"),
+) -> None:
+    """Fork a schema and verify YAML fidelity against the source (v1.9.0+).
+
+    Asserts the YAML Document API fidelity guarantee: a freshly forked
+    schema must be semantically equivalent to its source. Useful as a
+    CI gate before customizing a forked schema — if fidelity drifts,
+    the fork may have lost data and should be re-done.
+    """
+    data = _call_library(
+        osx_lib.schema_fork_diff,
+        source,
+        target,
+        force=force,
+    )
+    osx_output(data)
+    if not data.get("valid", False):
+        raise typer.Exit(1)
 
 
 @schema_app.command("init")

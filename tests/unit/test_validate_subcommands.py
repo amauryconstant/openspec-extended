@@ -160,6 +160,54 @@ class TestOsxValidateSpecsOnly:
 
 
 @pytest.mark.unit
+class TestOsxValidateArchived:
+    """`osx validate archived [--change <id>]` (v1.9.0+ scope)."""
+
+    def test_archived_default_scope(self):
+        with patch("source.osx_cli.osx_lib.validate_archived") as mock:
+            mock.return_value = _make_validation_payload(valid=True)
+            result = runner.invoke(osx_app, ["validate", "archived"])
+        assert mock.called
+        # First positional arg is the change_id (None when not provided)
+        assert mock.call_args[0][0] is None
+        assert result.exit_code == 0
+
+    def test_archived_specific_change_positional(self):
+        with patch("source.osx_cli.osx_lib.validate_archived") as mock:
+            mock.return_value = _make_validation_payload(valid=True)
+            result = runner.invoke(
+                osx_app, ["validate", "archived", "my-change"]
+            )
+        assert mock.called
+        assert mock.call_args[0][0] == "my-change"
+        assert result.exit_code == 0
+
+    def test_archived_specific_change_flag(self):
+        with patch("source.osx_cli.osx_lib.validate_archived") as mock:
+            mock.return_value = _make_validation_payload(valid=True)
+            result = runner.invoke(
+                osx_app, ["validate", "archived", "--change", "my-change"]
+            )
+        assert mock.called
+        assert mock.call_args[0][0] == "my-change"
+        assert result.exit_code == 0
+
+    def test_archived_strict_flag_propagates(self):
+        with patch("source.osx_cli.osx_lib.validate_archived") as mock:
+            mock.return_value = _make_validation_payload(valid=True)
+            runner.invoke(osx_app, ["validate", "archived", "--strict"])
+        assert mock.call_args.kwargs.get("strict") is True
+
+    def test_archived_exits_nonzero_on_failure(self):
+        with patch("source.osx_cli.osx_lib.validate_archived") as mock:
+            mock.return_value = _make_validation_payload(valid=False)
+            result = runner.invoke(osx_app, ["validate", "archived"])
+        assert result.exit_code == 1
+        payload = json.loads(result.stdout)
+        assert payload["valid"] is False
+
+
+@pytest.mark.unit
 class TestOsxValidateErrorFormat:
     def test_invalid_action_lists_all_actions(self):
         result = runner.invoke(osx_app, ["validate", "bogus"])

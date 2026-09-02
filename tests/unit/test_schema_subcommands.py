@@ -5,7 +5,9 @@ import pytest
 
 from source.lib import osx as osx_lib
 from source.lib.osx import (
+    OSXError,
     schema_fork,
+    schema_fork_diff,
     schema_init,
     schema_list,
     schema_validate,
@@ -175,3 +177,107 @@ class TestSchemaSubcommandTranslation:
     def test_init_returns_payload(self, mock_json) -> None:
         mock_json["payload"] = {"created": "my-schema"}
         assert schema_init("my-schema") == {"created": "my-schema"}
+
+
+def _write_schema_yaml(path, data) -> None:
+    """Write a schema.yaml with the given dict content."""
+    import yaml
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+
+
+@pytest.mark.unit
+class TestSchemaForkDiff:
+    """`schema_fork_diff` (v1.9.0+ fidelity check)."""
+
+    def test_perfect_fidelity(self, tmp_path, monkeypatch) -> None:
+        identical = {
+            "schema": "my-fork",
+            "artifacts": ["proposal", "specs"],
+            "context": "shared",
+        }
+        _write_schema_yaml(
+            tmp_path / "openspec" / "schemas" / "spec-driven" / "schema.yaml",
+            identical,
+        )
+        _write_schema_yaml(
+            tmp_path / "openspec" / "schemas" / "my-fork" / "schema.yaml",
+            identical,
+        )
+
+        monkeypatch.setattr(
+            osx_lib, "schema_fork", lambda *a, **kw: {"ok": True}
+        )
+
+        result = schema_fork_diff(
+            "spec-driven", "my-fork", project_root=tmp_path
+        )
+        assert result["valid"] is True
+        assert result["fidelity"] == "perfect"
+        assert result["differences"] == []
+        assert result["fidelity_warning"] is None
+        assert result["schema_path"].endswith("schemas/my-fork/schema.yaml")
+
+    def test_drifted_fidelity(self, tmp_path, monkeypatch) -> None:
+        _write_schema_yaml(
+            tmp_path / "openspec" / "schemas" / "spec-driven" / "schema.yaml",
+            {"schema": "spec-driven", "artifacts": ["proposal"]},
+        )
+        _write_schema_yaml(
+            tmp_path / "openspec" / "schemas" / "my-fork" / "schema.yaml",
+            {"schema": "my-fork", "artifacts": ["proposal", "specs"]},
+        )
+
+        monkeypatch.setattr(
+            osx_lib, "schema_fork", lambda *a, **kw: {"ok": True}
+        )
+
+        result = schema_fork_diff(
+            "spec-driven", "my-fork", project_root=tmp_path
+        )
+        assert result["valid"] is False
+        assert result["fidelity"] == "drifted"
+        assert result["differences"] != []
+        assert result["fidelity_warning"] is not None
+
+    def test_fork_failure_propagates(self, tmp_path, monkeypatch) -> None:
+        def _raise(*a, **kw):
+            raise OSXError("cli_error", "schema fork failed")
+
+        monkeypatch.setattr(osx_lib, "schema_fork", _raise)
+
+        with pytest.raises(OSXError) as exc_info:
+            schema_fork_diff("spec-driven", "my-fork", project_root=tmp_path)
+        assert exc_info.value.code == "cli_error"
+
+    def test_missing_source_schema(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setattr(
+            osx_lib, "schema_fork", lambda *a, **kw: {"ok": True}
+        )
+        with pytest.raises(OSXError) as exc_info:
+            schema_fork_diff("missing-src", "my-fork", project_root=tmp_path)
+        assert exc_info.value.code == "schema_not_found"
+
+    def test_force_propagates_to_fork(self, tmp_path, monkeypatch) -> None:
+        captured: dict = {}
+
+        def _fake(source, name=None, *, force=False, store=None):
+            captured["force"] = force
+            return {"ok": True}
+
+        monkeypatch.setattr(osx_lib, "schema_fork", _fake)
+
+        _write_schema_yaml(
+            tmp_path / "openspec" / "schemas" / "spec-driven" / "schema.yaml",
+            {"a": 1},
+        )
+        _write_schema_yaml(
+            tmp_path / "openspec" / "schemas" / "my-fork" / "schema.yaml",
+            {"a": 1},
+        )
+
+        schema_fork_diff(
+            "spec-driven", "my-fork", force=True, project_root=tmp_path
+        )
+        assert captured["force"] is True

@@ -1,6 +1,6 @@
 # `source/lib/` - Change Management Library
 
-The `osx` library: 10 command domains that read/write change state. The orchestrator and tests import these functions directly in-process. The module is a pure library — no Typer, no CLI surface.
+The `osx` library: 11 command domains that read/write change state. The orchestrator and tests import these functions directly in-process. The module is a pure library — no Typer, no CLI surface.
 
 ## Two Surfaces
 
@@ -44,7 +44,7 @@ Keep the library and the CLI module separate so the library can be imported in-p
 - **Output**: JSON to stdout
 - **Errors**: stderr JSON `{"error": code, "message": msg, ...}`, exit code 1
 
-## Command Domains (10)
+## Command Domains (11)
 
 | Domain | Library entry | CLI form |
 |--------|---------------|----------|
@@ -56,8 +56,9 @@ Keep the library and the CLI module separate so the library can be imported in-p
 | `iterations` | `iterations_get(change)`, `iterations_append(change, ...)` | `openspec-extended osx iterations ...` |
 | `log` | `log_get(change)`, `log_append(change, ...)` | `openspec-extended osx log ...` |
 | `complete` | `complete_check(change)`, `complete_get(change)`, `complete_set(change, status, blocker_reason)` | `openspec-extended osx complete ...` |
-| `validate` | `validate_json(target)`, `validate_skills(project_root=None)`, `validate_commands(project_root=None)`, `validate_change_dir(target)` (consults core's `isPlanningComplete` and falls back to a local file-existence check), `validate_archive(target)`, `validate_iterations(target)`, `validate_completion(target)` | `openspec-extended osx validate ...` |
-| `instructions` | (CLI-only proxy to `openspec instructions`) | `openspec-extended osx instructions ...` |
+| `validate` | `validate_json(target)`, `validate_skills(project_root=None)`, `validate_commands(project_root=None)`, `validate_change_dir(target)` (consults core's `isPlanningComplete` and falls back to a local file-existence check), `validate_archive(target)`, `validate_iterations(target)`, `validate_completion(target)`, `validate_change(change_id, *, store=None, strict=False)` (v1.8.0+ envelope), `validate_spec(spec_id, *, store=None, strict=False)`, `validate_all(*, store=None, strict=False, concurrency=None)`, `validate_changes_only(*, store=None, strict=False)`, `validate_specs_only(*, store=None, strict=False)`, `validate_archived(change_id=None, *, store=None, strict=False)` (v1.9.0+ scope) | `openspec-extended osx validate ...` |
+| `instructions` | `fetch_instructions(operation, change_id, *, store=None)` (v1.7.0+ read-only mirror) | `openspec-extended osx instructions <operation> --change <change_id>` |
+| `schema` | `schema_which`, `schema_validate`, `schema_fork`, `schema_init`, `schema_list`, `schema_fork_diff(source, target, *, force=False, project_root=None)` (v1.9.0+ YAML fidelity check) | `openspec-extended osx schema ...` |
 
 ## Constants (top of `osx.py`)
 

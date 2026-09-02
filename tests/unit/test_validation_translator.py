@@ -525,6 +525,69 @@ class TestValidateSpecsOnly:
 
 
 @pytest.mark.unit
+class TestValidateArchived:
+    """v1.9.0+ `validate --archived` exposed as a first-class validate action."""
+
+    def _make_run(self, captured):
+        def _run(*args, **kwargs):
+            captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
+            captured["timeout"] = kwargs.get("timeout")
+            return MagicMock(
+                returncode=0,
+                stdout=json.dumps(
+                    {
+                        "items": [],
+                        "summary": {"totals": {"failed": 0}},
+                        "version": "1.0",
+                        "root": {},
+                    }
+                ),
+                stderr="",
+            )
+
+        return _run
+
+    def test_archived_all_changes_no_positional(self, monkeypatch):
+        captured = {}
+        monkeypatch.setattr(osx.subprocess, "run", self._make_run(captured))
+        result = osx.validate_archived()
+        assert "--archived" in captured["cmd"]
+        assert "--no-interactive" in captured["cmd"]
+        # Layout: [openspec, validate, --archived, --no-interactive, --json]
+        assert captured["cmd"][1] == "validate"
+        assert captured["cmd"][2] == "--archived"
+        assert result["valid"] is True
+
+    def test_archived_specific_change(self, monkeypatch):
+        captured = {}
+        monkeypatch.setattr(osx.subprocess, "run", self._make_run(captured))
+        osx.validate_archived("my-change")
+        # Layout: [openspec, validate, my-change, --archived, --no-interactive, --json]
+        assert captured["cmd"][1] == "validate"
+        assert captured["cmd"][2] == "my-change"
+        assert captured["cmd"][3] == "--archived"
+
+    def test_archived_strict_propagates(self, monkeypatch):
+        captured = {}
+        monkeypatch.setattr(osx.subprocess, "run", self._make_run(captured))
+        osx.validate_archived(strict=True)
+        assert "--strict" in captured["cmd"]
+
+    def test_archived_store_propagates(self, monkeypatch):
+        captured = {}
+        monkeypatch.setattr(osx.subprocess, "run", self._make_run(captured))
+        osx.validate_archived(store="my-store")
+        assert "--store" in captured["cmd"]
+        assert "my-store" in captured["cmd"]
+
+    def test_archived_uses_extended_timeout(self, monkeypatch):
+        captured = {}
+        monkeypatch.setattr(osx.subprocess, "run", self._make_run(captured))
+        osx.validate_archived()
+        assert captured["timeout"] == 60
+
+
+@pytest.mark.unit
 class TestValidateManifestCrossCheck:
     """M23: ``validate_skills`` and ``validate_commands`` cross-check the
     deployed ``manifest.toml`` so a manifest that omits a required skill

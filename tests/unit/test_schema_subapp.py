@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Tests for `osx schema *` subcommands and the schema-aware pre-flight."""
 
+import json
+
 import pytest
 from typer.testing import CliRunner
 
@@ -180,6 +182,101 @@ class TestOsxSchemaSubapp:
         assert result.exit_code == 0
         for sub in ["which", "list", "validate", "fork", "init"]:
             assert sub in result.output, f"Missing subcommand: {sub}"
+
+    def test_schema_help_includes_fork_diff(self) -> None:
+        result = runner.invoke(osx_app, ["schema", "--help"])
+        assert result.exit_code == 0
+        assert "fork-diff" in result.output
+
+
+@pytest.mark.unit
+class TestOsxSchemaForkDiff:
+    """CLI: `osx schema fork-diff <source> <target>`."""
+
+    def test_command_runs(self, monkeypatch) -> None:
+        captured: dict = {}
+
+        def fake(source, target, *, force=False, project_root=None):
+            captured["source"] = source
+            captured["target"] = target
+            captured["force"] = force
+            captured["project_root"] = project_root
+            return {
+                "valid": True,
+                "schema_path": "/x/y/schema.yaml",
+                "fidelity": "perfect",
+                "differences": [],
+                "fidelity_warning": None,
+            }
+
+        monkeypatch.setattr(osx_lib, "schema_fork_diff", fake)
+
+        result = runner.invoke(
+            osx_app, ["schema", "fork-diff", "spec-driven", "my-fork"]
+        )
+        assert result.exit_code == 0, (
+            f"Output: {result.output}, Exception: {result.exception}"
+        )
+        assert captured["source"] == "spec-driven"
+        assert captured["target"] == "my-fork"
+        assert captured["force"] is False
+        assert captured["project_root"] is None
+
+    def test_force_flag_propagated(self, monkeypatch) -> None:
+        captured: dict = {}
+
+        def fake(source, target, *, force=False, project_root=None):
+            captured["force"] = force
+            return {
+                "valid": True,
+                "schema_path": "/x/y/schema.yaml",
+                "fidelity": "perfect",
+                "differences": [],
+                "fidelity_warning": None,
+            }
+
+        monkeypatch.setattr(osx_lib, "schema_fork_diff", fake)
+
+        result = runner.invoke(
+            osx_app,
+            ["schema", "fork-diff", "spec-driven", "my-fork", "--force"],
+        )
+        assert result.exit_code == 0
+        assert captured["force"] is True
+
+    def test_exit_nonzero_on_drift(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            osx_lib,
+            "schema_fork_diff",
+            lambda *a, **kw: {
+                "valid": False,
+                "schema_path": "/x/y/schema.yaml",
+                "fidelity": "drifted",
+                "differences": [".schema: missing key 'x'"],
+                "fidelity_warning": "drift detected",
+            },
+        )
+        result = runner.invoke(
+            osx_app, ["schema", "fork-diff", "spec-driven", "my-fork"]
+        )
+        assert result.exit_code == 1
+        payload = json.loads(result.stdout)
+        assert payload["valid"] is False
+        assert payload["fidelity"] == "drifted"
+
+    def test_cli_error_surfaces_as_json(self, monkeypatch) -> None:
+        from source.lib.osx import OSXError
+
+        def _raise(*a, **kw):
+            raise OSXError("schema_not_found", "schema not found")
+
+        monkeypatch.setattr(osx_lib, "schema_fork_diff", _raise)
+        result = runner.invoke(
+            osx_app, ["schema", "fork-diff", "spec-driven", "my-fork"]
+        )
+        assert result.exit_code == 1
+        parsed = json.loads(result.stderr)
+        assert parsed["error"] == "schema_not_found"
 
 
 @pytest.mark.unit
