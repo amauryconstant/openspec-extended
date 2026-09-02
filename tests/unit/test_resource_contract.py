@@ -162,7 +162,7 @@ class TestSkillDescriptionLeadingWord:
     skill. Pinning it in a test means a casual description edit cannot
     silently change firing behaviour.
 
-    ``osx-generate-changelog`` is excluded because it's user-invoked
+    ``osx-changelog`` is excluded because it's user-invoked
     (``disable-model-invocation: true``); its description is human-facing
     rather than trigger-facing.
     """
@@ -170,7 +170,6 @@ class TestSkillDescriptionLeadingWord:
     EXPECTED_LEADING_WORDS: dict[str, str] = {
         "skills/osx-commit/SKILL.md": "Detect",
         "skills/osx-concepts/SKILL.md": "OpenSpec-extended",
-        "skills/osx-maintain-ai-docs/SKILL.md": "Document",
         "skills/osx-modify-artifacts/SKILL.md": "Single-artifact",
         "skills/osx-review-artifacts/SKILL.md": "Audit",
         "skills/osx-review-test-compliance/SKILL.md": "Surface",
@@ -434,12 +433,11 @@ class TestManifestParity:
         "skills.osx-review-test-compliance",
         "skills.osx-workflow",
         "skills.osx-concepts",
-        "skills.osx-generate-changelog",
-        "skills.osx-maintain-ai-docs",
         "skills.osx-commit",
         "commands.osx-review",
         "commands.osx-modify",
         "commands.osx-verify-tests",
+        "commands.osx-changelog",
         "commands.osx-maintain-docs",
         "commands.osx-phase0",
         "commands.osx-phase2",
@@ -461,12 +459,11 @@ class TestManifestParity:
             ("skills.osx-workflow", "0.3.6"),
             ("skills.osx-concepts", "0.9.6"),
             ("skills.osx-review-test-compliance", "0.2.6"),
-            ("skills.osx-generate-changelog", "0.2.6"),
-            ("skills.osx-maintain-ai-docs", "0.2.6"),
+            ("commands.osx-changelog", "0.2.0"),
+            ("commands.osx-maintain-docs", "0.3.0"),
             ("commands.osx-review", "0.2.2"),
             ("commands.osx-modify", "0.2.2"),
             ("commands.osx-verify-tests", "0.1.4"),
-            ("commands.osx-maintain-docs", "0.2.4"),
             ("commands.osx-phase0", "0.3.2"),
             ("commands.osx-phase2", "0.3.3"),
         ],

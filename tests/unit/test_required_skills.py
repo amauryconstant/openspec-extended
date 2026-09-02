@@ -9,8 +9,10 @@ Locks in:
 - Every name has a manifest entry with a version.
 - ``osx-commit`` is included (it is referenced by every phase command's
   MANDATORY END).
-- ``osx-generate-changelog`` is intentionally excluded because it has its
-  own ``/osx-changelog`` dispatch and is not on the phase-command path.
+- ``osx-workflow`` is intentionally excluded because it is gated by
+  ``--with-autonomous`` install.
+- ``osx-changelog`` and ``osx-maintain-docs`` are intentionally excluded
+  because they are slash commands with self-contained bodies, not skills.
 - Manifest parity between the OpenCode and Claude trees.
 """
 
@@ -57,8 +59,9 @@ class TestRequiredSkillsContract:
         )
 
     def test_generate_changelog_intentionally_excluded(self):
-        """osx-generate-changelog is on its own dispatch, not the phase path."""
-        assert "osx-generate-changelog" not in osx.REQUIRED_SKILLS
+        """osx-changelog and osx-maintain-docs are slash commands, not skills."""
+        assert "osx-changelog" not in osx.REQUIRED_SKILLS
+        assert "osx-maintain-docs" not in osx.REQUIRED_SKILLS
 
     def test_no_dead_names(self):
         """No name in REQUIRED_SKILLS references a missing skill directory."""

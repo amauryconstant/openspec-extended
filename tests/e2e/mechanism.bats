@@ -95,11 +95,14 @@ teardown() {
     [ -f .opencode/skills/osx-modify-artifacts/references/osx-mode-conventions.md ]
     [ -f .opencode/skills/osx-review-artifacts/references/store-selection.md ]
     [ -f .opencode/skills/osx-review-artifacts/references/schema-agnostic-contract.md ]
-    [ -f .opencode/skills/osx-maintain-ai-docs/references/osx-mode-conventions.md ]
     [ -f .opencode/skills/osx-review-test-compliance/references/scoring-rubric.md ]
     # Skill-local references stay untouched.
     [ -f .opencode/skills/osx-concepts/references/cli-reference.md ]
-    [ -f .opencode/skills/osx-maintain-ai-docs/references/doc-structures.md ]
+
+    # Slash commands with self-contained bodies (osx-changelog, osx-maintain-docs)
+    # are deployed as command files; their bodies reference shared-pool references.
+    [ -f .opencode/commands/osx-changelog.md ]
+    [ -f .opencode/commands/osx-maintain-docs.md ]
 
     rm -rf "$fresh_dir"
 }
@@ -127,11 +130,17 @@ teardown() {
     [ -f .claude/skills/osx-modify-artifacts/references/osx-mode-conventions.md ]
     [ -f .claude/skills/osx-review-artifacts/references/store-selection.md ]
     [ -f .claude/skills/osx-review-artifacts/references/schema-agnostic-contract.md ]
-    [ -f .claude/skills/osx-maintain-ai-docs/references/osx-mode-conventions.md ]
     [ -f .claude/skills/osx-review-test-compliance/references/scoring-rubric.md ]
     # Skill-local references stay untouched.
     [ -f .claude/skills/osx-concepts/references/cli-reference.md ]
-    [ -f .claude/skills/osx-maintain-ai-docs/references/doc-structures.md ]
+
+    # Slash commands dual-emit on Claude as modern skills. The merged
+    # changelog/maintain-docs bodies reference shared-pool files; the deploy
+    # copies them into the dual-emit skill's references/ folder.
+    [ -f .claude/skills/osx-changelog/SKILL.md ]
+    [ -f .claude/skills/osx-maintain-docs/SKILL.md ]
+    [ -f .claude/skills/osx-changelog/references/changelog-format.md ]
+    [ -f .claude/skills/osx-maintain-docs/references/doc-structures.md ]
 
     rm -rf "$fresh_dir"
 }

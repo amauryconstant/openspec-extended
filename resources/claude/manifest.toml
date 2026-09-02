@@ -7,13 +7,6 @@ version = "0.9.6"
 [resources.skills.osx-workflow]
 version = "0.3.6"
 
-[resources.skills.osx-generate-changelog]
-version = "0.2.6"
-
-[resources.skills.osx-maintain-ai-docs]
-version = "0.2.6"
-references = ["osx-mode-conventions.md"]
-
 [resources.skills.osx-modify-artifacts]
 version = "0.3.4"
 references = ["store-selection.md", "schema-agnostic-contract.md", "osx-mode-conventions.md"]
@@ -39,10 +32,10 @@ version = "0.2.3"
 version = "0.1.0"
 
 [resources.commands.osx-changelog]
-version = "0.1.3"
+version = "0.2.0"
 
 [resources.commands.osx-maintain-docs]
-version = "0.2.4"
+version = "0.3.0"
 
 [resources.commands.osx-modify]
 version = "0.2.2"

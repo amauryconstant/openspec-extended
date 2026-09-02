@@ -238,12 +238,8 @@ class TestFullCommandNames:
         "path,expected_full_forms",
         [
             (
-                "resources/opencode/skills/osx-generate-changelog/SKILL.md",
+                "resources/opencode/commands/osx-changelog.md",
                 ["/osc-apply-change", "/osc-verify-change", "/osc-archive-change"],
-            ),
-            (
-                "resources/opencode/skills/osx-maintain-ai-docs/SKILL.md",
-                ["/osc-archive-change"],
             ),
             (
                 "resources/opencode/commands/osx-maintain-docs.md",

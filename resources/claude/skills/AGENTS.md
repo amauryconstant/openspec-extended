@@ -41,7 +41,20 @@ For one-off Claude-only overrides, see `references/claude-only-overrides.md` (pl
 
 ## Naming
 
-Same rules as OpenCode (`osx-` prefix, lowercase-hyphenated, must match directory name). The 8 skills mirror their OpenCode counterparts.
+Same rules as OpenCode (`osx-` prefix, lowercase-hyphenated, must match directory name). The 6 skills mirror their OpenCode counterparts.
+
+## Skill count on Claude
+
+The Claude mirror ships more skill directories than the OpenCode source:
+**18 skill directories** vs OpenCode's 6. The breakdown:
+
+- **6** mirror the OpenCode skills 1:1.
+- **7** are dual-emits of phase commands (`osx-phase0..6`), per the dual-emit
+  strategy in `resources/claude/AGENTS.md`.
+- **5** are dual-emits of workflow commands (`osx-modify`, `osx-review`,
+  `osx-verify-tests`, `osx-changelog`, `osx-maintain-docs`).
+- **1** is the `references/` pool (cross-cutting shared references, excluded
+  from the set counts above — see `resources/opencode/skills/AGENTS.md`).
 
 ## Authoring Workflow
 

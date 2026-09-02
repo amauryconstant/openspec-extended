@@ -283,6 +283,6 @@ For CLAUDE.md:
 
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
-Source: resources/opencode/skills/osx-maintain-ai-docs/references/doc-structures.md
+Source: resources/opencode/skills/references/doc-structures.md
 Regenerate: `mise run sync:mirrors`
 -->

@@ -248,6 +248,6 @@ For migration instructions, see [Migration Guide](docs/migration-v1-to-v2.md).
 
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
-Source: resources/opencode/skills/osx-generate-changelog/references/changelog-format.md
+Source: resources/opencode/skills/references/changelog-format.md
 Regenerate: `mise run sync:mirrors`
 -->

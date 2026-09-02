@@ -360,6 +360,6 @@ Before finalizing updates:
 
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
-Source: resources/opencode/skills/osx-maintain-ai-docs/references/update-rules.md
+Source: resources/opencode/skills/references/update-rules.md
 Regenerate: `mise run sync:mirrors`
 -->

@@ -78,20 +78,27 @@ Query: `openspec status --change <name> --json` returns the full state per artif
 
 ### 2.5 Resource taxonomy
 
-#### Extended skills (`osx-*` — 8, local enhancements)
+#### Extended skills (`osx-*` — 6 total)
 
-| Skill | Purpose |
-|-------|---------|
-| `osx-concepts` | **This skill** — framework, repo layout, artifacts, decision guidance |
-| `osx-workflow` | 4 tool layers, 7-phase autonomous workflow (paired skill) |
-| `osx-review-artifacts` | Pre-implementation schema-driven audit; routes findings to the right editor |
-| `osx-modify-artifacts` | Single-artifact surgical editor (forward-only); chains with `/opsx:update` for multi-artifact cases |
-| `osx-review-test-compliance` | Spec-to-test alignment analysis (post-implementation) |
-| `osx-maintain-ai-docs` | Update `AGENTS.md` and `CLAUDE.md` |
-| `osx-generate-changelog` | Generate `CHANGELOG.md` from archive |
-| `osx-commit` | Create commits matching project style |
+The extended skill set lives under `resources/opencode/skills/` and mirrors 1:1
+to `resources/claude/skills/`. Use this table as the canonical inventory.
 
-> `review`/`modify`/`update` replaces the older `proposal`/`specs`/`design`/`tasks` model. Core `osc-*` skills (12) are listed in `references/artifact-formats.md`.
+| Skill | Default? | Purpose |
+|-------|----------|---------|
+| `osx-concepts` | yes | **This skill** — framework, repo layout, artifacts, decision guidance |
+| `osx-workflow` | opt-in (`--with-autonomous`) | 4 tool layers, 7-phase autonomous workflow (paired skill) |
+| `osx-review-artifacts` | yes | Pre-implementation schema-driven audit; routes findings to the right editor |
+| `osx-modify-artifacts` | yes | Single-artifact surgical editor (forward-only); chains with `/osc-update` for multi-artifact cases |
+| `osx-review-test-compliance` | yes | Spec-to-test alignment analysis (post-implementation) |
+| `osx-commit` | yes | Create commits matching project style |
+
+The orchestrator pre-flight (`source/lib/osx.py:REQUIRED_SKILLS`) asserts all 5
+default skills are installed at the start of every change. `--with-autonomous`
+additionally pulls `osx-workflow`, bringing the runtime requirement to 6 of 6.
+
+> **Claude mirror**: every opencode command dual-emits to Claude as a modern
+> skill (e.g. `commands/osx-modify.md` → `skills/osx-modify/SKILL.md`). See
+> `resources/claude/AGENTS.md` §Dual-emit.
 
 #### Agents (4 — orchestrator-dispatched)
 
@@ -101,6 +108,12 @@ Query: `openspec status --change <name> --json` returns the full state per artif
 
 - **Phase** (7) — `osx-phase0` … `osx-phase6`, dispatched by orchestrator only
 - **Workflow** (5) — `osx-modify`, `osx-review`, `osx-verify-tests`, `osx-changelog`, `osx-maintain-docs`; user/agent ad-hoc
+
+`osx-changelog` and `osx-maintain-docs` are **self-contained** slash commands
+(the body lives in the command file itself, with referenced material in the
+shared `references/` pool). The other three workflow commands
+(`osx-modify`, `osx-review`, `osx-verify-tests`) are thin pointers that load a
+skill body. On Claude, every workflow command dual-emits as a modern skill.
 
 ---
 

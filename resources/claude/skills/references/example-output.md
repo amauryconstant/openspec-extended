@@ -328,6 +328,6 @@ See [Migration Guide](docs/migration-v1-to-v2.md) for upgrading from v0.9.0 to v
 
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
-Source: resources/opencode/skills/osx-generate-changelog/references/example-output.md
+Source: resources/opencode/skills/references/example-output.md
 Regenerate: `mise run sync:mirrors`
 -->

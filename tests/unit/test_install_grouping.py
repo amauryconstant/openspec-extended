@@ -55,8 +55,6 @@ class TestAutonomousResourceSet:
         utility_skills = [
             "osx-commit",
             "osx-concepts",
-            "osx-generate-changelog",
-            "osx-maintain-ai-docs",
             "osx-modify-artifacts",
             "osx-review-artifacts",
             "osx-review-test-compliance",
@@ -123,7 +121,7 @@ class TestInstallGrouping:
         resources = _manifest_resources(OPENCODE / "manifest.toml")
         all_names = {name for entries in resources.values() for name in entries}
         utility = all_names - osx.AUTONOMOUS_RESOURCE_NAMES
-        assert len(utility) == 12, (
-            f"Utility default should be 12 entries under utility-only install; "
-            f"got {len(utility)}"
+        assert len(utility) == 10, (
+            f"Utility default should be 10 entries under utility-only install; "
+            f"got {len(utility)}: {sorted(utility)}"
         )

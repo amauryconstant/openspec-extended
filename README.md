@@ -157,18 +157,31 @@ openspec-extended feedback "love the new flow" --body "Detailed description..."
 
 ### Extension Skills
 
-The default install ships **7 utility skills** for everyday work:
+The default install ships **6 extended skills** under `resources/opencode/skills/`.
+Five are installed by default; `osx-workflow` requires `--with-autonomous`.
 
 | Skill                        | Purpose                                        | Default? |
 | ---------------------------- | ---------------------------------------------- | -------- |
 | `osx-concepts`               | Teaches AI agents about OpenSpec framework     | yes      |
 | `osx-modify-artifacts`       | Modifies artifacts with dependency tracking    | yes      |
 | `osx-review-artifacts`       | Reviews artifacts for quality and completeness | yes      |
-| `osx-generate-changelog`     | Generate changelogs (Keep a Changelog format)  | yes      |
 | `osx-review-test-compliance` | Review test coverage for OpenSpec changes      | yes      |
-| `osx-maintain-ai-docs`       | Maintain AGENTS.md and CLAUDE.md               | yes      |
 | `osx-commit`                 | Create commits matching project conventions    | yes      |
 | `osx-workflow`               | Explains the 7-phase autonomous workflow       | opt-in (`--with-autonomous`) |
+
+### Extension Commands
+
+In addition to the skills, the default install ships **5 workflow slash commands**
+under `resources/opencode/commands/`. Each is a self-contained command with its
+full body inline (the Claude mirror dual-emits them as skills too).
+
+| Command                       | Purpose                                       |
+| ----------------------------- | --------------------------------------------- |
+| `/osx-changelog`              | Generate `CHANGELOG.md` from archived changes |
+| `/osx-maintain-docs`          | Update `AGENTS.md` and `CLAUDE.md`            |
+| `/osx-modify`                 | Single-artifact surgical edit                 |
+| `/osx-review`                 | Schema-driven pre-implementation audit        |
+| `/osx-verify-tests`           | Spec-to-test alignment analysis               |
 
 ### Specialized Agents (opt-in: `--with-autonomous`)
 

@@ -16,6 +16,7 @@ Fast, isolated tests under `@pytest.mark.unit`. Mixed pytest and bats.
 | `test_schema_resolution.py` | `resolve_schema()` 4-level precedence chain |
 | `test_schema_subcommands.py` | Subprocess wrappers for `openspec schema *` |
 | `test_schema_validation.py` | Manifest and resource schema validation |
+| `test_skill_taxonomy.py` | Locks in documented skill/command taxonomy (counts, names, slash-command ↔ skill-body pointers) |
 | `test_store_domain.py` | `store_list`, `store_doctor`, `store_register`, `store_unregister` |
 | `test_validate_subcommands.py` | `osx validate` subcommands via Typer CliRunner |
 | `test_validation_translator.py` | `validate_*` library functions and `_translate_validate_payload` |

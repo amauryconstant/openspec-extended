@@ -383,6 +383,6 @@ def validate_proposal_structure(content):
 
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
-Source: resources/opencode/skills/osx-generate-changelog/references/proposal-parsing-guide.md
+Source: resources/opencode/skills/references/proposal-parsing-guide.md
 Regenerate: `mise run sync:mirrors`
 -->
