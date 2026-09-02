@@ -94,6 +94,8 @@ applies the bumps detected by `version:check`.
 
 Shared references live once at `resources/opencode/skills/references/` (cross-cutting, no single owning resource) and are auto-mirrored. See `resources/opencode/skills/AGENTS.md` for the table.
 
+Per-contract operational notes for v1.8.0+ orchestrator consumption (`isPlanningComplete`, `retire_capabilities`, `operations.{apply|archive}.guidance`, `show --diff`, `validate --archived`) live in [docs/review-modify-integration.md §13](docs/review-modify-integration.md#13-post-v170-contract-additions).
+
 ### Testing
 
 ```bash
