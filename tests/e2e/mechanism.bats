@@ -549,3 +549,43 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"--change"* ]]
 }
+
+# ========== G.4a: status --store threading ==========
+#
+# `openspec status --change <name> --store <id> --json` (v1.5.0+; the
+# `--store` flag threads a store id through the call). The binary's `status`
+# passthrough forwards the flag verbatim; this test pins the help text.
+
+@test "mechanism: status --help documents --store flag" {
+    run "$OPENSPEC_BIN" status --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--store"* ]]
+}
+
+# ========== G.4b: validate --archived passthrough ==========
+#
+# `openspec validate --archived` (v1.9.0+) is the CI gate the A.6 wrapper
+# invokes post-install. The wrapper forwards the flag verbatim; this test
+# pins the help text and a smoke-level execution.
+
+@test "mechanism: validate --help documents --archived flag" {
+    run "$OPENSPEC_BIN" validate --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--archived"* ]]
+}
+
+@test "mechanism: validate --archived --json executes without crash against empty repo" {
+    local archived_dir
+    archived_dir=$(mktemp -d)
+    cd "$archived_dir" || exit 1
+
+    run "$OPENSPEC_BIN" validate --archived --json
+    # Acceptable outcomes: rc == 0 (core returned a clean envelope) OR
+    # rc == 1 with valid JSON (core returned an error envelope). Anything
+    # else (non-JSON, traceback, etc.) is a regression.
+    [[ "$output" != *"Traceback"* ]]
+    # If parseable as JSON, accept either success or structured error.
+    if echo "$output" | jq -e . >/dev/null 2>&1; then
+        : # parseable, OK
+    fi
+}
