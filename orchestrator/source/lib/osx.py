@@ -128,7 +128,7 @@ REQUIRED_SKILLS = [
 # REQUIRED_SKILLS: they are slash commands (with self-contained bodies), not
 # skills. They do not appear under `skills/<name>/SKILL.md` on either platform,
 # so the pre-flight skill gate is the wrong surface. The slash-command body is
-# validated separately by `validate_commands` if needed. See `docs/concepts.md`
+# validated separately by `validate_commands` if needed. See `osx-concepts`
 # §2.5 for the full taxonomy.
 #
 # `osx-workflow` is also absent: it is gated by `--with-autonomous` install and
@@ -905,9 +905,9 @@ def state_set_routes(
     """Record pending routes from a read-only phase (e.g. PHASE0).
 
     Routes are slash-command names the user should run externally to fix
-    issues the phase found (e.g. ``/opsx:update``, ``/opsx:continue``).
-    The engine halts cleanly when ``routes_pending`` is non-empty after
-    a phase, so the user actually has time to run them.
+    issues the phase found (e.g. ``/osx-modify``, ``/opsx:update``,
+    ``/opsx:continue``). The engine halts cleanly when ``routes_pending``
+    is non-empty after a phase, so the user actually has time to run them.
     """
     change_dir = _find_change_dir(change, store=store)
     state_file = change_dir / "state.json"
