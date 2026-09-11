@@ -58,6 +58,23 @@ For each artifact with `status == "done"` and non-empty `existingOutputPaths`, q
 
 If `isComplete` is already `true`, the schema is satisfied; the cross-artifact audit (Step 4) is still worth running.
 
+#### Step 2b — Build spec inventory (v1.13.0+, additive)
+
+```bash
+openspec list --specs [--store "<id>"] --json
+# for each spec id in the response:
+openspec show "<spec-id>" --type spec --json --no-scenarios [--store "<id>"]
+```
+
+Capture:
+
+- The full spec inventory as `{spec_id -> {path, purpose, requirements_count}}`.
+- The filtered read for each spec keeps the bulk read small enough to enumerate on every capability (the `--no-scenarios` flag).
+
+> **v1.13.0 contract**: `openspec list --specs` is the first-class spec-inventory command (parallel to `openspec list` for changes). The filtered read `openspec show <id> --type spec --json --no-scenarios` is what generated guidance uses. PHASE0 spec-aware review builds the inventory here and consumes it in Step 4's "Capability-already-exists" check.
+
+If the inventory can't be built (older core, missing `--specs` flag, CLI failure), skip Step 2b and the new Step 4 check — backwards-compatible with v1.11.0 cores. Do not raise.
+
 ### Step 3 — Per-artifact compliance audit
 
 For each queued artifact, run:
@@ -95,6 +112,20 @@ For each existing edge **A → B** (A depends on B, both with concrete files):
 Do **not** hardcode any proposal↔specs↔design↔tasks pairs. The `requires` (or `dependencies` / `unlocks`) graph is fully schema-derived.
 
 If an artifact in the edge target has no concrete files (status `ready` or `blocked`), it belongs to Step 7 routing, not here.
+
+#### Step 4b — Capability-already-exists (v1.13.0+, additive)
+
+For each delta `ADDED Requirements` capability path:
+
+```bash
+# Walk the inventory built in Step 2b:
+for spec_id in spec_inventory.keys(): ...
+# If the ADDED capability path is already in the inventory, flag it.
+```
+
+If the spec inventory (Step 2b) has an existing capability at the same path as the delta's `ADDED Requirements` block, emit a `Warning` finding naming the existing spec id and pointing to `/opsx:update <name>` — the right way to MODIFY/extend an existing capability is `update`, not a fresh `ADDED Requirements` block in a new change. The `Suggestion` ↔ `Warning` ↔ `Critical` calibration rule applies (prefer `Suggestion`).
+
+Skip Step 4b when the spec inventory is unavailable (older core, CLI failure) — backwards-compatible with v1.11.0 cores. Do not raise.
 
 ### Step 5 — Implementation-readiness
 

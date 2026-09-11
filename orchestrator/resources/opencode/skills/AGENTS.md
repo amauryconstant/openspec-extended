@@ -112,7 +112,7 @@ A pre-commit hook (`sync-mirrors-check`) fails the commit if the mirror drifts f
 `osx-review-artifacts` adopts the same six rules as core's `openspec-update-change`. Every skill, command, and orchestrator phase that handles pre-implementation review must honor them. The full contract lives at:
 
 - `references/schema-agnostic-contract.md`
-- `references/store-selection.md` (introduced in v1.7.0, current as of v1.11.0)
+- `references/store-selection.md` (introduced in v1.7.0, current as of v1.13.0)
 
 Add a one-line pointer at the top of any skill that needs either:
 

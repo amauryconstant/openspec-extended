@@ -258,7 +258,7 @@ EXPECTED_OSC_SKILLS = {
 class TestInstallWithCoreRenamesTwelveSkills:
     """``install --with-core`` calls ``rename_core_resources`` which must
     walk BOTH the legacy ``commands/`` tree and the modern ``skills/`` tree.
-    Upstream OpenSpec (current v1.11.0) emits 12 ``openspec-*/SKILL.md`` files
+    Upstream OpenSpec (current v1.13.0) emits 12 ``openspec-*/SKILL.md`` files
     alongside the legacy ``opsx-*.md`` commands; the migrator must rename all
     12 of the skill directories (and rewrite their ``name:`` frontmatter) so
     the user ends up with 12 ``osc-*`` skills, never ``openspec-*``.

@@ -1155,7 +1155,7 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
         #    a phase that starts with missing skills / commands / a broken
         #    change dir will fail immediately anyway, so surface the error
         #    at the top of the run even when --from-phase is passed.
-        #  * Fresh-start-only checks (binary probes, openspec version floor (>= v1.11.0),
+        #  * Fresh-start-only checks (binary probes, openspec version floor (>= v1.13.0),
         #    baseline): skipped with --from-phase because the user is
         #    resuming into an existing run, not starting a new one.
         try:
@@ -1188,9 +1188,11 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
                 raise SystemExit(1)
 
             # Enforce the orchestrator's minimum openspec core version.
-            # Below v1.11.0, `openspec-update-change` and several other v1.6+
-            # workflows are missing or differ; orchestrator would silently no-op
-            # on older cores. The floor is set in source/lib/osx.py.
+            # Below v1.13.0, several v1.13.0 contracts the orchestrator consumes
+            # (`missingPrerequisites`, `openspec list --specs`, fenced-code
+            # preservation, retire_capabilities relaxations) are missing; the
+            # orchestrator would silently no-op or fall through to degraded
+            # behaviour on older cores. The floor is set in source/lib/osx.py.
             core_version = osx_lib.get_core_version()
             if core_version is None or core_version < osx_lib.MIN_OPENSPEC_VERSION:
                 found = (

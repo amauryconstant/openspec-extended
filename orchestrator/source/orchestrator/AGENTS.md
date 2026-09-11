@@ -55,7 +55,7 @@ Each phase may iterate up to `DEFAULT_MAX_PHASE_ITERATIONS` times before the orc
 - Cancellation is via SIGINT/SIGTERM: the orchestrator kills the AI child and records the partial state.
 - After PHASE6, the orchestrator runs `archive_log_file()` to move the per-invocation log into the archive directory and amend the archive commit.
 - `RunRequest.extra_prompt` (A.4) is a low-level extension point for the runner. PHASE1 and PHASE6 populate it with `operations.{apply|archive}.guidance` from `openspec/config.yaml`; other phases leave it empty. The OpenCode runner attaches it via `--file`; the Claude runner prepends it to the slash-command prompt.
-- Full per-contract operational notes for v1.8.0+ orchestrator consumption (`isPlanningComplete`, `retire_capabilities`, `operationGuidance`, `show --diff`, `validate --archived`) live in [docs/review-modify-integration.md §13](../../docs/review-modify-integration.md#13-post-v170-contract-additions).
+- Full per-contract operational notes for v1.8.0–v1.13.0 orchestrator consumption (`isPlanningComplete`, `retire_capabilities`, `operationGuidance`, `show --diff`, `validate --archived`, `validate --report findings`, `missingPrerequisites`, `list --specs`, fenced-code preservation, retire_capabilities relaxations) live in [docs/review-modify-integration.md §13](../../docs/review-modify-integration.md#13-post-v170-contract-additions).
 
 ## Entry Point
 

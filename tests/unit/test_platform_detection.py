@@ -139,7 +139,7 @@ class TestValidateCommandsEitherForm:
     ``.claude/commands/<name>.md`` file and a modern
     ``.claude/skills/<name>/SKILL.md`` directory. Either form satisfies a
     phase command's contract — mirroring upstream OpenSpec's dual-emit
-    strategy (introduced in v1.7.0, current as of v1.11.0).
+    strategy (introduced in v1.7.0, current as of v1.13.0).
     """
 
     def test_claude_skill_only_is_valid(self, tmp_path):

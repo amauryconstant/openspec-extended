@@ -67,9 +67,9 @@ def _run(args: list[str], timeout: int = 30) -> tuple[int, str, str]:
 
 
 # Module-level core version helpers + tunable floor. The orchestrator's
-# hard floor is (1, 11, 0); local dev machines on older cores can opt
+# hard floor is (1, 13, 0); local dev machines on older cores can opt
 # out of the floor check via env var without breaking CI.
-DEFAULT_MIN_CORE_VERSION: tuple[int, int, int] = (1, 11, 0)
+DEFAULT_MIN_CORE_VERSION: tuple[int, int, int] = (1, 13, 0)
 MIN_CORE_VERSION_OVERRIDE_ENV = "OPENSPEC_EXTENDED_MIN_CORE_VERSION_OVERRIDE"
 
 
@@ -95,7 +95,7 @@ def _min_core_version() -> tuple[int, int, int]:
 
     Precedence: OPENSPEC_EXTENDED_MIN_CORE_VERSION_OVERRIDE env var
     (must parse as X.Y.Z all-digits) > DEFAULT_MIN_CORE_VERSION
-    (1, 11, 0).
+    (1, 13, 0).
     """
     override = os.environ.get(MIN_CORE_VERSION_OVERRIDE_ENV)
     if override:
@@ -122,7 +122,7 @@ class TestOpenspecVersion:
             f"installed openspec is {ver}; orchestrator requires >= "
             f"{'.'.join(str(n) for n in floor)}. "
             f"Override locally with {MIN_CORE_VERSION_OVERRIDE_ENV}=X.Y.Z "
-            f"if you're running a pre-v1.11.0 core on purpose."
+            f"if you're running a pre-v1.13.0 core on purpose."
         )
 
 

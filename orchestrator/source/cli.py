@@ -1230,7 +1230,7 @@ def validate_deployment(target_dir: Path, manifest: dict, *, label: str = "") ->
                                 break
                     # Modern Claude form: slash command emitted as a skill
                     # (dual-emit mirrors upstream OpenSpec — introduced in
-                    # v1.7.0, current as of v1.11.0).
+                    # v1.7.0, current as of v1.13.0).
                     if not found:
                         skill_path = target_dir / "skills" / name / "SKILL.md"
                         if skill_path.is_file():

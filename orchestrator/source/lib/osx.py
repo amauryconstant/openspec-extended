@@ -63,7 +63,7 @@ VALID_TRANSITION_REASONS = [
     "retry_requested",
 ]
 
-MIN_OPENSPEC_VERSION: tuple[int, int, int] = (1, 11, 0)
+MIN_OPENSPEC_VERSION: tuple[int, int, int] = (1, 13, 0)
 
 
 def get_core_version(timeout: int = 10) -> tuple[int, int, int] | None:
@@ -71,7 +71,7 @@ def get_core_version(timeout: int = 10) -> tuple[int, int, int] | None:
 
     Returns None if the binary is missing, errors, or the version cannot
     be parsed. Used by the orchestrator to enforce the minimum core version
-    before relying on the v1.11.0 contract surface:
+    before relying on the v1.13.0 contract surface:
 
     - store resolution and ``--store <id>`` (v1.5.0+)
     - ``requires`` array on each artifact in ``openspec status --json``
@@ -88,6 +88,17 @@ def get_core_version(timeout: int = 10) -> tuple[int, int, int] | None:
     - ``openspec status --all`` single-process sweep (v1.11.0+)
     - ``openspec show --diff`` requirement-level diff (v1.11.0+)
     - ``retire_capabilities: true`` change metadata (v1.8.0+)
+    - ``openspec validate --report findings`` opt-in bulk-scope
+      informational findings (v1.12.0+)
+    - ``missingPrerequisites`` array in ``openspec instructions apply --json``
+      naming the full build-order chain (not just the first hop)
+      (v1.13.0+). ``fetch_apply_prerequisites`` reads it.
+    - ``openspec list --specs`` and ``openspec show <id> --type spec
+      --json --no-scenarios`` filtered spec read (v1.13.0+).
+      ``list_specs`` / ``show_spec`` consume them.
+    - ``retire_capabilities`` no longer refuses specs with wrapped scenario
+      bullets or ``+``-marker bullets (v1.13.0+); ``osx-phase6``'s
+      precondition check is relaxed accordingly.
     """
     try:
         result = subprocess.run(
@@ -1373,7 +1384,7 @@ def _command_resolved_for_phase(
     legacy ``<target>/commands/<name>.md`` form or the modern
     ``<target>/skills/<name>/SKILL.md`` form (Claude dual-emits both —
     mirrors upstream OpenSpec's dual-emit strategy introduced in v1.7.0,
-    current as of v1.11.0).
+    current as of v1.13.0).
 
     Returns ``None`` if neither form resolves.
     """
@@ -2199,6 +2210,140 @@ def fetch_instructions(
     if effective_store:
         args.extend(["--store", effective_store])
     return _run_openspec_json(args, timeout=30)
+
+
+def fetch_apply_prerequisites(
+    change_id: str,
+    *,
+    store: str | None = None,
+) -> list[str] | None:
+    """Read ``missingPrerequisites`` from ``openspec instructions apply --json``.
+
+    OpenSpec v1.13.0 added the ``missingPrerequisites`` array to the
+    ``openspec instructions apply --change <id> --json`` envelope. The
+    array names the **full build-order chain** for an apply whose
+    ``applyRequires`` set is not yet satisfied — not just the first hop.
+    A change with no delta specs at all (and no ``skip_specs: true``)
+    is also reported here as a warning, naming both remedies ("write the
+    specs" or "declare ``skip_specs: true``").
+
+    PHASE1 consumers should prefer this field over regex-parsing the text
+    response remedies (which reference ``openspec instructions <artifact>
+    --change <name>`` rather than the ``openspec-continue-change`` skill
+    that the ``core`` profile never installs). The orchestrator's PHASE1
+    logs the chain in the decision log via ``osx log append --extra
+    '{"missing_prerequisites": [...]}'``; logging is informational,
+    not blocking.
+
+    Args:
+      change_id: OpenSpec change id.
+      store: optional store id.
+
+    Returns:
+      - ``[]`` when the field is present and empty (apply is ready).
+      - ``list[str]`` of artifact ids when the field is present and
+        non-empty (apply is blocked; the list is the full chain).
+      - ``None`` when the CLI call fails, the response is non-JSON, the
+        response is not a dict, or the field is absent (older cores
+        pre-v1.13.0). Callers that need to distinguish "older core"
+        from "apply-ready on a newer core" should check the field
+        explicitly via ``fetch_instructions``.
+    """
+    try:
+        payload = fetch_instructions("apply", change_id, store=store)
+    except OSXError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get("missingPrerequisites")
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        return None
+    return [item for item in value if isinstance(item, str)]
+
+
+def list_specs(*, store: str | None = None) -> list[dict] | None:
+    """Run ``openspec list --specs [--store <id>] --json`` and return the array.
+
+    OpenSpec v1.13.0 introduced the ``--specs`` flag on ``openspec list``
+    as a first-class spec-inventory command (parallel to ``openspec list``
+    for changes). The payload is ``{"specs": [...], "root": {...}}``
+    (mirroring the v1.11.0 ``status --all`` shape). Generated guidance
+    reads the inventory then drills into each spec with
+    ``openspec show <id> --type spec --json --no-scenarios`` so the read
+    stays small enough to enumerate on every capability.
+
+    PHASE0 spec-aware review (``osx-review-artifacts`` Step 2) uses this
+    helper to build a ``{spec_id -> {path, purpose}}`` map; Step 4's
+    "Capability-already-exists" check consumes the map to flag drift
+    before approving an ``ADDED Requirements`` block.
+
+    Args:
+      store: optional store id.
+
+    Returns:
+      - ``list[dict]`` of spec entries (may be empty).
+      - ``None`` when the CLI call fails, the response is non-JSON, the
+        response is not a dict, or the command is not recognized (cores
+        pre-v1.13.0). Callers should treat ``None`` as "feature
+        unavailable" and degrade gracefully.
+    """
+    effective_store = store if store is not None else current_store.get()
+    args = ["list", "--specs"]
+    if effective_store:
+        args.extend(["--store", effective_store])
+    try:
+        payload = _run_openspec_json(args, timeout=30)
+    except OSXError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    specs = payload.get("specs")
+    if specs is None:
+        # Some shells may emit a bare list; tolerate both shapes.
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+        return None
+    if not isinstance(specs, list):
+        return None
+    return [item for item in specs if isinstance(item, dict)]
+
+
+def show_spec(
+    spec_id: str,
+    *,
+    store: str | None = None,
+) -> dict | None:
+    """Run ``openspec show <id> --type spec --json --no-scenarios`` and return the envelope.
+
+    The filtered read used by generated guidance in v1.13.0+. The
+    ``--no-scenarios`` flag keeps the bulk read small enough to
+    enumerate on every capability; agents still read relevant specs in
+    full (with scenarios) before deciding what is already covered or
+    what should change. See ``orchestrator/core/source/CHANGELOG.md``
+    PR #1700.
+
+    Args:
+      spec_id: OpenSpec capability path (e.g. ``"auth/oauth-flow"``).
+      store: optional store id.
+
+    Returns:
+      Parsed JSON dict, or ``None`` on CLI failure / non-JSON output /
+      unrecognized command (cores pre-v1.13.0). Callers should treat
+      ``None`` as "feature unavailable" and degrade gracefully.
+    """
+    effective_store = store if store is not None else current_store.get()
+    args = ["show", spec_id, "--type", "spec", "--json", "--no-scenarios"]
+    if effective_store:
+        args.extend(["--store", effective_store])
+    try:
+        payload = _run_openspec_json(args, timeout=30)
+    except OSXError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
 
 
 # Operations whose advisory guidance the orchestrator injects into the AI

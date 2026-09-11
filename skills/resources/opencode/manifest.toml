@@ -2,7 +2,7 @@
 version = "0.2.1"
 
 [resources.skills.osx-review-artifacts]
-version = "0.3.3"
+version = "0.3.4"
 references = ["schema-agnostic-contract.md", "store-selection.md"]
 
 [resources.skills.osx-review-test-compliance]

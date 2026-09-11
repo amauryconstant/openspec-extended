@@ -30,6 +30,7 @@ Before implementation:
 
 1. `openspec status --change "$1" --json` → log via `osx log` with `cli_status` field
 2. `openspec instructions apply --change "$1" --json` → log via `osx log` with `cli_instructions` field
+3. If `cli_instructions` carries `missingPrerequisites` (OpenSpec v1.13.0+ — the full build-order chain, not just the first hop), surface each entry's name + remedy command in the decision log via `--extra '{"missing_prerequisites": [...]}'. Logging is informational; PHASE1 still proceeds with the existing apply gate. The in-process reader is `osx.fetch_apply_prerequisites("$1")` (returns `list[str] | None`; `None` on older cores).
 
 ## PURPOSE
 
@@ -92,12 +93,12 @@ openspec-extended osx state complete "$1"
 # decision log
 openspec-extended osx log append "$1" --phase IMPLEMENTATION --iteration N \
   --summary "..." --next-steps "..." --errors '[]' \
-  --extra '{"tasks_completed":["1.1","1.2"],"tasks_remaining":0,"commits_made":N,"cli_status":{},"cli_instructions":{}}'
+  --extra '{"tasks_completed":["1.1","1.2"],"tasks_remaining":0,"commits_made":N,"cli_status":{},"cli_instructions":{},"missing_prerequisites":[]}'
 
 # iterations log
 openspec-extended osx iterations append "$1" --phase IMPLEMENTATION --iteration N \
   --notes "..." --errors '[]' \
-  --extra '{"tasks_completed":["1.1","1.2","1.3"],"tasks_remaining":0,"tasks_this_session":3,"commits_made":N,"cli_status":{},"cli_instructions":{}}'
+  --extra '{"tasks_completed":["1.1","1.2","1.3"],"tasks_remaining":0,"tasks_this_session":3,"commits_made":N,"cli_status":{},"cli_instructions":{},"missing_prerequisites":[]}'
 ```
 
 Full schema in `references/osx-decision-logging.md`.

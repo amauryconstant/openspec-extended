@@ -94,8 +94,8 @@ def _mock_subprocess_ok(probed: dict):
 def _patch_preflight_env(monkeypatch, env: Path):
     """Patch subprocess.run so tool probes succeed; count validate_* invocations.
 
-    Also mocks ``osx_lib.get_core_version()`` to return (1, 11, 0) so the
-    orchestrator's minimum-version gate (v1.11.0+) does not block the test.
+    Also mocks ``osx_lib.get_core_version()`` to return (1, 13, 0) so the
+    orchestrator's minimum-version gate (v1.13.0+) does not block the test.
     Tests that exercise the gate itself patch it explicitly.
     """
     probed: dict = {}
@@ -104,10 +104,10 @@ def _patch_preflight_env(monkeypatch, env: Path):
     )
     # Gate the minimum-core-version check so preflight tests focus on the
     # preflight behaviour, not the floor enforced in openspec-extended
-    # (raised to (1, 11, 0) to align with the v1.11.0 OpenSpec core sync).
+    # (raised to (1, 13, 0) to align with the v1.13.0 OpenSpec core sync).
     import source.lib.osx as _osx
 
-    monkeypatch.setattr(_osx, "get_core_version", lambda: (1, 11, 0))
+    monkeypatch.setattr(_osx, "get_core_version", lambda: (1, 13, 0))
     return probed
 
 

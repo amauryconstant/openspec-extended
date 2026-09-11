@@ -18,7 +18,7 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 
 ## Requirements
 
-- [OpenSpec](https://github.com/Fission-AI/OpenSpec) v1.11.0+ (required)
+- [OpenSpec](https://github.com/Fission-AI/OpenSpec) v1.13.0+ (required)
 - Python 3.12 or higher (only for building from source)
 - No Python needed when installing the prebuilt binary
 
@@ -234,7 +234,7 @@ After `PHASE6`, files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`.
 | [docs/concepts.md](docs/concepts.md) | Maintainer reference: repo layout, resource taxonomy, OpenSpec framework |
 | [docs/cli-comparison.md](docs/cli-comparison.md) | Maps upstream `openspec` commands to `openspec-extended` passthroughs and the `osx` sub-app |
 | [docs/orchestrator-state-machine.md](docs/orchestrator-state-machine.md) | Phase model, transition reasons, retry budget, schema resolution, resume semantics |
-| [docs/review-modify-integration.md](docs/review-modify-integration.md) | Review/modify integration contract with core (v1.8.0+ surface) |
+| [docs/review-modify-integration.md](docs/review-modify-integration.md) | Review/modify integration contract with core (v1.13.0 surface) |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Error code to fix table for state, git, missing CLI tools, schema, orchestrator errors |
 | `osx-workflow` skill | Runtime reference for AI agents in deployed projects (4 tool layers, 7 phases, `osx` state I/O tool) |
 

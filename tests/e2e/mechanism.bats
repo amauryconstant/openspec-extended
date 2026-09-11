@@ -301,7 +301,7 @@ teardown() {
     echo "$output" | jq -e '.valid == true'
 }
 
-# ========== v1.5+ store subapp (current v1.11.0 compatible) ==========
+# ========== v1.5+ store subapp (current v1.13.0 compatible) ==========
 #
 # The `osx store` Typer subapp (from source/osx_cli.py) is the user-facing
 # CLI surface for the store_* library functions in source/lib/osx.py.
@@ -446,8 +446,8 @@ teardown() {
 
     # The binary's `show` subcommand is a passthrough to `openspec show`.
     # We assert the help text contains the `--diff` flag introduced in
-    # v1.11.0; older cores won't list it (and PHASE2 would silently fall
-    # back to non-diff output).
+    # v1.11.0 (still required as of v1.13.0); older cores won't list it
+    # (and PHASE2 would silently fall back to non-diff output).
     run "$OPENSPEC_BIN" show --help
     echo "STATUS=$status"
     echo "OUTPUT=$output"

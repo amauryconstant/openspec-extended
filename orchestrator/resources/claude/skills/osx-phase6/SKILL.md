@@ -44,10 +44,16 @@ Complete ALL of these steps in order, without stopping. Transient state files (`
 ### Step 0: Precondition check
 
 - If `openspec-extended osx state get "$1"` shows `retire_capabilities: true`,
-  verify the change's `## REMOVED Requirements` block lists capability paths
-  that match the main spec names (otherwise core will abort with "Spec must
-  have at least one requirement"). Confirm with `openspec show "$1" --json`
-  that at least one REMOVED delta is present.
+  confirm `openspec show "$1" --json` reports at least one REMOVED delta
+  (otherwise core will abort with "Spec must have at least one requirement"
+  — no orchestrator-side path preflight is required).
+- **OpenSpec v1.13.0+** relaxes the precondition: specs whose scenario
+  bullets wrap onto a second line, and specs whose scenarios use
+  `+`-marker bullets, are now tolerated by core's retirement merge. The
+  v1.8.0–v1.12.x strict capability-path preflight has been removed; if the
+  core archive aborts with "Spec must have at least one requirement" or
+  any other unaccounted-content message, the orchestrator surfaces the
+  failure through the normal PHASE6 archive-validation path.
 - Surface the retirement intent in the decision log entry: include
   `retirement_intent: true` in the `--extra` JSON.
 - Core v1.8.0+ honors the `retire_capabilities: true` marker in `.openspec.yaml`

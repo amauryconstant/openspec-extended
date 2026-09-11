@@ -1,10 +1,10 @@
 # Review/Modify × Core Pre-Implementation Integration
 
-**Status**: Implemented + refreshed (Section A: orchestrator pre-flight consumes v1.11.0 contract)
-**Last updated**: 2026-09-02
-**Scope**: `osx-review-artifacts`, `osx-modify-artifacts`, and the orchestrator wiring; integrated against OpenSpec core v1.6.0 (initial design), v1.7.0 (`requires`, `instructions archive`, `skip_specs`, `defaultStore`), v1.8.0 (`isPlanningComplete`, `retire_capabilities`, `status` separation), v1.9.0 (`validate --archived`, `task-numbering`, `purpose-placeholder`, `SHALL`/`MUST` guidance), v1.10.0 (`init --language`), v1.11.0 (`status --all`, `show --diff`).
+**Status**: Implemented + refreshed (Section A: orchestrator pre-flight consumes v1.13.0 contract)
+**Last updated**: 2026-09-11
+**Scope**: `osx-review-artifacts`, `osx-modify-artifacts`, and the orchestrator wiring; integrated against OpenSpec core v1.6.0 (initial design), v1.7.0 (`requires`, `instructions archive`, `skip_specs`, `defaultStore`), v1.8.0 (`isPlanningComplete`, `retire_capabilities`, `status` separation), v1.9.0 (`validate --archived`, `task-numbering`, `purpose-placeholder`, `SHALL`/`MUST` guidance), v1.10.0 (`init --language`), v1.11.0 (`status --all`, `show --diff`), v1.12.0 (`validate --report findings`, delta-merge informational findings), v1.13.0 (`missingPrerequisites`, `list --specs` + `--type spec --json --no-scenarios`, fenced-code archive preservation, `[-*+]` delta bullet markers, duplicate-header handling, `retire_capabilities` line-wrap/`+`-marker relaxations).
 
-> **MIN_OPENSPEC_VERSION**: `(1, 11, 0)` (set in `source/lib/osx.py:66`). Orchestrator pre-flight exits 2 below that floor.
+> **MIN_OPENSPEC_VERSION**: `(1, 13, 0)` (set in `source/lib/osx.py:66`). Orchestrator pre-flight exits 2 below that floor.
 
 ---
 
@@ -41,19 +41,21 @@ Mapping the core surface against the full pre-implementation workflow reveals tw
 
 These are precisely the cells our two skills should own.
 
-### 1.4 v1.8.0–v1.11.0 contract additions (orchestrator now consumes)
+### 1.4 v1.8.0–v1.13.0 contract additions (orchestrator now consumes)
 
-The original design (v1.6.0/v1.7.0) focused on the pre-implementation *editor* family. Five later core contracts became load-bearing for the extended orchestrator:
+The original design (v1.6.0/v1.7.0) focused on the pre-implementation *editor* family. Seven later core contracts became load-bearing for the extended orchestrator:
 
 | Contract | Source version | What the orchestrator does with it | Where wired |
 |---|---|---|---|
 | `isPlanningComplete` | v1.8.0 | Pre-flight `validate_change_dir` consults it before falling back to a local file check | `source/lib/osx.py` (validate_change_dir) + `source/orchestrator/engine.py:242` (wrapper) |
-| `retire_capabilities: true` | v1.8.0 | `.openspec.yaml` is read once; orchestrator short-circuits PHASE0 → PHASE6 when set + planning complete | `source/orchestrator/engine.py` (`OrchestratorState.retire_capabilities`, declared at `:79`; set at `:262`/`:324`); `resources/opencode/commands/osx-phase0.md` (routing table at `:33-40`) |
+| `retire_capabilities: true` | v1.8.0 | `.openspec.yaml` is read once; orchestrator short-circuits PHASE0 → PHASE6 when set + planning complete. v1.13.0+ extends the tolerated shape (wrapped scenario bullets, `+`-marker bullets) | `source/orchestrator/engine.py` (`OrchestratorState.retire_capabilities`, declared at `:79`; set at `:262`/`:324`); `resources/opencode/commands/osx-phase0.md` (routing table at `:33-40`); `resources/opencode/commands/osx-phase6.md` (Step 0 precondition check) |
 | `operations.{apply,archive}.guidance` | v1.7.0 | Strings injected into PHASE1/PHASE6 prompts as `RunRequest.extra_prompt` | `source/lib/osx.py` (fetch_operation_guidance at `:2193`); `source/orchestrator/runner.py` (RunRequest.extra_prompt at `:47`); `source/orchestrator/engine.py:545` (build_run_request) |
 | `show <change> --diff` | v1.11.0 | PHASE2 embeds the per-requirement diff as a `## Requirement diff` appendix in `verification-report.md` | `resources/opencode/commands/osx-phase2.md` (MANDATORY CHECKPOINT step 3 at `:23`; embed subsection at `:41`) |
 | `validate --archived` | v1.9.0 | Non-fatal post-install/update sweep; opt-in strict via `--strict-archived` or `OPENSPEC_VALIDATE_ARCHIVED_STRICT=1` | `source/cli.py:_post_install_archived_sweep` at `:1214` (call sites at `:1071` and `:1898`) |
+| `missingPrerequisites` | v1.13.0 | PHASE1 logs the full build-order chain (not just the first hop) from `openspec instructions apply --json`; surfaces each entry's remedy in the decision log | `source/lib/osx.py` (`fetch_apply_prerequisites` helper); `resources/opencode/commands/osx-phase1.md` (new MANDATORY CHECKPOINT step) |
+| `list --specs` + `show <id> --type spec --json --no-scenarios` | v1.13.0 | PHASE0 spec-aware review builds a `{spec_id → {path, purpose}}` inventory and flags "capability already exists" drift on `ADDED Requirements` deltas | `source/lib/osx.py` (`list_specs`, `show_spec` helpers); `resources/opencode/skills/osx-review-artifacts/SKILL.md` (Step 2 + Step 4 capability-already-exists check) |
 
-The full per-contract operational notes (and how they interact with the schema-agnostic contract in §4.2) live in §13 below. The broader context — what these contracts mean in upstream OpenSpec, and the changelog entries that introduced them — lives in `orchestrator/core/AGENTS.md` (v1.7.0–v1.11.0 highlights) and `orchestrator/core/source/CHANGELOG.md`.
+The full per-contract operational notes (and how they interact with the schema-agnostic contract in §4.2) live in §13 below. The broader context — what these contracts mean in upstream OpenSpec, and the changelog entries that introduced them — lives in `orchestrator/core/AGENTS.md` (v1.7.0–v1.13.0 highlights) and `orchestrator/core/source/CHANGELOG.md`.
 
 ---
 
@@ -176,7 +178,7 @@ Both skills consume these CLI outputs. These are the field contracts.
 - `schemaName`: workflow schema id (e.g., `"spec-driven"`)
 - `artifacts[]`: array of `{ id, status, requires }` where status ∈ `{done, ready, blocked}` and `requires` (v1.7.0+) is the dependency list preferred over `dependencies`/`unlocks` for graph construction
 - `isPlanningComplete`: boolean (v1.8.0+) — true when every non-skipped planning artifact exists. Distinct from `isComplete`. Orchestrator pre-flight (`validate_change_dir`) consults this field; treat `isComplete` as deprecated for new consumers.
-- `isComplete`: boolean — v1.8.0 backward-compatibility alias folded from planning and implementation. Kept through v1.11.0.
+- `isComplete`: boolean — v1.8.0 backward-compatibility alias folded from planning and implementation. Kept through v1.13.0.
 - `planningHome`, `changeRoot`: path context (use these, don't assume repo-local paths)
 - `root.{kind, root, source}`: project context (v1.7.0+). `source` ∈ `{project, defaultStore, global_default, store}` distinguishes resolution provenance — `global_default` is the v1.7.0+ machine-level fallback.
 - `artifactPaths.<id>.existingOutputPaths`: concrete on-disk files (glob-expanded for glob artifacts)
@@ -246,7 +248,7 @@ Phase commands (`/osx-phase0` … `/osx-phase6`) live in `resources/opencode/com
   - `OrchestratorState.retire_capabilities` declared at `engine.py:79`; stamped in the `validate_change_dir` wrapper at `:262` and in `validate_archive` at `:324` (A.3)
   - `build_run_request(state, phase, *, on_pid)` helper at `engine.py:545` (A.4 — factors out the `extra_prompt` plumbing)
 - `source/lib/osx.py` — change-management library. Key anchors:
-  - `MIN_OPENSPEC_VERSION = (1, 11, 0)` at `:66`; `REQUIRED_SKILLS` at `:122-128`
+  - `MIN_OPENSPEC_VERSION = (1, 13, 0)` at `:66`; `REQUIRED_SKILLS` at `:122-128`
   - `_fetch_planning_status(change_id, *, store=None)` at `:254` (A.1 helper)
   - `validate_change_dir(target, *, store=None)` at `:1450` (A.1)
   - `_resolve_concurrency(explicit)` at `:1921` (OPENSPEC_CONCURRENCY env-var plumbing)
@@ -521,15 +523,17 @@ Run in order:
 
 ### Phase H — Adopt post-v1.7.0 contracts (Section A, completed)
 
-Six contracts from v1.8.0–v1.11.0 were wired across Section A. Each is documented in §13 with its consumer and reference:
+Seven contracts from v1.8.0–v1.13.0 were wired across Section A. Each is documented in §13 with its consumer and reference:
 
 - A.1 → `isPlanningComplete` (see §13.1) — orchestrator pre-flight consults the v1.8.0+ field before the local file-existence fallback
 - A.2 → `show <change> --diff` appendix in PHASE2 (see §13.4) — per-requirement diff embeds into `verification-report.md`
-- A.3 → `retire_capabilities` marker (see §13.2) — `.openspec.yaml` flag short-circuits PHASE0 → PHASE6
+- A.3 → `retire_capabilities` marker (see §13.2 + §13.7.6) — `.openspec.yaml` flag short-circuits PHASE0 → PHASE6; v1.13.0+ relaxes the tolerated shape (wrapped scenario bullets, `+`-marker bullets)
 - A.4 → `operations.{apply,archive}.guidance` (see §13.3) — project-level advisory injected as `RunRequest.extra_prompt` on PHASE1/PHASE6 spawns only
 - A.5 → `OPENSPEC_LANGUAGE` / `--language` plumbing (informational; not a core contract — see `source/cli.py:_resolve_language:135` and `init --language` in v1.10.0)
 - A.6 → `validate --archived` post-install sweep (see §13.5) — non-fatal by default; `--strict-archived` / `OPENSPEC_VALIDATE_ARCHIVED_STRICT=1` opts in to fail-on-warning
 - A.7 → `OPENSPEC_CONCURRENCY` plumbing (informational; not a core contract — see `_resolve_concurrency` at `source/lib/osx.py:1921`)
+- A.8 → `missingPrerequisites` (v1.13.0+, see §13.7.2) — PHASE1 logs the full build-order chain in the decision log via `fetch_apply_prerequisites`
+- A.9 → `list --specs` + `--type spec --json --no-scenarios` (v1.13.0+, see §13.7.3) — PHASE0 spec-aware review builds a `{spec_id → path}` inventory and flags capability-already-exists drift
 
 The post-A Phase H verification addendum (run alongside Phase G):
 
@@ -635,7 +639,7 @@ This is better handled by starting a fresh change.
 
 ## 9. Version summary
 
-> Current as of OpenSpec core v1.11.0 (`MIN_OPENSPEC_VERSION = (1, 11, 0)`). Per-resource versions tracked in `resources/opencode/manifest.toml` and `resources/claude/manifest.toml`; both files are regenerated by `mise run sync:mirrors`. This section records the per-resource **post-rewrite** versions (the table below is the manifest as it stands today, not the plan-time targets).
+> Current as of OpenSpec core v1.13.0 (`MIN_OPENSPEC_VERSION = (1, 13, 0)`). Per-resource versions tracked in `resources/opencode/manifest.toml` and `resources/claude/manifest.toml`; both files are regenerated by `mise run sync:mirrors`. This section records the per-resource **post-rewrite** versions (the table below is the manifest as it stands today, not the plan-time targets).
 
 ### OpenCode (`resources/opencode/manifest.toml`)
 
@@ -736,7 +740,7 @@ resources/claude/manifest.toml                                         # Phase F
 - **`isPlanningComplete`**: v1.8.0+ `openspec status --change <name> --json` boolean — true when every non-skipped planning artifact exists. Distinct from `isComplete` (kept as a back-compat alias that folds planning and implementation). The orchestrator's pre-flight consults this field; treat `isComplete` as deprecated.
 - **`retire_capabilities`**: v1.8.0+ change metadata in `.openspec.yaml`. Set to `true` (alongside the mandatory `schema:`) to allow `openspec archive` to delete a capability's main spec when its last requirement is REMOVED. Without the marker, archive aborts with "Spec must have at least one requirement". Stamped on `OrchestratorState.retire_capabilities` (`engine.py:79`) and read by PHASE0's routing table.
 - **`operationGuidance`**: v1.7.0+ project-level advisory returned on `openspec instructions apply|archive --json`. Sourced from `operations.{apply|archive}.guidance` in `openspec/config.yaml`. Injected as `RunRequest.extra_prompt` on PHASE1/PHASE6 spawns only; advisory, never authoritative. Do not copy verbatim into artifact files.
-- **`isComplete`** *(deprecated)*: v1.8.0 backward-compatibility alias for the folded planning-and-implementation boolean. Prefer `isPlanningComplete` for any new consumer. Kept through v1.11.0.
+- **`isComplete`** *(deprecated)*: v1.8.0 backward-compatibility alias for the folded planning-and-implementation boolean. Prefer `isPlanningComplete` for any new consumer. Kept through v1.13.0.
 - **Operation guidance vs. artifact rules**: similar YAML shape but distinct meaning — `operationGuidance` (operations.{apply|archive}.guidance) is project-level advisory for an entire operation; `rules` (config.yaml's per-artifact block) is per-artifact content guidance that gets appended to that artifact's built-in template. Both are advisory; neither is an enforceable check.
 
 ---
@@ -753,13 +757,13 @@ resources/claude/manifest.toml                                         # Phase F
 
 ---
 
-## 13. Post-v1.7.0 contract additions
+## 13. Post-v1.7.0 contract additions (v1.8.0–v1.13.0)
 
-This section catalogues every v1.8.0–v1.11.0 contract the extended orchestrator depends on. Each entry has: (1) the contract, (2) the source version, (3) the consumer, (4) the operational note. Upstream context (changelog entries, design intent) lives in `orchestrator/core/AGENTS.md` and `orchestrator/core/source/CHANGELOG.md`; this section is the extended-side mirror.
+This section catalogues every v1.8.0–v1.13.0 contract the extended orchestrator depends on. Each entry has: (1) the contract, (2) the source version, (3) the consumer, (4) the operational note. Upstream context (changelog entries, design intent) lives in `orchestrator/core/AGENTS.md` and `orchestrator/core/source/CHANGELOG.md`; this section is the extended-side mirror.
 
 ### 13.1 `isPlanningComplete` (v1.8.0+)
 
-**Contract**: `openspec status --change <name> --json` returns `isPlanningComplete: bool` distinct from `isComplete`. `isPlanningComplete` is true when every non-skipped planning artifact exists; `isComplete` is a backward-compatibility alias that folds planning and implementation together (kept through v1.11.0). See `orchestrator/core/source/CHANGELOG.md` PR #1518 for the v1.8.0 introduction.
+**Contract**: `openspec status --change <name> --json` returns `isPlanningComplete: bool` distinct from `isComplete`. `isPlanningComplete` is true when every non-skipped planning artifact exists; `isComplete` is a backward-compatibility alias that folds planning and implementation together (kept through v1.13.0). See `orchestrator/core/source/CHANGELOG.md` PR #1518 for the v1.8.0 introduction.
 
 **Consumer**: `validate_change_dir` library helper (`source/lib/osx.py:1450`) reads the field via `_fetch_planning_status` (`source/lib/osx.py:254`); the engine wrapper at `source/orchestrator/engine.py:242` logs the source (`core` or `local-heuristic`) on success. Falls back to `_validate_change_dir_local` (`source/lib/osx.py:1559`) when the CLI is missing, the call fails, the version is below v1.8.0, or `OPENSPEC_EXTENDED_NO_PLANNING_CORE=1` is set.
 
@@ -830,11 +834,71 @@ These were adopted in v1.7.0 but not separately wired in the extended system (al
 - **`defaultStore` machine-level fallback** — `openspec config set defaultStore <id>` sets a per-machine fallback. The status `root` block reports `source: "global_default"` when used. See `resources/opencode/skills/osx-concepts/references/cli-reference.md` ("openspec store and the --store flag" section, line 444+) for the full precedence table. Not separately wired in the orchestrator; resolution flows through `current_store.get()`.
 - **`instructions archive`** — read-only mirror of `instructions apply`. Returns `{ "changeName", "context"?, "operationGuidance"?, "root" }` per `orchestrator/core/source/docs/agent-contract.md:72`. Surfaces archive-specific guidance without requiring a change to be in apply state. (Note: this is the same v1.7.0 PR #1062 that introduced `operationGuidance`.)
 
-### 13.7 Interaction with the §4.2 schema-agnostic contract
+### 13.7 `validate --report findings`, `missingPrerequisites`, and `list --specs` (v1.12.0–v1.13.0)
+
+Three contracts introduced in v1.12.0 and v1.13.0 extend the orchestrator's pre-flight and review surfaces. Two are consumer-wired (`missingPrerequisites`, `list --specs`); one is informational for completeness (`validate --report findings`).
+
+#### 13.7.1 `validate --report findings` (v1.12.0+)
+
+**Contract**: `openspec validate --report findings` is an opt-in bulk-scope flag. It returns only items with errors / warnings / informational findings while keeping full-run totals and exit codes. The default full report is unchanged; the JSON payload identifies the report scope (`{"scope": "findings", "findings": [...]}`). Delta merge conflicts during validation surface as informational findings (including in successful text reports), without changing exit codes.
+
+**Consumer**: Informational. The orchestrator's existing `osx validate *` callers (and the `openspec-extended validate` passthrough) keep using the full report; `validate_all` does not opt into `--report findings` because the orchestrator's failure path reads `findings` shape directly from the unfiltered envelope. The flag is documented here so callers that want findings-only output can pass it through.
+
+**Operational note**: An informational finding for a delta-merge conflict is a sign that the merge preflight couldn't fully resolve its inputs (file-read errors, schema ambiguity). Treat as a yellow warning: review the affected capability path manually before archiving.
+
+**Reference**: `orchestrator/core/source/CHANGELOG.md` v1.12.0 PRs #1710 (delta-merge conflicts), #1713 (`--report findings`). No orchestrator wiring; covered in `references/schema-agnostic-contract.md` under v1.12.0 additions.
+
+#### 13.7.2 `missingPrerequisites` (v1.13.0+)
+
+**Contract**: `openspec instructions apply --change <name> --json` adds a `missingPrerequisites` array naming the full build-order chain for an apply whose `applyRequires` set is not yet satisfied — not just the first hop. A change with no delta specs at all (and no `skip_specs: true`) is now reported as a warning at apply time, naming both remedies ("write the specs" or "declare `skip_specs: true`"). The text remedies reference `openspec instructions <artifact> --change <name>` rather than the `openspec-continue-change` skill (which the `core` profile never installs). PR #1783 in v1.13.0 introduced both.
+
+**Consumer**: PHASE1 (IMPLEMENTATION) fetches the envelope during its MANDATORY CHECKPOINT step (`resources/opencode/commands/osx-phase1.md`). When the response carries a non-empty `missingPrerequisites`, each entry's name + remedy command is surfaced in the decision log via `osx log append --extra '{"missing_prerequisites": [...]}'`; PHASE1 still proceeds with the existing apply gate (logging is informational, not blocking). The in-process helper is `osx.fetch_apply_prerequisites(change_id, *, store=None)` (`source/lib/osx.py`), which returns `list[str] | None` (`None` for cores that don't surface the field).
+
+**Operational note**: The `missingPrerequisites` array is the structured counterpart to the text remedies; consumers should prefer it over regex-parsing the text response. When the field is absent but the change has no `applyRequires` blockers, core simply reports apply-ready — the absence of `missingPrerequisites` is not itself a signal.
+
+**Reference**: `source/lib/osx.py` (`fetch_apply_prerequisites` helper); `resources/opencode/commands/osx-phase1.md` (MANDATORY CHECKPOINT step). Tests: `tests/unit/test_apply_prerequisites.py::TestFetchApplyPrerequisites` (in-process round-trip), `tests/unit/test_resource_contract.py::TestOrchestratorContracts::test_missing_prerequisites_helper_exists` (consumer surface). Authoritative core reference: `orchestrator/core/AGENTS.md` v1.13.0 highlights and `orchestrator/core/source/CHANGELOG.md` PR #1783.
+
+#### 13.7.3 `openspec list --specs` + `show <id> --type spec --json --no-scenarios` (v1.13.0+)
+
+**Contract**: `openspec list --specs` is a first-class spec-inventory command (parallel to `openspec list` for changes); `openspec show <id> --type spec --json --no-scenarios` is the filtered read used by generated guidance. The filtered read is only an overview; agents still read relevant specs in full (with scenarios) before deciding what is already covered or what should change. Capabilities are read with `openspec show "<spec-id>" --type spec --json --no-scenarios` so the read resolves against the same root the listing came from. PR #1700 in v1.13.0 introduced this for the upstream explore / propose workflows.
+
+**Consumer**: PHASE0 spec-aware review (`resources/opencode/skills/osx-review-artifacts/SKILL.md` Step 2 sub-step "Build spec inventory") runs `openspec list --specs` and a per-spec `show --type spec --json --no-scenarios` for every spec id, building a `{spec_id → {path, purpose, requirements_count}}` map held on the audit's working state. Step 4 (Cross-artifact consistency) adds a new "Capability-already-exists" check: for each delta `ADDED Requirements` capability path, if the spec inventory already has that path, emit a `Warning` finding pointing to `/opsx:update <name>` (the right way to MODIFY/extend an existing capability is `update`, not a fresh `ADDED Requirements` block in a new change). In-process helpers: `osx.list_specs(*, store=None)` and `osx.show_spec(spec_id, *, store=None)` (`source/lib/osx.py`).
+
+**Operational note**: The new check is **additive** and never escalates above `Warning` per the calibration rule (prefer `Suggestion`). When the spec inventory can't be loaded (older core, missing `--specs` flag), the helper returns `None` and the consumer silently skips the new check — backwards-compatible with v1.11.0 cores. The `--no-scenarios` filter keeps the bulk read small enough to enumerate on every capability without a subprocess fan-out cost blowup.
+
+**Reference**: `source/lib/osx.py` (`list_specs`, `show_spec` helpers); `resources/opencode/skills/osx-review-artifacts/SKILL.md` (Step 2 sub-step + Step 4 capability-already-exists check). Tests: `tests/unit/test_spec_inventory.py` (helper behaviour), `tests/unit/test_resource_contract.py::TestOrchestratorContracts::test_spec_inventory_consumer_is_wired` (consumer surface). Authoritative core reference: `orchestrator/core/AGENTS.md` v1.13.0 highlights and `orchestrator/core/source/CHANGELOG.md` PR #1700.
+
+#### 13.7.4 Archive preserves fenced code blocks (v1.13.0+)
+
+**Contract**: `openspec archive` no longer rewrites the inside of fenced code blocks. Blank-line collapsing now runs through a fence mask (`buildCodeFenceMask`), so YAML block scalars, Python samples, expected-output fixtures, and Markdown-inside-Markdown keep their internal whitespace across archive runs. Behaviour outside fences is unchanged. PR #1798 in v1.13.0.
+
+**Consumer**: Informational. PHASE6 (`osc-archive-change`) benefits automatically; no orchestrator-side change. The orchestrator-side `verification-report.md` write in PHASE2 uses fenced `diff` blocks (` ```diff ... ``` `); those fences are unchanged.
+
+**Reference**: `orchestrator/core/source/CHANGELOG.md` PR #1798. No orchestrator wiring.
+
+#### 13.7.5 Delta `[-*+]` bullet markers and duplicate-header handling (v1.13.0+)
+
+**Contract**: REMOVED and RENAMED delta sections now accept `*` or `+` as bullet markers, not just `-`. Duplicate section titles (`## ADDED Requirements` written twice, or beside `## Added Requirements`) now read every body, not just the first. PR #1800 (markers) and PR #1802 (duplicate-header handling) in v1.13.0.
+
+**Consumer**: Informational. The schema-agnostic contract already derives parsing from `instructions --json`'s `template` / `rules` rather than hardcoded markers, so neither extension skill nor orchestrator code needed to change. The §4.2 Rule 1 (Schema source of truth) was already the load-bearing rule.
+
+**Reference**: `orchestrator/core/source/CHANGELOG.md` PRs #1800, #1802. No orchestrator wiring.
+
+#### 13.7.6 `retire_capabilities` line-wrap and `+`-marker relaxations (v1.13.0+)
+
+**Contract**: `retire_capabilities: true` no longer refuses specs whose scenario bullets wrap onto a second line (v1.8.0–v1.12.x aborted on the continuation line). Specs whose scenarios use `+`-marker bullets are also covered (v1.8.0–v1.12.x named only `-` and `*` as list markers and reported `+`-bulleted scenario lines as unaccounted content). PR #1782 in v1.13.0.
+
+**Consumer**: `osx-phase6` Step 0 (Precondition check) at `resources/opencode/commands/osx-phase6.md`. The previous strict precondition verified that `## REMOVED Requirements` lists capability paths matching main spec names; v1.13.0's relaxed behaviour makes this preflight redundant. The check is now: confirm `state.retire_capabilities == true`; confirm `openspec show "$1" --json` reports at least one REMOVED delta; log `retirement_intent: true`; defer the rest to core.
+
+**Operational note**: Users who relied on the strict preflight to surface "wrap your bullets" or "use `-` markers" warnings before archive will see those warnings suppressed; core now handles them. The orchestrator's `BLOCKED` path is unchanged — if archive itself fails (e.g., real spec corruption), PHASE6 surfaces the failure through the normal archive-validation flow.
+
+**Reference**: `resources/opencode/commands/osx-phase6.md` Step 0. Authoritative core reference: `orchestrator/core/AGENTS.md` v1.13.0 highlights and `orchestrator/core/source/CHANGELOG.md` PR #1782.
+
+### 13.8 Interaction with the §4.2 schema-agnostic contract
 
 The six rules in §4.2 (Schema source of truth, Glob safety, Frontier discipline, No code edits, Per-edit confirmation, Severity calibration) were authored at v1.6.0. Two rules are now load-bearing beyond their original scope:
 
-- **Rule 1 (Schema source of truth)** — extended to include `isPlanningComplete` (for the planning-complete signal), `retire_capabilities` (for routing), and `operationGuidance` (for prompt injection). Review and modify skills must consume all three when present. The `existingOutputPaths` discipline (write only to concrete files) is unchanged but now stricter: a MODIFIED requirement delta that an agent is editing under `osx-modify-artifacts` should never re-write the file paths the `show --diff` envelope already pinned.
-- **Rule 2 (Glob safety)** — unchanged. The new `requires` field (v1.7.0+) does not change which paths are safe to write.
+- **Rule 1 (Schema source of truth)** — extended to include `isPlanningComplete` (for the planning-complete signal), `retire_capabilities` (for routing), `operationGuidance` (for prompt injection), `missingPrerequisites` (for PHASE1 logging), and the spec inventory (`list --specs` + `--type spec` for PHASE0 review). Review and modify skills must consume these when present. The `existingOutputPaths` discipline (write only to concrete files) is unchanged but now stricter: a MODIFIED requirement delta that an agent is editing under `osx-modify-artifacts` should never re-write the file paths the `show --diff` envelope already pinned.
+- **Rule 2 (Glob safety)** — unchanged. The new `requires` field (v1.7.0+) does not change which paths are safe to write. The v1.13.0 fenced-code preservation in archive means `existingOutputPaths` written by previous archives now retain their internal whitespace, but the path surface is unchanged.
 
-The other four rules are unchanged. The `Severity calibration` rule (adopt `verify`'s "prefer SUGGESTION over WARNING, WARNING over CRITICAL") is reinforced by `validate --archived` findings: an archived change with unfinished `tasks.md` is a hygiene defect, not a regression, so it surfaces as a warning in the post-install sweep unless `--strict-archived` is set.
+The other four rules are unchanged. The `Severity calibration` rule (adopt `verify`'s "prefer SUGGESTION over WARNING, WARNING over CRITICAL") is reinforced by `validate --archived` findings: an archived change with unfinished `tasks.md` is a hygiene defect, not a regression, so it surfaces as a warning in the post-install sweep unless `--strict-archived` is set. The new "capability-already-exists" check in PHASE0 also obeys the calibration rule (prefer `Suggestion` over `Warning`).

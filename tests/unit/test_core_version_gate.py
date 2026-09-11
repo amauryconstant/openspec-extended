@@ -17,8 +17,8 @@ from source.lib import osx
 class TestGetCoreVersion:
     """Unit tests for ``get_core_version``."""
 
-    def test_min_version_is_1_11_0(self):
-        assert osx.MIN_OPENSPEC_VERSION == (1, 11, 0)
+    def test_min_version_is_1_13_0(self):
+        assert osx.MIN_OPENSPEC_VERSION == (1, 13, 0)
 
     def test_cli_module_no_longer_exports_script_version(self):
         """`__version__` in source/__init__.py is the canonical version.
@@ -72,11 +72,11 @@ class TestGetCoreVersion:
 
         fake = MagicMock(
             returncode=0,
-            stdout="@fission-ai/openspec/1.11.0 linux-x64 node-v20.19.0",
+            stdout="@fission-ai/openspec/1.13.0 linux-x64 node-v20.19.0",
             stderr="",
         )
         with patch("source.lib.osx.subprocess.run", return_value=fake):
-            assert osx.get_core_version() == (1, 11, 0)
+            assert osx.get_core_version() == (1, 13, 0)
 
     def test_returns_none_on_garbage(self, monkeypatch):
         from unittest.mock import MagicMock
@@ -88,8 +88,9 @@ class TestGetCoreVersion:
     @pytest.mark.parametrize(
         "raw,expected",
         [
+            ("openspec 1.13.0", (1, 13, 0)),
+            ("@fission-ai/openspec/1.13.0 linux-x64 node-v20.19.0", (1, 13, 0)),
             ("openspec 1.11.0", (1, 11, 0)),
-            ("@fission-ai/openspec/1.11.0 linux-x64 node-v20.19.0", (1, 11, 0)),
             ("@fission-ai/openspec/2.0.0", (2, 0, 0)),
             ("garbage output", None),
         ],
@@ -104,7 +105,7 @@ class TestGetCoreVersion:
 
 @pytest.mark.integration
 class TestCoreVersionGate:
-    """The orchestrator must refuse to start with openspec < 1.11.0."""
+    """The orchestrator must refuse to start with openspec < 1.13.0."""
 
     def test_orchestrator_refuses_old_core(self, tmp_path, monkeypatch):
         """If openspec reports < 1.11.0, run_orchestrator exits 2."""
@@ -122,10 +123,10 @@ class TestCoreVersionGate:
 
         monkeypatch.setattr(eng.subprocess, "run", fake_run)
 
-        # Make `openspec --version` report 1.10.5 (below the v1.11.0 floor)
+        # Make `openspec --version` report 1.12.5 (below the v1.13.0 floor)
         import source.lib.osx as osx_lib
 
-        monkeypatch.setattr(osx_lib, "get_core_version", lambda: (1, 10, 5))
+        monkeypatch.setattr(osx_lib, "get_core_version", lambda: (1, 12, 5))
 
         # Stub validate_* and record_baseline so we hit only the gate
         # A.1: validate_change_dir runs after the gate
@@ -157,7 +158,7 @@ class TestCoreVersionGate:
         assert exc.value.code == 2
 
     def test_orchestrator_accepts_new_core(self, tmp_path, monkeypatch):
-        """openspec 1.11.0+ passes the gate; further validation runs."""
+        """openspec 1.13.0+ passes the gate; further validation runs."""
         from source.orchestrator import engine as eng
         import source.lib.osx as osx_lib
 
@@ -167,7 +168,7 @@ class TestCoreVersionGate:
             return MagicMock(returncode=0, stdout="", stderr="")
 
         monkeypatch.setattr(eng.subprocess, "run", fake_run)
-        monkeypatch.setattr(osx_lib, "get_core_version", lambda: (1, 11, 0))
+        monkeypatch.setattr(osx_lib, "get_core_version", lambda: (1, 13, 0))
 
         called = {"v": False}
 

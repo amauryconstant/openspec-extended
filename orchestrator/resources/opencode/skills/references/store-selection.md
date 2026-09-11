@@ -19,7 +19,7 @@ The response is an array of `{id, name, root, ...}`. Use `id` for the `--store` 
 | `instructions` | yes |
 | `list` | yes |
 | `show` | yes (including `show --diff` since v1.11.0) |
-| `validate` | yes (including `validate --archived` since v1.9.0) |
+| `validate` | yes (including `validate --archived` since v1.9.0; `validate --report findings` since v1.12.0) |
 | `archive` | yes |
 | `doctor` | yes |
 | `context` | yes |
@@ -33,7 +33,7 @@ Hints printed by commands already carry the flag; keep it on follow-ups.
 
 Commands act on the nearest local `openspec/` root.
 
-## Machine-level fallback (v1.7.0+, current as of v1.11.0)
+## Machine-level fallback (v1.7.0+, current as of v1.13.0)
 
 `openspec config set defaultStore <id>` sets a project-wide default. Status responses report `root.source: "global_default"` when used. Prefer per-command `--store` over the global default when you can — it makes the choice visible to anyone reading the audit log.
 

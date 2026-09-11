@@ -96,6 +96,8 @@ When `--schema` overrides a project config that declares a different schema, the
 
 Before the orchestrator hands a change to PHASE0, `validate_change_dir` (`source/lib/osx.py`) asks core whether the plan is finished. The signal is `isPlanningComplete` on the envelope returned by `openspec status --change <id> --json` (core v1.8.0+; the orchestrator's `MIN_OPENSPEC_VERSION` gate already guarantees this). When the field is `true`, planning is complete and the orchestrator only locally verifies `tasks.md` exists and is non-empty; when `false`, every artifact in the `artifacts` array with `status != "done"` is reported as a missing planning artifact.
 
+The v1.13.0+ `missingPrerequisites` field on `openspec instructions apply --json` extends chain-reporting beyond the first hop; see [docs/review-modify-integration.md §13.7.2](review-modify-integration.md#1372-missingprerequisites-v1130) for the orchestrator-side consumer (PHASE1 logs the chain, doesn't block).
+
 The fallback chain is: **core (preferred)** → **local file-existence check** → **CI escape hatch**. When `openspec` is off `PATH`, the call to `_fetch_planning_status` returns `None` and the original local check (`schema`'s required files plus the `specs/` glob for `spec-driven`) runs verbatim, with a single `Warning: openspec status --change <id> unavailable; falling back to local check` line on stderr. CI runners that ship without `openspec` can skip the upstream call entirely by setting `OPENSPEC_EXTENDED_NO_PLANNING_CORE=1` — the env var short-circuits before any subprocess is spawned.
 
 ## Cache: `_PATHS_CACHE`

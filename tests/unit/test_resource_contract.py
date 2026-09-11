@@ -34,10 +34,11 @@ Coverage:
     ``proposal.md``/``design.md``/``tasks.md`` references.
   - ``TestSkillDescriptionLeadingWord`` — locks in the model-invocation
     trigger word for every canonical skill.
-  - ``TestOrchestratorContracts`` — mirrors the still-load-bearing
-    v1.8.0–v1.11.0 contracts from ``docs/review-modify-integration.md``
-    §13 (``isPlanningComplete``, ``retire_capabilities``, ``operationGuidance``,
-    ``show --diff``, ``validate --archived``).
+    - ``TestOrchestratorContracts`` — mirrors the still-load-bearing
+      v1.8.0–v1.13.0 contracts from ``docs/review-modify-integration.md``
+      §13 (``isPlanningComplete``, ``retire_capabilities``, ``operationGuidance``,
+      ``show --diff``, ``validate --archived``, ``missingPrerequisites``,
+      ``list --specs`` + ``--type spec --json --no-scenarios``).
   - ``TestSharedReferencesPackaging`` — shared references pool files
     are all consumed by some skill or command (orchestrator-side and
     skills-side pools).
@@ -355,7 +356,7 @@ class TestDualEmitDiscipline:
     """Every opencode command must dual-emit on the Claude side: the
     legacy ``commands/osx/<base>.md`` and the modern
     ``skills/osx-<base>/SKILL.md``. Mirrors the upstream OpenSpec
-    v1.7.0 dual-emit strategy (current as of v1.11.0)."""
+    v1.7.0 dual-emit strategy (current as of v1.13.0)."""
 
     def test_every_opencode_command_has_legacy_command_mirror(self):
         for src in _all_opencode_commands():
@@ -640,7 +641,7 @@ class TestSkillDescriptionLeadingWord:
 
 @pytest.mark.unit
 class TestOrchestratorContracts:
-    """Mirror the still-load-bearing v1.8.0–v1.11.0 contracts from
+    """Mirror the still-load-bearing v1.8.0–v1.13.0 contracts from
     ``docs/review-modify-integration.md`` §13. Each test pins the
     engine/library symbol that consumes the contract; integration tests
     cover the round-trip behaviour."""
@@ -648,8 +649,11 @@ class TestOrchestratorContracts:
     ENGINE_PY = REPO_ROOT / "orchestrator" / "source" / "orchestrator" / "engine.py"
     LIB_OSX_PY = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx.py"
     CLI_PY = REPO_ROOT / "orchestrator" / "source" / "cli.py"
+    PHASE1_OPENCODE = ORCH_OPENCODE / "commands" / "osx-phase1.md"
+    PHASE1_CLAUDE = ORCH_CLAUDE / "skills" / "osx-phase1" / "SKILL.md"
     PHASE2_OPENCODE = ORCH_OPENCODE / "commands" / "osx-phase2.md"
     PHASE2_CLAUDE = ORCH_CLAUDE / "skills" / "osx-phase2" / "SKILL.md"
+    REVIEW_ARTIFACTS_OPENCODE = SK_OPENCODE / "skills" / "osx-review-artifacts" / "SKILL.md"
 
     def test_is_planning_complete_contract_is_consumed(self):
         """§13.1: ``openspec status --change ... --json`` exposes
@@ -752,6 +756,97 @@ class TestOrchestratorContracts:
             f"{self.LIB_OSX_PY.relative_to(REPO_ROOT)} must define "
             f"`validate_archived` (in-process wrapper for the "
             f"`openspec validate --archived` envelope)"
+        )
+
+    def test_missing_prerequisites_helper_exists(self):
+        """§13.7.2: ``fetch_apply_prerequisites`` is the in-process reader
+        for the v1.13.0+ ``missingPrerequisites`` array on
+        ``openspec instructions apply --json``. PHASE1 consumes it to log
+        the full build-order chain in the decision log."""
+        text = _read(self.LIB_OSX_PY)
+        assert "def fetch_apply_prerequisites(" in text, (
+            f"{self.LIB_OSX_PY.relative_to(REPO_ROOT)} must define "
+            f"`fetch_apply_prerequisites` (v1.13.0+ `missingPrerequisites` "
+            f"reader for PHASE1 logging)"
+        )
+
+    def test_missing_prerequisites_field_is_referenced(self):
+        """§13.7.2: the library code references the ``missingPrerequisites``
+        envelope field name at least once (parse or string-key)."""
+        text = _read(self.LIB_OSX_PY)
+        assert "missingPrerequisites" in text, (
+            f"{self.LIB_OSX_PY.relative_to(REPO_ROOT)} must reference "
+            f"the `missingPrerequisites` envelope field"
+        )
+
+    def test_phase1_command_logs_missing_prerequisites(self):
+        """§13.7.2: PHASE1 (IMPLEMENTATION) fetches
+        ``openspec instructions apply --change <name> --json`` and, when
+        the v1.13.0+ envelope carries ``missingPrerequisites``, surfaces
+        each entry's name in the decision log via
+        ``--extra '{"missing_prerequisites": [...]}'``."""
+        text = _read(self.PHASE1_OPENCODE)
+        assert "missingPrerequisites" in text, (
+            f"{self.PHASE1_OPENCODE.relative_to(REPO_ROOT)} must reference "
+            f"the `missingPrerequisites` field (v1.13.0+ PHASE1 logging)"
+        )
+        assert "missing_prerequisites" in text, (
+            f"{self.PHASE1_OPENCODE.relative_to(REPO_ROOT)} must include "
+            f"`missing_prerequisites` in the decision-log --extra JSON"
+        )
+
+    def test_phase1_claude_mirror_logs_missing_prerequisites(self):
+        """§13.7.2: the Claude dual-emit of PHASE1 must also reference the
+        ``missingPrerequisites`` field and the ``missing_prerequisites``
+        decision-log key."""
+        text = _read(self.PHASE1_CLAUDE)
+        assert "missingPrerequisites" in text, (
+            f"{self.PHASE1_CLAUDE.relative_to(REPO_ROOT)} must carry the "
+            f"`missingPrerequisites` reference (v1.13.0+ PHASE1 logging)"
+        )
+        assert "missing_prerequisites" in text, (
+            f"{self.PHASE1_CLAUDE.relative_to(REPO_ROOT)} must carry the "
+            f"`missing_prerequisites` decision-log key"
+        )
+
+    def test_list_specs_helper_exists(self):
+        """§13.7.3: ``list_specs`` is the in-process reader for the
+        v1.13.0+ ``openspec list --specs --json`` envelope. PHASE0
+        spec-aware review uses it to build the spec inventory."""
+        text = _read(self.LIB_OSX_PY)
+        assert "def list_specs(" in text, (
+            f"{self.LIB_OSX_PY.relative_to(REPO_ROOT)} must define "
+            f"`list_specs` (v1.13.0+ spec-inventory reader for PHASE0)"
+        )
+
+    def test_show_spec_helper_exists(self):
+        """§13.7.3: ``show_spec`` is the in-process reader for the
+        v1.13.0+ filtered ``openspec show <id> --type spec --json
+        --no-scenarios`` envelope. PHASE0 spec-aware review uses it to
+        drill into each inventory entry."""
+        text = _read(self.LIB_OSX_PY)
+        assert "def show_spec(" in text, (
+            f"{self.LIB_OSX_PY.relative_to(REPO_ROOT)} must define "
+            f"`show_spec` (v1.13.0+ filtered spec-read helper for PHASE0)"
+        )
+
+    def test_review_artifacts_uses_spec_inventory(self):
+        """§13.7.3: ``osx-review-artifacts`` Step 2b (Build spec inventory)
+        runs ``openspec list --specs`` and Step 4b (Capability-already-exists)
+        consumes the inventory to flag drift on ``ADDED Requirements`` deltas."""
+        text = _read(self.REVIEW_ARTIFACTS_OPENCODE)
+        assert "openspec list --specs" in text, (
+            f"{self.REVIEW_ARTIFACTS_OPENCODE.relative_to(REPO_ROOT)} must "
+            f"call `openspec list --specs` (v1.13.0+ spec-inventory read)"
+        )
+        assert "--type spec" in text and "--no-scenarios" in text, (
+            f"{self.REVIEW_ARTIFACTS_OPENCODE.relative_to(REPO_ROOT)} must "
+            f"call `openspec show --type spec --json --no-scenarios` "
+            f"(v1.13.0+ filtered spec read)"
+        )
+        assert "Capability-already-exists" in text, (
+            f"{self.REVIEW_ARTIFACTS_OPENCODE.relative_to(REPO_ROOT)} must "
+            f"include the Capability-already-exists check (Step 4b)"
         )
 
 

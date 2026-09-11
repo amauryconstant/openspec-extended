@@ -131,7 +131,7 @@ Each side's manifest is mirrored to Claude via `mise run sync-mirrors`.
 On Claude, every opencode command dual-emits as both the legacy
 `.claude/commands/osx/<name>.md` and the modern
 `.claude/skills/osx-<name>/SKILL.md` form (mirrors upstream OpenSpec's
-dual-emit, current as of v1.11.0).
+dual-emit, current as of v1.13.0).
 
 When a resource is installed at the target site, each side writes its
 own manifest at the target:
