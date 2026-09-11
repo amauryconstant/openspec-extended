@@ -55,24 +55,90 @@ git diff --staged
 
 ### 6. Draft and Commit
 
-Follow detected standard. See references for examples.
+Follow detected standard. See Format examples below and the
+`references/standards.md` reference for the full type tables.
 
 ### 7. Verify
 
 `git log -1 --format='%s'` returns the standard's prefix shape (e.g. `feat:` for Conventional).
 
+## Format examples
+
+One minimal example per standard. The full per-type tables live in
+`references/standards.md`.
+
+### Conventional Commits
+
+```
+feat(api): add rate limiting endpoint
+
+- Add token bucket middleware
+- Configure limits per route
+
+Closes #123
+```
+
+Common types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`,
+`test`, `build`, `ci`, `chore`. Body wrapped at 72 chars; lowercase
+description, no trailing period; `!` before `:` marks breaking changes.
+
+### Angular
+
+```
+fix(router): resolve lazy loading guard order
+
+Previously, the router would incorrectly resolve guards during
+lazy loading scenarios. This fix ensures guards are resolved
+in the correct order for all navigation types.
+
+- Fix guard resolution timing
+- Add integration tests
+
+Fixes #12345
+```
+
+Scope is mandatory for non-`docs` types; body required (≥20 chars)
+except for `docs`. Types: `build`, `ci`, `docs`, `feat`, `fix`,
+`perf`, `refactor`, `test`.
+
+### Gitmoji
+
+```
+✨ Add user authentication system
+```
+
+```
+🐛 Fix memory leak in image processor
+
+- Clear cache after batch processing
+- Add memory usage monitoring
+```
+
+Common emojis: ✨ feat, 🐛 fix, 📝 docs, ♻️ refactor, 💄 style,
+🔥 remove, 🚀 deploy, 🔒 security, ✅ tests, 🔧 config.
+
+### Classic
+
+```
+Fix PHASE6 workflow issues in openspec-auto
+
+- Return error for archived changes without state.json
+- Skip show_progress after PHASE6 (state deleted)
+```
+
+Subject ≤50 chars ideal, 72 max. Capitalize first letter, no trailing
+period, imperative mood. Common verbs: Add, Fix, Update, Remove,
+Refactor, Release, Improve, Rename, Bump, Enable.
+
 ## References
 
-- `references/standards.md` — full standards reference
-- `references/detection.md` — detection details
-- `references/examples/conventional.md`
-- `references/examples/angular.md`
-- `references/examples/gitmoji.md`
-- `references/examples/classic.md`
+- `references/standards.md` — full standards reference (per-type tables, common scopes, common emojis, seven rules)
+- `references/detection.md` — detection heuristics and verification regexes
 
 ## Scripts
 
 - `scripts/detect-commit-style` — auto-detect commit standard from git history
+
 <!--
 # AUTO-GENERATED from opencode via `mise run sync:mirrors` — do not edit by hand.
 Source: opencode/skills/osx-commit/SKILL.md
