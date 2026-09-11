@@ -49,8 +49,6 @@ Most widely adopted, machine-readable format.
 | `ci` | CI config | None |
 | `chore` | Maintenance | None |
 
-**See:** `examples/conventional.md`
-
 ---
 
 ## 2. Angular Commit Guidelines
@@ -73,8 +71,6 @@ Stricter subset of Conventional Commits.
 - Present tense imperative only
 
 **Types:** `build`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `test`
-
-**See:** `examples/angular.md`
 
 ---
 
@@ -110,8 +106,6 @@ Emoji-based, popular in visual/creative projects.
 | ✅ | `:white_check_mark:` | Tests |
 | 🔧 | `:wrench:` | Config |
 
-**See:** `examples/gitmoji.md`
-
 ---
 
 ## 4. Classic (cbeams Style)
@@ -137,8 +131,6 @@ Traditional style used by Linux kernel, Git itself. No prefixes.
 7. Body explains what/why, not how
 
 **Common Verbs:** Add, Fix, Update, Remove, Refactor, Release, Improve, Rename, Bump, Enable
-
-**See:** `examples/classic.md`
 
 ---
 
