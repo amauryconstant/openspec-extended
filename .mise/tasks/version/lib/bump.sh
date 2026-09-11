@@ -38,14 +38,14 @@ PY
     printf '    OK %s\n' "$(basename "$file_path")"
 }
 
-# Bump the __version__ in source/__init__.py.
+# Bump the __version__ in orchestrator/source/__init__.py.
 bump_py_init_version() {
     local new_version="$1"
     local dry_run="${2:-false}"
-    local py_init="$BUMP_PROJECT_ROOT/source/__init__.py"
+    local py_init="$BUMP_PROJECT_ROOT/orchestrator/source/__init__.py"
 
     if [[ "$dry_run" == "true" ]]; then
-        printf '    [DRY-RUN] source/__init__.py\n'
+        printf '    [DRY-RUN] orchestrator/source/__init__.py\n'
         return 0
     fi
 
@@ -66,7 +66,7 @@ if n != 1:
     sys.exit(f"__version__ not found in {path}")
 path.write_text(new_text)
 PY
-    printf '    OK source/__init__.py\n'
+    printf '    OK orchestrator/source/__init__.py\n'
 }
 
 # Bump the [project] version in pyproject.toml.
