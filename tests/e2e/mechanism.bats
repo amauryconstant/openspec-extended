@@ -72,9 +72,7 @@ teardown() {
 # observe a real install from a clean state.
 
 @test "mechanism: install opencode deploys bundled resources" {
-    local fresh_dir
-    fresh_dir=$(mktemp -d)
-    cd "$fresh_dir" || exit 1
+    cd "$BATS_TEST_TMPDIR" || exit 1
 
     run "$OPENSPEC_BIN" install opencode --with-autonomous
     echo "STATUS=$status"
@@ -99,14 +97,10 @@ teardown() {
 
     # osx-concepts was dropped; the deletion is now load-bearing.
     [ ! -d .opencode/skills/osx-concepts ]
-
-    rm -rf "$fresh_dir"
 }
 
 @test "mechanism: install claude deploys bundled resources" {
-    local fresh_dir
-    fresh_dir=$(mktemp -d)
-    cd "$fresh_dir" || exit 1
+    cd "$BATS_TEST_TMPDIR" || exit 1
 
     run "$OPENSPEC_BIN" install claude --with-autonomous
     echo "STATUS=$status"
@@ -133,14 +127,10 @@ teardown() {
 
     # osx-concepts was dropped; the deletion is now load-bearing.
     [ ! -d .claude/skills/osx-concepts ]
-
-    rm -rf "$fresh_dir"
 }
 
 @test "mechanism: install opencode defaults to utility-only" {
-    local fresh_dir
-    fresh_dir=$(mktemp -d)
-    cd "$fresh_dir" || exit 1
+    cd "$BATS_TEST_TMPDIR" || exit 1
 
     run "$OPENSPEC_BIN" install opencode
     echo "STATUS=$status"
@@ -153,14 +143,10 @@ teardown() {
     [ -d .opencode/skills/osx-review-artifacts ]
     [ -f .opencode/commands/osx-review.md ]
     [ ! -e .opencode/agents ]
-
-    rm -rf "$fresh_dir"
 }
 
 @test "mechanism: install claude defaults to utility-only" {
-    local fresh_dir
-    fresh_dir=$(mktemp -d)
-    cd "$fresh_dir" || exit 1
+    cd "$BATS_TEST_TMPDIR" || exit 1
 
     run "$OPENSPEC_BIN" install claude
     echo "STATUS=$status"
@@ -172,8 +158,6 @@ teardown() {
     [ ! -d .claude/skills/osx-concepts ]
     [ -d .claude/skills/osx-review-artifacts ]
     [ -f .claude/commands/osx/review.md ]
-
-    rm -rf "$fresh_dir"
 }
 
 # ========== Token substitution regression ==========
@@ -185,9 +169,7 @@ teardown() {
 # must also resolve to a real on-disk directory.
 
 @test "mechanism: install opencode substitutes {{TOKEN}} placeholders" {
-    local fresh_dir
-    fresh_dir=$(mktemp -d)
-    cd "$fresh_dir" || exit 1
+    cd "$BATS_TEST_TMPDIR" || exit 1
 
     run "$OPENSPEC_BIN" install opencode --with-autonomous
     echo "STATUS=$status"
@@ -217,14 +199,10 @@ teardown() {
         echo "FAIL: opencode deploy leaked Claude slash-command form /osx:review"
         return 1
     fi
-
-    rm -rf "$fresh_dir"
 }
 
 @test "mechanism: install claude substitutes {{TOKEN}} placeholders" {
-    local fresh_dir
-    fresh_dir=$(mktemp -d)
-    cd "$fresh_dir" || exit 1
+    cd "$BATS_TEST_TMPDIR" || exit 1
 
     run "$OPENSPEC_BIN" install claude --with-autonomous
     echo "STATUS=$status"
@@ -256,8 +234,6 @@ teardown() {
     # The referenced skill directory must actually exist on disk.
     [ -d .claude/skills/osx-review-artifacts ]
     [ -f .claude/skills/osx-review-artifacts/SKILL.md ]
-
-    rm -rf "$fresh_dir"
 }
 
 # ========== osx subcommand surface ==========
@@ -464,10 +440,9 @@ teardown() {
         skip "openspec CLI not on PATH; --diff flag requires v1.11.0+ core"
     fi
 
-    # Fresh tmpdir so we don't pollute the per-test openspec root.
-    local show_dir
-    show_dir=$(mktemp -d)
-    cd "$show_dir" || exit 1
+    # BATS_TEST_TMPDIR is auto-cleaned by bats; using it instead of mktemp
+    # means a failed assertion below doesn't leave the tmpdir behind.
+    cd "$BATS_TEST_TMPDIR" || exit 1
 
     # The binary's `show` subcommand is a passthrough to `openspec show`.
     # We assert the help text contains the `--diff` flag introduced in
@@ -479,15 +454,12 @@ teardown() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"--diff"* ]] || {
         echo "FAIL: openspec show --help does not document --diff flag"
-        rm -rf "$show_dir"
         return 1
     }
 
     # Sanity: the `--json` flag must still be present (used together
     # with `--diff` in PHASE2's MANDATORY CHECKPOINT).
     [[ "$output" == *"--json"* ]]
-
-    rm -rf "$show_dir"
 }
 
 # ========== A.6: post-install `validate --archived` sweep ==========
@@ -567,9 +539,7 @@ teardown() {
 }
 
 @test "mechanism: validate --archived --json executes without crash against empty repo" {
-    local archived_dir
-    archived_dir=$(mktemp -d)
-    cd "$archived_dir" || exit 1
+    cd "$BATS_TEST_TMPDIR" || exit 1
 
     run "$OPENSPEC_BIN" validate --archived --json
     # Acceptable outcomes: rc == 0 (core returned a clean envelope) OR
