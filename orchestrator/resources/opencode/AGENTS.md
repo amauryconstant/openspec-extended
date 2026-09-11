@@ -1,15 +1,16 @@
 # OpenCode Platform Resources (Orchestrator Side)
 
-Resources for the OpenCode AI coding assistant. Phase 4 moved this tree
-under `orchestrator/resources/opencode/` (alongside the orchestration
-engine source). The mirror lives at `orchestrator/resources/claude/`.
-The skills side has a parallel tree under `skills/resources/{opencode,claude}/`.
+Resources for the OpenCode AI coding assistant. The orchestration-side
+OpenCode tree lives at `orchestrator/resources/opencode/` (alongside
+the orchestration engine source). The mirror lives at
+`orchestrator/resources/claude/`. The skills side has a parallel tree
+under `skills/resources/{opencode,claude}/`.
 
 ## Layout
 
 ```
 orchestrator/resources/opencode/
-├── manifest.toml            # single unified manifest (split happens in Phase 5)
+├── manifest.toml            # Orchestrator-side manifest (workflow skill + agents + phase commands + osx-changelog + osx-maintain-docs)
 ├── skills/                  # osx-* skills, one directory per skill
 │   ├── osx-workflow/        # 7-phase orchestrator workflow skill
 │   └── references/          # Shared references pool (cross-cutting)
@@ -28,7 +29,7 @@ orchestrator/resources/opencode/
 
 ## Naming
 
-All extended resources use the `osx-` prefix. The skills, agents, and commands that drive the 7-phase orchestrator live here; gap-filling skills (review, commit, verify-tests) live on the skills side at `skills/resources/opencode/`. The combined manifest is at `orchestrator/resources/opencode/manifest.toml`.
+All extended resources use the `osx-` prefix. The skills, agents, and commands that drive the 7-phase orchestrator live here; gap-filling skills (review, commit, verify-tests) live on the skills side at `skills/resources/opencode/`. The orchestrator-side manifest declares only the orchestrator side's resources — the skills side has its own manifest.
 
 ## Claude Mirror Note
 
@@ -41,5 +42,5 @@ The Claude mirror at `orchestrator/resources/claude/` dual-emits every opencode 
 - `orchestrator/resources/opencode/agents/AGENTS.md` — Agent files
 - `orchestrator/resources/opencode/commands/AGENTS.md` — Command files
 - `orchestrator/resources/claude/AGENTS.md` — Sibling platform + dual-emit rationale
-- `skills/resources/opencode/AGENTS.md` (TBD) — Skills-side platform docs
+- `skills/resources/opencode/AGENTS.md` — Skills-side platform docs
 - `research/opencode-docs.md` — Platform capability reference

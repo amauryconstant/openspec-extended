@@ -10,7 +10,7 @@ lives under `orchestrator/resources/opencode/`.
 
 ```
 skills/resources/opencode/
-├── manifest.toml            # single unified manifest (split happens in Phase 5)
+├── manifest.toml            # Skills-side manifest (3 gap-filling skills + 2 review commands)
 ├── skills/                  # gap-filling skills (review, commit, test-compliance)
 │   ├── osx-commit/
 │   ├── osx-review-artifacts/
@@ -22,7 +22,7 @@ skills/resources/opencode/
 
 ## Naming
 
-All extended resources use the `osx-` prefix. The 3 skills and 2 commands here are listed in `manifest.toml`.
+All extended resources use the `osx-` prefix. The 3 skills and 2 commands here are listed in this side's `manifest.toml`. The orchestrator side has a disjoint manifest at `orchestrator/resources/opencode/manifest.toml`.
 
 ## See Also
 

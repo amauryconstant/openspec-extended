@@ -88,12 +88,11 @@ app.add_typer(osx_app, name="osx")
 def get_resources_dir() -> Path:
     """Return the orchestrator-side resources directory.
 
-    Phase 4 split the single ``resources/`` root into two parallel trees
-    — ``orchestrator/resources/`` (this function) and
-    ``skills/resources/`` (see :func:`get_skills_resources_dir`). The
-    frozen binary ships both trees; in the source tree, this resolver
-    points at the orchestrator side (the side that owns the workflow
-    resources, phase commands, and agents).
+    The project ships two parallel resource trees (Phase 4 split) —
+    ``orchestrator/resources/`` (workflow side, this function) and
+    ``skills/resources/`` (see :func:`get_skills_resources_dir`).
+    Each side owns its own manifest and writes its own target-side
+    manifest at deploy time (Phase 5).
 
     In the source tree, ``source/`` lives at ``orchestrator/source/``,
     so ``Path(__file__).parent.parent`` resolves to ``orchestrator/``
@@ -102,8 +101,7 @@ def get_resources_dir() -> Path:
     In the frozen bundle, PyInstaller's ``openspec.spec`` collects each
     side's files under the legacy ``resources/`` prefix for the
     orchestrator side and under ``skills/resources/`` for the skills
-    side. The deploy function consults both trees once Phase 5 splits
-    the manifests.
+    side.
     """
     if getattr(sys, "frozen", False):
         return Path(getattr(sys, "_MEIPASS", "")) / "resources"
@@ -488,12 +486,13 @@ def deploy_type(
             gated += 1
             continue
 
-        # Phase 4 split: the unified manifest declares resources from
-        # both sides, but on disk each resource lives on exactly one
-        # side. Skip names whose source path is missing on the current
-        # side — the other side's deploy loop will pick them up.
-        # Skills are directories; commands and agents are files. Claude
-        # commands may also live under a nested ``osx/`` subdir.
+        # Phase 5 split: each side's manifest declares only its own
+        # resources, and on disk each resource lives on exactly one
+        # side. The deploy_type caller passes a per-side source manifest
+        # so this defensive skip rarely fires — but it remains for
+        # safety against manifest entries that drift from the on-disk
+        # layout. Skills are directories; commands and agents are files.
+        # Claude commands may also live under a nested ``osx/`` subdir.
         if resource_type == "skills":
             source_path = source_type_dir / name
         else:
@@ -552,46 +551,77 @@ def deploy_type(
     return (count, skipped)
 
 
+def _filter_autonomous(manifest: dict) -> dict:
+    """Return ``manifest`` with autonomous resources removed from each kind.
+
+    Used to keep the on-disk target manifest consistent with ``--with-autonomous``
+    without forcing the deploy loop to skip everything per-side. Preserves
+    top-level keys (e.g. ``version``) so callers don't lose them.
+    """
+    filtered: dict = {
+        key: value for key, value in manifest.items() if key != "resources"
+    }
+    filtered["resources"] = {}
+    for resource_type, entries in manifest.get("resources", {}).items():
+        if not isinstance(entries, dict):
+            continue
+        filtered["resources"][resource_type] = {
+            name: info
+            for name, info in entries.items()
+            if name not in AUTONOMOUS_RESOURCE_NAMES
+        }
+    return filtered
+
+
+def _resolve_side_manifest(source_dir: Path) -> tuple[Path | None, dict]:
+    """Read the source-side manifest at ``source_dir/manifest.toml``.
+
+    Returns ``(path, data)`` where ``path`` is ``None`` if no manifest exists.
+    The caller decides what to do when ``path`` is ``None`` (e.g. the skills
+    side is optional in some configurations).
+    """
+    manifest_path = source_dir / "manifest.toml"
+    if not manifest_path.is_file():
+        return None, {}
+    return manifest_path, toml.loads(manifest_path.read_text())
+
+
 def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
     """Deploy every resource across the orchestrator and skills trees.
 
-    Phase 4 split the resources into two parallel trees; this function
-    iterates over both and merges the manifest on disk. Phase 5 will
-    split the manifests on disk into two files (one per side); the
-    iteration logic stays the same.
+    Phase 5 split the on-disk manifests: each side writes its own manifest
+    at the target. Orchestrator-side resources land at ``<target>/manifest.toml``
+    (legacy position); skills-side resources land at ``<target>/skills-manifest.toml``.
     """
-    orchestrator_resources_dir = get_resources_dir()
-    orchestrator_source_dir = orchestrator_resources_dir / tool
-    orchestrator_manifest_path = orchestrator_source_dir / "manifest.toml"
+    source_version = __version__
+    target_dir = Path.cwd() / TOOL_DIRS[tool]
+    target_dir.mkdir(parents=True, exist_ok=True)
 
-    if not orchestrator_manifest_path.is_file():
-        log_error(f"Manifest not found: {orchestrator_manifest_path}")
+    orchestrator_source_dir = get_resources_dir() / tool
+    _, orchestrator_manifest = _resolve_side_manifest(orchestrator_source_dir)
+    if not orchestrator_manifest:
+        log_error(f"Manifest not found: {orchestrator_source_dir / 'manifest.toml'}")
         raise SystemExit(1)
 
-    orchestrator_manifest = toml.loads(orchestrator_manifest_path.read_text())
-    source_version = __version__
-
-    skills_resources_dir = get_skills_resources_dir()
-    skills_source_dir = skills_resources_dir / tool
-    skills_manifest_path = skills_source_dir / "manifest.toml"
-    skills_manifest: dict = {}
-    if skills_manifest_path.is_file():
-        skills_manifest = toml.loads(skills_manifest_path.read_text())
-
-    target_dir = Path.cwd() / TOOL_DIRS[tool]
-    target_manifest = target_dir / "manifest.toml"
-
-    target_dir.mkdir(parents=True, exist_ok=True)
+    skills_source_dir = get_skills_resources_dir() / tool
+    _, skills_manifest = _resolve_side_manifest(skills_source_dir)
 
     total_count = 0
     total_skipped = 0
 
-    for source_dir, source_manifest in (
-        (orchestrator_source_dir, orchestrator_manifest),
-        (skills_source_dir, skills_manifest),
-    ):
+    sides = (
+        ("orchestrator", orchestrator_source_dir, orchestrator_manifest),
+        ("skills", skills_source_dir, skills_manifest),
+    )
+
+    for side_label, source_dir, source_manifest in sides:
         if not source_manifest:
             continue
+        target_manifest = (
+            target_dir / "manifest.toml"
+            if side_label == "orchestrator"
+            else target_dir / "skills-manifest.toml"
+        )
         for resource_type in ("skills", "commands", "agents"):
             cnt, skp = deploy_type(
                 resource_type,
@@ -606,32 +636,13 @@ def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
             total_count += cnt
             total_skipped += skp
 
-    # Merge both manifests into the target manifest. Phase 5 will split
-    # the on-disk manifests so this merge becomes a no-op (each side
-    # writes its own target-side manifest entry).
-    merged_manifest = {
-        "resources": {},
-        "version": source_version,
-    }
-    for src in (orchestrator_manifest, skills_manifest):
-        for kind, entries in src.get("resources", {}).items():
-            if not isinstance(entries, dict):
-                continue
-            merged_manifest["resources"].setdefault(kind, {}).update(entries)
-    if not with_autonomous:
-        filtered: dict = {}
-        for resource_type, entries in merged_manifest["resources"].items():
-            if not isinstance(entries, dict):
-                continue
-            filtered[resource_type] = {
-                name: info
-                for name, info in entries.items()
-                if name not in AUTONOMOUS_RESOURCE_NAMES
-            }
-        merged_manifest["resources"] = filtered
-    target_manifest.write_text(toml.dumps(merged_manifest))
-    log_success(f"Manifest updated to v{source_version}")
-    console.print(f"  Target: {target_dir}/manifest.toml")
+        side_manifest = dict(source_manifest)
+        side_manifest["version"] = source_version
+        if not with_autonomous:
+            side_manifest = _filter_autonomous(side_manifest)
+        target_manifest.write_text(toml.dumps(side_manifest))
+        log_success(f"{side_label.title()} manifest updated to v{source_version}")
+        console.print(f"  Target: {target_manifest}")
 
     if total_count == 0 and total_skipped == 0:
         console.print("No resources to deploy")
@@ -1171,13 +1182,13 @@ def deploy_core(
         log_info(f"Core v{core_version} tracked in manifest")
 
 
-def validate_deployment(target_dir: Path, manifest: dict) -> None:
+def validate_deployment(target_dir: Path, manifest: dict, *, label: str = "") -> None:
     warnings = 0
     if not target_dir.is_dir():
         return
 
     # Claude doesn't ship the agents/ directory — skip agent validation.
-    # The merged manifest still lists agents (for OpenCode parity); the
+    # Per-side manifests still list agents (for OpenCode parity); the
     # deploy loop above skips them per the source-existence check.
     target_tool = None
     for tool_name, tool_dir in TOOL_DIRS.items():
@@ -1226,11 +1237,38 @@ def validate_deployment(target_dir: Path, manifest: dict) -> None:
                             found = True
 
             if not found:
-                log_warn(f"Resource '{name}' in manifest but not deployed")
+                suffix = f" ({label})" if label else ""
+                log_warn(f"Resource '{name}' in manifest{suffix} but not deployed")
                 warnings += 1
 
     if warnings > 0:
-        console.print(f"  Validation: {warnings} warning(s)")
+        scope = f" ({label})" if label else ""
+        console.print(f"  Validation{scope}: {warnings} warning(s)")
+
+
+def _validate_target_after_deploy(target_dir: Path) -> None:
+    """Validate every per-side manifest that exists on disk after a deploy.
+
+    Phase 5 split the on-disk manifests; we may have only the orchestrator
+    side (``manifest.toml``) deployed (utility-only install), only the
+    skills side (``skills-manifest.toml``), or both. Run the per-side
+    validation pass for whichever manifests are present.
+    """
+    if not target_dir.is_dir():
+        return
+    manifest_files = (
+        ("orchestrator", target_dir / "manifest.toml"),
+        ("skills", target_dir / "skills-manifest.toml"),
+    )
+    for label, path in manifest_files:
+        if not path.is_file():
+            continue
+        try:
+            data = toml.loads(path.read_text())
+        except toml.TomlDecodeError:
+            log_warn(f"Skipping invalid manifest: {path}")
+            continue
+        validate_deployment(target_dir, data, label=label)
 
 
 @app.command(
@@ -1291,10 +1329,7 @@ def install(
             strict_archived=strict_archived,
         )
 
-    target_manifest_path = target_dir / "manifest.toml"
-    if target_manifest_path.is_file():
-        manifest_data = toml.loads(target_manifest_path.read_text())
-        validate_deployment(target_dir, manifest_data)
+    _validate_target_after_deploy(target_dir)
 
 
 def _expected_extension_names(tool: str, with_autonomous: bool) -> set[str]:
@@ -1302,21 +1337,22 @@ def _expected_extension_names(tool: str, with_autonomous: bool) -> set[str]:
     source manifest will deploy for ``tool``.
 
     The set mirrors ``deploy_all_resources`` filtering: autonomous names are
-    included only when ``with_autonomous`` is set.
+    included only when ``with_autonomous`` is set. Reads both the orchestrator
+    and skills side manifests (Phase 5 split) and returns their union.
     """
-    resources_dir = get_resources_dir() / tool
-    manifest_path = resources_dir / "manifest.toml"
-    if not manifest_path.is_file():
-        return set()
-    data = toml.loads(manifest_path.read_text())
     expected: set[str] = set()
-    for entries in data.get("resources", {}).values():
-        if not isinstance(entries, dict):
+    for source_dir in (get_resources_dir() / tool, get_skills_resources_dir() / tool):
+        manifest_path = source_dir / "manifest.toml"
+        if not manifest_path.is_file():
             continue
-        for name in entries:
-            if not with_autonomous and name in AUTONOMOUS_RESOURCE_NAMES:
+        data = toml.loads(manifest_path.read_text())
+        for entries in data.get("resources", {}).values():
+            if not isinstance(entries, dict):
                 continue
-            expected.add(name)
+            for name in entries:
+                if not with_autonomous and name in AUTONOMOUS_RESOURCE_NAMES:
+                    continue
+                expected.add(name)
     return expected
 
 
@@ -1485,10 +1521,7 @@ def update(
         if removed:
             log_info(f"Purged {removed} stale osc-* resource(s)")
 
-    target_manifest_path = target_dir / "manifest.toml"
-    if target_manifest_path.is_file():
-        manifest_data = toml.loads(target_manifest_path.read_text())
-        validate_deployment(target_dir, manifest_data)
+    _validate_target_after_deploy(target_dir)
 
 
 @app.command("orchestrate", help="Run the 7-phase autonomous change workflow")

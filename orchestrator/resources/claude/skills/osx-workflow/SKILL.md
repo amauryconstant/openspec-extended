@@ -1,6 +1,6 @@
 ---
 name: osx-workflow
-description: 7-phase workflow reference. INVOKE when dispatched into PHASE0..PHASE6, when calling the osx state I/O tool, or when troubleshooting the loop. Pair with `osx-concepts` for framework concepts.
+description: 7-phase workflow reference. INVOKE when dispatched into PHASE0..PHASE6, when calling the osx state I/O tool, or when troubleshooting the loop.
 license: MIT
 ---
 
@@ -316,8 +316,6 @@ Before any phase action, verify:
 7. **`--extra` flag**: pass a JSON **object** (e.g., `'{"tasks_completed":["1.1"]}'`), not a JSON string.
 8. **Pre-commit hook failure in PHASE1**: never bypass. Fix the issue, re-stage, retry. After 3 attempts, document via `osx log` and consider signaling `BLOCKED`.
 
-For framework-level edge cases, see `osx-concepts/SKILL.md`.
-
 ---
 
 ## §10 Workflow patterns
@@ -330,7 +328,7 @@ For framework-level edge cases, see `osx-concepts/SKILL.md`.
 
 ---
 
-## §3 Decision guidance
+## §11 Decision guidance
 
 The pre-implementation decision flow that used to live in `osx-concepts`
 §3 was retired when the framework-content split landed. The same four

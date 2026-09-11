@@ -107,17 +107,38 @@ class TestInstallOpencode:
         assert not (test_env / ".opencode" / "scripts").exists()
 
     def test_install_opencode_copies_manifest_with_version(self, test_env):
-        """Install opencode copies manifest with version."""
-        result = run_osx(["install", "opencode"], cwd=test_env)
+        """Install opencode writes a per-side manifest with the version field.
+
+        Phase 5 split: orchestrator-side resources land in
+        ``.opencode/manifest.toml`` (legacy position) and skills-side
+        resources land in ``.opencode/skills-manifest.toml``. Both
+        manifests carry the project ``version`` so callers can detect drift.
+        Uses ``--with-autonomous`` so ``osx-workflow`` (the only
+        orchestrator-side skill) is included in the orchestrator manifest.
+        """
+        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
         assert result.returncode == 0
-        manifest_path = test_env / ".opencode" / "manifest.toml"
-        assert manifest_path.is_file()
+        orch_manifest_path = test_env / ".opencode" / "manifest.toml"
+        skills_manifest_path = test_env / ".opencode" / "skills-manifest.toml"
+        assert orch_manifest_path.is_file()
+        assert skills_manifest_path.is_file()
 
-        with open(manifest_path) as f:
-            manifest = toml.load(f)
+        with open(orch_manifest_path) as f:
+            orch_manifest = toml.load(f)
+        with open(skills_manifest_path) as f:
+            skills_manifest = toml.load(f)
 
-        assert manifest.get("version") == __version__
+        assert orch_manifest.get("version") == __version__
+        assert skills_manifest.get("version") == __version__
+
+        # Disjoint resource ownership: orchestrator-side skills do not
+        # include skills-side names, and vice versa.
+        orch_skills = set(orch_manifest["resources"]["skills"])
+        skills_skills = set(skills_manifest["resources"]["skills"])
+        assert "osx-workflow" in orch_skills
+        assert "osx-commit" in skills_skills
+        assert orch_skills.isdisjoint(skills_skills)
 
     def test_install_opencode_shows_deployed_message(self, test_env):
         """Install opencode shows success message."""
@@ -561,10 +582,14 @@ class TestVersionAwareUpgrade:
     """Tests for version-aware upgrade behavior."""
 
     def test_install_upgrades_when_source_version_greater(self, test_env):
-        """Install upgrades when source version > installed version."""
+        """Install upgrades when source version > installed version.
+
+        Phase 5 split: ``osx-commit`` lives in the skills-side manifest,
+        so the version-downgrade simulation targets that file.
+        """
         run_osx(["install", "opencode"], cwd=test_env)
 
-        manifest = test_env / ".opencode" / "manifest.toml"
+        manifest = test_env / ".opencode" / "skills-manifest.toml"
         manifest_data = toml.loads(manifest.read_text())
         manifest_data["resources"]["skills"]["osx-commit"]["version"] = "0.1.0"
         manifest.write_text(toml.dumps(manifest_data))
@@ -588,22 +613,38 @@ class TestVersionAwareUpgrade:
         )
 
     def test_manifest_tracks_deployed_resources(self, test_env):
-        """Manifest tracks deployed resources with versions."""
+        """Both per-side manifests track their resources with versions.
+
+        ``osx-workflow`` is orchestrator-side; ``osx-commit`` is
+        skills-side. Both must end up declared with a non-None version
+        in the appropriate manifest.
+        """
         run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
 
-        manifest = test_env / ".opencode" / "manifest.toml"
-        manifest_data = toml.loads(manifest.read_text())
+        orch_manifest_path = test_env / ".opencode" / "manifest.toml"
+        skills_manifest_path = test_env / ".opencode" / "skills-manifest.toml"
+        orch_manifest = toml.loads(orch_manifest_path.read_text())
+        skills_manifest = toml.loads(skills_manifest_path.read_text())
 
-        assert manifest_data.get("version") == __version__
+        assert orch_manifest.get("version") == __version__
+        assert skills_manifest.get("version") == __version__
 
-        assert len(manifest_data["resources"]["skills"]) > 0
+        assert len(orch_manifest["resources"]["skills"]) > 0
         assert (
-            manifest_data["resources"]["skills"]["osx-commit"]["version"] is not None
+            orch_manifest["resources"]["skills"]["osx-workflow"]["version"]
+            is not None
         )
 
-        assert len(manifest_data["resources"]["agents"]) > 0
+        assert len(skills_manifest["resources"]["skills"]) > 0
         assert (
-            manifest_data["resources"]["agents"]["osx-analyzer"]["version"] is not None
+            skills_manifest["resources"]["skills"]["osx-commit"]["version"]
+            is not None
+        )
+
+        assert len(orch_manifest["resources"]["agents"]) > 0
+        assert (
+            orch_manifest["resources"]["agents"]["osx-analyzer"]["version"]
+            is not None
         )
 
     def test_update_always_deploys_regardless_of_version(self, test_env):

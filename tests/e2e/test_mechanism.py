@@ -17,6 +17,7 @@ pytestmark = pytest.mark.mechanism
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 OPENCODE_SOURCE = PROJECT_ROOT / "orchestrator" / "resources" / "opencode"
+SKILLS_OPENCODE_SOURCE = PROJECT_ROOT / "skills" / "resources" / "opencode"
 RESOURCES_OPENCODE = PROJECT_ROOT / "orchestrator" / "resources" / "opencode"
 
 
@@ -52,10 +53,28 @@ def e2e_repo(tmp_path):
         scripts_dir.mkdir(parents=True)
         (opencode_target / "manifest.toml").write_text(manifest.read_text())
 
+    # Phase 5 split: copy the skills-side source tree alongside the
+    # orchestrator-side tree so the deployed target has BOTH manifests
+    # (``manifest.toml`` = orchestrator side, ``skills-manifest.toml``
+    # = skills side). Validate_skills reads both to cross-check
+    # REQUIRED_SKILLS. The skills-side manifest must be renamed so it
+    # does not overwrite the orchestrator-side one.
+    if SKILLS_OPENCODE_SOURCE.exists():
+        for entry in SKILLS_OPENCODE_SOURCE.iterdir():
+            dest_name = (
+                "skills-manifest.toml" if entry.name == "manifest.toml" else entry.name
+            )
+            dest = opencode_target / dest_name
+            if entry.is_dir():
+                shutil.copytree(entry, dest, dirs_exist_ok=True)
+            else:
+                shutil.copy2(entry, dest)
+
     # The orchestrator's preflight (validate_skills) cross-checks every
-    # REQUIRED_CORE_SKILLS entry against the deployed manifest.toml. Core
+    # REQUIRED_CORE_SKILLS entry against the deployed manifests. Core
     # skills aren't shipped by openspec-extended itself, so append stub
-    # entries for each of the 12 osc-* skills to the fixture's manifest.
+    # entries for each of the 12 osc-* skills to the orchestrator-side
+    # manifest (the side that owns the workflow surface).
     import toml
 
     deployed_manifest_path = opencode_target / "manifest.toml"

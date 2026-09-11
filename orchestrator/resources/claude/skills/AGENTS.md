@@ -60,7 +60,7 @@ OpenCode source. The breakdown:
 
 1. Create or edit the skill under `orchestrator/resources/opencode/skills/osx-<name>/SKILL.md` first (orchestrator side) or `skills/resources/opencode/skills/osx-<name>/SKILL.md` (skills side).
 2. Run `mise run sync:mirrors` to regenerate the corresponding Claude mirror.
-3. Bump the version in the manifest (Phase 5 splits the manifest; today both sides share one).
+3. Bump the version in the matching side's manifest. The orchestrator-side manifest and skills-side manifest are disjoint (Phase 5 split).
 4. Commit all four affected trees (opencode + claude × orchestrator + skills).
 
 ## Shared references

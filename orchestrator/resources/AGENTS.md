@@ -1,10 +1,10 @@
 # Resources
 
-AI-assistant resources shipped inside the binary. Phase 4 split the
-single `resources/` root into two parallel trees — the **orchestrator**
-side (this directory) and the **skills** side under `skills/resources/`
-(gap-filling skills, mirroring pattern). Within each side, the Claude
-tree is auto-generated from the OpenCode tree.
+AI-assistant resources shipped inside the binary. The project ships
+two parallel resource trees — the **orchestrator** side (this
+directory) and the **skills** side under `skills/resources/`
+(gap-filling skills). Within each side, the Claude tree is
+auto-generated from the OpenCode tree.
 
 ## Layout
 
@@ -16,14 +16,14 @@ tree is auto-generated from the OpenCode tree.
 │   └── resources/                               # ← THIS directory
 │       ├── AGENTS.md                            # (you are here — top-level)
 │       ├── opencode/                            # OpenCode platform (canonical)
-│       │   ├── manifest.toml                    # Per-resource version manifest
-│       │   ├── skills/osx-*/                    # Skills (workflow + phase commands)
+│       │   ├── manifest.toml                    # Per-side manifest (orchestrator scope)
+│       │   ├── skills/osx-*/                    # Workflow skills (osx-workflow etc.)
 │       │   ├── agents/osx-*.md                  # Orchestrator-dispatched agents
 │       │   └── commands/osx-*.md                # Slash commands (single-emit)
 │       └── claude/                              # Claude Code (auto-generated)
 │           ├── manifest.toml                    # Mirrored from opencode
 │           ├── skills/osx-*/                    # Mirrored skills
-│           ├── skills/osx-*/SKILL.md            # PLUS, dual-emit (legacy form)
+│           ├── skills/osx-*/SKILL.md            # PLUS, dual-emit (modern form)
 │           └── commands/osx/<name>.md           # Legacy dual-emit
 └── skills/                                      # skills-side root
     └── resources/                               # parallel tree (see below)
@@ -44,11 +44,9 @@ Pre-Phase-4 the project had a single `resources/` root mixing two
 concerns — autonomous workflow resources (skills that drive the
 7-phase orchestrator) and utility/gap-filling skills (review, commit,
 verify-tests). Phase 4 separated them so each side can version and
-ship its own manifest independently. Phase 5 will rewrite the deploy
-loop to consult both trees; Phase 4 keeps the deploy loop using just
-the orchestrator-side manifest at `get_resources_dir()` (back-compat
-for the current binary contract) and adds a parallel helper for the
-skills side.
+ship its own manifest independently. Phase 5 finished the split: each
+side now owns a per-side manifest on disk (see Manifest section
+below) and a per-side deploy loop.
 
 ## Claude mirror
 
@@ -89,17 +87,45 @@ files are shipped.
 
 ## Manifest (`manifest.toml`)
 
-Each platform has its own manifest tracking the version of every
-resource. Phase 4 keeps a **single unified manifest** per platform
-covering both the orchestrator- and skills-side resources (the
-single-file split happens in Phase 5):
+Phase 5 split the on-disk manifests into a per-side layout. Each side
+writes only its own resources; consumers that need both sides (e.g.
+`validate_skills`) read and merge them.
+
+| Tree | Scope | Writes |
+|---|---|---|
+| `orchestrator/resources/<tool>/manifest.toml` | Orchestrator-side resources (workflow skill, agents, phase commands, osx-changelog, osx-maintain-docs) | The source-of-truth manifest for the orchestrator side. Mirrored to Claude via `sync-mirrors`. |
+| `skills/resources/<tool>/manifest.toml` | Skills-side resources (osx-commit, osx-review-artifacts, osx-review-test-compliance, osx-review, osx-verify-tests) | The source-of-truth manifest for the skills side. Mirrored to Claude via `sync-mirrors`. |
+
+Deployed manifest layout (per platform — `.opencode/` or `.claude/`):
+
+| File | Owner | Side |
+|---|---|---|
+| `manifest.toml` | Orchestrator deploy | Orchestrator-side resources + core (`osc-*`) entries tracked after `--with-core`. Legacy position — kept for back-compat. |
+| `skills-manifest.toml` | Skills deploy | Skills-side resources only. |
+
+Both deployed manifests are read by `validate_skills` and
+`validate_commands` to cross-check REQUIRED_SKILLS / phase commands
+against declared resources; the union is the canonical resource surface.
+
+Example orchestrator manifest:
 
 ```toml
 [resources.skills.osx-workflow]
 version = "0.5.0"
 
 [resources.agents.osx-analyzer]
+version = "0.2.3"
+```
+
+Example skills manifest:
+
+```toml
+[resources.skills.osx-commit]
 version = "0.2.1"
+
+[resources.skills.osx-review-artifacts]
+version = "0.3.3"
+references = ["schema-agnostic-contract.md", "store-selection.md"]
 ```
 
 Skills can also declare which shared references they consume (from the
@@ -117,6 +143,9 @@ section.
 
 - New resources get an `osx-` prefix; never collide with `osc-*` (core) names.
 - One manifest entry per resource; CI fails on missing entries.
+- Each side's manifest declares only that side's resources. The two
+  sets are disjoint; their union is the canonical surface (locked by
+  `tests/unit/test_resource_contract.py::TestManifestParity`).
 - Files under `orchestrator/core/` are not in this manifest — that tree is synced from upstream.
 - Edit resources under `orchestrator/resources/opencode/` (orchestration side) or `skills/resources/opencode/` (skills side) only; the corresponding `claude/` subtrees are generated.
 
@@ -124,4 +153,4 @@ section.
 
 - Root `AGENTS.md` — Adding New Skills, Version Bumping
 - `orchestrator/resources/opencode/AGENTS.md`, `orchestrator/resources/claude/AGENTS.md` — Orchestrator-side platform docs
-- `skills/resources/opencode/AGENTS.md` (TBD), `skills/resources/claude/AGENTS.md` (TBD) — Skills-side platform docs
+- `skills/resources/opencode/AGENTS.md`, `skills/resources/claude/AGENTS.md` — Skills-side platform docs

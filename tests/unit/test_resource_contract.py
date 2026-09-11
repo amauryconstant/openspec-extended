@@ -80,6 +80,38 @@ CANONICAL_SKILLS = frozenset(
     }
 )
 
+# Phase 5 split: each side's manifest declares its own subset of the
+# canonical resource surface. The two sets must be disjoint and their
+# union must equal this allowlist — pinning it here catches both
+# accidental double-declaration and forgotten re-homing.
+EXPECTED_OPENCODE_RESOURCE_IDS: dict[str, list[str]] = {
+    "skills": [
+        "osx-workflow",  # orchestrator side
+        "osx-commit",  # skills side
+        "osx-review-artifacts",  # skills side
+        "osx-review-test-compliance",  # skills side
+    ],
+    "agents": [
+        "osx-analyzer",
+        "osx-builder",
+        "osx-maintainer",
+        "osx-reviewer",
+    ],
+    "commands": [
+        "osx-changelog",
+        "osx-maintain-docs",
+        "osx-phase0",
+        "osx-phase1",
+        "osx-phase2",
+        "osx-phase3",
+        "osx-phase4",
+        "osx-phase5",
+        "osx-phase6",
+        "osx-review",  # skills side
+        "osx-verify-tests",  # skills side
+    ],
+}
+
 # Skills that consume the openspec CLI directly. These must carry the
 # `allowed-tools: Bash(openspec:*)` precedent. ``osx-commit`` does not
 # consume the CLI (it shells out to `git`), and ``osx-workflow`` is a
@@ -222,13 +254,34 @@ class TestManifestParity:
         for path in ALL_MANIFESTS:
             assert path.is_file(), f"manifest missing: {path}"
 
-    def test_opencode_manifests_declare_same_resource_set(self):
+    def test_opencode_manifests_have_disjoint_resource_sets(self):
+        """Phase 5 split: the orchestrator- and skills-side manifests
+        each declare their own subset. The two sets must be disjoint so
+        no resource is claimed by both sides. Their union equals the
+        canonical resource surface (locked separately)."""
         oc_keys = _manifest_resource_keys(ORCH_OPENCODE_MANIFEST)
         sk_keys = _manifest_resource_keys(SK_OPENCODE_MANIFEST)
-        assert oc_keys == sk_keys, (
-            f"orchestrator-opencode vs skills-opencode resource-set drift: "
-            f"only-in-orch={sorted(oc_keys - sk_keys)} "
-            f"only-in-skills={sorted(sk_keys - oc_keys)}"
+        assert oc_keys.isdisjoint(sk_keys), (
+            f"orchestrator-opencode and skills-opencode manifests share "
+            f"resource keys: {sorted(oc_keys & sk_keys)}. Each side "
+            f"must declare only its own resources."
+        )
+
+    def test_opencode_manifests_union_equals_canonical_surface(self):
+        """The union of both side manifests must equal the manually-curated
+        canonical resource set so dropping a resource from one side and
+        forgetting to add it to the other is caught here."""
+        oc_keys = _manifest_resource_keys(ORCH_OPENCODE_MANIFEST)
+        sk_keys = _manifest_resource_keys(SK_OPENCODE_MANIFEST)
+        union = oc_keys | sk_keys
+        expected = set()
+        for kind in ("skills", "agents", "commands"):
+            for name in EXPECTED_OPENCODE_RESOURCE_IDS.get(kind, []):
+                expected.add(f"{kind}.{name}")
+        assert union == expected, (
+            f"union of side manifests drifted from canonical surface. "
+            f"only-in-union={sorted(union - expected)} "
+            f"only-in-expected={sorted(expected - union)}"
         )
 
     def test_claude_mirrors_match_opencode_per_side(self):

@@ -13,15 +13,8 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 | Manual change workflows   | ✓ 12 commands | ✓ (via `--with-core`) |
 | Autonomous implementation | ✗             | ✓ 7-phase loop (opt-in via `--with-autonomous`) |
 | Specialized agents        | ✗             | ✓ 4 agents (with `--with-autonomous`) |
-| Utility skills            | ✗             | ✓ 7 skills (default)   |
+| Utility skills            | ✗             | ✓ 3 skills (default)   |
 | Unified CLI surface       | ✓             | ✓ (passthrough + ext) |
-
-**Key additions:**
-
-- **Autonomous workflow** (opt-in) — Run end-to-end implementation without manual intervention via `install <tool> --with-autonomous`
-- **Specialized agents** (with `--with-autonomous`) — Analyzer (PHASE0, read-only, 0.1 temp), Builder (PHASE1, write-capable, 0.4 temp), Reviewer (PHASE2/PHASE5, write-capable, 0.1 temp), Maintainer (PHASE3/PHASE4/PHASE6, write-capable, 0.3 temp)
-- **Utility skills** (default) — Concepts, artifact modification and review, changelogs, test compliance, AI docs, commits
-- **Unified CLI surface** — All upstream OpenSpec commands (`validate`, `list`, `show`, `status`, `instructions`, `templates`, `schemas`, `init`, `update`, `feedback`, `completion`) plus the 7-phase orchestrator under one binary.
 
 ## Requirements
 
@@ -29,193 +22,87 @@ An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) tha
 - Python 3.12 or higher (only for building from source)
 - No Python needed when installing the prebuilt binary
 
-## Installation
+## Install
 
-### Quick Install (Binary)
+### Quick install (binary)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
 ```
 
-### Specific Version (Binary)
-
 ```bash
+# Specific version
 VERSION=v1.7.3 curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
 ```
 
-### System-wide Install (Binary)
-
 ```bash
+# System-wide
 PREFIX=/usr/local curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
 ```
 
-### From Source (Development)
+### From source
 
 ```bash
 git clone https://github.com/amauryconstant/openspec-extended.git
-cd OpenSpec-extended
+cd openspec-extended
 uv tool install .
 # or: pip install .
 ```
 
 The entry point `openspec-extended` is registered automatically.
 
-### Verify
-
 ```bash
 openspec-extended --version
-# openspec-extended 1.3.0
 ```
 
-## Setup in Your Project
+## Setup in your project
 
 ```bash
 cd your-project
 
-# Install extension resources (utility skills + commands only — default)
+# Default: 3 utility skills + 2 commands
 openspec-extended install opencode
 
-# Add the autonomous workflow (phase commands, agents, workflow skill)
+# Add the autonomous workflow (7 phase commands, 4 agents, workflow skill)
 openspec-extended install opencode --with-autonomous
 
-# Include core OpenSpec workflows (all 12 canonical: apply, archive, bulk-archive,
-# continue, explore, ff, new, onboard, propose, sync, update, verify)
+# Include upstream OpenSpec workflows (12 osc-* commands)
 openspec-extended install opencode --with-core
 ```
 
-The `--with-core` flag writes the canonical 12-workflow custom profile to
-`~/.config/openspec/config.json` before invoking `openspec init`, so all 12
-commands land regardless of any pre-existing global config. If a prior global
-config exists, it is snapshotted to `.openspec-extended-baseline.json` and can
-be restored with `openspec-extended restore-core`.
-
-### Verify Installation
+Verify the install:
 
 ```bash
 ls .opencode/{skills,agents,commands}/
 ```
 
-## Usage
+## Install flags
 
-### Installing Resources
+| Flag                       | Default | Effect |
+|---------------------------|---------|--------|
+| `--with-autonomous`       | off     | Deploy 7 phase commands, 4 agents, workflow skill (opt-in autonomous workflow) |
+| `--with-core`             | off     | Deploy all 12 upstream OpenSpec workflows as `osc-*` |
+| `--force`                 | off     | Required to overwrite an existing core deployment; saves a baseline snapshot first |
+| `--language <lang>`       | unset   | Language for new-project artifacts (v1.10.0+). Precedence: `--language` > `OPENSPEC_LANGUAGE` > unset |
+| `--strict-archived`       | off     | Fail on warnings from the post-install `openspec validate --archived` sweep |
+
+## Commands
+
+### Lifecycle (extended)
 
 | Command                                              | Description                                   |
 | ---------------------------------------------------- | --------------------------------------------- |
 | `openspec-extended install opencode`                 | Deploy utility skills + commands (default)    |
 | `openspec-extended install opencode --with-autonomous` | Also deploy 7 phase commands, 4 agents, workflow skill |
 | `openspec-extended install claude`                   | Same for Claude Code                          |
-| `openspec-extended install opencode --with-core`     | Include 12 core OpenSpec workflows (runs a non-fatal `openspec validate --archived` sweep; pass `--strict-archived` to fail); pass `--language <lang>` to set the artifact language |
 | `openspec-extended update opencode`                  | Refresh utility resources (overwrite existing)|
 | `openspec-extended update opencode --with-autonomous`| Refresh autonomous resources too              |
 | `openspec-extended update-core [path]`               | Refresh upstream OpenSpec instruction files   |
+| `openspec-extended restore-core`                     | Restore the openspec global config from the `.openspec-extended-baseline.json` snapshot |
 
-### Workflow Commands (Passthrough)
+### Workflow (autonomous, opt-in)
 
-All upstream OpenSpec commands are available directly through `openspec-extended`. These are thin pass-through wrappers — the binary delegates to your installed `openspec` CLI and forwards its exit code.
-
-| Command                                  | Description                              |
-| ---------------------------------------- | ---------------------------------------- |
-| `openspec-extended validate [item]`      | Validate changes/specs (--all, --strict) |
-| `openspec-extended list [--specs]`       | List active changes (or specs)           |
-| `openspec-extended show [item]`          | Show a change or spec                    |
-| `openspec-extended status [--change]`    | Show artifact completion status          |
-| `openspec-extended instructions [art]`   | Output instructions for an artifact      |
-| `openspec-extended templates [--schema]` | Show resolved template paths             |
-| `openspec-extended schemas`              | List available workflow schemas          |
-| `openspec-extended init [path]`          | Initialize OpenSpec in a project         |
-| `openspec-extended update-core [path]`   | Refresh upstream instruction files       |
-| `openspec-extended feedback <msg>`       | Submit feedback via `gh` issue           |
-| `openspec-extended completion <shell>`   | Manage shell completions (bash/zsh/fish) |
-| `openspec-extended view`                 | Interactive dashboard (v1.8.0+; requires TTY) |
-| `openspec-extended archive [change]`     | Archive a completed change                  |
-| `openspec-extended new change <id>`      | Create a new change directory (v1.7.0+)    |
-| `openspec-extended context`              | Print working context for resolved root (v1.5.0+) |
-| `openspec-extended doctor`               | Report root relationship health (v1.5.0+)  |
-| `openspec-extended store <sub>`          | Manage stores (v1.5.0+; passthrough to `openspec store`) |
-| `openspec-extended config <sub>`         | View/modify global OpenSpec config         |
-
-For programmatic JSON access to store/schema state, see `openspec-extended osx <domain>` (e.g., `osx store list`).
-
-Example:
-
-```bash
-openspec-extended validate --all --json --strict
-openspec-extended show my-change --deltas-only --json
-openspec-extended status --change my-change --json
-openspec-extended feedback "love the new flow" --body "Detailed description..."
-```
-
-### Environment variables
-
-| Variable | Default | Effect |
-|----------|---------|--------|
-| `OPENSPEC_CONCURRENCY=<n>` | `6` | Propagated to `openspec validate --all`. |
-| `OPENSPEC_LANGUAGE=<lang>` | (unset) | Sets the language for `openspec-extended init` and `openspec-extended install --with-core`. Overridden by the `--language` flag. |
-| `NO_COLOR` | (unset) | Disable color in upstream `openspec` output. |
-| `OPENSPEC_CONFIG` | `openspec/config.yaml` | Path to project OpenSpec config. |
-| `OPENSPEC_VALIDATE_ARCHIVED_STRICT=1` | unset | When set, the post-install/update `validate --archived` sweep exits non-zero on warnings. Same effect as `--strict-archived`. |
-
-### Extension Skills
-
-The default install ships **4 extended skills** (split across
-`orchestrator/resources/opencode/skills/` and
-`skills/resources/opencode/skills/`). Three are installed by default;
-`osx-workflow` requires `--with-autonomous`.
-
-| Skill                        | Purpose                                        | Default? |
-| ---------------------------- | ---------------------------------------------- | -------- |
-| `osx-review-artifacts`       | Reviews artifacts for quality and completeness | yes      |
-| `osx-review-test-compliance` | Review test coverage for OpenSpec changes      | yes      |
-| `osx-commit`                 | Create commits matching project conventions    | yes      |
-| `osx-workflow`               | Explains the 7-phase autonomous workflow       | opt-in (`--with-autonomous`) |
-
-Framework concepts that used to live in the `osx-concepts` skill now ship
-as `docs/concepts.md` (loaded on demand, not auto-deployed). Multi- and
-single-artifact edits route through `/opsx:update` from upstream.
-
-### Extension Commands
-
-In addition to the skills, the default install ships **9 slash commands**
-(7 phase commands on the orchestrator side + 2 utility commands on the
-skills side). Each is a self-contained command with its full body inline
-(the Claude mirror dual-emits them as skills too).
-
-| Command                       | Purpose                                       | Side          |
-| ----------------------------- | --------------------------------------------- | ------------- |
-| `/osx-changelog`              | Generate `CHANGELOG.md` from archived changes | orchestrator  |
-| `/osx-maintain-docs`          | Update `AGENTS.md` and `CLAUDE.md`            | orchestrator  |
-| `/osx-review`                 | Schema-driven pre-implementation audit        | skills        |
-| `/osx-verify-tests`           | Spec-to-test alignment analysis               | skills        |
-| `/osx-phase0`–`/osx-phase6`   | 7-phase autonomous workflow                   | orchestrator (opt-in) |
-
-### Specialized Agents (opt-in: `--with-autonomous`)
-
-The 4 agents are **not** installed by default. Run `openspec-extended install <tool> --with-autonomous` to enable the orchestrator.
-
-| Agent              | Purpose                 | Tools                               | Temp |
-| ------------------ | ----------------------- | ----------------------------------- | ---- |
-| `osx-analyzer`     | Read-only audit (PHASE0) | read, grep, glob, bash             | 0.1  |
-| `osx-builder`      | Implementation (PHASE1)  | read, grep, glob, bash, write, edit, todowrite | 0.4  |
-| `osx-reviewer`     | Verify + reflect (PHASE2/PHASE5) | read, grep, glob, bash, write, edit | 0.1  |
-| `osx-maintainer`   | Docs, sync, archive (PHASE3/PHASE4/PHASE6) | read, grep, glob, bash, write, edit | 0.3  |
-
-## Autonomous Workflow
-
-7-phase loop for end-to-end implementation via `openspec-extended orchestrate`.
-
-### Commands
-
-| Command         | Phase   | Description                |
-| --------------- | ------- | -------------------------- |
-| `/osx-phase0`   | Review  | Analyze existing artifacts |
-| `/osx-phase1`   | Build   | Implement tasks            |
-| `/osx-phase2`   | Verify  | Verify implementation      |
-| `/osx-phase3`   | Docs    | Update documentation       |
-| `/osx-phase4`   | Sync    | Sync with upstream         |
-| `/osx-phase5`   | Reflect | Self-assessment            |
-| `/osx-phase6`   | Archive | Archive completed change   |
-
-### Usage
+Run end-to-end implementation without manual intervention. Drives a change through seven phases: `PHASE0 ARTIFACT_REVIEW → PHASE1 IMPLEMENTATION → PHASE2 REVIEW → PHASE3 MAINTAIN_DOCS → PHASE4 SYNC → PHASE5 SELF_REFLECTION → PHASE6 ARCHIVE`.
 
 ```bash
 # Run autonomous implementation
@@ -231,22 +118,93 @@ openspec-extended osx state complete <change-name>
 openspec-extended osx log append <change-name> --phase PHASE0 --iteration 1 --summary "…"
 ```
 
-### Options
+| Flag                       | Default | Effect |
+|---------------------------|---------|--------|
+| `--max-phase-iterations N` | 10      | Max retries per phase before failing (`-1` for unlimited) |
+| `--timeout N`              | 1800    | Per-phase AI subprocess timeout (seconds) |
+| `--model MODEL`            | (platform default) | Specify model to use |
+| `--from-phase PHASEX`      | (auto-resume) | Resume from a specific phase (skips pre-flight) |
+| `--clean`                  | off     | Wipe state files before starting |
+| `--force`                  | off     | Continue without prompts |
+| `--dry-run`                | off     | Show what would happen |
+| `--verbose`                | off     | Verbose output |
+| `--list`                   | off     | List available changes |
+| `--schema <name>`          | (auto)  | Override schema resolution |
 
-| Option                     | Description                                                          |
-| -------------------------- | -------------------------------------------------------------------- |
-| `--max-phase-iterations N` | Max retries per phase before failing (default: 10, -1 for unlimited) |
-| `--timeout N`              | Timeout in seconds                                                   |
-| `--model MODEL`            | Specify model to use                                                 |
-| `--verbose`                | Enable verbose output                                                |
-| `--dry-run`                | Show what would happen                                               |
-| `--force`                  | Force operation                                                      |
-| `--clean`                  | Clean state before starting                                          |
-| `--from-phase PHASEX`      | Start from specific phase                                            |
-| `--list`                   | List available changes                                               |
-| `--version`                | Show version                                                         |
+### Passthroughs to `openspec`
 
-### State Files
+Every upstream `openspec` command is available directly through `openspec-extended`. These are thin pass-through wrappers — the binary delegates to your installed `openspec` CLI and forwards its exit code.
+
+| Command                                  | Description                              |
+| ---------------------------------------- | ---------------------------------------- |
+| `openspec-extended validate [item]`      | Validate changes/specs (`--all`, `--strict`) |
+| `openspec-extended list [--specs]`       | List active changes (or specs)           |
+| `openspec-extended show [item]`          | Show a change or spec                    |
+| `openspec-extended status [--change]`    | Show artifact completion status          |
+| `openspec-extended instructions [art]`   | Output instructions for an artifact      |
+| `openspec-extended templates [--schema]` | Show resolved template paths             |
+| `openspec-extended schemas`              | List available workflow schemas          |
+| `openspec-extended init [path]`          | Initialize OpenSpec in a project         |
+| `openspec-extended update-core [path]`   | Refresh upstream instruction files       |
+| `openspec-extended feedback <msg>`       | Submit feedback via `gh` issue           |
+| `openspec-extended completion <shell>`   | Manage shell completions (bash/zsh/fish) |
+| `openspec-extended view`                 | Interactive dashboard (v1.8.0+; requires TTY) |
+| `openspec-extended archive [change]`     | Archive a completed change                |
+| `openspec-extended new change <id>`      | Create a new change directory (v1.7.0+)  |
+| `openspec-extended context`              | Print working context for resolved root (v1.5.0+) |
+| `openspec-extended doctor`               | Report root relationship health (v1.5.0+) |
+| `openspec-extended store <sub>`          | Manage stores (v1.5.0+)                  |
+| `openspec-extended config <sub>`         | View/modify global OpenSpec config       |
+
+For programmatic JSON access to store/schema state, see `openspec-extended osx <domain>` (e.g., `osx store list`).
+
+```bash
+openspec-extended validate --all --json --strict
+openspec-extended show my-change --deltas-only --json
+openspec-extended status --change my-change --json
+openspec-extended feedback "love the new flow" --body "Detailed description..."
+```
+
+### Extension skills
+
+The default install ships **3 extended skills**. `osx-workflow` (4th skill) requires `--with-autonomous`.
+
+| Skill                        | Purpose                                        | Default? |
+| ---------------------------- | ---------------------------------------------- | -------- |
+| `osx-review-artifacts`       | Reviews artifacts for quality and completeness | yes      |
+| `osx-review-test-compliance` | Review test coverage for OpenSpec changes      | yes      |
+| `osx-commit`                 | Create commits matching project conventions    | yes      |
+| `osx-workflow`               | Explains the 7-phase autonomous workflow       | opt-in (`--with-autonomous`) |
+
+Framework concepts that used to live in the `osx-concepts` skill now ship
+as `docs/concepts.md` (loaded on demand, not auto-deployed). Multi- and
+single-artifact edits route through `/opsx:update` from upstream.
+
+### Extension commands
+
+The default install ships **9 slash commands** (7 phase commands on the
+orchestrator side + 2 utility commands on the skills side). Each is
+self-contained with its full body inline. The Claude mirror dual-emits
+them as skills too.
+
+| Command                       | Purpose                                       | Side          |
+| ----------------------------- | --------------------------------------------- | ------------- |
+| `/osx-changelog`              | Generate `CHANGELOG.md` from archived changes | orchestrator  |
+| `/osx-maintain-docs`          | Update `AGENTS.md` and `CLAUDE.md`            | orchestrator  |
+| `/osx-review`                 | Schema-driven pre-implementation audit        | skills        |
+| `/osx-verify-tests`           | Spec-to-test alignment analysis               | skills        |
+| `/osx-phase0`–`/osx-phase6`   | 7-phase autonomous workflow                   | orchestrator (opt-in) |
+
+### Specialized agents (opt-in: `--with-autonomous`)
+
+| Agent              | Purpose                 | Tools                               | Temp |
+| ------------------ | ----------------------- | ----------------------------------- | ---- |
+| `osx-analyzer`     | Read-only audit (PHASE0) | read, grep, glob, bash             | 0.1  |
+| `osx-builder`      | Implementation (PHASE1)  | read, grep, glob, bash, write, edit, todowrite | 0.4  |
+| `osx-reviewer`     | Verify + reflect (PHASE2/PHASE5) | read, grep, glob, bash, write, edit | 0.1  |
+| `osx-maintainer`   | Docs, sync, archive (PHASE3/PHASE4/PHASE6) | read, grep, glob, bash, write, edit | 0.3  |
+
+## State files
 
 Located in `openspec/changes/<change>/`:
 
@@ -257,58 +215,28 @@ Located in `openspec/changes/<change>/`:
 | `iterations.json`   | Iteration history | Archived                 |
 | `decision-log.json` | Agent reasoning   | Archived                 |
 
-After PHASE6 (Archive), files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`.
+After `PHASE6`, files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`.
+
+## Environment variables
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `OPENSPEC_CONCURRENCY=<n>` | `6` | Propagated to `openspec validate --all`. |
+| `OPENSPEC_LANGUAGE=<lang>` | (unset) | Sets the language for `openspec-extended init` and `openspec-extended install --with-core`. Overridden by the `--language` flag. |
+| `NO_COLOR` | (unset) | Disable color in upstream `openspec` output. |
+| `OPENSPEC_CONFIG` | `openspec/config.yaml` | Path to project OpenSpec config. |
+| `OPENSPEC_VALIDATE_ARCHIVED_STRICT=1` | unset | When set, the post-install/update `validate --archived` sweep exits non-zero on warnings. Same effect as `--strict-archived`. |
 
 ## Documentation
 
 | Doc | Purpose |
 |-----|---------|
+| [docs/concepts.md](docs/concepts.md) | Maintainer reference: repo layout, resource taxonomy, OpenSpec framework |
 | [docs/cli-comparison.md](docs/cli-comparison.md) | Maps upstream `openspec` commands to `openspec-extended` passthroughs and the `osx` sub-app |
 | [docs/orchestrator-state-machine.md](docs/orchestrator-state-machine.md) | Phase model, transition reasons, retry budget, schema resolution, resume semantics |
+| [docs/review-modify-integration.md](docs/review-modify-integration.md) | Review/modify integration contract with core (v1.8.0+ surface) |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Error code to fix table for state, git, missing CLI tools, schema, orchestrator errors |
-
-## Project Structure
-
-```
-OpenSpec-extended/
-├── source/                  # Python implementation
-│   ├── cli.py               # Typer CLI (install/update/orchestrate/osx)
-│   ├── lib/osx.py           # Change-management library (pure functions, no CLI)
-│   ├── osx_cli.py           # Typer app for `openspec-extended osx …`
-│   └── orchestrator/
-│       ├── engine.py        # 7-phase orchestrator
-│       └── runner.py        # AI-runner abstraction (opencode / claude dispatch)
-├── install.sh               # Bash binary installer
-├── openspec.spec            # PyInstaller spec
-├── orchestrator/            # Orchestration side
-│   ├── source/              # Python CLI engine
-│   ├── core/                # Core workflows (synced from upstream)
-│   └── resources/           # Skills, agents, commands for the orchestrator
-│       ├── opencode/        # OpenCode canonical source
-│       │   ├── skills/      # osx-workflow + shared references
-│       │   ├── agents/      # 4 phase agents
-│       │   └── commands/    # 7 phase + 2 utility (osx-changelog, osx-maintain-docs)
-│       └── claude/          # Claude Code mirror (auto-generated)
-│           ├── skills/      # osx-* skill mirror per command (dual-emit)
-│           └── commands/osx/# Phase commands + osx-* utilities (legacy form)
-├── skills/                  # Skills side (gap-filling utilities)
-│   └── resources/
-│       ├── opencode/        # osx-{commit,review-artifacts,review-test-compliance}
-│       │                    # + osx-{review,verify-tests} command stubs
-│       └── claude/          # Claude Code mirror (auto-generated)
-├── tests/                   # pytest + bats suite (unit/integration/mechanism/e2e)
-├── docs/                    # User-facing documentation (concepts.md, audit.md, …)
-├── .mise/tasks/             # sync-core, release, sync-mirrors, version/{check,update}
-└── research/                # Platform documentation
-│       ├── skills/          # 8 extension skills + osx-* skill mirror per
-│       │                    # command (mirrors upstream dual-emit strategy,
-│       │                    # introduced in v1.7.0, current as of v1.11.0)
-│       └── commands/osx/    # Phase commands + osx-* utilities (legacy form)
-├── tests/                   # pytest + bats suite (unit/integration/mechanism/e2e)
-├── docs/                    # User-facing documentation
-├── .mise/tasks/             # sync-core, release, version/{check,update} (bash)
-└── research/                # Platform documentation
-```
+| `osx-workflow` skill | Runtime reference for AI agents in deployed projects (4 tool layers, 7 phases, `osx` state I/O tool) |
 
 ## Development
 
@@ -339,10 +267,10 @@ tests without network access.
 
 1. Fork the repository
 2. Create a feature branch
-3. Make changes (follow code style in AGENTS.md)
+3. Make changes (follow code style in `AGENTS.md`)
 4. Run `mise run verify` before submitting
 5. Open a pull request
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file
+MIT License — see [LICENSE](LICENSE) file.

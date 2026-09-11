@@ -284,14 +284,15 @@ class TestSkillTaxonomy:
 
     def test_osx_workflow_documents_decision_guidance(self):
         """osx-workflow has a Decision guidance section that absorbs the
-        §3 content from the deleted osx-concepts skill.
-        """
+        §3 content from the deleted osx-concepts skill. Renumbered to
+        §11 in this revision (was misnumbered as a second §3)."""
         text = _read(OPENCODE_SKILLS / "osx-workflow" / "SKILL.md")
-        assert "## §3 Decision guidance" in text, (
-            "osx-workflow/SKILL.md must include a §3 Decision guidance section"
+        section_marker = "## §11 Decision guidance"
+        assert section_marker in text, (
+            f"osx-workflow/SKILL.md must include a {section_marker} section"
         )
 
-        section_start = text.index("## §3 Decision guidance")
+        section_start = text.index(section_marker)
         next_section = text.find("\n## §", section_start + 1)
         section = text[section_start : next_section if next_section != -1 else None]
 
@@ -302,7 +303,7 @@ class TestSkillTaxonomy:
             "Continue vs fast-forward",
         ):
             assert marker in section, (
-                f"Decision guidance §3 must include the {marker!r} subsection"
+                f"Decision guidance §11 must include the {marker!r} subsection"
             )
 
     def test_claude_skill_count_drift_is_documented(self):

@@ -52,7 +52,7 @@ The deploy reads each filename from the orchestrator-side shared pool and copies
 
 Phase commands (`osx-phase0..6`) link to the shared pool via `references/<file>.md` prose and use the command-level `{{PLATFORM_DIR}}/skills/references/...` template where platform-aware linking is needed. They are not packaged per-skill.
 
-The mirror script (`mise run sync-mirrors`) propagates the `references = [...]` lists from the orchestrator-side manifest to the Claude mirror. (Phase 5 will split the manifest into orchestrator- and skills-side files; for now the same manifest covers both.)
+The mirror script (`mise run sync-mirrors`) propagates the `references = [...]` lists from the orchestrator-side manifest to the Claude mirror. The split manifests mean the orchestrator-side only references what it owns; the skills-side manifest (`skills/resources/opencode/manifest.toml`) declares its own `references = [...]` lists for skills-side skills.
 
 ## Frontmatter
 
@@ -77,8 +77,8 @@ license: MIT                   # Required
 
 See root `AGENTS.md` "Adding New Skills" section for the full procedure. Briefly:
 
-1. Create `orchestrator/resources/opencode/skills/osx-<name>/SKILL.md`.
-2. Add the entry to `orchestrator/resources/opencode/manifest.toml` (orchestrator-side), or to `skills/resources/opencode/manifest.toml` if it's a skills-side resource (Phase 5 splits the manifest).
+1. Create `orchestrator/resources/opencode/skills/osx-<name>/SKILL.md` (orchestrator-side) or `skills/resources/opencode/skills/osx-<name>/SKILL.md` (skills-side).
+2. Add the entry to the matching side's `manifest.toml`. Orchestrator-side skills go in `orchestrator/resources/opencode/manifest.toml`; skills-side skills go in `skills/resources/opencode/manifest.toml`. The two side manifests are disjoint.
 3. Mirror the skill under the corresponding `claude/` subtree via `mise run sync:mirrors`.
 4. Bump the version in the manifest.
 

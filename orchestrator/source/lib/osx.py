@@ -1280,26 +1280,47 @@ def validate_json(target: str) -> dict:
 
 
 def _load_manifest(project_root: Path) -> dict | None:
-    """Load the deployed manifest for the active platform.
+    """Load the deployed manifests for the active platform.
 
-    Looks for ``.opencode/manifest.toml`` or ``.claude/manifest.toml`` under
-    ``project_root``. Returns ``None`` if no manifest is found or it is
-    unparseable — callers should treat missing manifest as "no cross-check
-    available" rather than as a hard failure.
+    Phase 5 split the on-disk manifests into a per-side layout:
+    ``.opencode/manifest.toml`` (orchestrator side) and
+    ``.opencode/skills-manifest.toml`` (skills side); same for Claude.
+    This helper loads whichever manifests exist and returns the merged
+    resources — callers see the union as if a single manifest were on
+    disk.
+
+    Returns ``None`` if no manifest is found or all are unparseable —
+    callers should treat missing manifest as "no cross-check available"
+    rather than as a hard failure.
     """
     platform = detect_platform(project_root)
     if platform == "opencode":
-        manifest_path = project_root / ".opencode" / "manifest.toml"
+        candidates = (
+            project_root / ".opencode" / "manifest.toml",
+            project_root / ".opencode" / "skills-manifest.toml",
+        )
     elif platform == "claude":
-        manifest_path = project_root / ".claude" / "manifest.toml"
+        candidates = (
+            project_root / ".claude" / "manifest.toml",
+            project_root / ".claude" / "skills-manifest.toml",
+        )
     else:
         return None
-    if not manifest_path.is_file():
-        return None
-    try:
-        return toml.loads(manifest_path.read_text())
-    except (OSError, toml.TomlDecodeError):
-        return None
+    merged: dict = {"resources": {}}
+    seen = False
+    for path in candidates:
+        if not path.is_file():
+            continue
+        try:
+            data = toml.loads(path.read_text())
+        except (OSError, toml.TomlDecodeError):
+            continue
+        seen = True
+        for kind, entries in data.get("resources", {}).items():
+            if not isinstance(entries, dict):
+                continue
+            merged["resources"].setdefault(kind, {}).update(entries)
+    return merged if seen else None
 
 
 def validate_skills(project_root: Path | None = None) -> dict:

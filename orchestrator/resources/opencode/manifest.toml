@@ -1,17 +1,6 @@
 [resources.skills.osx-workflow]
 version = "0.5.0"
 
-[resources.skills.osx-commit]
-version = "0.2.1"
-
-[resources.skills.osx-review-artifacts]
-version = "0.3.3"
-references = ["schema-agnostic-contract.md", "store-selection.md"]
-
-[resources.skills.osx-review-test-compliance]
-version = "0.2.6"
-references = ["scoring-rubric.md"]
-
 [resources.agents.osx-analyzer]
 version = "0.2.3"
 
@@ -50,9 +39,3 @@ version = "0.3.6"
 
 [resources.commands.osx-phase6]
 version = "0.3.9"
-
-[resources.commands.osx-review]
-version = "0.2.2"
-
-[resources.commands.osx-verify-tests]
-version = "0.1.4"
