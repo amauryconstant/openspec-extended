@@ -1,276 +1,257 @@
-# OpenSpec-extended
+<p align="center">
+  <a href="https://github.com/Fission-AI/OpenSpec">
+    <picture>
+      <source srcset="assets/openspec_bg.png">
+      <img src="assets/openspec_bg.png" alt="OpenSpec logo">
+    </picture>
+  </a>
+</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.12+-blue.svg?style=flat-square)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-v1.8.0-orange.svg?style=flat-square)](https://github.com/amauryconstant/openspec-extended)
+<p align="center">
+  <a href="https://github.com/Fission-AI/OpenSpec/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Fission-AI/OpenSpec/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://www.npmjs.com/package/@fission-ai/openspec"><img alt="npm version" src="https://img.shields.io/npm/v/@fission-ai/openspec?style=flat-square" /></a>
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" /></a>
+  <a href="https://discord.gg/YctCnvvshC"><img alt="Discord" src="https://img.shields.io/discord/1411657095639601154?style=flat-square&logo=discord&logoColor=white&label=Discord&suffix=%20online" /></a>
+</p>
 
-An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) that adds autonomous implementation capabilities and utility skills for AI coding assistants.
+<details>
+<summary><strong>The most loved spec framework.</strong></summary>
 
-## Why use this?
+[![Stars](https://img.shields.io/github/stars/Fission-AI/OpenSpec?style=flat-square&label=Stars)](https://github.com/Fission-AI/OpenSpec/stargazers)
+[![Downloads](https://img.shields.io/npm/dm/@fission-ai/openspec?style=flat-square&label=Downloads/mo)](https://www.npmjs.com/package/@fission-ai/openspec)
+[![Contributors](https://img.shields.io/github/contributors/Fission-AI/OpenSpec?style=flat-square&label=Contributors)](https://github.com/Fission-AI/OpenSpec/graphs/contributors)
 
-| Feature                   | OpenSpec Core | OpenSpec-extended     |
-| ------------------------- | ------------- | --------------------- |
-| Manual change workflows   | ✓ 12 commands | ✓ (via `--with-core`) |
-| Autonomous implementation | ✗             | ✓ 7-phase loop (opt-in via `--with-autonomous`) |
-| Specialized agents        | ✗             | ✓ 4 agents (with `--with-autonomous`) |
-| Utility skills            | ✗             | ✓ 3 skills (default)   |
-| Unified CLI surface       | ✓             | ✓ (passthrough + ext) |
+</details>
+<p></p>
+Our philosophy:
 
-## Requirements
-
-- [OpenSpec](https://github.com/Fission-AI/OpenSpec) v1.11.0+ (required)
-- Python 3.12 or higher (only for building from source)
-- No Python needed when installing the prebuilt binary
-
-## Install
-
-### Quick install (binary)
-
-```bash
-curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
+```text
+→ fluid not rigid
+→ iterative not waterfall
+→ easy not complex
+→ built for brownfield not just greenfield
+→ scalable from personal projects to enterprises
 ```
 
-```bash
-# Specific version
-VERSION=v1.8.0 curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
+> [!TIP]
+> **New workflow now available!** We've rebuilt OpenSpec with a new artifact-guided workflow.
+>
+> Run `/opsx:propose "your idea"` to get started. → [Learn more here](docs/opsx.md)
+
+<p align="center">
+  Follow <a href="https://x.com/0xTab">@0xTab on X</a> for updates · Join the <a href="https://discord.gg/YctCnvvshC">OpenSpec Discord</a> for help and questions.
+</p>
+
+<!-- TODO: Add GIF demo of /opsx:propose → /opsx:archive workflow -->
+
+## See it in action
+
+```text
+You: /opsx:explore
+AI:  What would you like to explore?
+You: I want dark mode but I'm not sure how to do it cleanly.
+AI:  Let me look at your styling setup...
+     Cleanest path here: CSS variables + a small theme context,
+     with system-preference detection. No new dependencies. Scope it?
+You: Yes, let's do it.
+
+You: /opsx:propose add-dark-mode
+AI:  Created openspec/changes/add-dark-mode/
+     ✓ proposal.md — why we're doing this, what's changing
+     ✓ specs/       — requirements and scenarios
+     ✓ design.md    — technical approach
+     ✓ tasks.md     — implementation checklist
+     Ready for implementation!
+
+You: /opsx:apply
+AI:  Implementing tasks...
+     ✓ 1.1 Add theme context provider
+     ✓ 1.2 Create toggle component
+     ✓ 2.1 Add CSS variables
+     ✓ 2.2 Wire up localStorage
+     All tasks complete!
+
+You: /opsx:archive
+AI:  Archived to openspec/changes/archive/2025-01-23-add-dark-mode/
+     Specs updated. Ready for the next feature.
 ```
 
-```bash
-# System-wide
-PREFIX=/usr/local curl -sSL https://raw.githubusercontent.com/amauryconstant/openspec-extended/main/install.sh | bash
+<details>
+<summary><strong>What do the specs actually look like?</strong></summary>
+
+Plain Markdown — requirements with concrete scenarios, no special syntax to learn. Here's what goes in the `specs/` folder created above:
+
+```markdown
+## ADDED Requirements
+
+### Requirement: Theme selection
+The app SHALL let users switch between light and dark themes,
+defaulting to the system preference.
+
+#### Scenario: User toggles dark mode
+- **WHEN** the user clicks the theme toggle
+- **THEN** the app switches to dark mode and persists the choice
 ```
 
-### From source
+Your AI writes these; you review the plan before any code is written.
+
+OpenSpec is built with OpenSpec — browse this repo's live [specs](openspec/specs) and in-flight [changes](openspec/changes) for real examples at scale.
+
+</details>
+
+<details>
+<summary><strong>OpenSpec Dashboard</strong></summary>
+
+<p align="center">
+  <img src="assets/openspec_dashboard.png" alt="OpenSpec dashboard preview" width="90%">
+</p>
+
+</details>
+
+## Why teams adopt OpenSpec
+
+Solo, OpenSpec keeps you and your AI honest on a single repo. On a team, the hard part moves: a feature spans the API server, the web app, and a shared library; requirements are owned by one team and consumed by others; planning starts before any code exists.
+
+**[Stores](docs/stores-beta/user-guide.md)** are the answer — planning in a repo of its own. The same `openspec/` shape you already know (specs and changes), shared by `git push` like anything else. One source of truth your whole team and every coding agent can read, across every repo.
+
+- **Cross-repo features** — one change, one plan, even when the code lands in three repos.
+- **Shared requirements** — a platform team owns the specs; product teams reference them read-only, right where their coding agent can read them. No drifting wiki.
+- **Plan before code** — capture the plan in the store now; the code repos catch up later.
+
+> Stores are in **beta**. Start with the [Stores User Guide](docs/stores-beta/user-guide.md).
+
+## Quick Start
+
+**Requires Node.js 20.19.0 or higher.**
+
+Install OpenSpec globally:
 
 ```bash
-git clone https://github.com/amauryconstant/openspec-extended.git
-cd openspec-extended
-uv tool install .
-# or: pip install .
+npm install -g @fission-ai/openspec@latest
 ```
 
-The entry point `openspec-extended` is registered automatically.
-
-```bash
-openspec-extended --version
-```
-
-## Setup in your project
+Then navigate to your project directory and initialize:
 
 ```bash
 cd your-project
-
-# Default: 3 utility skills + 2 commands
-openspec-extended install opencode
-
-# Add the autonomous workflow (7 phase commands, 4 agents, workflow skill)
-openspec-extended install opencode --with-autonomous
-
-# Include upstream OpenSpec workflows (12 osc-* commands)
-openspec-extended install opencode --with-core
+openspec init
 ```
 
-Verify the install:
+> **Want your AI to do it?** Paste the [setup prompt](docs/installation.md#install-with-your-ai-assistant) into your coding assistant — it installs the CLI, runs `openspec init`, and verifies the result.
+
+Now talk to your AI:
+
+- **Not sure what to build yet?** Start with `/opsx:explore`, a no-stakes thinking partner that reads your code, weighs options, and shapes a plan before anything is written. ([Explore guide](docs/explore.md))
+- **Already know what you want?** Go straight to `/opsx:propose <what-you-want-to-build>`.
+
+Both are in the default profile. If you want the expanded workflow (`/opsx:new`, `/opsx:continue`, `/opsx:ff`, `/opsx:verify`, `/opsx:bulk-archive`, `/opsx:onboard`), select it with `openspec config profile` and apply with `openspec update`.
+
+`/opsx:propose` is the canonical name; your tool may spell it `/opsx-propose` (Cursor, GitHub Copilot), `@opsx-propose` (Amazon Q) or `$openspec-propose` (Codex). `openspec init` prints the right form for the tools you picked — see [How To Invoke](docs/supported-tools.md#how-to-invoke).
+
+> [!NOTE]
+> Not sure if your tool is supported? [View the full list](docs/supported-tools.md) – we support 30+ tools and growing.
+>
+> Also works with pnpm, yarn, bun, and nix. [See installation options](docs/installation.md).
+
+## Docs
+
+**Start here:** the **[Documentation Home](docs/README.md)** maps everything. New to OpenSpec? Read [Getting Started](docs/getting-started.md), then [How Commands Work](docs/how-commands-work.md) (where you actually type `/opsx:propose`).
+
+→ **[Getting Started](docs/getting-started.md)**: first steps<br>
+→ **[Explore First](docs/explore.md)**: think it through with `/opsx:explore` before you commit<br>
+→ **[How Commands Work](docs/how-commands-work.md)**: where slash commands run vs the CLI<br>
+→ **[Core Concepts at a Glance](docs/overview.md)**: the whole mental model, one page<br>
+→ **[Examples & Recipes](docs/examples.md)**: real changes, start to finish<br>
+→ **[Workflows](docs/workflows.md)**: combos and patterns<br>
+→ **[Existing Projects](docs/existing-projects.md)**: adopt OpenSpec on a brownfield codebase<br>
+→ **[Editing a Change](docs/editing-changes.md)**: update artifacts, go back, reconcile manual edits<br>
+→ **[Commands](docs/commands.md)**: slash commands & skills<br>
+→ **[CLI](docs/cli.md)**: terminal reference<br>
+→ **[Stores](docs/stores-beta/user-guide.md)**: plan in a separate repo, shared across your team (beta)<br>
+→ **[Supported Tools](docs/supported-tools.md)**: tool integrations & install paths<br>
+→ **[Concepts](docs/concepts.md)**: how it all fits<br>
+→ **[Multi-Language](docs/multi-language.md)**: multi-language support<br>
+→ **[Customization](docs/customization.md)**: make it yours<br>
+→ **[Community Showcase](docs/community.md)**: projects and resources built with and for OpenSpec<br>
+→ **[FAQ](docs/faq.md)** · **[Troubleshooting](docs/troubleshooting.md)** · **[Glossary](docs/glossary.md)**: quick help
+
+
+## Community schemas
+
+Third-party schema bundles distributed via standalone repositories — these provide opinionated workflows that integrate OpenSpec with other tools, similar to how [github/spec-kit's community extension catalog](https://github.com/github/spec-kit/tree/main/extensions) handles tool integrations.
+
+→ **[Browse the catalog](docs/customization.md#community-schemas)** in the customization docs.
+
+
+## Why OpenSpec?
+
+AI coding assistants are powerful but unpredictable when requirements live only in chat history. OpenSpec adds a lightweight spec layer so you agree on what to build before any code is written.
+
+- **Agree before you build** — human and AI align on specs before code gets written
+- **Stay organized** — each change gets its own folder with proposal, specs, design, and tasks
+- **Work fluidly** — update any artifact anytime, no rigid phase gates
+- **Use your tools** — works with 30+ AI assistants via slash commands
+
+### How we compare
+
+**vs. [Spec Kit](https://github.com/github/spec-kit)** (GitHub) — Thorough but heavyweight. Rigid phase gates, lots of Markdown, Python setup. OpenSpec is lighter and lets you iterate freely.
+
+**vs. [Kiro](https://kiro.dev)** (AWS) — Powerful but you're locked into their IDE and limited to Claude models. OpenSpec works with the tools you already use.
+
+**vs. nothing** — AI coding without specs means vague prompts and unpredictable results. OpenSpec brings predictability without the ceremony.
+
+## Updating OpenSpec
+
+**Upgrade the package**
 
 ```bash
-ls .opencode/{skills,agents,commands}/
+npm install -g @fission-ai/openspec@latest
 ```
 
-## Install flags
+**Refresh agent instructions**
 
-| Flag                       | Default | Effect |
-|---------------------------|---------|--------|
-| `--with-autonomous`       | off     | Deploy 7 phase commands, 4 agents, workflow skill (opt-in autonomous workflow) |
-| `--with-core`             | off     | Deploy all 12 upstream OpenSpec workflows as `osc-*` |
-| `--force`                 | off     | Required to overwrite an existing core deployment; saves a baseline snapshot first |
-| `--language <lang>`       | unset   | Language for new-project artifacts (v1.10.0+). Precedence: `--language` > `OPENSPEC_LANGUAGE` > unset |
-| `--strict-archived`       | off     | Fail on warnings from the post-install `openspec validate --archived` sweep |
-
-## Commands
-
-### Lifecycle (extended)
-
-| Command                                              | Description                                   |
-| ---------------------------------------------------- | --------------------------------------------- |
-| `openspec-extended install opencode`                 | Deploy utility skills + commands (default)    |
-| `openspec-extended install opencode --with-autonomous` | Also deploy 7 phase commands, 4 agents, workflow skill |
-| `openspec-extended install claude`                   | Same for Claude Code                          |
-| `openspec-extended update opencode`                  | Refresh utility resources (overwrite existing)|
-| `openspec-extended update opencode --with-autonomous`| Refresh autonomous resources too              |
-| `openspec-extended update-core [path]`               | Refresh upstream OpenSpec instruction files   |
-| `openspec-extended restore-core`                     | Restore the openspec global config from the `.openspec-extended-baseline.json` snapshot |
-
-### Workflow (autonomous, opt-in)
-
-Run end-to-end implementation without manual intervention. Drives a change through seven phases: `PHASE0 ARTIFACT_REVIEW → PHASE1 IMPLEMENTATION → PHASE2 REVIEW → PHASE3 MAINTAIN_DOCS → PHASE4 SYNC → PHASE5 SELF_REFLECTION → PHASE6 ARCHIVE`.
+Run this inside each project to regenerate AI guidance and ensure the latest slash commands are active:
 
 ```bash
-# Run autonomous implementation
-openspec-extended orchestrate <change-name>
-
-# With options
-openspec-extended orchestrate add-auth --max-phase-iterations 20 --verbose
-openspec-extended orchestrate add-auth --from-phase PHASE3
-openspec-extended orchestrate add-auth --dry-run
-
-# Mutate change state directly (what the agents do per iteration)
-openspec-extended osx state complete <change-name>
-openspec-extended osx log append <change-name> --phase PHASE0 --iteration 1 --summary "…"
+openspec update
 ```
 
-| Flag                       | Default | Effect |
-|---------------------------|---------|--------|
-| `--max-phase-iterations N` | 10      | Max retries per phase before failing (`-1` for unlimited) |
-| `--timeout N`              | 1800    | Per-phase AI subprocess timeout (seconds) |
-| `--model MODEL`            | (platform default) | Specify model to use |
-| `--from-phase PHASEX`      | (auto-resume) | Resume from a specific phase (skips pre-flight) |
-| `--clean`                  | off     | Wipe state files before starting |
-| `--force`                  | off     | Continue without prompts |
-| `--dry-run`                | off     | Show what would happen |
-| `--verbose`                | off     | Verbose output |
-| `--list`                   | off     | List available changes |
-| `--schema <name>`          | (auto)  | Override schema resolution |
+## Usage Notes
 
-### Passthroughs to `openspec`
+**Model selection**: OpenSpec works best with high-reasoning models. We recommend Codex 5.5 and Opus 4.7 for both planning and implementation.
 
-Every upstream `openspec` command is available directly through `openspec-extended`. These are thin pass-through wrappers — the binary delegates to your installed `openspec` CLI and forwards its exit code.
-
-| Command                                  | Description                              |
-| ---------------------------------------- | ---------------------------------------- |
-| `openspec-extended validate [item]`      | Validate changes/specs (`--all`, `--strict`) |
-| `openspec-extended list [--specs]`       | List active changes (or specs)           |
-| `openspec-extended show [item]`          | Show a change or spec                    |
-| `openspec-extended status [--change]`    | Show artifact completion status          |
-| `openspec-extended instructions [art]`   | Output instructions for an artifact      |
-| `openspec-extended templates [--schema]` | Show resolved template paths             |
-| `openspec-extended schemas`              | List available workflow schemas          |
-| `openspec-extended init [path]`          | Initialize OpenSpec in a project         |
-| `openspec-extended update-core [path]`   | Refresh upstream instruction files       |
-| `openspec-extended feedback <msg>`       | Submit feedback via `gh` issue           |
-| `openspec-extended completion <shell>`   | Manage shell completions (bash/zsh/fish) |
-| `openspec-extended view`                 | Interactive dashboard (v1.8.0+; requires TTY) |
-| `openspec-extended archive [change]`     | Archive a completed change                |
-| `openspec-extended new change <id>`      | Create a new change directory (v1.7.0+)  |
-| `openspec-extended context`              | Print working context for resolved root (v1.5.0+) |
-| `openspec-extended doctor`               | Report root relationship health (v1.5.0+) |
-| `openspec-extended store <sub>`          | Manage stores (v1.5.0+)                  |
-| `openspec-extended config <sub>`         | View/modify global OpenSpec config       |
-
-For programmatic JSON access to store/schema state, see `openspec-extended osx <domain>` (e.g., `osx store list`).
-
-```bash
-openspec-extended validate --all --json --strict
-openspec-extended show my-change --deltas-only --json
-openspec-extended status --change my-change --json
-openspec-extended feedback "love the new flow" --body "Detailed description..."
-```
-
-### Extension skills
-
-The default install ships **3 extended skills**. `osx-workflow` (4th skill) requires `--with-autonomous`.
-
-| Skill                        | Purpose                                        | Default? |
-| ---------------------------- | ---------------------------------------------- | -------- |
-| `osx-review-artifacts`       | Reviews artifacts for quality and completeness | yes      |
-| `osx-review-test-compliance` | Review test coverage for OpenSpec changes      | yes      |
-| `osx-commit`                 | Create commits matching project conventions    | yes      |
-| `osx-workflow`               | Explains the 7-phase autonomous workflow       | opt-in (`--with-autonomous`) |
-
-Framework concepts that used to live in the `osx-concepts` skill now ship
-as `docs/concepts.md` (loaded on demand, not auto-deployed). Multi- and
-single-artifact edits route through `/opsx:update` from upstream.
-
-### Extension commands
-
-The default install ships **9 slash commands** (7 phase commands on the
-orchestrator side + 2 utility commands on the skills side). Each is
-self-contained with its full body inline. The Claude mirror dual-emits
-them as skills too.
-
-| Command                       | Purpose                                       | Side          |
-| ----------------------------- | --------------------------------------------- | ------------- |
-| `/osx-changelog`              | Generate `CHANGELOG.md` from archived changes | orchestrator  |
-| `/osx-maintain-docs`          | Update `AGENTS.md` and `CLAUDE.md`            | orchestrator  |
-| `/osx-review`                 | Schema-driven pre-implementation audit        | skills        |
-| `/osx-verify-tests`           | Spec-to-test alignment analysis               | skills        |
-| `/osx-phase0`–`/osx-phase6`   | 7-phase autonomous workflow                   | orchestrator (opt-in) |
-
-### Specialized agents (opt-in: `--with-autonomous`)
-
-| Agent              | Purpose                 | Tools                               | Temp |
-| ------------------ | ----------------------- | ----------------------------------- | ---- |
-| `osx-analyzer`     | Read-only audit (PHASE0) | read, grep, glob, bash             | 0.1  |
-| `osx-builder`      | Implementation (PHASE1)  | read, grep, glob, bash, write, edit, todowrite | 0.4  |
-| `osx-reviewer`     | Verify + reflect (PHASE2/PHASE5) | read, grep, glob, bash, write, edit | 0.1  |
-| `osx-maintainer`   | Docs, sync, archive (PHASE3/PHASE4/PHASE6) | read, grep, glob, bash, write, edit | 0.3  |
-
-## State files
-
-Located in `openspec/changes/<change>/`:
-
-| File                | Purpose           | Lifecycle                |
-| ------------------- | ----------------- | ------------------------ |
-| `state.json`        | Phase tracking    | Deleted on success       |
-| `complete.json`     | Completion marker | Deleted after validation |
-| `iterations.json`   | Iteration history | Archived                 |
-| `decision-log.json` | Agent reasoning   | Archived                 |
-
-After `PHASE6`, files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`.
-
-## Environment variables
-
-| Variable | Default | Effect |
-|----------|---------|--------|
-| `OPENSPEC_CONCURRENCY=<n>` | `6` | Propagated to `openspec validate --all`. |
-| `OPENSPEC_LANGUAGE=<lang>` | (unset) | Sets the language for `openspec-extended init` and `openspec-extended install --with-core`. Overridden by the `--language` flag. |
-| `NO_COLOR` | (unset) | Disable color in upstream `openspec` output. |
-| `OPENSPEC_CONFIG` | `openspec/config.yaml` | Path to project OpenSpec config. |
-| `OPENSPEC_VALIDATE_ARCHIVED_STRICT=1` | unset | When set, the post-install/update `validate --archived` sweep exits non-zero on warnings. Same effect as `--strict-archived`. |
-
-## Documentation
-
-| Doc | Purpose |
-|-----|---------|
-| [docs/concepts.md](docs/concepts.md) | Maintainer reference: repo layout, resource taxonomy, OpenSpec framework |
-| [docs/cli-comparison.md](docs/cli-comparison.md) | Maps upstream `openspec` commands to `openspec-extended` passthroughs and the `osx` sub-app |
-| [docs/orchestrator-state-machine.md](docs/orchestrator-state-machine.md) | Phase model, transition reasons, retry budget, schema resolution, resume semantics |
-| [docs/review-modify-integration.md](docs/review-modify-integration.md) | Review/modify integration contract with core (v1.8.0+ surface) |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Error code to fix table for state, git, missing CLI tools, schema, orchestrator errors |
-| `osx-workflow` skill | Runtime reference for AI agents in deployed projects (4 tool layers, 7 phases, `osx` state I/O tool) |
-
-## Development
-
-```bash
-# Install dev tools
-mise install
-
-# Verify code quality
-mise run verify
-
-# Run install.sh unit tests (hermetic — uses a local HTTP server)
-bats tests/unit/install.bats
-
-# Build the binary
-mise run build
-
-# Cut a release (from main, no API tokens needed locally)
-mise run release patch
-# → bumps versions, commits, tags, pushes the tag
-# → GitHub Actions then builds + uploads the platform tarballs
-```
-
-`install.sh` honors a `BASE_URL` env var to redirect downloads away from
-GitHub, which is how `tests/unit/install.bats` runs end-to-end install
-tests without network access.
+**Context hygiene**: OpenSpec benefits from a clean context window. Clear your context before starting implementation and maintain good context hygiene throughout your session.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make changes (follow code style in `AGENTS.md`)
-4. Run `mise run verify` before submitting
-5. Open a pull request
+Open a discussion (for core design changes) or an issue before you open a PR, and link the issue or discussion from the PR. New features, significant refactors, and architectural changes need an OpenSpec change proposal first.
+
+→ **[CONTRIBUTING.md](CONTRIBUTING.md)**: the full process, from first issue to merged PR
+
+## Other
+
+<details>
+<summary><strong>Telemetry</strong></summary>
+
+OpenSpec collects anonymous usage stats.
+
+We collect only command names and version to understand usage patterns. No arguments, paths, content, or PII. Automatically disabled in CI.
+
+**Opt-out (any one is enough):**
+- `openspec config set telemetry.enabled false` (global config; unset means on)
+- `export OPENSPEC_TELEMETRY=0` or `export DO_NOT_TRACK=1` (env overrides config)
+
+</details>
+
+<details>
+<summary><strong>Maintainers & Advisors</strong></summary>
+
+See [MAINTAINERS.md](MAINTAINERS.md) for the list of core maintainers and advisors who help guide the project.
+
+</details>
+
+
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) file.
+MIT

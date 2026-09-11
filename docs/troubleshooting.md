@@ -1,313 +1,195 @@
 # Troubleshooting
 
-Common failures you may hit while running `openspec-extended`, the underlying error code, and how to recover.
+Concrete fixes for concrete problems. Each entry names a symptom, explains the likely cause in a sentence, and gives you the fix. If you don't see your issue here, the [FAQ](faq.md) may help, and the [Discord](https://discord.gg/YctCnvvshC) definitely will.
 
-Errors come from `source/lib/osx.py:OSXError` (raised by library functions and converted to stderr JSON by `source/osx_cli.py:osx_error`) and from `source/orchestrator/engine.py` (printed to stderr by the orchestrator).
+## Installation and setup
 
-## State Issues
+### `openspec: command not found`
 
-### `state.json` is stuck on an old phase
-
-**Symptom**: Re-running `orchestrate` keeps resuming from the same phase even after you fixed the underlying problem.
-
-**Cause**: `state.json` records the last completed phase. The orchestrator resumes from that phase (`source/orchestrator/engine.py:982-988`) rather than restarting from PHASE0.
-
-**Fix**: Re-run with `--from-phase PHASE0` to force a restart from the beginning, or delete `openspec/changes/<id>/state.json` and let the orchestrator re-derive the phase from the last successfully completed phase recorded in `decision-log.json`; if neither exists, it starts at PHASE0 (`source/orchestrator/engine.py:1019-1026`).
-
-### `phase_complete` never flips to true
-
-**Symptom**: The orchestrator loops on a phase forever, never advancing.
-
-**Cause**: The AI subprocess did not call `openspec-extended osx state complete <change>` before exiting. Without that, the orchestrator sees no completion signal.
-
-**Fix**: Inspect the current state, then mark the phase complete:
+The CLI isn't installed, or your shell can't find it. Install it globally and check:
 
 ```bash
-openspec-extended osx phase current <change>
+npm install -g @fission-ai/openspec@latest
+openspec --version
 ```
+
+If it installed but still isn't found, your global npm bin directory probably isn't on your `PATH`. Run `npm prefix -g` to see where global packages live: on macOS and Linux the binaries are in that directory's `bin/`, and on Windows they sit directly in it. Make sure that path is on your `PATH`. (`npm bin -g` was removed in npm 9.)
+
+If you used the [AI-assisted install](installation.md#install-with-your-ai-assistant), this is the expected hand-off point: that prompt tells your assistant to show you the `PATH` change rather than edit your shell startup files itself.
+
+### "Requires Node.js 20.19.0 or higher"
+
+OpenSpec runs on Node 20.19.0+. Check your version and upgrade if needed:
 
 ```bash
-openspec-extended osx state complete <change>
+node --version
 ```
 
-If the AI is failing to call this on its own, raise `--max-phase-iterations` to give it more retries, or inspect `decision-log.json` for the last reported blocker.
+If you use bun to install OpenSpec, note that OpenSpec still *runs* on Node, so you need Node 20.19.0+ available on your `PATH` regardless. See [Installation](installation.md).
 
-### `decision-log.json` is missing
+### `openspec init` didn't configure my AI tool
 
-**Symptom**: `validate completion` reports `decision-log.json not found`.
-
-**Cause**: A previous orchestrator run was killed before it could flush the decision log. Common after `SIGKILL` (not `SIGINT`/`SIGTERM`).
-
-**Fix**: The orchestrator writes the decision log on every iteration append. To recover:
+Init asks which tools to set up. If you skipped your tool or want to add another, just run it again, or use the non-interactive form:
 
 ```bash
-rm openspec/changes/<id>/decision-log.json
-openspec-extended orchestrate <id> --from-phase PHASE0
+openspec init --tools claude,cursor
 ```
 
-The first iteration of PHASE0 will recreate the file.
+The full list of tool IDs is in [Supported Tools](supported-tools.md). Use `--tools all` for everything, `--tools none` to skip tool setup.
 
-### `decision-log.json` is malformed
+## Commands don't show up
 
-**Symptom**: `OSXError("invalid_json", "decision-log.json contains invalid JSON")` from `source/lib/osx.py:302-311` (`_read_json_array`).
+If `/opsx:propose` (or your tool's equivalent) doesn't appear or doesn't do anything, work down this list. They're ordered fastest-to-check first.
 
-**Cause**: Partial write (process killed mid-write) or hand-edited corruption.
+1. **You may be in the wrong place.** Slash commands go in your AI assistant's chat, not your terminal. If you typed `/opsx:propose` into your shell, that's the issue. See [How Commands Work](how-commands-work.md).
 
-**Fix**: Validate the file with `jq` and either restore from git or delete and let the orchestrator rebuild it:
+2. **Regenerate the files.** From your project root:
+
+   ```bash
+   openspec update
+   ```
+
+   This rewrites the skill and command files for every tool you've configured.
+
+   Instruction files come from the *installed* CLI, so an outdated CLI reports everything up to date without ever writing the newer workflows. `openspec update` now checks for that and offers to upgrade — take the offer if you see it.
+
+3. **Restart your assistant.** Most tools scan for skills and commands at startup. A fresh window often does it.
+
+4. **Confirm the files exist.** For Claude Code, check that `.claude/skills/` contains `openspec-*` folders. Other tools use their own directories, all listed in [Supported Tools](supported-tools.md).
+
+5. **Check you initialized this project.** Skills are written per project. If you cloned a repo or switched folders, run `openspec init` (or `openspec update`) there.
+
+6. **Confirm your tool supports command files.** Codex, CodeArts, ForgeCode, Hermes, Kimi Code, Mistral Vibe, Zed Agent, and the shared `.agents` target don't get generated `opsx-*` command files; they use skill-based invocations instead, so `/opsx` will never autocomplete for them. Type `$openspec-propose` in Codex, `/skill:openspec-propose` in Kimi Code, and `/openspec-propose` in the rest. The shared `.agents` target is vendor-neutral, so `/openspec-propose` is the common form rather than a guaranteed one — if your assistant does not answer to it, check its own docs for how it invokes a skill. Amazon Q does get command files, but loads them into its prompt library rather than its slash menu — type `@opsx-propose` there, not `/opsx`. Every tool's form is listed in [How To Invoke](supported-tools.md#how-to-invoke).
+
+## Working with changes
+
+### "Change not found"
+
+The command couldn't tell which change you meant. Name it explicitly, or check what exists:
 
 ```bash
-cat openspec/changes/<id>/decision-log.json | jq .
-git checkout HEAD -- openspec/changes/<id>/decision-log.json   # if committed
-# or:
-rm openspec/changes/<id>/decision-log.json
-openspec-extended orchestrate <id> --from-phase PHASE0
+openspec list                    # see active changes
+/opsx:apply add-dark-mode        # name the change in chat
 ```
 
-### `state.json` contains invalid JSON
+Also confirm you're in the right project directory.
 
-**Symptom**: `OSXError("invalid_json", "Invalid JSON in state.json")`.
+### "No artifacts ready"
 
-**Cause**: A partial write (process killed mid-write) or hand-edited corruption. `write_json` uses a temp-file-and-replace pattern (`source/lib/osx.py:259-266`) so this should be rare.
-
-**Fix**: Inspect the file with `cat openspec/changes/<id>/state.json | jq`. If it really is corrupt, restore from git:
+Every artifact is either already created or blocked waiting on a dependency. See what's blocking:
 
 ```bash
-git checkout HEAD -- openspec/changes/<id>/state.json
+openspec status --change <name>
 ```
 
-If the change is uncommitted, the safest path is to remove the file and let the orchestrator rebuild it via `--from-phase PHASE0`.
+Then create the missing dependency first. Remember the order: proposal enables specs and design; specs and design together enable tasks.
 
-## Git Issues
+### `openspec validate` reports warnings or errors
 
-### `Aborted due to dirty git state`
-
-**Symptom**: Pre-flight aborts with `Aborted due to dirty git state`.
-
-**Cause**: `validate_git` (`source/orchestrator/engine.py:224-258`) detected unstaged or staged changes that were not committed before pre-flight.
-
-**Fix**: Either commit/stash the changes, or pass `--force` to skip the prompt (only recommended for ephemeral test runs):
+Validation checks your specs and changes for structural problems. Read the message: it names the file and the issue.
 
 ```bash
-git add -A && git commit -m "WIP"
-openspec-extended orchestrate <change>
+openspec validate <name>           # validate one item
+openspec validate --all            # validate everything
+openspec validate --all --strict   # stricter checks, good for CI
+openspec validate --archived       # fail if archived changes have unchecked tasks
 ```
 
-Non-interactive shells (`CI`, `mise run`, scripts) auto-continue with a warning.
+Common causes are a missing required section (like a spec with no scenarios) or a malformed delta header. Fix the file and re-run. The [CLI reference](cli.md#openspec-validate) documents the output format.
 
-### `Not in a git repository`
+One message deserves its own note:
 
-**Symptom**: Pre-flight exits with `Not in a git repository`.
+```text
+MODIFIED "<requirement>" omits scenario(s) the current spec still has: "<scenario>"
+```
 
-**Cause**: `openspec-extended orchestrate` requires a git repo for baseline tracking and baseline diff.
+A `MODIFIED` requirement replaces the whole requirement block, so it has to carry every scenario that survives the change, not only the ones you edited. Copy the named scenarios from `openspec/specs/<capability-path>/spec.md` back into the delta, preserving any domain directories in the path. This often appears on an older change after someone else's change added a scenario to the same requirement — archive refuses that change either way, and validation now says so before you implement it.
 
-**Fix**: `git init` in the project root, or run the orchestrator from a parent directory that contains a git repo.
+### The AI created incomplete or wrong artifacts
 
-### Baseline not found
+The AI didn't have enough context. A few levers help:
 
-**Symptom**: `OSXError("baseline_not_found", ".openspec-baseline.json does not exist")`.
+- Add project context in `openspec/config.yaml` so your stack and conventions are injected into every request. See [Customization](customization.md#project-configuration).
+- Add per-artifact `rules:` for guidance that only applies to, say, specs.
+- Give a more detailed description when you propose.
+- Use the expanded `/opsx:continue` to create one artifact at a time and review each, instead of `/opsx:ff` doing them all at once.
 
-**Cause**: A subsequent run is reading baseline info without having recorded one. This usually means the orchestrator was invoked with `--from-phase` after a baseline was cleared, or after a manual archive.
+### Archive won't finish, or warns about incomplete tasks
 
-**Fix**: Re-run with `--from-phase PHASE0` (or omit `--from-phase`) so `record_baseline` runs and writes `.openspec-baseline.json`.
+Archive won't *block* on incomplete tasks, but it warns you, because archiving usually means the work is done. If tasks remain on purpose (you're filing a partial change), proceed. Otherwise finish the tasks first. Archive will also offer to sync your delta specs into the main specs if you haven't synced yet; say yes unless you have a reason not to.
 
-## Missing CLI Tools
+### "User force closed the prompt with 0 null"
 
-### `openspec-extended: command not found`
+Something ran `openspec archive` where nothing can answer a question — an AI agent calling it from a tool, a CI job, or any shell with stdin closed. Archive asks up to three confirmations, and an unanswerable one used to fail with that raw message.
 
-**Symptom**: Shell reports the binary is missing.
-
-**Fix**: Re-run the installer (see the [README install section](../README.md#installation) for the current URL):
-
-For local development use `mise run install` or activate the venv directly.
-
-### `Required tool not found: openspec`
-
-**Symptom**: Pre-flight aborts with `Required tool not found: openspec` (`engine.py:960-963`). Currently nested under the `state.clean` pre-flight branch (`engine.py:920+`) rather than running unconditionally — tracked in `research/roadmap.md` Tier 4 as a MEDIUM-severity latent issue.
-
-**Cause**: The orchestrator shells out to the upstream `openspec` CLI for schema validation. It must be on `PATH`.
-
-**Fix**: Install upstream OpenSpec first (see the [README install section](../README.md#install)), or prepend its location:
+Pass `--yes` to answer them up front:
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
+openspec archive <change-name> --yes
 ```
 
-### `Required tool not found: jq`
+Keep any flags you were already passing — `--skip-specs` and `--no-validate` change what archive does, so a bare `--yes` rerun is not the same command. Current versions name the flag for you and print a `Fix:` line you can paste. If you meant to pick from a list, pass the change name explicitly: the picker needs an answer too.
 
-**Symptom**: Pre-flight aborts with `Required tool not found: jq`.
+If you instead ran archive with its output redirected to a file or captured by a tool and *did* pipe an answer (`printf 'y\n' | openspec archive …`), older versions wrote terminal escape codes into that capture while drawing the prompt — in some environments enough to bloat the file badly. Current versions read the confirmation prompts as plain text whenever stdout is not a terminal, and a no-argument `openspec archive` (which would otherwise draw an interactive change picker) asks you to pass a change name up front instead of rendering a menu into the capture. Either way, redirected and agent runs stay clean; passing `--yes` (with a change name) skips the prompts entirely.
 
-**Cause**: `jq` is required for the installer and some tests, but the orchestrator itself does not shell out to `jq`. This error usually appears during `install.sh` or `mise run verify`.
+## Configuration
 
-**Fix**: Install `jq` via your package manager (`apt install jq`, `brew install jq`, etc.).
+### My `config.yaml` isn't being applied
 
-### `Required skills validation failed` / `Required commands validation failed`
+Three usual suspects:
 
-**Symptom**: Pre-flight aborts with `Run: openspec-extended install opencode`.
+1. **Wrong filename.** It must be `openspec/config.yaml`, not `.yml`.
+2. **Invalid YAML.** Run it through any YAML validator; the CLI also reports syntax errors with line numbers.
+3. **You expected a restart.** You don't need one. Config changes take effect immediately.
 
-**Fix**: This is the auto-suggested fix — run it. The install command copies the missing `osx-*` skills and `osx-phase*.md` commands into the target platform's resource directory.
+### "Unknown artifact ID in rules: X"
+
+A key under `rules:` doesn't match any artifact in your schema. For the default `spec-driven` schema the valid IDs are `proposal`, `specs`, `design`, `tasks`. To see the IDs for any schema:
 
 ```bash
-openspec-extended install opencode
+openspec schemas --json
 ```
 
-If you only need Claude Code resources, substitute `claude`.
+### "Context too large"
 
-## Schema Resolution Failures
+The `context:` field is capped at 50KB, on purpose, because it's injected into every request. Summarize it, or link out to longer docs instead of pasting them. Lean context also produces better, faster results.
 
-### `Schema: <name> (source: project-config)` is not what you expected
+### "Schema not found"
 
-**Symptom**: Pre-flight logs a schema name that does not match your intent.
-
-**Cause**: Resolution precedence (`source/lib/osx.py:1490-1547`) checks (in order) `--schema`, change-level `.openspec.yaml`, project `openspec/config.yaml`, then default `spec-driven`. The first match wins.
-
-**Fix**: Use `--schema <name>` on the `orchestrate` command to force the value:
+The schema name you referenced doesn't exist. List what's available and check spelling:
 
 ```bash
-openspec-extended orchestrate <change> --schema workspace-planning
+openspec schemas                    # list available schemas
+openspec schema which <name>        # see where a schema resolves from
+openspec schema init <name>         # create a custom one
 ```
 
-Or remove the offending layer (e.g., delete `openspec/config.yaml` if you want the change-level metadata to win).
+See [Customization](customization.md#custom-schemas).
 
-### `defaultSchema` vs `schema` mismatch
+## Migration from the legacy workflow
 
-**Symptom**: `openspec schema init --default` writes `defaultSchema:` to `config.yaml`, but `resolve_schema` reads `schema:`. They never match.
+### "Legacy files detected in non-interactive mode"
 
-**Cause**: Upstream OpenSpec uses `defaultSchema` as the YAML key, but our resolver (matching earlier upstream versions) reads `schema`. Documented in `research/roadmap.md` Tier 4 — MEDIUM severity latent issue.
-
-**Fix**: Edit `openspec/config.yaml` to use `schema:` instead of `defaultSchema:`, or wrap the file with our own template that aliases the keys. The cleanest workaround today is to hand-edit:
-
-```yaml
-schema: spec-driven
-```
-
-instead of relying on `openspec schema init --default`.
-
-## Orchestrator Errors
-
-### `Critical blocker detected` on a previously passing change
-
-**Symptom**: `complete.json` reports `with_blocker: true` and the orchestrator exits 1.
-
-**Cause**: A previous AI run wrote a blocker to `decision-log.json`. The orchestrator reads `complete.json` at PHASE6 (`engine.py:1028-1047`) and surfaces the blocker instead of archiving.
-
-**Fix**: Inspect the blocker:
+You're in CI or a non-interactive shell, and OpenSpec found old files to clean up but can't prompt you. Approve automatically:
 
 ```bash
-cat openspec/changes/<id>/decision-log.json | jq '.[] | select(.blocker)'
+openspec init --force
 ```
 
-Resolve the underlying issue, then either remove `complete.json` (the orchestrator will recreate it on success) or run:
+For Codex, OpenSpec may detect old managed prompt files in `$CODEX_HOME/prompts` or `~/.codex/prompts`. That cleanup is limited to OpenSpec's allowlisted legacy Codex prompt filenames, and non-interactive `openspec init` removes only the files whose replacement `.agents/skills/openspec-*` skills exist. Non-interactive `openspec update` leaves all legacy cleanup untouched unless you pass `--force`.
 
-```bash
-openspec-extended osx complete set <change> ok
-```
+### Commands didn't appear after migrating
 
-to clear the blocker.
+Restart your IDE. Skills are detected at startup. If they still don't appear, run `openspec update` and check the file locations in [Supported Tools](supported-tools.md).
 
-### Archive validation failed after PHASE6
+### My old `project.md` wasn't migrated
 
-**Symptom**: The orchestrator exits 1 with `Archive validation failed`.
+That's intentional. OpenSpec never deletes `project.md` automatically because it may hold context you wrote. Move the useful parts into `config.yaml`'s `context:` section, then delete it yourself. The [Migration Guide](migration-guide.md#migrating-projectmd-to-configyaml) walks through this, including a prompt you can hand to your AI to do the distilling.
 
-**Cause**: `validate_archive` (`engine.py:308-312`) did not find exactly one archive directory matching `YYYY-MM-DD-<change>`.
+## Still stuck?
 
-**Fix**: This is rare and usually means PHASE6 ran but the archive step did not complete (e.g., permissions). Inspect:
+- **Discord:** [discord.gg/YctCnvvshC](https://discord.gg/YctCnvvshC)
+- **GitHub Issues:** [github.com/Fission-AI/OpenSpec/issues](https://github.com/Fission-AI/OpenSpec/issues)
+- **From your terminal:** `openspec feedback "what went wrong"` opens an issue for you.
 
-```bash
-ls openspec/changes/archive/
-```
-
-If the archive directory exists but has the wrong name, rename it. If it does not exist, re-run:
-
-```bash
-openspec-extended orchestrate <change> --from-phase PHASE6
-```
-
-### Orchestrator runs through PHASE1–PHASE5 even though the change is a retirement
-
-**Symptom**: A change with `## REMOVED Requirements` emptying a capability still
-goes through all 7 phases and aborts at PHASE6 with "Spec must have at least
-one requirement".
-
-**Cause**: The change's `.openspec.yaml` is missing the `retire_capabilities:
-true` marker. The orchestrator's PHASE0 reads `.openspec.yaml` once; if the
-marker is absent, PHASE0 cannot short-circuit and PHASE6 fails because core
-v1.8.0+ refuses to delete a capability unless the marker is declared.
-
-**Fix**: Add `retire_capabilities: true` to `.openspec.yaml` (alongside the
-mandatory `schema:` key). Re-run `openspec-extended orchestrate <change>
---from-phase PHASE0` so the marker is re-read. The next PHASE0 will route
-directly to PHASE6.
-
-## Installation Issues
-
-### `install.sh: openspec-extended binary download failed`
-
-**Symptom**: The bash installer exits with a curl/wget error.
-
-**Fix**: Check your network connection and that `VERSION` (or `latest`) resolves to a published release. For local development, set `VERSION=main` to install from the latest CI artifact.
-
-### `mise run verify` fails on a single rule
-
-**Symptom**: `ruff` or `pytest` reports one failure.
-
-**Fix**: Run the failing tool directly to see the full diff:
-
-```bash
-ruff check source/ tests/
-pytest tests/unit tests/integration -v
-```
-
-Most ruff failures auto-fix with `ruff check --fix`.
-
-## See Also
-
-- [CLI comparison](./cli-comparison.md) — what each command does
-- [Orchestrator state machine](./orchestrator-state-machine.md) — phase model and transitions
-- `source/lib/osx.py` — full list of `OSXError` codes
-- `source/orchestrator/engine.py` — orchestrator error reporting
-
-## PHASE2 Verification Report
-
-### `verification-report.md` is missing the diff appendix
-
-**Symptom**: After PHASE2 completes, `verification-report.md` has no `## Requirement
-diff` or `## Delta inventory` section.
-
-**Cause**: Either the agent failed to call `openspec show <change> --diff --json`
-before writing the report (the protocol mandates the call in step 3 of the
-`osx-phase2` MANDATORY CHECKPOINT), or the installed OpenSpec core is older than
-v1.11.0 (the `--diff` flag was added in v1.11.0).
-
-**Fix**:
-1. Confirm the orchestrator pre-flight passed — `OpenSpec >= 1.11.0` is required.
-2. Re-run `openspec-extended orchestrate <change> --from-phase PHASE2` after
-   upgrading `openspec` if needed.
-3. If still missing, inspect `decision-log.json` for the latest PHASE2 entry —
-   it must carry a `cli_diff` field; absence means the AI skipped step 3.
-
-## Post-Install Sweep
-
-### Why is `install --with-core` printing a yellow warning about unfinished archives?
-
-**Symptom**: After `openspec-extended install <tool> --with-core` or
-`openspec-extended update-core`, a yellow warning mentions "Post-install sweep
-found unfinished archive state" with a hint about ticking `tasks.md`
-checkboxes.
-
-**Cause**: The post-install sweep runs `openspec validate --archived --json` and
-found at least one change under `openspec/changes/archive/` with unchecked
-`tasks.md` checkboxes. Core's `--archived` flag (v1.9.0+) is designed for this
-exact CI gate; the wrapper surfaces it at install time so the issue is visible
-immediately, not the next time someone runs `osc-bulk-archive-change`.
-
-**Fix**: Either tick the remaining `tasks.md` checkboxes, or pass
-`--strict-archived` only after explicitly opting in (the default is non-fatal
-so install/update never block on this). To silence for one run, set
-`OPENSPEC_VALIDATE_ARCHIVED_STRICT=0` (no effect — strict is opt-in) or just
-ignore the warning.
-
-To inspect:
-
-```bash
-openspec validate --archived --strict --json
-```
+When you report a problem, include your OpenSpec version (`openspec --version`), your Node version (`node --version`), your AI tool, and the exact command and output. It makes help much faster.
