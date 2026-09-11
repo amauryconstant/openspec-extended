@@ -217,10 +217,11 @@ class TestDeploymentLogic:
         assert result == "update"
 
     def test_get_resources_dir_returns_project_resources(self):
-        """get_resources_dir returns the correct resources path."""
+        """get_resources_dir returns the orchestrator-side resources path."""
         resources = get_resources_dir()
         assert resources.name == "resources"
-        assert resources.parent == Path(__file__).resolve().parents[2]
+        assert resources.parent.name == "orchestrator"
+        assert resources.parent.parent == Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.unit

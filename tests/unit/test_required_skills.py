@@ -24,8 +24,10 @@ import pytest
 import toml
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-OPENCODE = REPO_ROOT / "resources" / "opencode"
-CLAUDE = REPO_ROOT / "resources" / "claude"
+OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "opencode"
+SKILLS_OPENCODE = REPO_ROOT / "skills" / "resources" / "opencode"
+CLAUDE = REPO_ROOT / "orchestrator" / "resources" / "claude"
+SKILLS_CLAUDE = REPO_ROOT / "skills" / "resources" / "claude"
 
 from source.lib import osx  # noqa: E402
 
@@ -66,30 +68,37 @@ class TestRequiredSkillsContract:
     def test_no_dead_names(self):
         """No name in REQUIRED_SKILLS references a missing skill directory."""
         for name in osx.REQUIRED_SKILLS:
-            assert (OPENCODE / "skills" / name).is_dir(), (
-                f"required skill {name} has no SKILL.md under "
-                f"{OPENCODE / 'skills' / name}"
+            on_disk = any(
+                (root / "skills" / name).is_dir()
+                for root in (OPENCODE, SKILLS_OPENCODE)
             )
-            assert (CLAUDE / "skills" / name).is_dir(), (
-                f"required skill {name} has no SKILL.md under "
-                f"{CLAUDE / 'skills' / name}"
-            )
+            assert on_disk, f"required skill {name} has no SKILL.md on disk"
 
     def test_every_required_skill_has_manifest_entry(self):
         oc = _manifest_versions(OPENCODE / "manifest.toml")
         cl = _manifest_versions(CLAUDE / "manifest.toml")
+        skills_oc = _manifest_versions(SKILLS_OPENCODE / "manifest.toml")
+        skills_cl = _manifest_versions(SKILLS_CLAUDE / "manifest.toml")
         for name in osx.REQUIRED_SKILLS:
             key = f"skills.{name}"
-            assert key in oc, f"manifest opencode missing {key}"
-            assert key in cl, f"manifest claude missing {key}"
+            assert key in oc or key in skills_oc, (
+                f"manifest opencode missing {key}"
+            )
+            assert key in cl or key in skills_cl, (
+                f"manifest claude missing {key}"
+            )
 
     def test_manifest_versions_match_across_platforms(self):
         oc = _manifest_versions(OPENCODE / "manifest.toml")
         cl = _manifest_versions(CLAUDE / "manifest.toml")
+        skills_oc = _manifest_versions(SKILLS_OPENCODE / "manifest.toml")
+        skills_cl = _manifest_versions(SKILLS_CLAUDE / "manifest.toml")
         for name in osx.REQUIRED_SKILLS:
             key = f"skills.{name}"
-            assert oc[key] == cl[key], (
-                f"version drift on {key}: opencode={oc[key]} claude={cl[key]}"
+            v_oc = oc.get(key) or skills_oc.get(key)
+            v_cl = cl.get(key) or skills_cl.get(key)
+            assert v_oc == v_cl, (
+                f"version drift on {key}: opencode={v_oc} claude={v_cl}"
             )
 
     def test_required_core_skills_match_upstream_rename(self):

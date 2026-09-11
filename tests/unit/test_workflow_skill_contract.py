@@ -23,8 +23,8 @@ import pytest
 REPO_ROOT = Path(__file__).parent.parent.parent
 
 SKILL_PATHS = [
-    REPO_ROOT / "resources" / "opencode" / "skills" / "osx-workflow" / "SKILL.md",
-    REPO_ROOT / "resources" / "claude" / "skills" / "osx-workflow" / "SKILL.md",
+    REPO_ROOT / "orchestrator" / "resources" / "opencode" / "skills" / "osx-workflow" / "SKILL.md",
+    REPO_ROOT / "orchestrator" / "resources" / "claude" / "skills" / "osx-workflow" / "SKILL.md",
 ]
 
 

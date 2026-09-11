@@ -3,6 +3,11 @@
 
 Section D cleanup: every doc that claims a count or a name must match
 the source of truth (manifest.toml + directory listings).
+
+Phase 4 split the resource tree into ``orchestrator/resources/`` and
+``skills/resources/``. These tests union both sides — the canonical
+resource set is the merge of (orchestrator opencode) ∪ (skills opencode).
+The Claude mirrors follow the same split.
 """
 
 from __future__ import annotations
@@ -13,27 +18,26 @@ import pytest
 import toml
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-OPENCODE = REPO_ROOT / "resources" / "opencode"
-CLAUDE = REPO_ROOT / "resources" / "claude"
+ORCHESTRATOR_OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "opencode"
+SKILLS_OPENCODE = REPO_ROOT / "skills" / "resources" / "opencode"
+ORCHESTRATOR_CLAUDE = REPO_ROOT / "orchestrator" / "resources" / "claude"
+SKILLS_CLAUDE = REPO_ROOT / "skills" / "resources" / "claude"
 
-OPENCODE_SKILLS = OPENCODE / "skills"
-OPENCODE_COMMANDS = OPENCODE / "commands"
-OPENCODE_MANIFEST = OPENCODE / "manifest.toml"
-CLAUDE_SKILLS = CLAUDE / "skills"
-CLAUDE_SKILLS_AGENTS = CLAUDE / "skills" / "AGENTS.md"
+OPENCODE_SKILLS = ORCHESTRATOR_OPENCODE / "skills"
+OPENCODE_COMMANDS = ORCHESTRATOR_OPENCODE / "commands"
+OPENCODE_MANIFEST = ORCHESTRATOR_OPENCODE / "manifest.toml"
+CLAUDE_SKILLS = ORCHESTRATOR_CLAUDE / "skills"
+CLAUDE_SKILLS_AGENTS = CLAUDE_SKILLS / "AGENTS.md"
 
-OSX_CONCEPTS_SKILL = OPENCODE_SKILLS / "osx-concepts" / "SKILL.md"
 OSX_CHANGELOG_CMD = OPENCODE_COMMANDS / "osx-changelog.md"
 OSX_MAINTAIN_DOCS_CMD = OPENCODE_COMMANDS / "osx-maintain-docs.md"
 
-OSX_PY = REPO_ROOT / "source" / "lib" / "osx.py"
+OSX_PY = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx.py"
 
 CANONICAL_SKILL_NAMES = frozenset(
     {
         "osx-commit",
-        "osx-concepts",
         "osx-workflow",
-        "osx-modify-artifacts",
         "osx-review-artifacts",
         "osx-review-test-compliance",
     }
@@ -43,7 +47,6 @@ CANONICAL_COMMAND_NAMES = frozenset(
     {
         "osx-changelog",
         "osx-maintain-docs",
-        "osx-modify",
         "osx-review",
         "osx-verify-tests",
         "osx-phase0",
@@ -61,6 +64,44 @@ def _read(path: Path) -> str:
     return path.read_text()
 
 
+def _all_skill_dirs() -> set[str]:
+    """Union of skill dirs across orchestrator and skills opencode trees."""
+    names: set[str] = set()
+    for root in (ORCHESTRATOR_OPENCODE / "skills", SKILLS_OPENCODE / "skills"):
+        if not root.is_dir():
+            continue
+        for p in root.iterdir():
+            if p.is_dir() and p.name != "references":
+                names.add(p.name)
+    return names
+
+
+def _all_command_files() -> set[str]:
+    """Union of osx-*.md command files across orchestrator and skills opencode trees."""
+    names: set[str] = set()
+    for root in (ORCHESTRATOR_OPENCODE / "commands", SKILLS_OPENCODE / "commands"):
+        if not root.is_dir():
+            continue
+        names.update(p.stem for p in root.glob("osx-*.md"))
+    return names
+
+
+def _all_manifest_skills() -> set[str]:
+    names: set[str] = set()
+    for manifest in (ORCHESTRATOR_OPENCODE / "manifest.toml", SKILLS_OPENCODE / "manifest.toml"):
+        if manifest.is_file():
+            names.update(_manifest_skills(manifest))
+    return names
+
+
+def _all_manifest_commands() -> set[str]:
+    names: set[str] = set()
+    for manifest in (ORCHESTRATOR_OPENCODE / "manifest.toml", SKILLS_OPENCODE / "manifest.toml"):
+        if manifest.is_file():
+            names.update(_manifest_commands(manifest))
+    return names
+
+
 def _manifest_skills(path: Path) -> set[str]:
     data = toml.loads(_read(path))
     skills = data.get("resources", {}).get("skills", {})
@@ -73,40 +114,47 @@ def _manifest_commands(path: Path) -> set[str]:
     return {name for name, meta in commands.items() if isinstance(meta, dict)}
 
 
+def _claude_skill_dirs() -> set[str]:
+    names: set[str] = set()
+    for root in (ORCHESTRATOR_CLAUDE / "skills", SKILLS_CLAUDE / "skills"):
+        if not root.is_dir():
+            continue
+        for p in root.iterdir():
+            if p.is_dir() and p.name != "references":
+                names.add(p.name)
+    return names
+
+
 @pytest.mark.unit
 class TestSkillTaxonomy:
     """Every doc that claims a count or a name must match the source of truth."""
 
     def test_opencode_skill_count_matches_manifest(self):
-        """resources/opencode/skills/ has 6 dirs; each is in manifest.toml."""
-        skill_dirs = {
-            p.name
-            for p in OPENCODE_SKILLS.iterdir()
-            if p.is_dir() and p.name != "references"
-        }
+        """orchestrator/ + skills/ opencode trees union to the 4 canonical skills; each is in manifest.toml."""
+        skill_dirs = _all_skill_dirs()
         assert skill_dirs == CANONICAL_SKILL_NAMES, (
             f"skill directory set drift: dirs={skill_dirs} "
             f"expected={CANONICAL_SKILL_NAMES}"
         )
 
-        manifest_skills = _manifest_skills(OPENCODE_MANIFEST)
+        manifest_skills = _all_manifest_skills()
         assert manifest_skills == CANONICAL_SKILL_NAMES, (
             f"manifest skill set drift: manifest={manifest_skills} "
             f"expected={CANONICAL_SKILL_NAMES}"
         )
 
     def test_opencode_command_count_matches_manifest(self):
-        """resources/opencode/commands/ has 12 osx-*.md files; each is in manifest.toml."""
-        cmd_files = {p.stem for p in OPENCODE_COMMANDS.glob("osx-*.md")}
+        """orchestrator/ + skills/ opencode trees union to 11 osx-*.md files; each is in manifest.toml."""
+        cmd_files = _all_command_files()
         assert cmd_files == CANONICAL_COMMAND_NAMES, (
             f"command file set drift: files={cmd_files} "
             f"expected={CANONICAL_COMMAND_NAMES}"
         )
-        assert len(cmd_files) == 12, (
-            f"expected 12 command files (7 phase + 5 workflow), got {len(cmd_files)}"
+        assert len(cmd_files) == 11, (
+            f"expected 11 command files (7 phase + 4 workflow), got {len(cmd_files)}"
         )
 
-        manifest_cmds = _manifest_commands(OPENCODE_MANIFEST)
+        manifest_cmds = _all_manifest_commands()
         assert manifest_cmds == CANONICAL_COMMAND_NAMES, (
             f"manifest command set drift: manifest={manifest_cmds} "
             f"expected={CANONICAL_COMMAND_NAMES}"
@@ -115,7 +163,7 @@ class TestSkillTaxonomy:
     def test_changelog_and_maintain_docs_are_commands_not_skills(self):
         """osx-changelog and osx-maintain-docs are slash commands, not skills.
 
-        The merged bodies live in resources/opencode/commands/{changelog,maintain-docs}.md.
+        The merged bodies live in orchestrator/resources/opencode/commands/{changelog,maintain-docs}.md.
         The historical skills/osx-{generate-changelog,maintain-ai-docs} directories
         were removed in favour of the slash command bodies.
         """
@@ -124,20 +172,13 @@ class TestSkillTaxonomy:
         assert "osx-changelog" in CANONICAL_COMMAND_NAMES
         assert "osx-maintain-docs" in CANONICAL_COMMAND_NAMES
 
-        assert not (OPENCODE_SKILLS / "osx-generate-changelog").exists(), (
-            "stale skill dir: resources/opencode/skills/osx-generate-changelog "
-            "should be deleted; the body lives in commands/osx-changelog.md"
-        )
-        assert not (OPENCODE_SKILLS / "osx-maintain-ai-docs").exists(), (
-            "stale skill dir: resources/opencode/skills/osx-maintain-ai-docs "
-            "should be deleted; the body lives in commands/osx-maintain-docs.md"
-        )
-        assert not (CLAUDE_SKILLS / "osx-generate-changelog").exists(), (
-            "stale claude skill dir: osx-generate-changelog mirror"
-        )
-        assert not (CLAUDE_SKILLS / "osx-maintain-ai-docs").exists(), (
-            "stale claude skill dir: osx-maintain-ai-docs mirror"
-        )
+        for root in (OPENCODE_SKILLS, ORCHESTRATOR_CLAUDE / "skills", SKILLS_CLAUDE / "skills"):
+            assert not (root / "osx-generate-changelog").exists(), (
+                f"stale skill dir: {root}/osx-generate-changelog should be deleted"
+            )
+            assert not (root / "osx-maintain-ai-docs").exists(), (
+                f"stale skill dir: {root}/osx-maintain-ai-docs should be deleted"
+            )
 
     def test_changelog_command_is_self_contained(self):
         """osx-changelog.md carries its full body — no thin-wrapper pointer."""
@@ -210,96 +251,63 @@ class TestSkillTaxonomy:
             "osx-changelog / osx-maintain-docs are absent"
         )
 
-    def test_required_skills_includes_five_default_skills(self):
-        """The 5 default-required skills exist on disk and in the manifest.
+    def test_required_skills_includes_three_default_skills(self):
+        """The 3 default-required skills exist on disk (some on skills side, some on orchestrator side) and in the manifest.
 
         osx-workflow is gated by --with-autonomous. osx-changelog and
         osx-maintain-docs are slash commands, not skills.
+        osx-modify-artifacts was dropped in favour of /opsx:update.
+        osx-concepts was dropped; framework content moved to docs/concepts.md.
         """
         from source.lib import osx
 
-        assert len(osx.REQUIRED_SKILLS) == 5, (
-            f"REQUIRED_SKILLS should have 5 entries (excludes osx-workflow, "
-            f"osx-changelog, osx-maintain-docs); got {len(osx.REQUIRED_SKILLS)}: "
-            f"{osx.REQUIRED_SKILLS}"
+        assert len(osx.REQUIRED_SKILLS) == 3, (
+            f"REQUIRED_SKILLS should have 3 entries (excludes osx-workflow, "
+            f"osx-changelog, osx-maintain-docs, osx-modify-artifacts, osx-concepts); "
+            f"got {len(osx.REQUIRED_SKILLS)}: {osx.REQUIRED_SKILLS}"
         )
 
-        manifest_skills = _manifest_skills(OPENCODE_MANIFEST)
+        manifest_skills = _all_manifest_skills()
         for skill in osx.REQUIRED_SKILLS:
-            assert (OPENCODE_SKILLS / skill).is_dir(), (
-                f"required skill {skill} has no SKILL.md under {OPENCODE_SKILLS}"
+            location = (
+                SKILLS_OPENCODE / "skills" / skill
+                if (SKILLS_OPENCODE / "skills" / skill).is_dir()
+                else OPENCODE_SKILLS / skill
+            )
+            assert location.is_dir(), (
+                f"required skill {skill} has no SKILL.md under "
+                f"{SKILLS_OPENCODE/'skills'} or {OPENCODE_SKILLS}"
             )
             assert skill in manifest_skills, (
-                f"required skill {skill} not declared in {OPENCODE_MANIFEST}"
+                f"required skill {skill} not declared in either manifest"
             )
 
-    def test_osx_concepts_documents_six_skills(self):
-        """osx-concepts §2.5 mentions all 6 canonical skill names."""
-        text = _read(OSX_CONCEPTS_SKILL)
-        assert "### 2.5 Resource taxonomy" in text, (
-            "osx-concepts/SKILL.md is missing §2.5 Resource taxonomy"
+    def test_osx_workflow_documents_decision_guidance(self):
+        """osx-workflow has a Decision guidance section that absorbs the
+        §3 content from the deleted osx-concepts skill.
+        """
+        text = _read(OPENCODE_SKILLS / "osx-workflow" / "SKILL.md")
+        assert "## §3 Decision guidance" in text, (
+            "osx-workflow/SKILL.md must include a §3 Decision guidance section"
         )
 
-        section_start = text.index("### 2.5 Resource taxonomy")
-        next_section = text.find("\n## ", section_start + 1)
+        section_start = text.index("## §3 Decision guidance")
+        next_section = text.find("\n## §", section_start + 1)
         section = text[section_start : next_section if next_section != -1 else None]
 
-        for skill in CANONICAL_SKILL_NAMES:
-            assert f"`{skill}`" in section, (
-                f"§2.5 Resource taxonomy must mention `{skill}` "
-                f"as one of the canonical extended skills"
-            )
-
-        # The merged/renamed entries must NOT appear in the skills table anymore:
-        for stale in (
-            "osx-generate-changelog",
-            "osx-maintain-ai-docs",
-            "Slash-command vs skill",
+        for marker in (
+            "Use OpenSpec when",
+            "Skip OpenSpec when",
+            "Update vs new change",
+            "Continue vs fast-forward",
         ):
-            assert stale not in section, (
-                f"§2.5 must not mention `{stale}` after the rename + merge"
+            assert marker in section, (
+                f"Decision guidance §3 must include the {marker!r} subsection"
             )
-
-    def test_osx_concepts_documents_twelve_commands(self):
-        """osx-concepts §2.5 lists 7 phase commands (range notation) and 5 workflow commands."""
-        text = _read(OSX_CONCEPTS_SKILL)
-        section_start = text.index("### 2.5 Resource taxonomy")
-        next_section = text.find("\n## ", section_start + 1)
-        section = text[section_start : next_section if next_section != -1 else None]
-
-        phase_endpoints = ("osx-phase0", "osx-phase6")
-        for endpoint in phase_endpoints:
-            assert f"`{endpoint}`" in section, (
-                f"§2.5 must mention phase endpoint `{endpoint}` "
-                f"(range `osx-phase0` … `osx-phase6` covers all 7 phase commands)"
-            )
-
-        workflow_names = [
-            "osx-modify",
-            "osx-review",
-            "osx-verify-tests",
-            "osx-changelog",
-            "osx-maintain-docs",
-        ]
-        for name in workflow_names:
-            assert f"`{name}`" in section, (
-                f"§2.5 must mention workflow command `{name}` (canonical inventory)"
-            )
-
-        assert "Phase** (7)" in section, (
-            "§2.5 must indicate 'Phase (7)' so the phase command count is explicit"
-        )
-        assert "Workflow** (5)" in section, (
-            "§2.5 must indicate 'Workflow (5)' so the workflow command count is explicit"
-        )
 
     def test_claude_skill_count_drift_is_documented(self):
         """Claude ships more skill dirs than OpenCode; AGENTS.md explains the drift."""
-        claude_skill_dirs = {
-            p.name
-            for p in CLAUDE_SKILLS.iterdir()
-            if p.is_dir() and p.name != "references"
-        }
+        claude_skill_dirs = _claude_skill_dirs()
         assert len(claude_skill_dirs) > len(CANONICAL_SKILL_NAMES), (
             f"Claude should ship more skill dirs than OpenCode (due to dual-emit); "
             f"got {len(claude_skill_dirs)} claude dirs vs "
@@ -308,12 +316,12 @@ class TestSkillTaxonomy:
 
         agents_text = _read(CLAUDE_SKILLS_AGENTS)
         assert "Skill count on Claude" in agents_text, (
-            "resources/claude/skills/AGENTS.md must include a 'Skill count on Claude' "
-            "section that explains the dual-emit drift"
+            "orchestrator/resources/claude/skills/AGENTS.md must include a "
+            "'Skill count on Claude' section that explains the dual-emit drift"
         )
         assert "dual-emit" in agents_text.lower(), (
-            "resources/claude/skills/AGENTS.md must reference 'dual-emit' when "
-            "explaining the count drift"
+            "orchestrator/resources/claude/skills/AGENTS.md must reference 'dual-emit' "
+            "when explaining the count drift"
         )
 
     def test_required_skills_for_default_install_excludes_workflow(self):

@@ -16,8 +16,8 @@ pytestmark = pytest.mark.mechanism
 
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-OPENCODE_SOURCE = PROJECT_ROOT / ".opencode"
-RESOURCES_OPENCODE = PROJECT_ROOT / "resources" / "opencode"
+OPENCODE_SOURCE = PROJECT_ROOT / "orchestrator" / "resources" / "opencode"
+RESOURCES_OPENCODE = PROJECT_ROOT / "orchestrator" / "resources" / "opencode"
 
 
 @pytest.fixture
@@ -52,6 +52,32 @@ def e2e_repo(tmp_path):
         scripts_dir.mkdir(parents=True)
         (opencode_target / "manifest.toml").write_text(manifest.read_text())
 
+    # The orchestrator's preflight (validate_skills) cross-checks every
+    # REQUIRED_CORE_SKILLS entry against the deployed manifest.toml. Core
+    # skills aren't shipped by openspec-extended itself, so append stub
+    # entries for each of the 12 osc-* skills to the fixture's manifest.
+    import toml
+
+    deployed_manifest_path = opencode_target / "manifest.toml"
+    deployed = toml.loads(deployed_manifest_path.read_text())
+    skills_section = deployed.setdefault("resources", {}).setdefault("skills", {})
+    for osc in (
+        "osc-propose",
+        "osc-explore",
+        "osc-new-change",
+        "osc-continue-change",
+        "osc-apply-change",
+        "osc-update-change",
+        "osc-ff-change",
+        "osc-verify-change",
+        "osc-sync-specs",
+        "osc-archive-change",
+        "osc-bulk-archive-change",
+        "osc-onboard",
+    ):
+        skills_section.setdefault(osc, {"version": "0.0.0"})
+    deployed_manifest_path.write_text(toml.dumps(deployed))
+
     # Regardless of source, ensure stub skills + phase commands exist so the
     # orchestrator's preflight (Fix 5: always runs) can pass validate_skills
     # and validate_commands. REQUIRED_CORE_SKILLS expanded to all 12 in
@@ -59,10 +85,8 @@ def e2e_repo(tmp_path):
     # commands (not skills), so they aren't stubbed here.
     skills_dir = opencode_target / "skills"
     for skill in (
-        "osx-concepts",
         "osx-workflow",
         "osx-review-artifacts",
-        "osx-modify-artifacts",
         "osx-review-test-compliance",
         "osx-commit",
         "osc-propose",

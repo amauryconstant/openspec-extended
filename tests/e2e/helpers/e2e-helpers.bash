@@ -3,7 +3,7 @@
 # Each test runs in an isolated /tmp directory
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-SCRIPTS_DIR="$PROJECT_ROOT/resources/opencode/scripts"
+SCRIPTS_DIR="$PROJECT_ROOT/orchestrator/resources/opencode/scripts"
 FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures"
 OPENSPEC_BIN="$PROJECT_ROOT/dist/openspec-extended"
 

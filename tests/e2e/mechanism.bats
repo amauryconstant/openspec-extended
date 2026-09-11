@@ -81,28 +81,24 @@ teardown() {
     echo "OUTPUT=$output"
     [ "$status" -eq 0 ]
     [ -d .opencode/skills/osx-workflow ]
-    [ -d .opencode/skills/osx-concepts ]
     [ -f .opencode/manifest.toml ]
     [ -f .opencode/skills/osx-workflow/SKILL.md ]
     [ -f .opencode/skills/osx-review-artifacts/SKILL.md ]
-    [ -f .opencode/skills/osx-modify-artifacts/SKILL.md ]
     [ ! -e .opencode/skills/osx-review-artifacts/references/review-criteria.md ]
 
     # Shared references are packaged into the skill's own references/ folder
     # so the SKILL.md links resolve without depending on a sibling directory.
-    [ -f .opencode/skills/osx-modify-artifacts/references/store-selection.md ]
-    [ -f .opencode/skills/osx-modify-artifacts/references/schema-agnostic-contract.md ]
-    [ -f .opencode/skills/osx-modify-artifacts/references/osx-mode-conventions.md ]
     [ -f .opencode/skills/osx-review-artifacts/references/store-selection.md ]
     [ -f .opencode/skills/osx-review-artifacts/references/schema-agnostic-contract.md ]
     [ -f .opencode/skills/osx-review-test-compliance/references/scoring-rubric.md ]
-    # Skill-local references stay untouched.
-    [ -f .opencode/skills/osx-concepts/references/cli-reference.md ]
 
     # Slash commands with self-contained bodies (osx-changelog, osx-maintain-docs)
     # are deployed as command files; their bodies reference shared-pool references.
     [ -f .opencode/commands/osx-changelog.md ]
     [ -f .opencode/commands/osx-maintain-docs.md ]
+
+    # osx-concepts was dropped; the deletion is now load-bearing.
+    [ ! -d .opencode/skills/osx-concepts ]
 
     rm -rf "$fresh_dir"
 }
@@ -117,22 +113,15 @@ teardown() {
     echo "OUTPUT=$output"
     [ "$status" -eq 0 ]
     [ -d .claude/skills/osx-workflow ]
-    [ -d .claude/skills/osx-concepts ]
     [ -f .claude/manifest.toml ]
     [ -f .claude/skills/osx-workflow/SKILL.md ]
     [ -f .claude/skills/osx-review-artifacts/SKILL.md ]
-    [ -f .claude/skills/osx-modify-artifacts/SKILL.md ]
     [ ! -e .claude/skills/osx-review-artifacts/references/review-criteria.md ]
 
     # Shared references are packaged into the skill's own references/ folder.
-    [ -f .claude/skills/osx-modify-artifacts/references/store-selection.md ]
-    [ -f .claude/skills/osx-modify-artifacts/references/schema-agnostic-contract.md ]
-    [ -f .claude/skills/osx-modify-artifacts/references/osx-mode-conventions.md ]
     [ -f .claude/skills/osx-review-artifacts/references/store-selection.md ]
     [ -f .claude/skills/osx-review-artifacts/references/schema-agnostic-contract.md ]
     [ -f .claude/skills/osx-review-test-compliance/references/scoring-rubric.md ]
-    # Skill-local references stay untouched.
-    [ -f .claude/skills/osx-concepts/references/cli-reference.md ]
 
     # Slash commands dual-emit on Claude as modern skills. The merged
     # changelog/maintain-docs bodies reference shared-pool files; the deploy
@@ -141,6 +130,9 @@ teardown() {
     [ -f .claude/skills/osx-maintain-docs/SKILL.md ]
     [ -f .claude/skills/osx-changelog/references/changelog-format.md ]
     [ -f .claude/skills/osx-maintain-docs/references/doc-structures.md ]
+
+    # osx-concepts was dropped; the deletion is now load-bearing.
+    [ ! -d .claude/skills/osx-concepts ]
 
     rm -rf "$fresh_dir"
 }
@@ -157,9 +149,9 @@ teardown() {
 
     [ ! -d .opencode/skills/osx-workflow ]
     [ ! -f .opencode/commands/osx-phase0.md ]
-    [ -d .opencode/skills/osx-concepts ]
-    [ -d .opencode/skills/osx-modify-artifacts ]
-    [ -f .opencode/commands/osx-modify.md ]
+    [ ! -d .opencode/skills/osx-concepts ]
+    [ -d .opencode/skills/osx-review-artifacts ]
+    [ -f .opencode/commands/osx-review.md ]
     [ ! -e .opencode/agents ]
 
     rm -rf "$fresh_dir"
@@ -177,9 +169,9 @@ teardown() {
 
     [ ! -d .claude/skills/osx-workflow ]
     [ ! -e .claude/commands/osx/phase0.md ]
-    [ -d .claude/skills/osx-concepts ]
-    [ -d .claude/skills/osx-modify-artifacts ]
-    [ -f .claude/commands/osx/modify.md ]
+    [ ! -d .claude/skills/osx-concepts ]
+    [ -d .claude/skills/osx-review-artifacts ]
+    [ -f .claude/commands/osx/review.md ]
 
     rm -rf "$fresh_dir"
 }
@@ -213,16 +205,16 @@ teardown() {
         return 1
     fi
 
-    # OpenCode slash-command form: `/osx-modify` (hyphen).
-    grep -q '/osx-modify\b' .opencode/commands/osx-modify.md
+    # OpenCode slash-command form: `/osx-review` (hyphen).
+    grep -q '/osx-review\b' .opencode/commands/osx-review.md
     # OpenCode platform dir: `.opencode/skills/...`.
-    grep -q '\.opencode/skills/' .opencode/commands/osx-modify.md
+    grep -q '\.opencode/skills/' .opencode/commands/osx-review.md
     # Skill-path reference is the literal hyphenated form on both platforms.
-    grep -q '\.opencode/skills/osx-modify-artifacts/SKILL.md' .opencode/commands/osx-modify.md
+    grep -q '\.opencode/skills/osx-review-artifacts/SKILL.md' .opencode/commands/osx-review.md
     # The hardcoded opencode slash-command form must NOT carry the colon
     # separator (Claude form). Defensive — token substitution is per platform.
-    if grep -q '/osx:modify\b' .opencode/commands/osx-modify.md; then
-        echo "FAIL: opencode deploy leaked Claude slash-command form /osx:modify"
+    if grep -q '/osx:review\b' .opencode/commands/osx-review.md; then
+        echo "FAIL: opencode deploy leaked Claude slash-command form /osx:review"
         return 1
     fi
 
@@ -246,24 +238,24 @@ teardown() {
         return 1
     fi
 
-    # Claude deploy writes the legacy command form at ``commands/osx/modify.md``
+    # Claude deploy writes the legacy command form at ``commands/osx/review.md``
     # (matching the Claude mirror layout, not the opencode file name).
-    local cmd=".claude/commands/osx/modify.md"
+    local cmd=".claude/commands/osx/review.md"
     [ -f "$cmd" ]
-    # Claude slash-command form: `/osx:modify` (colon).
-    grep -q '/osx:modify\b' "$cmd"
+    # Claude slash-command form: `/osx:review` (colon).
+    grep -q '/osx:review\b' "$cmd"
     # The dual-emit Claude skill mirror must point at the real
-    # `osx-modify-artifacts` skill directory (hyphen, not colon).
-    local skill_md=".claude/skills/osx-modify/SKILL.md"
+    # `osx-review-artifacts` skill directory (hyphen, not colon).
+    local skill_md=".claude/skills/osx-review/SKILL.md"
     [ -f "$skill_md" ]
-    grep -q '\.claude/skills/osx-modify-artifacts/SKILL.md' "$skill_md"
-    if grep -q 'osx:modify-artifacts' "$skill_md"; then
-        echo "FAIL: Claude skill mirror points at non-existent osx:modify-artifacts"
+    grep -q '\.claude/skills/osx-review-artifacts/SKILL.md' "$skill_md"
+    if grep -q 'osx:review-artifacts' "$skill_md"; then
+        echo "FAIL: Claude skill mirror points at non-existent osx:review-artifacts"
         return 1
     fi
     # The referenced skill directory must actually exist on disk.
-    [ -d .claude/skills/osx-modify-artifacts ]
-    [ -f .claude/skills/osx-modify-artifacts/SKILL.md ]
+    [ -d .claude/skills/osx-review-artifacts ]
+    [ -f .claude/skills/osx-review-artifacts/SKILL.md ]
 
     rm -rf "$fresh_dir"
 }

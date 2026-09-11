@@ -74,8 +74,7 @@ class TestInstallOpencode:
         result = run_osx(["install", "opencode"], cwd=test_env)
 
         assert result.returncode == 0
-        assert (test_env / ".opencode" / "skills" / "osx-concepts").is_dir()
-        assert (test_env / ".opencode" / "skills" / "osx-modify-artifacts").is_dir()
+        assert (test_env / ".opencode" / "skills" / "osx-commit").is_dir()
         assert (test_env / ".opencode" / "skills" / "osx-review-artifacts").is_dir()
 
     def test_install_opencode_copies_agents(self, test_env):
@@ -144,7 +143,7 @@ class TestInstallClaude:
         result = run_osx(["install", "claude"], cwd=test_env)
 
         assert result.returncode == 0
-        assert (test_env / ".claude" / "skills" / "osx-concepts").is_dir()
+        assert (test_env / ".claude" / "skills" / "osx-commit").is_dir()
 
 
 class TestInstallClaudeDualEmit:
@@ -262,32 +261,32 @@ class TestInstallTokenSubstitution:
         )
 
     def test_install_opencode_uses_hyphen_slash_command(self, test_env):
-        """OpenCode deploy uses the hyphen slash-command form (``/osx-modify``)."""
+        """OpenCode deploy uses the hyphen slash-command form (``/osx-review``)."""
         result = run_osx(
             ["install", "opencode", "--with-autonomous"], cwd=test_env
         )
         assert result.returncode == 0, result.stderr
 
-        cmd = (test_env / ".opencode" / "commands" / "osx-modify.md").read_text()
-        assert "/osx-modify" in cmd
+        cmd = (test_env / ".opencode" / "commands" / "osx-review.md").read_text()
+        assert "/osx-review" in cmd
         # The Claude colon form must NOT appear in an opencode deploy.
-        assert "/osx:modify" not in cmd
+        assert "/osx:review" not in cmd
         # The platform dir token must be substituted.
         assert ".opencode/skills" in cmd
         # The skill-path reference must use the literal hyphenated directory.
-        assert ".opencode/skills/osx-modify-artifacts/SKILL.md" in cmd
+        assert ".opencode/skills/osx-review-artifacts/SKILL.md" in cmd
 
     def test_install_claude_uses_colon_slash_command(self, test_env):
-        """Claude deploy uses the colon slash-command form (``/osx:modify``)."""
+        """Claude deploy uses the colon slash-command form (``/osx:review``)."""
         result = run_osx(
             ["install", "claude", "--with-autonomous"], cwd=test_env
         )
         assert result.returncode == 0, result.stderr
 
         # The Claude deploy writes the legacy command form at
-        # ``commands/osx/modify.md`` (matching the Claude mirror layout).
-        cmd = (test_env / ".claude" / "commands" / "osx" / "modify.md").read_text()
-        assert "/osx:modify" in cmd
+        # ``commands/osx/review.md`` (matching the Claude mirror layout).
+        cmd = (test_env / ".claude" / "commands" / "osx" / "review.md").read_text()
+        assert "/osx:review" in cmd
         # The opencode hyphen slash-command form must NOT appear in a claude
         # deploy (modulo the skill-path reference which is hyphenated on both
         # platforms).
@@ -298,26 +297,26 @@ class TestInstallTokenSubstitution:
         # The substituted platform dir is `.claude/...`.
         assert ".claude/skills" in cmd
         # The skill-path reference must use the literal hyphenated directory
-        # (NOT the broken `osx:modify-artifacts` form that the old
+        # (NOT the broken `osx:review-artifacts` form that the old
         # sync-mirrors substitution produced).
-        assert ".claude/skills/osx-modify-artifacts/SKILL.md" in cmd
-        assert "osx:modify-artifacts" not in cmd
+        assert ".claude/skills/osx-review-artifacts/SKILL.md" in cmd
+        assert "osx:review-artifacts" not in cmd
 
     def test_install_claude_skill_mirror_path_resolves(self, test_env):
         """The dual-emit Claude skill mirror must point at the real
-        ``osx-modify-artifacts`` directory (hyphen, not colon)."""
+        ``osx-review-artifacts`` directory (hyphen, not colon)."""
         result = run_osx(
             ["install", "claude", "--with-autonomous"], cwd=test_env
         )
         assert result.returncode == 0, result.stderr
 
-        skill_md = test_env / ".claude" / "skills" / "osx-modify" / "SKILL.md"
+        skill_md = test_env / ".claude" / "skills" / "osx-review" / "SKILL.md"
         assert skill_md.is_file()
         text = skill_md.read_text()
-        assert "osx-modify-artifacts" in text
-        assert "osx:modify-artifacts" not in text
+        assert "osx-review-artifacts" in text
+        assert "osx:review-artifacts" not in text
         # The referenced skill directory must actually exist on disk.
-        assert (test_env / ".claude" / "skills" / "osx-modify-artifacts").is_dir()
+        assert (test_env / ".claude" / "skills" / "osx-review-artifacts").is_dir()
 
 
 class TestInstallWithCore:
@@ -463,7 +462,7 @@ class TestUpdateCommand:
         """Update overwrites existing skills."""
         run_osx(["install", "opencode"], cwd=test_env)
 
-        skill_path = test_env / ".opencode" / "skills" / "osx-concepts" / "SKILL.md"
+        skill_path = test_env / ".opencode" / "skills" / "osx-commit" / "SKILL.md"
         original_len = len(skill_path.read_text())
 
         (skill_path).write_text((skill_path).read_text() + "\nmodified")
@@ -567,14 +566,14 @@ class TestVersionAwareUpgrade:
 
         manifest = test_env / ".opencode" / "manifest.toml"
         manifest_data = toml.loads(manifest.read_text())
-        manifest_data["resources"]["skills"]["osx-concepts"]["version"] = "0.1.0"
+        manifest_data["resources"]["skills"]["osx-commit"]["version"] = "0.1.0"
         manifest.write_text(toml.dumps(manifest_data))
 
         result = run_osx(["install", "opencode"], cwd=test_env)
         assert result.returncode == 0
 
         new_manifest = toml.loads(manifest.read_text())
-        assert new_manifest["resources"]["skills"]["osx-concepts"]["version"] != "0.1.0"
+        assert new_manifest["resources"]["skills"]["osx-commit"]["version"] != "0.1.0"
 
     def test_install_skips_when_versions_match(self, test_env):
         """Install skips when source version == installed version."""
@@ -599,7 +598,7 @@ class TestVersionAwareUpgrade:
 
         assert len(manifest_data["resources"]["skills"]) > 0
         assert (
-            manifest_data["resources"]["skills"]["osx-concepts"]["version"] is not None
+            manifest_data["resources"]["skills"]["osx-commit"]["version"] is not None
         )
 
         assert len(manifest_data["resources"]["agents"]) > 0
@@ -611,7 +610,7 @@ class TestVersionAwareUpgrade:
         """Update always deploys regardless of version."""
         run_osx(["install", "opencode"], cwd=test_env)
 
-        skill_path = test_env / ".opencode" / "skills" / "osx-concepts" / "SKILL.md"
+        skill_path = test_env / ".opencode" / "skills" / "osx-commit" / "SKILL.md"
         (skill_path).write_text((skill_path).read_text() + "\nmodified")
 
         result = run_osx(["update", "opencode"], cwd=test_env)
@@ -679,8 +678,7 @@ class TestInstallAutonomousFlag:
 
         assert result.returncode == 0
         skills_dir = test_env / ".opencode" / "skills"
-        assert (skills_dir / "osx-concepts").is_dir()
-        assert (skills_dir / "osx-modify-artifacts").is_dir()
+        assert (skills_dir / "osx-commit").is_dir()
         assert (skills_dir / "osx-review-artifacts").is_dir()
         assert (skills_dir / "osx-commit").is_dir()
 
@@ -690,7 +688,7 @@ class TestInstallAutonomousFlag:
 
         assert result.returncode == 0
         commands_dir = test_env / ".opencode" / "commands"
-        for name in ("osx-modify", "osx-review", "osx-changelog", "osx-maintain-docs"):
+        for name in ("osx-review", "osx-changelog", "osx-maintain-docs"):
             assert (commands_dir / f"{name}.md").is_file(), (
                 f"{name}.md should exist under utility-only install"
             )
@@ -810,7 +808,7 @@ class TestUpdateRemovesStale:
         assert (target / "skills" / "my-custom-skill").is_dir()
 
         # Current resources untouched
-        assert (target / "skills" / "osx-concepts").is_dir()
+        assert (target / "skills" / "osx-commit").is_dir()
         assert (target / "agents" / "osx-analyzer.md").is_file()
         assert (target / "commands" / "osx-phase0.md").is_file()
 
@@ -826,7 +824,7 @@ class TestUpdateRemovesStale:
         assert not (target / "commands" / "osx" / "obsolete-cmd.md").exists()
 
         # Current resources untouched
-        assert (target / "skills" / "osx-concepts").is_dir()
+        assert (target / "skills" / "osx-commit").is_dir()
         assert (target / "commands" / "osx" / "phase0.md").is_file()
 
     def test_install_does_not_remove_obsolete_resources(self, test_env):
@@ -859,7 +857,7 @@ class TestUpdateRemovesStale:
 
         # OpenCode tree (which had no obsolete resources) remains valid
         opencode_target = test_env / ".opencode"
-        assert (opencode_target / "skills" / "osx-concepts").is_dir()
+        assert (opencode_target / "skills" / "osx-commit").is_dir()
 
     def test_update_preserves_non_managed_skills(self, test_env):
         """Resources outside the managed prefix must never be deleted."""
@@ -913,8 +911,8 @@ class TestUpdateAutonomousToggleCleanup:
         assert not (target / "skills" / "osx-workflow").exists()
 
         # Utility resources remain
-        assert (target / "skills" / "osx-concepts").is_dir()
-        assert (target / "commands" / "osx-modify.md").is_file()
+        assert (target / "skills" / "osx-commit").is_dir()
+        assert (target / "commands" / "osx-review.md").is_file()
 
     def test_update_adds_autonomous_resources_when_toggled_on(self, test_env):
         run_osx(["install", "opencode", "--no-with-autonomous"], cwd=test_env)

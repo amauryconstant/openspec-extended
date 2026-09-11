@@ -179,12 +179,12 @@ def _phase2_transition_blocks(platform: str) -> list[str]:
     if platform == "opencode":
         path = (
             Path(__file__).resolve().parent.parent.parent
-            / "resources/opencode/commands/osx-phase2.md"
+            / "orchestrator/resources/opencode/commands/osx-phase2.md"
         )
     else:
         path = (
             Path(__file__).resolve().parent.parent.parent
-            / "resources/claude/commands/osx/phase2.md"
+            / "orchestrator/resources/claude/commands/osx/phase2.md"
         )
     text = path.read_text()
     return [b for b in _extract_bash_blocks(text) if "osx state transition " in b]
@@ -201,12 +201,12 @@ class TestPhase2TransitionExamplesAreRunnable:
             (
                 "opencode",
                 Path(__file__).resolve().parent.parent.parent
-                / "resources/opencode/commands/osx-phase2.md",
+                / "orchestrator/resources/opencode/commands/osx-phase2.md",
             ),
             (
                 "claude",
                 Path(__file__).resolve().parent.parent.parent
-                / "resources/claude/commands/osx/phase2.md",
+                / "orchestrator/resources/claude/commands/osx/phase2.md",
             ),
         ],
     )

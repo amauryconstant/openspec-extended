@@ -10,26 +10,33 @@ def _resolve_skill_path(skill: str, platform: str) -> Path:
     skill directory. Its body lives at ``commands/<skill>.md`` on the source
     platform; on Claude the dual-emit produces a ``skills/<skill>/SKILL.md``
     mirror. We probe both and return whichever exists.
+
+    Phase 4 split the resource tree into ``orchestrator/resources/`` and
+    ``skills/resources/``; we probe both roots in order so the lookup works
+    for resources that ship on either side.
     """
-    root = Path(__file__).parents[2] / "resources" / platform
-    candidates = [
-        root / "skills" / skill / "SKILL.md",
-        root / "commands" / f"{skill}.md",
-        root / "commands" / "osx" / f"{skill.replace('osx-', '')}.md",
-    ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
+    repo_root = Path(__file__).parents[2]
+    for tree in ("orchestrator", "skills"):
+        root = repo_root / tree / "resources" / platform
+        candidates = [
+            root / "skills" / skill / "SKILL.md",
+            root / "commands" / f"{skill}.md",
+            root / "commands" / "osx" / f"{skill.replace('osx-', '')}.md",
+        ]
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
     raise FileNotFoundError(
         f"no body file found for skill {skill!r} on {platform}; "
-        f"probed: {[str(c) for c in candidates]}"
+        f"probed both orchestrator/resources/{platform}/ and "
+        f"skills/resources/{platform}/"
     )
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "skill",
-    ["osx-maintain-docs", "osx-modify-artifacts"],
+    ["osx-maintain-docs"],
 )
 @pytest.mark.parametrize("platform", ["opencode", "claude"])
 def test_skill_autonomous_gates_precede_questions(skill: str, platform: str) -> None:

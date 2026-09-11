@@ -23,12 +23,26 @@ import toml
 from source.lib import osx
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-OPENCODE = REPO_ROOT / "resources" / "opencode"
+ORCHESTRATOR_OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "opencode"
+SKILLS_OPENCODE = REPO_ROOT / "skills" / "resources" / "opencode"
 
 
 def _manifest_resources(path: Path) -> dict[str, dict[str, dict]]:
     manifest = toml.loads(path.read_text())
     return manifest.get("resources", {})
+
+
+def _merged_resources() -> dict[str, dict[str, dict]]:
+    """Merge resources from orchestrator and skills manifests."""
+    merged: dict[str, dict[str, dict]] = {}
+    for manifest_path in (
+        ORCHESTRATOR_OPENCODE / "manifest.toml",
+        SKILLS_OPENCODE / "manifest.toml",
+    ):
+        if manifest_path.is_file():
+            for kind, entries in _manifest_resources(manifest_path).items():
+                merged.setdefault(kind, {}).update(entries)
+    return merged
 
 
 @pytest.mark.unit
@@ -54,8 +68,6 @@ class TestAutonomousResourceSet:
     def test_excludes_utility_skills(self):
         utility_skills = [
             "osx-commit",
-            "osx-concepts",
-            "osx-modify-artifacts",
             "osx-review-artifacts",
             "osx-review-test-compliance",
         ]
@@ -68,7 +80,6 @@ class TestAutonomousResourceSet:
         utility_commands = [
             "osx-changelog",
             "osx-maintain-docs",
-            "osx-modify",
             "osx-review",
             "osx-verify-tests",
         ]
@@ -90,38 +101,45 @@ class TestInstallGrouping:
 
     @pytest.mark.parametrize("name", sorted(osx.AUTONOMOUS_RESOURCE_NAMES))
     def test_autonomous_resource_shipped(self, name: str):
-        resources = _manifest_resources(OPENCODE / "manifest.toml")
+        resources = _merged_resources()
         declared_kinds = [
             kind for kind, entries in resources.items() if name in entries
         ]
         assert declared_kinds, (
-            f"Autonomous resource {name!r} is not declared in the opencode "
+            f"Autonomous resource {name!r} is not declared in either opencode "
             f"manifest. Either add it to resources/{{opencode,claude}}/manifest.toml "
             f"or remove it from AUTONOMOUS_RESOURCE_NAMES."
         )
         for kind in declared_kinds:
             if kind == "skills":
-                assert (OPENCODE / "skills" / name).is_dir(), (
+                shipped = (ORCHESTRATOR_OPENCODE / "skills" / name).is_dir() or (
+                    SKILLS_OPENCODE / "skills" / name
+                ).is_dir()
+                assert shipped, (
                     f"Autonomous skill {name!r} declared but not shipped under "
-                    f"{OPENCODE / 'skills' / name}"
+                    f"{ORCHESTRATOR_OPENCODE / 'skills' / name} or "
+                    f"{SKILLS_OPENCODE / 'skills' / name}"
                 )
             elif kind == "agents":
-                assert (OPENCODE / "agents" / f"{name}.md").is_file(), (
+                assert (ORCHESTRATOR_OPENCODE / "agents" / f"{name}.md").is_file(), (
                     f"Autonomous agent {name!r} declared but not shipped under "
-                    f"{OPENCODE / 'agents' / f'{name}.md'}"
+                    f"{ORCHESTRATOR_OPENCODE / 'agents' / f'{name}.md'}"
                 )
             elif kind == "commands":
-                assert (OPENCODE / "commands" / f"{name}.md").is_file(), (
+                orch = (ORCHESTRATOR_OPENCODE / "commands" / f"{name}.md").is_file()
+                skills = (SKILLS_OPENCODE / "commands" / f"{name}.md").is_file()
+                assert orch or skills, (
                     f"Autonomous command {name!r} declared but not shipped under "
-                    f"{OPENCODE / 'commands' / f'{name}.md'}"
+                    f"{ORCHESTRATOR_OPENCODE / 'commands' / f'{name}.md'} or "
+                    f"{SKILLS_OPENCODE / 'commands' / f'{name}.md'}"
                 )
 
     def test_utility_set_is_complement(self):
         """Utility resources are everything declared minus the autonomous set."""
-        resources = _manifest_resources(OPENCODE / "manifest.toml")
+        resources = _merged_resources()
         all_names = {name for entries in resources.values() for name in entries}
         utility = all_names - osx.AUTONOMOUS_RESOURCE_NAMES
-        assert len(utility) == 10, (
-            f"Utility default should be 10 entries under utility-only install; "
+        assert len(utility) == 7, (
+            f"Utility default should be 7 entries under utility-only install; "
             f"got {len(utility)}: {sorted(utility)}"
         )

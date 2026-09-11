@@ -36,7 +36,6 @@ def env_opencode(tmp_path: Path) -> Path:
         "osx-concepts",
         "osx-workflow",
         "osx-review-artifacts",
-        "osx-modify-artifacts",
         "osx-review-test-compliance",
         "osx-commit",
     ]:
@@ -67,7 +66,6 @@ def env_claude(tmp_path: Path) -> Path:
         "osx-concepts",
         "osx-workflow",
         "osx-review-artifacts",
-        "osx-modify-artifacts",
         "osx-review-test-compliance",
         "osx-commit",
     ]:

@@ -345,13 +345,14 @@ class TestSymlinkSafety:
 class TestExpectedExtensionNames:
     def test_returns_all_resources_when_autonomous_enabled(self):
         names = _expected_extension_names("opencode", with_autonomous=True)
-        assert "osx-concepts" in names
+        assert "osx-workflow" in names
         assert "osx-phase0" in names
         assert "osx-analyzer" in names
 
     def test_excludes_autonomous_resources_when_disabled(self):
         names = _expected_extension_names("opencode", with_autonomous=False)
-        assert "osx-concepts" in names
+        # osx-workflow is gated by --with-autonomous, so it's excluded
+        assert "osx-workflow" not in names
         # Phase commands are gated by --with-autonomous
         assert "osx-phase0" not in names
         assert "osx-analyzer" not in names
@@ -381,14 +382,14 @@ class TestCoreKeepSet:
 
     def test_ignores_non_osc_skills(self, tmp_path: Path):
         skills = tmp_path / "skills"
-        (skills / "osx-concepts").mkdir(parents=True)
-        (skills / "osx-concepts" / "SKILL.md").write_text("x")
+        (skills / "osx-workflow").mkdir(parents=True)
+        (skills / "osx-workflow" / "SKILL.md").write_text("x")
         (skills / "osc-apply-change").mkdir(parents=True)
         (skills / "osc-apply-change" / "SKILL.md").write_text("x")
 
         keep = _core_keep_set(tmp_path)
 
-        assert "osx-concepts" not in keep
+        assert "osx-workflow" not in keep
         assert "osc-apply-change" in keep
 
 

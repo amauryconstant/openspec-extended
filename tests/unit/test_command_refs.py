@@ -7,7 +7,7 @@ refer to upstream core workflows that the wrapper renames to ``/osc-*``
 after ``install --with-core``; without the rename they do not exist.
 
 The extended namespace ``/osx-*`` is reserved for our own commands
-(``osx-changelog``, ``osx-maintain-docs``, ``osx-modify``, ``osx-review``,
+(``osx-changelog``, ``osx-maintain-docs``, ``osx-review``,
 ``osx-verify-tests``, ``osx-phase0..6``).
 
 This test fails if any skill or command body references a non-existent
@@ -22,14 +22,40 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-OPENCODE_COMMANDS = REPO_ROOT / "resources" / "opencode" / "commands"
-OPENCODE_SKILLS = REPO_ROOT / "resources" / "opencode" / "skills"
+ORCHESTRATOR_OPENCODE_COMMANDS = (
+    REPO_ROOT / "orchestrator" / "resources" / "opencode" / "commands"
+)
+ORCHESTRATOR_OPENCODE_SKILLS = (
+    REPO_ROOT / "orchestrator" / "resources" / "opencode" / "skills"
+)
+SKILLS_OPENCODE_COMMANDS = (
+    REPO_ROOT / "skills" / "resources" / "opencode" / "commands"
+)
+SKILLS_OPENCODE_SKILLS = (
+    REPO_ROOT / "skills" / "resources" / "opencode" / "skills"
+)
+
+
+def _all_opencode_command_files() -> list[Path]:
+    out: list[Path] = []
+    for root in (ORCHESTRATOR_OPENCODE_COMMANDS, SKILLS_OPENCODE_COMMANDS):
+        if root.is_dir():
+            out.extend(sorted(root.glob("osx-*.md")))
+    return out
+
+
+def _all_opencode_skill_files() -> list[Path]:
+    """Collect every SKILL.md under both opencode skills trees."""
+    out: list[Path] = []
+    for root in (ORCHESTRATOR_OPENCODE_SKILLS, SKILLS_OPENCODE_SKILLS):
+        if root.is_dir():
+            out.extend(sorted(root.rglob("SKILL.md")))
+    return out
 
 # Real extended slash commands (file: ``osx-<name>.md``).
 EXTENDED_COMMAND_NAMES = {
     "changelog",
     "maintain-docs",
-    "modify",
     "review",
     "verify-tests",
     "phase0",
@@ -67,10 +93,8 @@ DEAD_REFS.update({f"/osx:{verb}" for verb in UPSTREAM_VERBS_RENAMED})
 # Allow `/osx-verify-tests` etc. — they ARE extended commands.
 
 SCAN_TARGETS: list[Path] = []
-for path in OPENCODE_COMMANDS.glob("*.md"):
-    SCAN_TARGETS.append(path)
-for skill_md in OPENCODE_SKILLS.rglob("SKILL.md"):
-    SCAN_TARGETS.append(skill_md)
+SCAN_TARGETS.extend(_all_opencode_command_files())
+SCAN_TARGETS.extend(_all_opencode_skill_files())
 
 
 def _is_substantive_ref(line: str, dead_ref: str) -> bool:
@@ -167,8 +191,12 @@ class TestLogCommandTerminology:
 # ``/osc-verify`` in osx-review-test-compliance, where the hyphenated OpenCode
 # command file maps to that exact slash form) are exempted below.
 ALLOWED_ABBREVIATED_FORMS: dict[str, set[str]] = {
-    "resources/opencode/skills/osx-review-test-compliance/SKILL.md": {"/osc-verify"},
-    "resources/claude/skills/osx-review-test-compliance/SKILL.md": {"/osc-verify"},
+    "skills/resources/opencode/skills/osx-review-test-compliance/SKILL.md": {
+        "/osc-verify"
+    },
+    "skills/resources/claude/skills/osx-review-test-compliance/SKILL.md": {
+        "/osc-verify"
+    },
 }
 
 # Substring patterns of abbreviated slash commands we forbid elsewhere.
@@ -238,15 +266,15 @@ class TestFullCommandNames:
         "path,expected_full_forms",
         [
             (
-                "resources/opencode/commands/osx-changelog.md",
+                "orchestrator/resources/opencode/commands/osx-changelog.md",
                 ["/osc-apply-change", "/osc-verify-change", "/osc-archive-change"],
             ),
             (
-                "resources/opencode/commands/osx-maintain-docs.md",
+                "orchestrator/resources/opencode/commands/osx-maintain-docs.md",
                 ["/osc-archive-change", "/osc-sync-specs"],
             ),
             (
-                "resources/opencode/skills/osx-review-test-compliance/SKILL.md",
+                "skills/resources/opencode/skills/osx-review-test-compliance/SKILL.md",
                 ["/osc-verify"],
             ),
         ],

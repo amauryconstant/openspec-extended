@@ -34,7 +34,7 @@ def test_env(tmp_path):
     (env_dir / ".opencode" / "skills").mkdir(parents=True)
     (env_dir / ".opencode" / "commands").mkdir(parents=True)
 
-    for skill in ["osx-concepts", "osx-review-artifacts", "osx-modify-artifacts"]:
+    for skill in ["osx-concepts", "osx-review-artifacts"]:
         skill_dir = env_dir / ".opencode" / "skills" / skill
         skill_dir.mkdir(parents=True)
         (skill_dir / "SKILL.md").write_text(f"# {skill}")

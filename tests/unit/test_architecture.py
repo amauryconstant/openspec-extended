@@ -26,25 +26,25 @@ import toml
 from source.lib import osx as osx_lib
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-LIB_OSX = REPO_ROOT / "source" / "lib" / "osx.py"
-ENGINE = REPO_ROOT / "source" / "orchestrator" / "engine.py"
-OSX_CLI = REPO_ROOT / "source" / "osx_cli.py"
-MANIFEST = REPO_ROOT / "resources" / "opencode" / "manifest.toml"
-PROMPT_ROOT = REPO_ROOT / "resources" / "opencode"
+LIB_OSX = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx.py"
+ENGINE = REPO_ROOT / "orchestrator" / "source" / "orchestrator" / "engine.py"
+OSX_CLI = REPO_ROOT / "orchestrator" / "source" / "osx_cli.py"
+MANIFEST = REPO_ROOT / "orchestrator" / "resources" / "opencode" / "manifest.toml"
+SKILLS_MANIFEST = REPO_ROOT / "skills" / "resources" / "opencode" / "manifest.toml"
+ORCHESTRATOR_PROMPT_ROOT = REPO_ROOT / "orchestrator" / "resources" / "opencode"
+SKILLS_PROMPT_ROOT = REPO_ROOT / "skills" / "resources" / "opencode"
 
 PROMPT_FILES = [
-    "commands/osx-phase0.md",
-    "commands/osx-phase1.md",
-    "commands/osx-phase2.md",
-    "commands/osx-phase3.md",
-    "commands/osx-phase4.md",
-    "commands/osx-phase5.md",
-    "commands/osx-phase6.md",
-    "commands/osx-review.md",
-    "commands/osx-modify.md",
-    "skills/osx-workflow/SKILL.md",
-    "skills/osx-workflow/references/autonomous-workflow.md",
-    "skills/osx-concepts/references/cli-reference.md",
+    ("orchestrator", "commands/osx-phase0.md"),
+    ("orchestrator", "commands/osx-phase1.md"),
+    ("orchestrator", "commands/osx-phase2.md"),
+    ("orchestrator", "commands/osx-phase3.md"),
+    ("orchestrator", "commands/osx-phase4.md"),
+    ("orchestrator", "commands/osx-phase5.md"),
+    ("orchestrator", "commands/osx-phase6.md"),
+    ("skills", "commands/osx-review.md"),
+    ("orchestrator", "skills/osx-workflow/SKILL.md"),
+    ("orchestrator", "skills/osx-workflow/references/autonomous-workflow.md"),
 ]
 
 
@@ -110,30 +110,38 @@ class TestPromptReferencesBinary:
     @pytest.mark.parametrize(
         "relpath",
         PROMPT_FILES,
-        ids=[p.replace("/", "_").replace(".md", "") for p in PROMPT_FILES],
+        ids=[p[1].replace("/", "_").replace(".md", "") for p in PROMPT_FILES],
     )
     def test_prompt_does_not_reference_legacy_script_path(self, relpath: str):
         """Prompt text must not mention ``.opencode/scripts/lib/osx``."""
-        prompt_path = PROMPT_ROOT / relpath
+        side, p = relpath
+        prompt_root = (
+            ORCHESTRATOR_PROMPT_ROOT if side == "orchestrator" else SKILLS_PROMPT_ROOT
+        )
+        prompt_path = prompt_root / p
         text = prompt_path.read_text()
         legacy = ".opencode/scripts/lib/osx"
         assert legacy not in text, (
-            f"{relpath} still references legacy path '{legacy}'; "
+            f"{p} still references legacy path '{legacy}'; "
             f"replace with 'openspec-extended osx'"
         )
 
     @pytest.mark.parametrize(
         "relpath",
         PROMPT_FILES,
-        ids=[p.replace("/", "_").replace(".md", "") for p in PROMPT_FILES],
+        ids=[p[1].replace("/", "_").replace(".md", "") for p in PROMPT_FILES],
     )
     def test_prompt_references_openspec_extended_binary(self, relpath: str):
         """Prompt text must reference the ``openspec-extended osx`` subcommand."""
-        prompt_path = PROMPT_ROOT / relpath
+        side, p = relpath
+        prompt_root = (
+            ORCHESTRATOR_PROMPT_ROOT if side == "orchestrator" else SKILLS_PROMPT_ROOT
+        )
+        prompt_path = prompt_root / p
         text = prompt_path.read_text()
         target = "openspec-extended osx"
         assert target in text, (
-            f"{relpath} does not reference '{target}'; "
+            f"{p} does not reference '{target}'; "
             f"agent/command/skill prompts should drive the osx subcommand "
             f"via the binary"
         )

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Tests for ``.mise/tasks/sync-mirrors`` — the bash script that regenerates
-``resources/claude/`` (skills, commands, manifest) from ``resources/opencode/``.
+Claude mirrors across the orchestrator and skills trees (Phase 4).
 
 Each opencode command must dual-emit on the Claude side as both a legacy
 ``commands/osx/<name>.md`` file and a modern ``skills/osx-<name>/SKILL.md``
@@ -17,9 +17,16 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 SYNC_MIRRORS = PROJECT_ROOT / ".mise" / "tasks" / "sync-mirrors"
-OPENCODE_COMMANDS = PROJECT_ROOT / "resources" / "opencode" / "commands"
-CLAUDE_COMMANDS = PROJECT_ROOT / "resources" / "claude" / "commands"
-CLAUDE_SKILLS = PROJECT_ROOT / "resources" / "claude" / "skills"
+# Phase 4 split: orchestrator side owns phase commands + agents + workflow;
+# skills side owns review/commit/test-compliance + the two wrapper commands.
+ORCH_OPENCODE_COMMANDS = PROJECT_ROOT / "orchestrator" / "resources" / "opencode" / "commands"
+ORCH_OPENCODE_SKILLS = PROJECT_ROOT / "orchestrator" / "resources" / "opencode" / "skills"
+ORCH_CLAUDE_COMMANDS = PROJECT_ROOT / "orchestrator" / "resources" / "claude" / "commands"
+ORCH_CLAUDE_SKILLS = PROJECT_ROOT / "orchestrator" / "resources" / "claude" / "skills"
+SK_OPENCODE_COMMANDS = PROJECT_ROOT / "skills" / "resources" / "opencode" / "commands"
+SK_OPENCODE_SKILLS = PROJECT_ROOT / "skills" / "resources" / "opencode" / "skills"
+SK_CLAUDE_COMMANDS = PROJECT_ROOT / "skills" / "resources" / "claude" / "commands"
+SK_CLAUDE_SKILLS = PROJECT_ROOT / "skills" / "resources" / "claude" / "skills"
 
 
 pytestmark = pytest.mark.unit
@@ -36,7 +43,10 @@ def _run(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
 
 
 def _all_opencode_command_files() -> list[Path]:
-    return sorted(p for p in OPENCODE_COMMANDS.glob("osx-*.md") if p.is_file())
+    """Walk both trees for opencode command files."""
+    files = list(ORCH_OPENCODE_COMMANDS.glob("osx-*.md"))
+    files += list(SK_OPENCODE_COMMANDS.glob("osx-*.md"))
+    return sorted(set(files))
 
 
 class TestSyncMirrorsSmoke:
@@ -72,7 +82,14 @@ class TestSyncMirrorsDualEmitsCommands:
         for src in _all_opencode_command_files():
             stem = src.stem  # "osx-phase0"
             assert stem.startswith("osx-"), stem
-            skill_md = CLAUDE_SKILLS / stem / "SKILL.md"
+            # Pick the right Claude tree based on which OpenCode tree the
+            # source lives in (Phase 4 split).
+            skills_root = (
+                SK_CLAUDE_SKILLS
+                if str(src).startswith(str(SK_OPENCODE_COMMANDS))
+                else ORCH_CLAUDE_SKILLS
+            )
+            skill_md = skills_root / stem / "SKILL.md"
             assert skill_md.is_file(), (
                 f"missing skill mirror for {stem}; run `mise run sync-mirrors`"
             )
@@ -83,7 +100,12 @@ class TestSyncMirrorsDualEmitsCommands:
         for src in _all_opencode_command_files():
             stem = src.stem  # "osx-phase0"
             base = stem[len("osx-") :]  # "phase0"
-            legacy = CLAUDE_COMMANDS / "osx" / f"{base}.md"
+            commands_root = (
+                SK_CLAUDE_COMMANDS
+                if str(src).startswith(str(SK_OPENCODE_COMMANDS))
+                else ORCH_CLAUDE_COMMANDS
+            )
+            legacy = commands_root / "osx" / f"{base}.md"
             assert legacy.is_file(), (
                 f"missing legacy command mirror for {stem}; the dual-emit "
                 f"change must not remove the legacy .claude/commands/<name>.md form"
@@ -95,7 +117,12 @@ class TestSyncMirrorsDualEmitsCommands:
         _run([])
         for src in _all_opencode_command_files():
             stem = src.stem
-            skill_md = CLAUDE_SKILLS / stem / "SKILL.md"
+            skills_root = (
+                SK_CLAUDE_SKILLS
+                if str(src).startswith(str(SK_OPENCODE_COMMANDS))
+                else ORCH_CLAUDE_SKILLS
+            )
+            skill_md = skills_root / stem / "SKILL.md"
             content = skill_md.read_text()
             assert f"\nname: {stem}\n" in content, (
                 f"skill {stem} missing name frontmatter: {content[:200]}"
@@ -108,7 +135,12 @@ class TestSyncMirrorsDualEmitsCommands:
         _run([])
         for src in _all_opencode_command_files():
             stem = src.stem
-            content = (CLAUDE_SKILLS / stem / "SKILL.md").read_text()
+            skills_root = (
+                SK_CLAUDE_SKILLS
+                if str(src).startswith(str(SK_OPENCODE_COMMANDS))
+                else ORCH_CLAUDE_SKILLS
+            )
+            content = (skills_root / stem / "SKILL.md").read_text()
             assert "\nagent:" not in content, (
                 f"skill {stem} leaked agent: directive: {content[:200]}"
             )
@@ -122,7 +154,7 @@ class TestSyncMirrorsDetectsDrift:
 
     def test_check_fails_when_legacy_command_drifts(self, tmp_path):
         # Make a backup, run, then break one file, then re-check.
-        backup = CLAUDE_COMMANDS / "osx" / "phase0.md"
+        backup = ORCH_CLAUDE_COMMANDS / "osx" / "phase0.md"
         original = backup.read_text()
         try:
             _run([])
@@ -137,7 +169,7 @@ class TestSyncMirrorsDetectsDrift:
             _run([])
 
     def test_check_fails_when_skill_mirror_drifts(self, tmp_path):
-        skill_md = CLAUDE_SKILLS / "osx-phase0" / "SKILL.md"
+        skill_md = ORCH_CLAUDE_SKILLS / "osx-phase0" / "SKILL.md"
         original = skill_md.read_text()
         try:
             _run([])
