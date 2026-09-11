@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-#MISE description="Generate resources/claude/{skills,commands}/ and claude/manifest.toml from resources/opencode/ as a pure mirror (no token substitution). Run after editing opencode resources. Use --check for CI to fail on drift. On Claude, every opencode command dual-emits as both a legacy .claude/commands/<name>.md and a modern .claude/skills/<name>/SKILL.md (mirrors upstream OpenSpec's dual-emit strategy, introduced in v1.7.0, current as of v1.11.0)."
+#MISE description="Generate claude mirrors of opencode resources across the orchestrator and skills trees. Run after editing opencode resources. Use --check for CI to fail on drift. On Claude, every opencode command dual-emits as both a legacy .claude/commands/osx/<name>.md and a modern .claude/skills/<name>/SKILL.md (mirrors upstream OpenSpec's dual-emit strategy, introduced in v1.7.0, current as of v1.11.0)."
 #USAGE flag "--check" help="Verify claude mirrors are in sync; exit non-zero on drift"
 
 set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-readonly OPENCODE_ROOT="$PROJECT_ROOT/resources/opencode"
-readonly CLAUDE_ROOT="$PROJECT_ROOT/resources/claude"
+
+# Phase 4 split: two parallel trees to mirror.
+readonly ORCH_OPENCODE="$PROJECT_ROOT/orchestrator/resources/opencode"
+readonly ORCH_CLAUDE="$PROJECT_ROOT/orchestrator/resources/claude"
+readonly SK_OPENCODE="$PROJECT_ROOT/skills/resources/opencode"
+readonly SK_CLAUDE="$PROJECT_ROOT/skills/resources/claude"
 
 CHECK_ONLY="false"
 [[ "${1:-}" == "--check" ]] && CHECK_ONLY="true"
@@ -36,14 +40,16 @@ log_warn() { printf '  !! %s\n' "$*" >&2; }
 # forms even when only one side has changed.
 claude_path_for() {
     local rel="$1"
+    local oc_root="$2"
+    local cl_root="$3"
     local rel_no_oc="${rel#opencode/}"
     case "$rel_no_oc" in
         commands/osx-*.md)
             local stem="${rel_no_oc#commands/osx-}"
-            printf '%s\n' "$CLAUDE_ROOT/commands/osx/${stem}"
+            printf '%s\n' "$cl_root/commands/osx/${stem}"
             ;;
         *)
-            printf '%s\n' "$CLAUDE_ROOT/${rel_no_oc}"
+            printf '%s\n' "$cl_root/${rel_no_oc}"
             ;;
     esac
 }
@@ -52,12 +58,13 @@ claude_path_for() {
 # commands/osx-<X>.md → skills/osx-<X>/SKILL.md
 claude_skill_path_for_command() {
     local rel="$1"
+    local cl_root="$2"
     local rel_no_oc="${rel#opencode/}"
     case "$rel_no_oc" in
         commands/osx-*.md)
             local stem="${rel_no_oc#commands/osx-}"
             local base="${stem%.md}"
-            printf '%s\n' "$CLAUDE_ROOT/skills/osx-${base}/SKILL.md"
+            printf '%s\n' "$cl_root/skills/osx-${base}/SKILL.md"
             ;;
         *)
             return 1
@@ -74,7 +81,7 @@ append_header() {
 
 <!--
 $GEN_HEADER
-Source: resources/opencode/$rel
+Source: opencode/$rel
 Regenerate: \`mise run sync:mirrors\`
 -->
 
@@ -86,12 +93,14 @@ HDR
 # In write mode, writes the destination if it would change.
 mirror_file() {
     local rel="$1"
-    local src="$OPENCODE_ROOT/$rel"
+    local oc_root="$2"
+    local cl_root="$3"
+    local src="$oc_root/$rel"
     local dst
-    dst=$(claude_path_for "$rel")
+    dst=$(claude_path_for "$rel" "$oc_root" "$cl_root")
 
     if [[ ! -f "$src" ]]; then
-        log_warn "source missing: $rel"
+        log_warn "source missing: $src"
         return 0
     fi
 
@@ -116,13 +125,13 @@ mirror_file() {
     fi
 
     if [[ "$CHECK_ONLY" == "true" ]]; then
-        log_warn "DRIFT: resources/claude/${rel#opencode/}"
+        log_warn "DRIFT: ${dst#"$PROJECT_ROOT"/}"
         return 1
     fi
 
     mkdir -p "$(dirname "$dst")"
     printf '%s\n' "$body_with_header" > "$dst"
-    log_info "wrote resources/claude/${rel#opencode/}"
+    log_info "wrote ${dst#"$PROJECT_ROOT"/}"
 }
 
 # Emit the Claude skill mirror for an opencode command file.
@@ -130,17 +139,13 @@ mirror_file() {
 # no `name:` field; the Claude skill needs `name:` and no `agent:`. We also
 # copy skill-shared references referenced from the command body so the skill
 # is self-sufficient at deploy time.
-#
-# References are detected as relative `references/<file>.md` prose mentions
-# in the command body. Their opencode source lives at
-# resources/opencode/skills/references/<file>.md; the Claude copy lands at
-# resources/claude/skills/references/<file>.md (auto-mirrored by the regular
-# skill-mirror pass over resources/opencode/skills/references/*.md below).
 mirror_command_skill() {
     local rel="$1"
-    local src="$OPENCODE_ROOT/$rel"
+    local oc_root="$2"
+    local cl_root="$3"
+    local src="$oc_root/$rel"
     local dst
-    if ! dst=$(claude_skill_path_for_command "$rel"); then
+    if ! dst=$(claude_skill_path_for_command "$rel" "$cl_root"); then
         return 0
     fi
 
@@ -201,23 +206,24 @@ mirror_command_skill() {
     fi
 
     if [[ "$CHECK_ONLY" == "true" ]]; then
-        log_warn "DRIFT: resources/claude/${dst#"$CLAUDE_ROOT"/}"
+        log_warn "DRIFT: ${dst#"$PROJECT_ROOT"/}"
         return 1
     fi
 
     mkdir -p "$(dirname "$dst")"
     printf '%s\n' "$generated" > "$dst"
-    log_info "wrote resources/claude/${dst#"$CLAUDE_ROOT"/}"
+    log_info "wrote ${dst#"$PROJECT_ROOT"/}"
 }
 
 # Mirror the manifest file. The manifest has no platform-specific content;
 # the opencode manifest is the canonical source.
 mirror_manifest() {
-    local src="$OPENCODE_ROOT/manifest.toml"
-    local dst="$CLAUDE_ROOT/manifest.toml"
+    local src="$1"
+    local dst="$2"
+    local label="$3"
 
     if [[ ! -f "$src" ]]; then
-        log_warn "opencode manifest missing"
+        log_warn "opencode manifest missing: $src"
         return 0
     fi
 
@@ -225,7 +231,7 @@ mirror_manifest() {
     generated=$( {
         cat "$src"
         echo
-        echo "# AUTO-GENERATED from resources/opencode/manifest.toml via \`mise run sync:mirrors\`."
+        echo "# AUTO-GENERATED from ${src#"$PROJECT_ROOT"/} via \`mise run sync:mirrors\`."
         echo "# Regenerate: \`mise run sync:mirrors\`"
     } )
 
@@ -239,45 +245,55 @@ mirror_manifest() {
     fi
 
     if [[ "$CHECK_ONLY" == "true" ]]; then
-        log_warn "DRIFT: resources/claude/manifest.toml"
+        log_warn "DRIFT: ${dst#"$PROJECT_ROOT"/}"
         return 1
     fi
 
     mkdir -p "$(dirname "$dst")"
     printf '%s\n' "$generated" > "$dst"
-    log_info "wrote resources/claude/manifest.toml"
+    log_info "wrote ${dst#"$PROJECT_ROOT"/} ($label)"
 }
 
-main() {
-    if [[ ! -d "$OPENCODE_ROOT" ]]; then
-        echo "Error: opencode resources directory not found at $OPENCODE_ROOT" >&2
-        exit 1
-    fi
+# Mirror a single side (orchestrator OR skills).
+mirror_side() {
+    local oc_root="$1"
+    local cl_root="$2"
+    local label="$3"
 
-    local drift=0
+    if [[ ! -d "$oc_root" ]]; then
+        log_warn "opencode tree not found: $oc_root"
+        return 0
+    fi
 
     # Mirror all SKILL.md and references/*.md under skills/.
     while IFS= read -r -d '' src; do
-        local rel="${src#"$OPENCODE_ROOT"/}"
-        mirror_file "$rel" || drift=1
-    done < <(find "$OPENCODE_ROOT/skills" \
+        local rel="${src#"$oc_root"/}"
+        mirror_file "$rel" "$oc_root" "$cl_root" || drift=1
+    done < <(find "$oc_root/skills" \
                 \( -path "*/SKILL.md" -o -path "*/references/*.md" -o -path "*/scripts/*" \) \
                 -type f \
-                -print0 2>/dev/null)
+                -print0 2>/dev/null || true)
 
     # Mirror all command files. Each opencode command also dual-emits on
     # the Claude side as a skill (mirroring upstream OpenSpec — introduced
     # in v1.7.0, current as of v1.11.0).
     while IFS= read -r -d '' src; do
-        local rel="${src#"$OPENCODE_ROOT"/}"
-        mirror_file "$rel" || drift=1
-        mirror_command_skill "$rel" || drift=1
-    done < <(find "$OPENCODE_ROOT/commands" \
+        local rel="${src#"$oc_root"/}"
+        mirror_file "$rel" "$oc_root" "$cl_root" || drift=1
+        mirror_command_skill "$rel" "$oc_root" "$cl_root" || drift=1
+    done < <(find "$oc_root/commands" \
                 -type f -name "*.md" \
-                -print0 2>/dev/null)
+                -print0 2>/dev/null || true)
 
-    # Mirror the manifest.
-    mirror_manifest || drift=1
+    # Mirror the manifest. Claude doesn't have agents/ so we skip those.
+    mirror_manifest "$oc_root/manifest.toml" "$cl_root/manifest.toml" "$label manifest" || drift=1
+}
+
+main() {
+    local drift=0
+
+    mirror_side "$ORCH_OPENCODE" "$ORCH_CLAUDE" "orchestrator" || drift=1
+    mirror_side "$SK_OPENCODE" "$SK_CLAUDE" "skills" || drift=1
 
     if [[ "$CHECK_ONLY" == "true" ]]; then
         if (( drift )); then
