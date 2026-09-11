@@ -9,7 +9,7 @@ trees.
 
 - **Pre-release**: before cutting a tag, capture the current state and
   review the report.
-- **After bumping openspec-core**: run `mise run sync-core` first, then
+- **After bumping the OpenSpec core subtree**: run `mise run sync-core` first, then
   run the audit to confirm the orchestrator still honors every new core
   contract.
 - **Periodically (quarterly)**: catch slow drift between docs and code.

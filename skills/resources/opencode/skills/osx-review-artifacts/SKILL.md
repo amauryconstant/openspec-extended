@@ -81,7 +81,7 @@ Report each violation with `file_path:line` (approximate line is fine) and a con
 
 Use the rule adopted from `openspec-verify-change`: **when uncertain, prefer `Suggestion` over `Warning`, `Warning` over `Critical`**. Implementation-readiness concerns (Step 5) are never `Critical`.
 
-If the in-tree `spec-driven` schema's `template` field does not encode a format rule we used to hardcode (H4 scenario headers, `#### Scenario:` shape, etc.), file an upstream issue against `openspec-core/source` rather than re-adding a local rubric.
+If the in-tree `spec-driven` schema's `template` field does not encode a format rule we used to hardcode (H4 scenario headers, `#### Scenario:` shape, etc.), file an upstream issue against the upstream OpenSpec project rather than re-adding a local rubric.
 
 ### Step 4 — Cross-artifact consistency report
 

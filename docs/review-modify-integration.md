@@ -112,7 +112,7 @@ The rubric (`review-criteria.md`) encodes spec-driven format rules: H4 scenario 
 
 Going schema-only means review validates the artifact against the `template` and `rules` the CLI hands it. When the schema is spec-driven, review still catches H4-vs-H3 errors — because the spec-driven template says so. When the schema is custom, review adapts automatically.
 
-**Verification gate** (Phase B): during execution, run `openspec instructions <id> --json` against the spec-driven schema and confirm the template actually encodes the format rules we care about. If gaps surface, raise an upstream issue against `openspec-core` rather than re-adding a local rubric.
+**Verification gate** (Phase B): during execution, run `openspec instructions <id> --json` against the spec-driven schema and confirm the template actually encodes the format rules we care about. If gaps surface, raise an upstream issue against the upstream OpenSpec project rather than re-adding a local rubric.
 
 ### 3.4 Why route PHASE2 Case A to `update` (not `modify`)?
 

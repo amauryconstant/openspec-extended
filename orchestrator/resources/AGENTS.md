@@ -12,7 +12,7 @@ auto-generated from the OpenCode tree.
 (project root)
 ├── orchestrator/                                # orchestration-side root
 │   ├── source/                                  # Python CLI engine
-│   ├── core/                                    # vendored openspec-core subtree
+│   ├── core/                                    # vendored OpenSpec subtree (synced from upstream)
 │   └── resources/                               # ← THIS directory
 │       ├── AGENTS.md                            # (you are here — top-level)
 │       ├── opencode/                            # OpenCode platform (canonical)

@@ -78,7 +78,7 @@ This directory contains the official OpenSpec workflow skills for AI coding assi
 ## Structure
 
 ```
-openspec-core/
+orchestrator/core/
 ├── AGENTS.md                    # This file
 ├── source/                      # Upstream subtree (git subtree pull; do not edit locally)
 ├── .claude/

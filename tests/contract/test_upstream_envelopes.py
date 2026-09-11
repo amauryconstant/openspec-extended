@@ -7,7 +7,7 @@ These tests are **gated**:
 - Auto-skipped if ``openspec`` is not on ``PATH``.
 - Run only when invoked with ``pytest -m contract`` (or ``--run-contract``).
 - Output of every shape is recorded so we can compare against upstream
-  changes when bumping ``openspec-core``.
+  changes when bumping the OpenSpec core subtree.
 
 Coverage:
 
