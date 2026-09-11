@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-#MISE description="Sync OpenSpec core skills from upstream repository"
+#MISE description="Sync OpenSpec core skills from upstream repository into orchestrator/core/"
 
 set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-readonly CORE_DIR="$PROJECT_ROOT/openspec-core"
-readonly SUBTREE_PREFIX="openspec-core/source"
+readonly CORE_DIR="$PROJECT_ROOT/orchestrator/core"
+readonly SUBTREE_PREFIX="orchestrator/core/source"
 readonly SUBTREE_DIR="$CORE_DIR/source"
 readonly UPSTREAM_REPO="https://github.com/Fission-AI/OpenSpec"
 
@@ -52,13 +52,136 @@ discover_latest_release() {
     printf '%s\n' "$latest"
 }
 
-pull_subtree() {
+# git-subtree tags each squashed commit with `git-subtree-dir: <prefix>` in
+# its body. The prefix is locked at the time of `subtree add`; a later rename
+# of the local path does NOT rewrite the annotation. So after the 4370e76
+# relocate from openspec-core/source to orchestrator/core/source, we end up
+# in one of three states:
+#
+#   1. New prefix is registered (squash history exists at SUBTREE_PREFIX)
+#      → normal `subtree pull --squash`. Steady state.
+#
+#   2. Old prefix is registered, new prefix is not, but the new prefix
+#      directory already holds relocated content (the post-rename state).
+#      `subtree pull --squash` says "never added" (no squash history at
+#      the new prefix). `subtree add` says "prefix already exists". And
+#      `subtree merge --squash` *also* refuses: it requires prior squash
+#      history at the prefix (find_latest_squash). The bridge is to seed
+#      the new prefix with a synthetic squash commit that points at the
+#      upstream SHA matching the current (relocated) tree content, then
+#      run the normal `subtree merge --squash`. After that, future runs
+#      use the steady-state path.
+#
+#   3. Neither prefix has squash history and the new prefix directory
+#      doesn't exist (a true fresh start). `subtree add` is correct here.
+readonly OLD_SUBTREE_PREFIX="openspec-core/source"
+
+subtree_is_registered() {
+    git -C "$PROJECT_ROOT" log --all \
+        --grep="^git-subtree-dir: ${SUBTREE_PREFIX}$" --format=%H -1 2>/dev/null \
+        | grep -q .
+}
+
+old_prefix_is_registered() {
+    git -C "$PROJECT_ROOT" log --all \
+        --grep="^git-subtree-dir: ${OLD_SUBTREE_PREFIX}$" --format=%H -1 2>/dev/null \
+        | grep -q .
+}
+
+# Look up the upstream SHA the prior sync landed at, from the last squash
+# commit under the OLD prefix. This is the SHA we tell git-subtree the
+# current (relocated) tree was synced to, so the subsequent merge produces
+# a faithful v1.11.0→v1.13.0 diff in the new squash commit body.
+last_subtree_sha_under() {
+    local prefix="$1"
+    git -C "$PROJECT_ROOT" log --all \
+        --grep="^git-subtree-dir: ${prefix}" --pretty=format:'%B' 2>/dev/null \
+        | grep '^git-subtree-split:' \
+        | head -1 \
+        | awk '{print $2}'
+}
+
+# Create a synthetic squash commit on HEAD that registers the new prefix
+# as already-synced-to <last_sub_sha>. The commit's tree == HEAD's tree
+# (no working-copy changes; the new-prefix dir already holds the
+# relocated content); only the body changes, to satisfy git-subtree's
+# find_latest_squash. After this lands, `subtree merge --squash` works
+# at the new prefix.
+seed_subtree_prefix() {
+    local last_sub_sha="$1"
+    local seed_sha
+    seed_sha=$(git -C "$PROJECT_ROOT" commit-tree 'HEAD^{tree}' -p HEAD \
+        -m "Migrate OpenSpec subtree to $SUBTREE_PREFIX
+
+git-subtree-dir: $SUBTREE_PREFIX
+git-subtree-split: $last_sub_sha") || {
+        echo "Error: failed to create seed squash commit for $SUBTREE_PREFIX" >&2
+        exit 1
+    }
+    # The seed commit's tree is byte-identical to HEAD's tree, so a
+    # fast-forward is safe — no working-copy or index changes.
+    git -C "$PROJECT_ROOT" merge --ff-only "$seed_sha" >/dev/null || {
+        echo "Error: failed to fast-forward HEAD to seed commit" >&2
+        exit 1
+    }
+}
+
+sync_subtree() {
     local upstream_ref="$1"
-    log_info "Pulling OpenSpec subtree from $UPSTREAM_REPO@$upstream_ref..."
-    git -C "$PROJECT_ROOT" subtree pull \
-        --prefix="$SUBTREE_PREFIX" \
-        "$UPSTREAM_REPO" "$upstream_ref" --squash \
-        -m "Sync OpenSpec subtree from $UPSTREAM_REPO@$upstream_ref"
+    if subtree_is_registered; then
+        log_info "Pulling OpenSpec subtree from $UPSTREAM_REPO@$upstream_ref..."
+        git -C "$PROJECT_ROOT" subtree pull \
+            --prefix="$SUBTREE_PREFIX" \
+            "$UPSTREAM_REPO" "$upstream_ref" --squash \
+            -m "Sync OpenSpec subtree from $UPSTREAM_REPO@$upstream_ref"
+    elif old_prefix_is_registered; then
+        # Migrate: the old prefix has squash history (sourced from
+        # upstream before the rename); the new prefix has the relocated
+        # content but no squash annotations. We can't reuse git-subtree's
+        # add/merge/pull commands directly because they all refuse the
+        # current state for one reason or another. The only way through
+        # is to (a) seed the new prefix with a synthetic squash commit
+        # pointing at the last-synced upstream SHA, then (b) run the
+        # normal merge at the new prefix.
+        log_info "Fetching upstream tag $upstream_ref..."
+        git -C "$PROJECT_ROOT" fetch --no-tags "$UPSTREAM_REPO" \
+            "refs/tags/$upstream_ref:refs/tags/upstream-$upstream_ref" \
+            2>/dev/null || {
+            echo "Error: failed to fetch $UPSTREAM_REPO tag $upstream_ref" >&2
+            exit 1
+        }
+        local upstream_sha last_sub_sha
+        upstream_sha=$(git -C "$PROJECT_ROOT" rev-parse --verify \
+            "refs/tags/upstream-$upstream_ref^{commit}") || {
+            echo "Error: cannot resolve $UPSTREAM_REPO@$upstream_ref to a commit" >&2
+            exit 1
+        }
+        last_sub_sha=$(last_subtree_sha_under "$OLD_SUBTREE_PREFIX")
+        if [[ -z "$last_sub_sha" ]]; then
+            echo "Error: cannot determine the last-synced upstream SHA under $OLD_SUBTREE_PREFIX" >&2
+            exit 1
+        fi
+        # Make sure the split SHA is in the local object DB. `subtree merge`
+        # will look it up; if absent and a remote URL is supplied it
+        # auto-fetches, but seeding the seed commit doesn't pass a URL.
+        git -C "$PROJECT_ROOT" fetch --no-tags "$UPSTREAM_REPO" \
+            "$last_sub_sha" 2>/dev/null || true
+        log_info "Migrating OpenSpec subtree from $OLD_SUBTREE_PREFIX to $SUBTREE_PREFIX..."
+        seed_subtree_prefix "$last_sub_sha"
+        # NOTE: `subtree merge --squash` requires the REV arg to be a
+# local commit SHA, not a remote tag — unlike `subtree pull` which
+# fetches first. Pass the resolved upstream SHA.
+        git -C "$PROJECT_ROOT" subtree merge \
+            --prefix="$SUBTREE_PREFIX" \
+            "$upstream_sha" --squash \
+            -m "Sync OpenSpec subtree at $SUBTREE_PREFIX from $UPSTREAM_REPO@$upstream_ref"
+    else
+        log_info "Initial subtree add at $SUBTREE_PREFIX from $UPSTREAM_REPO@$upstream_ref..."
+        git -C "$PROJECT_ROOT" subtree add \
+            --prefix="$SUBTREE_PREFIX" \
+            "$UPSTREAM_REPO" "$upstream_ref" --squash \
+            -m "Initialize OpenSpec subtree at $SUBTREE_PREFIX from $UPSTREAM_REPO@$upstream_ref"
+    fi
     log_success "Subtree at $upstream_ref"
 }
 
@@ -89,6 +212,9 @@ generate_ai_files() {
     log_info "Generating AI assistant files..."
     local gen_dir
     gen_dir=$(mktemp -d)
+    # Trap is a safety net for early exits (set -e, signals). We always
+    # clean up explicitly and unset the trap before returning so the temp
+    # dir is not orphaned and the trap doesn't bleed into the caller.
     trap 'rm -rf "$gen_dir"' EXIT
 
     git -C "$gen_dir" init -q
@@ -97,6 +223,8 @@ generate_ai_files() {
 
     sync_tree .claude "$gen_dir/.claude"
     sync_tree .opencode "$gen_dir/.opencode"
+
+    rm -rf "$gen_dir"
     trap - EXIT
 }
 
@@ -117,7 +245,7 @@ main() {
     local upstream_ref
     upstream_ref="$(discover_latest_release)"
     log_info "Resolved latest release: $upstream_ref"
-    pull_subtree "$upstream_ref"
+    sync_subtree "$upstream_ref"
     build_subtree
     write_custom_profile
     generate_ai_files
