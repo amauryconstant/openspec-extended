@@ -66,17 +66,17 @@ run = "bats tests/e2e/full-workflow.bats"
 [tasks.lint]
 description = "Lint Python files with ruff, shellcheck on bash tasks"
 run = [
-    "ruff check --fix -q source/",
+    "ruff check --fix -q orchestrator/source/",
     "shellcheck -x .mise/tasks/release .mise/tasks/sync-core .mise/tasks/sync-mirrors .mise/tasks/version/check .mise/tasks/version/update .mise/tasks/version/lib/*.sh install.sh",
 ]
 
 [tasks.format]
 description = "Format Python files with ruff"
-run = "ruff format -q source/"
+run = "ruff format -q orchestrator/source/"
 
 [tasks."typecheck"]
 description = "Type check Python files with ty"
-run = "ty check source/"
+run = "ty check orchestrator/source/"
 
 [tasks.build]
 description = "Build pyinstaller binary"

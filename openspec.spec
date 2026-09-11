@@ -5,9 +5,11 @@ from pathlib import Path
 block_cipher = None
 
 project_root = Path.cwd()
-opencode_resources_path = project_root / "resources" / "opencode"
-claude_resources_path = project_root / "resources" / "claude"
-package_path = project_root / "source"
+orchestrator_opencode_path = project_root / "orchestrator" / "resources" / "opencode"
+orchestrator_claude_path = project_root / "orchestrator" / "resources" / "claude"
+skills_opencode_path = project_root / "skills" / "resources" / "opencode"
+skills_claude_path = project_root / "skills" / "resources" / "claude"
+package_path = project_root / "orchestrator" / "source"
 
 
 def _collect_files_excluding_agents_md(src_dir, dst_prefix):
@@ -29,16 +31,23 @@ a = Analysis(
     binaries=[],
     datas=(
         _collect_files_excluding_agents_md(
-            opencode_resources_path, "resources/opencode"
+            orchestrator_opencode_path, "resources/opencode"
         )
         + _collect_files_excluding_agents_md(
-            claude_resources_path, "resources/claude"
+            orchestrator_claude_path, "resources/claude"
         )
         + _collect_files_excluding_agents_md(
-            project_root / "source" / "orchestrator", "source/orchestrator"
+            skills_opencode_path, "skills/resources/opencode"
         )
         + _collect_files_excluding_agents_md(
-            project_root / "source" / "lib", "source/lib"
+            skills_claude_path, "skills/resources/claude"
+        )
+        + _collect_files_excluding_agents_md(
+            project_root / "orchestrator" / "source" / "orchestrator",
+            "source/orchestrator",
+        )
+        + _collect_files_excluding_agents_md(
+            project_root / "orchestrator" / "source" / "lib", "source/lib"
         )
     ),
     hiddenimports=[

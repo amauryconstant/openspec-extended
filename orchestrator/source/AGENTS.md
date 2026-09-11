@@ -1,13 +1,13 @@
-# Source - Python CLI
+# `orchestrator/source/` - Python CLI
 
-Python source for the `openspec-extended` binary.
+Python source for the `openspec-extended` binary. Lives under `orchestrator/source/` per Phase 4 (the binary lives at the project root; the orchestrator side owns the CLI/module path; the skills side owns nothing under `source/`).
 
 ## Files
 
 | File | Purpose |
 |------|---------|
 | `__init__.py` | `__version__` only |
-| `__main__.py` | Entry: `python -m source` |
+| `__main__.py` | Entry: `python -m source` (still works from the new path) |
 | `cli.py` | Typer CLI (install/update/orchestrate + mounts `osx` subcommand) |
 | `lib/osx.py` | Change-management library (10 domains). Pure functions, no CLI. |
 | `osx_cli.py` | Typer app for the `openspec-extended osx` subcommand |
@@ -22,11 +22,12 @@ Python source for the `openspec-extended` binary.
 
 ## Conventions
 
-- `__version__` in `source/__init__.py` is the **single source of truth** for the tool version. See root AGENTS.md "Versioning" section.
+- `__version__` in `orchestrator/source/__init__.py` is the **single source of truth** for the tool version. See root AGENTS.md "Versioning" section.
 - The `osx` library is the in-process API. Callers (the orchestrator, tests) should `from source.lib import osx; osx.state_get(...)`. External callers use the binary: `openspec-extended osx <domain> <action> [args]`.
+- The Python **module name** is still `source` (no rename). All `from source.X` imports continue to resolve because `orchestrator/` is added to `sys.path` (PyInstaller `pathex` in `openspec.spec`) and because the test harness uses `uv run pytest` from the project root.
 
 ## See Also
 
 - Root `AGENTS.md` — Code Style, Python Requirements, Versioning, Testing
-- `source/lib/AGENTS.md` — `osx` library domains
-- `source/orchestrator/AGENTS.md` — 7-phase workflow
+- `orchestrator/source/lib/AGENTS.md` — `osx` library domains
+- `orchestrator/source/orchestrator/AGENTS.md` — 7-phase workflow

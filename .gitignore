@@ -1,6 +1,6 @@
-openspec-core/*
-!openspec-core/AGENTS.md
-openspec/
+orchestrator/core/.claude/
+orchestrator/core/.opencode/
+/openspec/
 .mise/version-state.json
 demo/
 __pycache__
@@ -13,3 +13,26 @@ tests/fixtures/install/releases/
 
 # Audit runtime artifacts (per-run; not versioned)
 .audit/
+
+# BEGIN OpenSpec autonomous workflow state
+.openspec-baseline.json
+.openspec-extended-baseline.json
+/openspec/changes/*/state.json
+!/openspec/changes/archive/**/state.json
+/openspec/changes/*/complete.json
+!/openspec/changes/archive/**/complete.json
+/openspec/changes/*/iterations.json
+!/openspec/changes/archive/**/iterations.json
+/openspec/changes/*/decision-log.json
+!/openspec/changes/archive/**/decision-log.json
+/openspec/changes/*/verification-report.md
+!/openspec/changes/archive/**/verification-report.md
+/openspec/changes/*/reflections.md
+!/openspec/changes/archive/**/reflections.md
+/openspec/changes/*/test-compliance-report.md
+!/openspec/changes/archive/**/test-compliance-report.md
+/openspec/changes/*/suggestions.md
+!/openspec/changes/archive/**/suggestions.md
+.osx-orchestrate-*.log
+!/openspec/changes/archive/**/.osx-orchestrate-*.log
+# END OpenSpec autonomous workflow state

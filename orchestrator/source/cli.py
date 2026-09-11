@@ -27,11 +27,13 @@ SCRIPT_NAME = "openspec-extended"
 TOOL_DIRS = {"opencode": ".opencode", "claude": ".claude"}
 
 # Per-platform token values for resource rendering. Source files under
-# ``resources/opencode/`` carry ``{{TOKEN}}`` placeholders; the deploy step
-# substitutes them with the values for the active ``tool``. The OpenCode source
-# ships the same tokens literally — the Python side is the single source of
-# truth for substitution. The bash ``sync-mirrors`` script is a pure mirror
-# (no token substitution). New tokens MUST be added to both platforms; the
+# ``orchestrator/resources/opencode/`` (the orchestrator side; the
+# skills side lives under ``skills/resources/opencode/`` per Phase 4) carry
+# ``{{TOKEN}}`` placeholders; the deploy step substitutes them with the
+# values for the active ``tool``. The OpenCode source ships the same tokens
+# literally — the Python side is the single source of truth for
+# substitution. The bash ``sync-mirrors`` script is a pure mirror (no
+# token substitution). New tokens MUST be added to both platforms; the
 # substitution is silent for unknown tokens so future additions don't crash.
 PLATFORM_TOKENS: dict[str, dict[str, str]] = {
     "opencode": {
@@ -84,9 +86,41 @@ app.add_typer(osx_app, name="osx")
 
 
 def get_resources_dir() -> Path:
+    """Return the orchestrator-side resources directory.
+
+    Phase 4 split the single ``resources/`` root into two parallel trees
+    — ``orchestrator/resources/`` (this function) and
+    ``skills/resources/`` (see :func:`get_skills_resources_dir`). The
+    frozen binary ships both trees; in the source tree, this resolver
+    points at the orchestrator side (the side that owns the workflow
+    resources, phase commands, and agents).
+
+    In the source tree, ``source/`` lives at ``orchestrator/source/``,
+    so ``Path(__file__).parent.parent`` resolves to ``orchestrator/``
+    and adding ``"resources"`` lands at ``orchestrator/resources/``.
+
+    In the frozen bundle, PyInstaller's ``openspec.spec`` collects each
+    side's files under the legacy ``resources/`` prefix for the
+    orchestrator side and under ``skills/resources/`` for the skills
+    side. The deploy function consults both trees once Phase 5 splits
+    the manifests.
+    """
     if getattr(sys, "frozen", False):
         return Path(getattr(sys, "_MEIPASS", "")) / "resources"
     return Path(__file__).parent.parent / "resources"
+
+
+def get_skills_resources_dir() -> Path:
+    """Return the skills-side resources directory.
+
+    Companion to :func:`get_resources_dir`. In the source tree this
+    resolves to ``skills/resources/`` (a sibling of ``orchestrator/``).
+    In the frozen bundle the matching files are placed under
+    ``MEIPASS/skills/resources/`` by the PyInstaller spec.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", "")) / "skills" / "resources"
+    return Path(__file__).parent.parent.parent / "skills" / "resources"
 
 
 def log_success(message: str) -> None:
@@ -262,7 +296,13 @@ def deploy_skills(
     if shared_refs:
         target_refs = target_path / "references"
         target_refs.mkdir(parents=True, exist_ok=True)
-        shared_refs_dir = source_base / "references"
+        # Phase 4 split: the shared references pool lives on the
+        # orchestrator side (`orchestrator/resources/<tool>/skills/references/`)
+        # even when the consuming skill lives on the skills side.
+        # Resolve via the resource path's parent to find the orchestrator
+        # pool, regardless of which side the skill itself lives on.
+        orchestrator_resources = get_resources_dir()
+        shared_refs_dir = orchestrator_resources / tool / "skills" / "references"
         for ref_name in shared_refs:
             src = shared_refs_dir / ref_name
             dst = target_refs / ref_name
@@ -448,6 +488,24 @@ def deploy_type(
             gated += 1
             continue
 
+        # Phase 4 split: the unified manifest declares resources from
+        # both sides, but on disk each resource lives on exactly one
+        # side. Skip names whose source path is missing on the current
+        # side — the other side's deploy loop will pick them up.
+        # Skills are directories; commands and agents are files. Claude
+        # commands may also live under a nested ``osx/`` subdir.
+        if resource_type == "skills":
+            source_path = source_type_dir / name
+        else:
+            source_path = source_type_dir / f"{name}.md"
+        if source_path.exists():
+            pass
+        elif (source_type_dir / "osx" / f"{name.replace('osx-', '', 1)}.md").exists():
+            # Claude: source lives at <tree>/osx/<base>.md
+            pass
+        else:
+            continue
+
         target_path = get_target_path(resource_type, target_dir, name)
         decision = should_deploy(
             name, source_version, target_path, target_manifest, resource_type, force
@@ -495,16 +553,30 @@ def deploy_type(
 
 
 def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
-    resources_dir = get_resources_dir()
-    source_dir = resources_dir / tool
-    source_manifest_path = source_dir / "manifest.toml"
+    """Deploy every resource across the orchestrator and skills trees.
 
-    if not source_manifest_path.is_file():
-        log_error(f"Manifest not found: {source_manifest_path}")
+    Phase 4 split the resources into two parallel trees; this function
+    iterates over both and merges the manifest on disk. Phase 5 will
+    split the manifests on disk into two files (one per side); the
+    iteration logic stays the same.
+    """
+    orchestrator_resources_dir = get_resources_dir()
+    orchestrator_source_dir = orchestrator_resources_dir / tool
+    orchestrator_manifest_path = orchestrator_source_dir / "manifest.toml"
+
+    if not orchestrator_manifest_path.is_file():
+        log_error(f"Manifest not found: {orchestrator_manifest_path}")
         raise SystemExit(1)
 
-    source_manifest = toml.loads(source_manifest_path.read_text())
+    orchestrator_manifest = toml.loads(orchestrator_manifest_path.read_text())
     source_version = __version__
+
+    skills_resources_dir = get_skills_resources_dir()
+    skills_source_dir = skills_resources_dir / tool
+    skills_manifest_path = skills_source_dir / "manifest.toml"
+    skills_manifest: dict = {}
+    if skills_manifest_path.is_file():
+        skills_manifest = toml.loads(skills_manifest_path.read_text())
 
     target_dir = Path.cwd() / TOOL_DIRS[tool]
     target_manifest = target_dir / "manifest.toml"
@@ -514,25 +586,41 @@ def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
     total_count = 0
     total_skipped = 0
 
-    for resource_type in ("skills", "commands", "agents"):
-        cnt, skp = deploy_type(
-            resource_type,
-            source_dir,
-            target_dir,
-            target_manifest,
-            source_manifest,
-            force,
-            tool,
-            with_autonomous,
-        )
-        total_count += cnt
-        total_skipped += skp
+    for source_dir, source_manifest in (
+        (orchestrator_source_dir, orchestrator_manifest),
+        (skills_source_dir, skills_manifest),
+    ):
+        if not source_manifest:
+            continue
+        for resource_type in ("skills", "commands", "agents"):
+            cnt, skp = deploy_type(
+                resource_type,
+                source_dir,
+                target_dir,
+                target_manifest,
+                source_manifest,
+                force,
+                tool,
+                with_autonomous,
+            )
+            total_count += cnt
+            total_skipped += skp
 
-    manifest_data = source_manifest.copy()
+    # Merge both manifests into the target manifest. Phase 5 will split
+    # the on-disk manifests so this merge becomes a no-op (each side
+    # writes its own target-side manifest entry).
+    merged_manifest = {
+        "resources": {},
+        "version": source_version,
+    }
+    for src in (orchestrator_manifest, skills_manifest):
+        for kind, entries in src.get("resources", {}).items():
+            if not isinstance(entries, dict):
+                continue
+            merged_manifest["resources"].setdefault(kind, {}).update(entries)
     if not with_autonomous:
-        declared = manifest_data.get("resources", {})
         filtered: dict = {}
-        for resource_type, entries in declared.items():
+        for resource_type, entries in merged_manifest["resources"].items():
             if not isinstance(entries, dict):
                 continue
             filtered[resource_type] = {
@@ -540,9 +628,8 @@ def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
                 for name, info in entries.items()
                 if name not in AUTONOMOUS_RESOURCE_NAMES
             }
-        manifest_data["resources"] = filtered
-    manifest_data["version"] = source_version
-    target_manifest.write_text(toml.dumps(manifest_data))
+        merged_manifest["resources"] = filtered
+    target_manifest.write_text(toml.dumps(merged_manifest))
     log_success(f"Manifest updated to v{source_version}")
     console.print(f"  Target: {target_dir}/manifest.toml")
 
@@ -1089,7 +1176,19 @@ def validate_deployment(target_dir: Path, manifest: dict) -> None:
     if not target_dir.is_dir():
         return
 
+    # Claude doesn't ship the agents/ directory — skip agent validation.
+    # The merged manifest still lists agents (for OpenCode parity); the
+    # deploy loop above skips them per the source-existence check.
+    target_tool = None
+    for tool_name, tool_dir in TOOL_DIRS.items():
+        if str(target_dir).endswith(tool_dir):
+            target_tool = tool_name
+            break
+    skip_agents = target_tool == "claude"
+
     for resource_type, resources in manifest.get("resources", {}).items():
+        if skip_agents and resource_type == "agents":
+            continue
         for name in resources:
             found = False
             if resource_type == "skills":
@@ -1097,24 +1196,34 @@ def validate_deployment(target_dir: Path, manifest: dict) -> None:
             elif resource_type == "agents":
                 found = (target_dir / "agents" / f"{name}.md").is_file()
             elif resource_type == "commands":
-                cmd_path = target_dir / "commands" / f"{name}.md"
-                if cmd_path.is_file():
-                    found = True
+                commands_dir = target_dir / "commands"
+                if not commands_dir.is_dir():
+                    # No commands directory at all — nothing to validate
+                    pass
                 else:
-                    base_name = (
-                        name.replace("osx-", "", 1) if name.startswith("osx-") else name
-                    )
-                    for subdir in (target_dir / "commands").iterdir():
-                        if subdir.is_dir() and (subdir / f"{base_name}.md").is_file():
-                            found = True
-                            break
-                # Modern Claude form: slash command emitted as a skill
-                # (dual-emit mirrors upstream OpenSpec — introduced in
-                # v1.7.0, current as of v1.11.0).
-                if not found:
-                    skill_path = target_dir / "skills" / name / "SKILL.md"
-                    if skill_path.is_file():
+                    cmd_path = commands_dir / f"{name}.md"
+                    if cmd_path.is_file():
                         found = True
+                    else:
+                        base_name = (
+                            name.replace("osx-", "", 1)
+                            if name.startswith("osx-")
+                            else name
+                        )
+                        for subdir in commands_dir.iterdir():
+                            if (
+                                subdir.is_dir()
+                                and (subdir / f"{base_name}.md").is_file()
+                            ):
+                                found = True
+                                break
+                    # Modern Claude form: slash command emitted as a skill
+                    # (dual-emit mirrors upstream OpenSpec — introduced in
+                    # v1.7.0, current as of v1.11.0).
+                    if not found:
+                        skill_path = target_dir / "skills" / name / "SKILL.md"
+                        if skill_path.is_file():
+                            found = True
 
             if not found:
                 log_warn(f"Resource '{name}' in manifest but not deployed")

@@ -43,6 +43,18 @@ DEFAULT_MAX_PHASE_ITERATIONS = 10
 
 
 def get_resources_dir() -> Path:
+    """Return the orchestrator-side resources directory.
+
+    Phase 4 split the single ``resources/`` root into two parallel trees
+    (``orchestrator/resources/`` and ``skills/resources/``); this helper
+    resolves the orchestrator side. The skills-side companion is exposed
+    via :func:`get_skills_resources_dir` in ``source.cli``.
+
+    In the source tree, ``orchestrator/engine.py`` lives at
+    ``orchestrator/source/orchestrator/``; ``Path(__file__).parent.parent``
+    is the source-tree root, where ``resources/`` resolves to
+    ``orchestrator/resources/``.
+    """
     if getattr(sys, "frozen", False):
         return Path(getattr(sys, "_MEIPASS", "")) / "resources"
     return Path(__file__).parent.parent / "resources"

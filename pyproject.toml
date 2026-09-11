@@ -43,11 +43,11 @@ Homepage = "https://github.com/openspec-extended"
 Repository = "https://github.com/openspec-extended/openspec-extended"
 
 [tool.hatch.build.targets.wheel]
-packages = ["source"]
+packages = ["orchestrator/source"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/source",
+    "/orchestrator/source",
 ]
 
 [tool.pytest.ini_options]

@@ -157,31 +157,36 @@ openspec-extended feedback "love the new flow" --body "Detailed description..."
 
 ### Extension Skills
 
-The default install ships **6 extended skills** under `resources/opencode/skills/`.
-Five are installed by default; `osx-workflow` requires `--with-autonomous`.
+The default install ships **4 extended skills** (split across
+`orchestrator/resources/opencode/skills/` and
+`skills/resources/opencode/skills/`). Three are installed by default;
+`osx-workflow` requires `--with-autonomous`.
 
 | Skill                        | Purpose                                        | Default? |
 | ---------------------------- | ---------------------------------------------- | -------- |
-| `osx-concepts`               | Teaches AI agents about OpenSpec framework     | yes      |
-| `osx-modify-artifacts`       | Modifies artifacts with dependency tracking    | yes      |
 | `osx-review-artifacts`       | Reviews artifacts for quality and completeness | yes      |
 | `osx-review-test-compliance` | Review test coverage for OpenSpec changes      | yes      |
 | `osx-commit`                 | Create commits matching project conventions    | yes      |
 | `osx-workflow`               | Explains the 7-phase autonomous workflow       | opt-in (`--with-autonomous`) |
 
+Framework concepts that used to live in the `osx-concepts` skill now ship
+as `docs/concepts.md` (loaded on demand, not auto-deployed). Multi- and
+single-artifact edits route through `/opsx:update` from upstream.
+
 ### Extension Commands
 
-In addition to the skills, the default install ships **5 workflow slash commands**
-under `resources/opencode/commands/`. Each is a self-contained command with its
-full body inline (the Claude mirror dual-emits them as skills too).
+In addition to the skills, the default install ships **9 slash commands**
+(7 phase commands on the orchestrator side + 2 utility commands on the
+skills side). Each is a self-contained command with its full body inline
+(the Claude mirror dual-emits them as skills too).
 
-| Command                       | Purpose                                       |
-| ----------------------------- | --------------------------------------------- |
-| `/osx-changelog`              | Generate `CHANGELOG.md` from archived changes |
-| `/osx-maintain-docs`          | Update `AGENTS.md` and `CLAUDE.md`            |
-| `/osx-modify`                 | Single-artifact surgical edit                 |
-| `/osx-review`                 | Schema-driven pre-implementation audit        |
-| `/osx-verify-tests`           | Spec-to-test alignment analysis               |
+| Command                       | Purpose                                       | Side          |
+| ----------------------------- | --------------------------------------------- | ------------- |
+| `/osx-changelog`              | Generate `CHANGELOG.md` from archived changes | orchestrator  |
+| `/osx-maintain-docs`          | Update `AGENTS.md` and `CLAUDE.md`            | orchestrator  |
+| `/osx-review`                 | Schema-driven pre-implementation audit        | skills        |
+| `/osx-verify-tests`           | Spec-to-test alignment analysis               | skills        |
+| `/osx-phase0`–`/osx-phase6`   | 7-phase autonomous workflow                   | orchestrator (opt-in) |
 
 ### Specialized Agents (opt-in: `--with-autonomous`)
 
@@ -275,13 +280,26 @@ OpenSpec-extended/
 │       └── runner.py        # AI-runner abstraction (opencode / claude dispatch)
 ├── install.sh               # Bash binary installer
 ├── openspec.spec            # PyInstaller spec
-├── openspec-core/           # Core workflows (synced from upstream)
-├── resources/
-│   ├── opencode/            # OpenCode resources (canonical source)
-│   │   ├── skills/          # 8 extension skills
-│   │   ├── agents/          # 4 agent definitions
-│   │   └── commands/        # Phase commands + osx-* utilities
-│   └── claude/              # Claude Code resources (auto-generated mirror)
+├── orchestrator/            # Orchestration side
+│   ├── source/              # Python CLI engine
+│   ├── core/                # Core workflows (synced from upstream)
+│   └── resources/           # Skills, agents, commands for the orchestrator
+│       ├── opencode/        # OpenCode canonical source
+│       │   ├── skills/      # osx-workflow + shared references
+│       │   ├── agents/      # 4 phase agents
+│       │   └── commands/    # 7 phase + 2 utility (osx-changelog, osx-maintain-docs)
+│       └── claude/          # Claude Code mirror (auto-generated)
+│           ├── skills/      # osx-* skill mirror per command (dual-emit)
+│           └── commands/osx/# Phase commands + osx-* utilities (legacy form)
+├── skills/                  # Skills side (gap-filling utilities)
+│   └── resources/
+│       ├── opencode/        # osx-{commit,review-artifacts,review-test-compliance}
+│       │                    # + osx-{review,verify-tests} command stubs
+│       └── claude/          # Claude Code mirror (auto-generated)
+├── tests/                   # pytest + bats suite (unit/integration/mechanism/e2e)
+├── docs/                    # User-facing documentation (concepts.md, audit.md, …)
+├── .mise/tasks/             # sync-core, release, sync-mirrors, version/{check,update}
+└── research/                # Platform documentation
 │       ├── skills/          # 8 extension skills + osx-* skill mirror per
 │       │                    # command (mirrors upstream dual-emit strategy,
 │       │                    # introduced in v1.7.0, current as of v1.11.0)

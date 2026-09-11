@@ -20,7 +20,7 @@
 | **Agents**      | N/A             | `osx-*`             |
 | **Lib scripts** | N/A             | `osx`               |
 
-**Extension Skills** (core skills tracked in `openspec-core/AGENTS.md`)
+**Extension Skills** (core skills tracked in `orchestrator/core/AGENTS.md`)
 
 ---
 
@@ -87,12 +87,12 @@ applies the bumps detected by `version:check`.
 - `resources/opencode/{skills,commands}/` is the canonical source for skills and commands.
 - `resources/claude/{skills,commands}/` is auto-generated from opencode via token substitution (defined in `.mise/tasks/sync-mirrors`).
 - On Claude, every opencode command dual-emits: a legacy `.claude/commands/osx/<name>.md` plus a modern `.claude/skills/osx-<name>/SKILL.md`. This mirrors upstream OpenSpec's dual-emit strategy (introduced in v1.7.0, current as of v1.11.0).
-- `resources/opencode/manifest.toml` is the canonical manifest; `resources/claude/manifest.toml` is generated from it.
-- A pre-commit hook (`sync-mirrors-check`) fails the commit if the Claude mirror drifts.
-- `mise run sync-mirrors` regenerates the mirror after editing opencode files.
+- `orchestrator/resources/opencode/manifest.toml` is the canonical manifest for orchestrator-side resources; `orchestrator/resources/claude/manifest.toml` is generated from it. The skills side mirrors the same shape at `skills/resources/opencode/manifest.toml` and `skills/resources/claude/manifest.toml`.
+- A pre-commit hook (`sync-mirrors-check`) fails the commit if either Claude mirror drifts.
+- `mise run sync-mirrors` regenerates both mirrors after editing opencode files.
 - `mise run sync-mirrors --check` verifies without writing (used by CI and `mise run verify`).
 
-Shared references live once at `resources/opencode/skills/references/` (cross-cutting, no single owning resource) and are auto-mirrored. See `resources/opencode/skills/AGENTS.md` for the table.
+Shared references live once at `orchestrator/resources/opencode/skills/references/` (cross-cutting, no single owning resource) and are auto-mirrored. See `orchestrator/resources/opencode/skills/AGENTS.md` for the table.
 
 Per-contract operational notes for v1.8.0+ orchestrator consumption (`isPlanningComplete`, `retire_capabilities`, `operations.{apply|archive}.guidance`, `show --diff`, `validate --archived`) live in [docs/review-modify-integration.md §13](docs/review-modify-integration.md#13-post-v170-contract-additions).
 
@@ -155,14 +155,17 @@ install.sh              # Bash installer (downloads PyInstaller binary)
 openspec.spec           # PyInstaller spec
 pyproject.toml          # Project metadata + entry point
 
-resources/
-├── opencode/            # Skills, agents, commands
-└── claude/              # Same structure for Claude Code
+orchestrator/           # Orchestration side
+├── source/             # Python CLI engine
+├── core/               # Official OpenSpec workflows (read-only, synced from upstream)
+└── resources/          # Skills, agents, commands (opencode + claude mirror)
 
-openspec-core/           # Official OpenSpec workflows (read-only)
-research/                # Platform documentation
-tests/                   # pytest + bats suite
-.mise/tasks/             # sync-core, release, version/{check,update,lib/*} (all bash)
+skills/                 # Skills side (gap-filling utilities)
+└── resources/          # Skills + wrapper commands (opencode + claude mirror)
+
+research/               # Platform documentation
+tests/                  # pytest + bats suite
+.mise/tasks/            # sync-core, release, sync-mirrors, version/{check,update,lib/*} (all bash)
 ```
 
 ---
@@ -194,7 +197,9 @@ uploads everything to the matching GitHub release.
 
 ## Adding New Skills
 
-Create `resources/opencode/skills/<skill-name>/SKILL.md` with frontmatter:
+Create `orchestrator/resources/opencode/skills/<skill-name>/SKILL.md` (or
+`skills/resources/opencode/skills/<skill-name>/SKILL.md` if the skill
+belongs to the skills side) with frontmatter:
 
 ```yaml
 ---
