@@ -392,7 +392,7 @@ OpenCode:                          Claude Code:
 
 ## Example Commands Reference
 
-Refer to these canonical implementations in `openspec-core/.opencode/command/`:
+Refer to these canonical implementations in `orchestrator/core/.opencode/command/`:
 
 | Command | Complexity | Key Patterns Demonstrated |
 |---------|------------|---------------------------|
@@ -435,7 +435,7 @@ Before finalizing a command, verify:
 
 ## Related Resources
 
-- **Example commands**: `openspec-core/.opencode/command/` and `openspec-core/.claude/commands/opsx/`
+- **Example commands**: `orchestrator/core/.opencode/command/` and `orchestrator/core/.claude/commands/opsx/`
 - **Related skills**: See `research/building-openspec-skills.md`
 - **Platform docs**: `research/opencode-docs.md`, `research/claude-code-docs.md`
 - **OpenSpec workflow**: OpenSpec [workflows.md](https://github.com/Fission-AI/OpenSpec/blob/main/docs/workflows.md)

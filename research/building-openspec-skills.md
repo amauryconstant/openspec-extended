@@ -345,7 +345,7 @@ Always announce: "Using change: <name>" and how to override (e.g., `/opsx-apply 
 
 ## Example Skills Reference
 
-Instead of inline examples, refer to these canonical implementations in `openspec-core/.opencode/skills/`:
+Instead of inline examples, refer to these canonical implementations in `orchestrator/core/.opencode/skills/`:
 
 | Skill | Complexity | Key Patterns Demonstrated |
 |-------|------------|---------------------------|
@@ -392,7 +392,7 @@ Before finalizing a skill, verify:
 
 ## Related Resources
 
-- **Example skills**: `openspec-core/.opencode/skills/` and `openspec-core/.claude/skills/`
+- **Example skills**: `orchestrator/core/.opencode/skills/` and `orchestrator/core/.claude/skills/`
 - **Platform docs**: `research/opencode-docs.md`, `research/claude-code-docs.md`
-- **OpenSpec concepts**: `openspec-core/AGENTS.md`, OpenSpec [concepts.md](https://github.com/Fission-AI/OpenSpec/blob/main/docs/concepts.md)
+- **OpenSpec concepts**: `orchestrator/core/AGENTS.md`, OpenSpec [concepts.md](https://github.com/Fission-AI/OpenSpec/blob/main/docs/concepts.md)
 - **OPSX workflow**: OpenSpec [opsx.md](https://github.com/Fission-AI/OpenSpec/blob/main/docs/opsx.md)
