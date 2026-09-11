@@ -1,57 +1,108 @@
 #!/usr/bin/env python3
-"""
-Phase-7 placeholder.
+"""Resource contract suite for the orchestrator/skills split (Phase 7).
 
-This module was the static resource-contract suite for the v1.6
-review/modify rewrite (see ``docs/review-modify-integration.md``). It
-locked in the schema-agnostic contract adopted by ``osx-review-artifacts``
-and ``osx-modify-artifacts``: no hardcoded artifact names, output-path
-discipline, ``/opsx:update`` routing, manifest parity between the OpenCode
-and Claude trees, and the removal of the deleted rubric directories.
+The previous version of this module was the v1.6 review/modify contract
+suite for ``osx-review-artifacts`` / ``osx-modify-artifacts``. Phase 1
+dropped ``osx-modify-artifacts`` / ``/osx-modify``, Phase 2 dropped
+``osx-concepts``, and Phase 4 split the resource tree into two parallel
+roots: ``orchestrator/resources/`` and ``skills/resources/``. This
+rewrite pins the post-split surface.
 
-After Phase 1 (drop ``osx-modify-artifacts`` / ``/osx-modify``) and
-Phase 2 (drop ``osx-concepts``), several contract assertions became
-obsolete and the directory layout split into ``orchestrator/`` +
-``skills/``. A full rewrite is deferred to Phase 7 so the rest of the
-post-split test suite could land green first.
+Source of truth is the four split manifests:
 
-The new contract source of truth lives at:
+  - ``orchestrator/resources/opencode/manifest.toml``
+  - ``orchestrator/resources/claude/manifest.toml``
+  - ``skills/resources/opencode/manifest.toml``
+  - ``skills/resources/claude/manifest.toml``
 
-- ``orchestrator/resources/opencode/manifest.toml``
-- ``orchestrator/resources/claude/manifest.toml``
-- ``skills/resources/opencode/manifest.toml``
-- ``skills/resources/claude/manifest.toml``
+Coverage:
 
-Until Phase 7 lands, ``test_skill_taxonomy.py`` + ``test_sync_mirrors.py``
-+ ``test_install_flow.py`` carry the resource-shape coverage that this
-module used to provide.
+  - ``TestManifestParity`` — resource set + per-resource versions agree
+    pairwise across the four manifests; strict semver; no accidental
+    downgrades vs HEAD.
+  - ``TestDualEmitDiscipline`` — every opencode command dual-emits on
+    the Claude side as both a legacy ``commands/osx/<base>.md`` and a
+    modern ``skills/osx-<base>/SKILL.md``.
+  - ``TestFrontmatterInvariants`` — required keys, name-matches-dir,
+    ``allowed-tools: Bash(openspec:*)`` where the skill consumes the
+    openspec CLI, Claude ``metadata`` mirror where the opencode source
+    declares it.
+  - ``TestSchemaAgnosticContract`` — pins the still-load-bearing schema-
+    agnostic contract wording inside ``osx-review-artifacts``.
+  - ``TestNoHardcodedArtifactNames`` — the rewritten review skill plus
+    every opencode command body must avoid hardcoded
+    ``proposal.md``/``design.md``/``tasks.md`` references.
+  - ``TestSkillDescriptionLeadingWord`` — locks in the model-invocation
+    trigger word for every canonical skill.
+  - ``TestOrchestratorContracts`` — mirrors the still-load-bearing
+    v1.8.0–v1.11.0 contracts from ``docs/review-modify-integration.md``
+    §13 (``isPlanningComplete``, ``retire_capabilities``, ``operationGuidance``,
+    ``show --diff``, ``validate --archived``).
+  - ``TestSharedReferencesPackaging`` — shared references pool files
+    are all consumed by some skill or command (orchestrator-side and
+    skills-side pools).
 """
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 import toml
 
-# Module-level skip: the contract suite is obsolete post-Phase 1/2 and the
-# directory layout split (Phase 4) made many of its assertions target
-# deleted resources. Re-enable in Phase 7 with a contract tailored to the
-# new orchestrator/ + skills/ tree (see module docstring above).
-pytest.skip(
-    "test_resource_contract awaits Phase 7 rewrite for the orchestrator/skills "
-    "split; the new contract source of truth lives in "
-    "orchestrator/resources/{opencode,claude}/manifest.toml and "
-    "skills/resources/{opencode,claude}/manifest.toml.",
-    allow_module_level=True,
-)
-
 REPO_ROOT = Path(__file__).parent.parent.parent
 
-OPENCODE = REPO_ROOT / "resources" / "opencode"
-CLAUDE = REPO_ROOT / "resources" / "claude"
-OPENCODE_MANIFEST = OPENCODE / "manifest.toml"
-CLAUDE_MANIFEST = CLAUDE / "manifest.toml"
+ORCH_OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "opencode"
+ORCH_CLAUDE = REPO_ROOT / "orchestrator" / "resources" / "claude"
+SK_OPENCODE = REPO_ROOT / "skills" / "resources" / "opencode"
+SK_CLAUDE = REPO_ROOT / "skills" / "resources" / "claude"
+
+ORCH_OPENCODE_MANIFEST = ORCH_OPENCODE / "manifest.toml"
+ORCH_CLAUDE_MANIFEST = ORCH_CLAUDE / "manifest.toml"
+SK_OPENCODE_MANIFEST = SK_OPENCODE / "manifest.toml"
+SK_CLAUDE_MANIFEST = SK_CLAUDE / "manifest.toml"
+
+ALL_MANIFESTS = [
+    ORCH_OPENCODE_MANIFEST,
+    ORCH_CLAUDE_MANIFEST,
+    SK_OPENCODE_MANIFEST,
+    SK_CLAUDE_MANIFEST,
+]
+
+CANONICAL_SKILLS = frozenset(
+    {
+        "osx-commit",
+        "osx-review-artifacts",
+        "osx-review-test-compliance",
+        "osx-workflow",
+    }
+)
+
+# Skills that consume the openspec CLI directly. These must carry the
+# `allowed-tools: Bash(openspec:*)` precedent. ``osx-commit`` does not
+# consume the CLI (it shells out to `git`), and ``osx-workflow`` is a
+# pure reference (no live CLI calls) — both excluded.
+OPENSPEC_TOOL_SKILLS = frozenset(
+    {
+        "osx-review-artifacts",
+        "osx-review-test-compliance",
+    }
+)
+
+# Source roots where the canonical skill lives (orchestrator or skills side).
+SKILL_HOME = {
+    "osx-commit": SK_OPENCODE,
+    "osx-review-artifacts": SK_OPENCODE,
+    "osx-review-test-compliance": SK_OPENCODE,
+    "osx-workflow": ORCH_OPENCODE,
+}
+
+SCHEMA_AGNOSTIC_CONTRACT_SKILLS = [
+    SK_OPENCODE / "skills" / "osx-review-artifacts" / "SKILL.md",
+    SK_CLAUDE / "skills" / "osx-review-artifacts" / "SKILL.md",
+]
 
 
 def _read(path: Path) -> str:
@@ -72,12 +123,16 @@ def _read_frontmatter(path: Path) -> dict[str, str]:
     return fm
 
 
+def _manifest_resources(path: Path) -> dict[str, dict[str, dict]]:
+    """Return the full ``resources`` table from a manifest as nested dicts."""
+    return toml.loads(_read(path)).get("resources", {})
+
+
 def _manifest_versions(path: Path) -> dict[str, str]:
-    """Read a flattened map of ``<type>.<id>`` -> ``version`` from a manifest."""
-    manifest = toml.loads(_read(path))
+    """Flatten a manifest to ``<type>.<id>`` -> ``version`` mapping."""
+    manifest = _manifest_resources(path)
     out: dict[str, str] = {}
-    resources = manifest.get("resources", {})
-    for kind, items in resources.items():
+    for kind, items in manifest.items():
         if not isinstance(items, dict):
             continue
         for rid, meta in items.items():
@@ -86,324 +141,71 @@ def _manifest_versions(path: Path) -> dict[str, str]:
     return out
 
 
-# ============================================================================
-# Frontmatter shape
-# ============================================================================
+def _manifest_resource_keys(path: Path) -> set[str]:
+    """Return the set of ``<type>.<id>`` keys declared in a manifest."""
+    manifest = _manifest_resources(path)
+    out: set[str] = set()
+    for kind, items in manifest.items():
+        if not isinstance(items, dict):
+            continue
+        out.update(f"{kind}.{rid}" for rid in items)
+    return out
 
 
-@pytest.mark.unit
-class TestSkillFrontmatter:
-    """Skills must match their platform's frontmatter contract and declare
-    the v1.6 ``allowed-tools: Bash(openspec:*)`` precedent."""
+def _git_available() -> bool:
+    return shutil.which("git") is not None
 
-    RESOURCES = [
-        "skills/osx-review-artifacts/SKILL.md",
-        "skills/osx-review-test-compliance/SKILL.md",
-    ]
 
-    @pytest.mark.parametrize("relpath", RESOURCES)
-    def test_opencode_skill_has_allowed_tools(self, relpath: str):
-        fm = _read_frontmatter(OPENCODE / relpath)
-        assert fm.get("allowed-tools") == "Bash(openspec:*)", (
-            f"{relpath} must carry `allowed-tools: Bash(openspec:*)` in "
-            f"frontmatter; got: {fm.get('allowed-tools')!r}"
+def _head_manifest(path: Path) -> str | None:
+    """Read ``HEAD:<manifest>`` as text. Returns None on any git failure."""
+    if not _git_available():
+        return None
+    try:
+        rel = path.resolve().relative_to(REPO_ROOT.resolve())
+        result = subprocess.run(
+            ["git", "show", f"HEAD:{rel.as_posix()}"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
         )
-
-    @pytest.mark.parametrize("relpath", RESOURCES)
-    def test_opencode_skill_has_required_basics(self, relpath: str):
-        fm = _read_frontmatter(OPENCODE / relpath)
-        for required in ("name", "description", "license"):
-            assert required in fm, (
-                f"{relpath} missing required frontmatter key {required!r}"
-            )
-
-    @pytest.mark.parametrize("relpath", RESOURCES)
-    def test_claude_skill_has_allowed_tools(self, relpath: str):
-        fm = _read_frontmatter(CLAUDE / relpath)
-        assert fm.get("allowed-tools") == "Bash(openspec:*)", (
-            f"{relpath} must carry `allowed-tools: Bash(openspec:*)` in "
-            f"frontmatter; got: {fm.get('allowed-tools')!r}"
-        )
-
-    @pytest.mark.parametrize("relpath", RESOURCES)
-    def test_claude_skill_has_metadata(self, relpath: str):
-        """Claude skills accept richer frontmatter; ``metadata`` is the
-        platform-specific extension point."""
-        text = _read(CLAUDE / relpath)
-        assert "metadata:" in text, (
-            f"{relpath} should declare a `metadata` block per "
-            f"resources/claude/skills/AGENTS.md"
-        )
+    except (ValueError, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout
 
 
-@pytest.mark.unit
-class TestCommandFrontmatter:
-    """Commands must match their platform's frontmatter contract."""
-
-    RESOURCES = [
-        "commands/osx-review.md",
-        "commands/osx-verify-tests.md",
-    ]
-
-    @pytest.mark.parametrize("relpath", RESOURCES)
-    def test_opencode_command_has_allowed_tools(self, relpath: str):
-        fm = _read_frontmatter(OPENCODE / relpath)
-        assert fm.get("allowed-tools") == "Bash(openspec:*)", (
-            f"{relpath} must carry `allowed-tools: Bash(openspec:*)` in "
-            f"frontmatter; got: {fm.get('allowed-tools')!r}"
-        )
-
-    def test_opencode_review_command_wraps_skill(self):
-        text = _read(OPENCODE / "commands/osx-review.md")
-        # The command points at the skill via {{CMD_PREFIX}}review-artifacts.
-        assert "review-artifacts/SKILL.md" in text, (
-            "osx-review.md must tail the rewritten skill body"
-        )
+def _parse_version(v: str) -> tuple[int, int, int] | None:
+    parts = v.split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        return int(parts[0]), int(parts[1]), int(parts[2])
+    except ValueError:
+        return None
 
 
-@pytest.mark.unit
-class TestSkillDescriptionLeadingWord:
-    """Lock in the PR2 description-rewriting invariant: every model-invoked
-    skill's ``description`` frontmatter leads with a known token.
-
-    Per writing-great-skills "front-load the leading word" — the first word
-    of a description is what the model uses to decide whether to fire the
-    skill. Pinning it in a test means a casual description edit cannot
-    silently change firing behaviour.
-
-    ``osx-changelog`` is excluded because it's user-invoked
-    (``disable-model-invocation: true``); its description is human-facing
-    rather than trigger-facing.
-    """
-
-    EXPECTED_LEADING_WORDS: dict[str, str] = {
-        "skills/osx-commit/SKILL.md": "Detect",
-        "skills/osx-review-artifacts/SKILL.md": "Audit",
-        "skills/osx-review-test-compliance/SKILL.md": "Surface",
-        "skills/osx-workflow/SKILL.md": "7-phase",
-    }
-
-    @pytest.mark.parametrize(
-        "relpath,expected",
-        list(EXPECTED_LEADING_WORDS.items()),
-    )
-    def test_opencode_description_leads_with_expected_word(
-        self, relpath: str, expected: str
-    ):
-        fm = _read_frontmatter(OPENCODE / relpath)
-        desc = fm.get("description", "")
-        first = desc.split(maxsplit=1)[0] if desc else ""
-        assert first == expected, (
-            f"{relpath} description leading word changed: "
-            f"expected {expected!r}, got {first!r}. "
-            f"Update the allowlist AND the description together."
-        )
-
-    @pytest.mark.parametrize(
-        "relpath,expected",
-        list(EXPECTED_LEADING_WORDS.items()),
-    )
-    def test_claude_description_matches_opencode(self, relpath: str, expected: str):
-        fm = _read_frontmatter(CLAUDE / relpath)
-        desc = fm.get("description", "")
-        first = desc.split(maxsplit=1)[0] if desc else ""
-        assert first == expected, (
-            f"Claude mirror {relpath} drifted from opencode: "
-            f"expected leading word {expected!r}, got {first!r}. "
-            f"Run `mise run sync-mirrors`."
-        )
+def _all_opencode_commands() -> list[Path]:
+    out: list[Path] = []
+    for root in (ORCH_OPENCODE / "commands", SK_OPENCODE / "commands"):
+        if not root.is_dir():
+            continue
+        out.extend(sorted(root.glob("osx-*.md")))
+    return out
 
 
-# ============================================================================
-# Schema-agnostic contract wording
-# ============================================================================
-
-
-@pytest.mark.unit
-class TestSchemaAgnosticContract:
-    """Both rewritten skills must encode the schema-agnostic contract from
-    ``resources/{opencode,claude}/skills/AGENTS.md``."""
-
-    SKILLS = [
-        OPENCODE / "skills/osx-review-artifacts/SKILL.md",
-        CLAUDE / "skills/osx-review-artifacts/SKILL.md",
-    ]
-
-    @pytest.mark.parametrize(
-        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
-    )
-    def test_skill_uses_status_cli(self, skill: Path):
-        text = _read(skill)
-        assert "openspec status --change" in text, (
-            f"{skill.relative_to(REPO_ROOT)} must use "
-            "openspec status --change ... --json"
-        )
-
-    @pytest.mark.parametrize(
-        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
-    )
-    def test_skill_uses_instructions_cli(self, skill: Path):
-        text = _read(skill)
-        assert "openspec instructions" in text, (
-            f"{skill.relative_to(REPO_ROOT)} must use "
-            "openspec instructions <id> --change ... --json"
-        )
-
-    @pytest.mark.parametrize(
-        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
-    )
-    def test_skill_references_existing_paths(self, skill: Path):
-        text = _read(skill)
-        assert "existingOutputPaths" in text, (
-            f"{skill.relative_to(REPO_ROOT)} must reference "
-            "artifactPaths.<id>.existingOutputPaths"
-        )
-
-    @pytest.mark.parametrize(
-        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
-    )
-    def test_skill_warns_against_resolved_output_path_writes(self, skill: Path):
-        text = _read(skill)
-        assert "resolvedOutputPath" in text, (
-            f"{skill.relative_to(REPO_ROOT)} must call out "
-            "the glob hazard of resolvedOutputPath"
-        )
-
-    @pytest.mark.parametrize(
-        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
-    )
-    def test_skill_disallows_code_edits(self, skill: Path):
-        text = _read(skill)
-        lowered = text.lower()
-        assert "opsx:apply" in lowered or "/opsx:apply" in lowered, (
-            f"{skill.relative_to(REPO_ROOT)} must route code-change "
-            "implications to /opsx:apply"
-        )
-
-    @pytest.mark.parametrize(
-        "skill", SKILLS, ids=lambda p: str(p.relative_to(REPO_ROOT))
-    )
-    def test_skill_includes_store_selection_paragraph(self, skill: Path):
-        """Skills that handle store-backed changes must point at the
-        shared store-selection reference (single source of truth at
-        ``references/store-selection.md``)."""
-        text = _read(skill)
-        assert "references/store-selection.md" in text, (
-            f"{skill.relative_to(REPO_ROOT)} must include a pointer to "
-            f"references/store-selection.md"
-        )
-
-
-@pytest.mark.unit
-class TestReviewSkillNoHardcodedNames:
-    """The rewritten review skill must not hardcode proposal/specs/design/tasks."""
-
-    PATHS = [
-        OPENCODE / "skills/osx-review-artifacts/SKILL.md",
-        CLAUDE / "skills/osx-review-artifacts/SKILL.md",
-    ]
-
-    @pytest.mark.parametrize(
-        "skill", PATHS, ids=lambda p: str(p.relative_to(REPO_ROOT))
-    )
-    def test_skill_contains_no_hardcoded_artifact_names(self, skill: Path):
-        text = _read(skill)
-        forbidden = ["proposal.md", "design.md", "tasks.md"]
-        # We tolerate the exception: when used as a *negative example* of
-        # "never assume X". Outside that context, these strings must not
-        # appear.
-        for name in forbidden:
-            occurrences = text.count(name)
-            # The skill may mention them once each in a "never assume" warning.
-            assert occurrences <= 1, (
-                f"{skill.relative_to(REPO_ROOT)} references hardcoded "
-                f"artifact name {name!r} {occurrences} times; "
-                f"the rewritten skill must be schema-driven"
-            )
-
-
-# ============================================================================
-# Rubric / reference cleanup
-# ============================================================================
-
-
-@pytest.mark.unit
-class TestRubricCleanup:
-    """The 321-line / 292-line rubric files were deleted; the empty
-    reference directories are gone."""
-
-    def test_opencode_rubric_gone(self):
-        assert not (
-            OPENCODE / "skills/osx-review-artifacts/references/review-criteria.md"
-        ).exists(), (
-            "resources/opencode/skills/osx-review-artifacts/references/"
-            "review-criteria.md must be removed (rubric replaced by schema-driven audit)"
-        )
-
-    def test_claude_rubric_gone(self):
-        assert not (
-            CLAUDE / "skills/osx-review-artifacts/references/review-criteria.md"
-        ).exists(), (
-            "resources/claude/skills/osx-review-artifacts/references/"
-            "review-criteria.md must be removed (rubric replaced by schema-driven audit)"
-        )
-
-    def test_opencode_review_references_dir_gone(self):
-        assert not (OPENCODE / "skills/osx-review-artifacts/references").exists(), (
-            "The empty references/ directory under opencode review-artifacts "
-            "should be removed after rubric + common-issues deletion"
-        )
-
-    def test_claude_review_references_dir_gone(self):
-        assert not (CLAUDE / "skills/osx-review-artifacts/references").exists(), (
-            "The empty references/ directory under claude review-artifacts "
-            "should be removed after rubric + common-issues deletion"
-        )
-
-
-# ============================================================================
-# PHASE0 / PHASE2 routing
-# ============================================================================
-
-
-@pytest.mark.unit
-class TestPhaseRouting:
-    """PHASE0 emits a routing report (not in-place fixes); PHASE2 Case A
-    defaults to ``/opsx:update``."""
-
-    def test_phase0_does_not_invoke_modify_inline(self):
-        text = _read(OPENCODE / "commands/osx-phase0.md")
-        assert "DO NOT" in text or "Do not" in text or "do not" in text, (
-            "PHASE0 must instruct the agent not to fix inside the dispatched phase"
-        )
-        assert "/opsx:update" in text or "osc-update-change" in text, (
-            "PHASE0 must emit /opsx:update as a routing recommendation"
-        )
-
-    def test_phase0_claude_mirrors(self):
-        text = _read(CLAUDE / "commands/osx/phase0.md")
-        assert "/opsx:update" in text or "osc-update-change" in text
-
-    def test_phase2_case_a_defaults_to_update(self):
-        text = _read(OPENCODE / "commands/osx-phase2.md")
-        assert "/opsx:update" in text or "osc-update-change" in text, (
-            "PHASE2 Case A must default to /opsx:update"
-        )
-
-    def test_phase2_claude_case_a_defaults_to_update(self):
-        text = _read(CLAUDE / "commands/osx/phase2.md")
-        assert "/opsx:update" in text or "osc-update-change" in text
-
-    def test_workflow_table_lists_update(self):
-        for path in (
-            OPENCODE / "skills/osx-workflow/SKILL.md",
-            CLAUDE / "skills/osx-workflow/SKILL.md",
-        ):
-            text = _read(path)
-            assert "osc-update-change" in text or "openspec-update-change" in text, (
-                f"{path.relative_to(REPO_ROOT)} must list update-change in the "
-                f"phase table"
-            )
+def _claude_mirror_paths_for(src: Path) -> tuple[Path, Path]:
+    """Return ``(legacy_command, modern_skill)`` for an opencode command."""
+    stem = src.stem  # "osx-phase0"
+    base = stem[len("osx-"):]  # "phase0"
+    if str(src).startswith(str(SK_OPENCODE / "commands")):
+        cl_root = SK_CLAUDE
+    else:
+        cl_root = ORCH_CLAUDE
+    legacy = cl_root / "commands" / "osx" / f"{base}.md"
+    modern = cl_root / "skills" / stem / "SKILL.md"
+    return legacy, modern
 
 
 # ============================================================================
@@ -413,102 +215,491 @@ class TestPhaseRouting:
 
 @pytest.mark.unit
 class TestManifestParity:
-    """Every rewritten resource must have the same version on both platforms."""
+    """The four split manifests must agree pairwise on resource set and
+    per-resource versions."""
 
-    PARITY_KEYS = [
-        "skills.osx-review-artifacts",
-        "skills.osx-review-test-compliance",
-        "skills.osx-workflow",
-        "skills.osx-commit",
-        "commands.osx-review",
-        "commands.osx-verify-tests",
-        "commands.osx-changelog",
-        "commands.osx-maintain-docs",
-        "commands.osx-phase0",
-        "commands.osx-phase2",
-    ]
+    def test_all_four_manifests_exist(self):
+        for path in ALL_MANIFESTS:
+            assert path.is_file(), f"manifest missing: {path}"
 
-    @pytest.mark.parametrize("key", PARITY_KEYS)
-    def test_versions_match(self, key: str):
-        oc = _manifest_versions(OPENCODE_MANIFEST).get(key)
-        cl = _manifest_versions(CLAUDE_MANIFEST).get(key)
-        assert oc is not None, f"{key} missing from opencode manifest"
-        assert cl is not None, f"{key} missing from claude manifest"
-        assert oc == cl, f"version drift on {key}: opencode={oc} claude={cl}"
+    def test_opencode_manifests_declare_same_resource_set(self):
+        oc_keys = _manifest_resource_keys(ORCH_OPENCODE_MANIFEST)
+        sk_keys = _manifest_resource_keys(SK_OPENCODE_MANIFEST)
+        assert oc_keys == sk_keys, (
+            f"orchestrator-opencode vs skills-opencode resource-set drift: "
+            f"only-in-orch={sorted(oc_keys - sk_keys)} "
+            f"only-in-skills={sorted(sk_keys - oc_keys)}"
+        )
 
-    @pytest.mark.parametrize(
-        "key,expected",
-        [
-            ("skills.osx-review-artifacts", "0.3.3"),
-            ("skills.osx-workflow", "0.5.0"),
-            ("skills.osx-review-test-compliance", "0.2.6"),
-            ("commands.osx-changelog", "0.2.0"),
-            ("commands.osx-maintain-docs", "0.3.0"),
-            ("commands.osx-review", "0.2.2"),
-            ("commands.osx-verify-tests", "0.1.4"),
-            ("commands.osx-phase0", "0.4.0"),
-            ("commands.osx-phase2", "0.4.0"),
-        ],
-    )
-    def test_target_versions(self, key: str, expected: str):
-        oc = _manifest_versions(OPENCODE_MANIFEST).get(key)
-        assert oc == expected, f"opencode {key} expected {expected}; got {oc}"
-        cl = _manifest_versions(CLAUDE_MANIFEST).get(key)
-        assert cl == expected, f"claude {key} expected {expected}; got {cl}"
+    def test_claude_mirrors_match_opencode_per_side(self):
+        """For each side, the Claude manifest must agree with the
+        OpenCode manifest on every per-resource version (sync-mirrors
+        carries the version forward verbatim)."""
+        for oc_manifest, cl_manifest, label in (
+            (ORCH_OPENCODE_MANIFEST, ORCH_CLAUDE_MANIFEST, "orchestrator"),
+            (SK_OPENCODE_MANIFEST, SK_CLAUDE_MANIFEST, "skills"),
+        ):
+            oc_v = _manifest_versions(oc_manifest)
+            cl_v = _manifest_versions(cl_manifest)
+            assert oc_v == cl_v, (
+                f"{label}: Claude mirror drift vs opencode source.\n"
+                f"opencode={oc_v!r}\n"
+                f"claude={cl_v!r}"
+            )
+
+    def test_every_version_is_strict_semver(self):
+        for path in ALL_MANIFESTS:
+            for key, version in _manifest_versions(path).items():
+                assert _parse_version(version) is not None, (
+                    f"{path}: {key} version {version!r} is not strict X.Y.Z"
+                )
+
+    def test_no_resource_version_downgrade_vs_head(self):
+        """Compare each manifest's per-resource versions against HEAD.
+        Versions must be >= what HEAD carried — pin accidental downgrades."""
+        if not _git_available():
+            pytest.skip("git not available")
+        for path in ALL_MANIFESTS:
+            head_text = _head_manifest(path)
+            if head_text is None:
+                pytest.skip(f"no HEAD snapshot for {path}")
+            try:
+                head_versions = _manifest_versions_from_text(head_text)
+            except Exception:
+                pytest.skip(f"could not parse HEAD manifest for {path}")
+            cur_versions = _manifest_versions(path)
+            for key in head_versions:
+                if key not in cur_versions:
+                    continue
+                head_v = _parse_version(head_versions[key])
+                cur_v = _parse_version(cur_versions[key])
+                assert head_v is not None and cur_v is not None
+                assert cur_v >= head_v, (
+                    f"{path}: {key} downgraded {head_versions[key]} -> "
+                    f"{cur_versions[key]}"
+                )
+
+
+def _manifest_versions_from_text(text: str) -> dict[str, str]:
+    manifest = toml.loads(text).get("resources", {})
+    out: dict[str, str] = {}
+    for kind, items in manifest.items():
+        if not isinstance(items, dict):
+            continue
+        for rid, meta in items.items():
+            if isinstance(meta, dict) and "version" in meta:
+                out[f"{kind}.{rid}"] = str(meta["version"])
+    return out
 
 
 # ============================================================================
-# Stale references in test compliance skill
+# Dual-emit discipline
 # ============================================================================
 
 
 @pytest.mark.unit
-class TestStaleRefs:
-    """``osx-review-test-compliance`` was carrying stale command names."""
+class TestDualEmitDiscipline:
+    """Every opencode command must dual-emit on the Claude side: the
+    legacy ``commands/osx/<base>.md`` and the modern
+    ``skills/osx-<base>/SKILL.md``. Mirrors the upstream OpenSpec
+    v1.7.0 dual-emit strategy (current as of v1.11.0)."""
 
-    @pytest.mark.parametrize(
-        "path",
-        [
-            OPENCODE / "skills/osx-review-test-compliance/SKILL.md",
-            CLAUDE / "skills/osx-review-test-compliance/SKILL.md",
-        ],
-    )
-    def test_no_osx_test_compliance_stale_ref(self, path: Path):
-        text = _read(path)
-        scrubbed = text.replace("/osx-verify-tests", "")
-        scrubbed = scrubbed.replace("/osx:verify-tests", "")
-        for stale in [
-            "/osx-test-compliance",
-            "/osx:test-compliance",
-        ]:
-            assert stale not in scrubbed, (
-                f"{path.relative_to(REPO_ROOT)} still references stale "
-                f"command {stale!r}"
+    def test_every_opencode_command_has_legacy_command_mirror(self):
+        for src in _all_opencode_commands():
+            legacy, _ = _claude_mirror_paths_for(src)
+            assert legacy.is_file(), (
+                f"missing legacy command mirror for {src.name}; "
+                f"expected {legacy.relative_to(REPO_ROOT)}"
             )
 
+    def test_every_opencode_command_has_modern_skill_mirror(self):
+        for src in _all_opencode_commands():
+            _, modern = _claude_mirror_paths_for(src)
+            assert modern.is_file(), (
+                f"missing modern skill mirror for {src.name}; "
+                f"expected {modern.relative_to(REPO_ROOT)}"
+            )
+
+    def test_modern_skill_mirror_injects_name_frontmatter(self):
+        """The Claude skill mirror must declare ``name: osx-<base>`` so
+        Claude Code's slash-command resolver picks it up."""
+        for src in _all_opencode_commands():
+            _, modern = _claude_mirror_paths_for(src)
+            text = _read(modern)
+            assert f"\nname: {src.stem}\n" in text, (
+                f"{modern.relative_to(REPO_ROOT)} missing "
+                f"`name: {src.stem}` frontmatter"
+            )
+
+    def test_modern_skill_mirror_drops_agent_frontmatter(self):
+        """The opencode-only ``agent:`` directive is platform-specific.
+        The Claude mirror must not leak it through."""
+        for src in _all_opencode_commands():
+            _, modern = _claude_mirror_paths_for(src)
+            text = _read(modern)
+            assert "\nagent:" not in text, (
+                f"{modern.relative_to(REPO_ROOT)} leaked opencode "
+                f"`agent:` directive"
+            )
+
+
+# ============================================================================
+# Frontmatter invariants
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestFrontmatterInvariants:
+    """The four canonical skills must match their platform's frontmatter
+    contract. ``osx-commit`` is intentionally minimal (no openspec CLI),
+    so the ``allowed-tools`` rule applies only to the three skills that
+    consume the openspec CLI."""
+
+    @pytest.mark.parametrize("skill_name", sorted(CANONICAL_SKILLS))
+    def test_opencode_skill_has_required_basics(self, skill_name: str):
+        path = SKILL_HOME[skill_name] / "skills" / skill_name / "SKILL.md"
+        fm = _read_frontmatter(path)
+        for required in ("name", "description", "license"):
+            assert required in fm, (
+                f"{path.relative_to(REPO_ROOT)} missing required "
+                f"frontmatter key {required!r}"
+            )
+
+    @pytest.mark.parametrize("skill_name", sorted(CANONICAL_SKILLS))
+    def test_skill_name_matches_directory(self, skill_name: str):
+        path = SKILL_HOME[skill_name] / "skills" / skill_name / "SKILL.md"
+        fm = _read_frontmatter(path)
+        assert fm.get("name") == skill_name, (
+            f"{path.relative_to(REPO_ROOT)} `name:` frontmatter "
+            f"{fm.get('name')!r} does not match directory {skill_name!r}"
+        )
+
+    @pytest.mark.parametrize("skill_name", sorted(OPENSPEC_TOOL_SKILLS))
+    def test_opencode_skill_has_allowed_tools(self, skill_name: str):
+        path = SKILL_HOME[skill_name] / "skills" / skill_name / "SKILL.md"
+        fm = _read_frontmatter(path)
+        assert fm.get("allowed-tools") == "Bash(openspec:*)", (
+            f"{path.relative_to(REPO_ROOT)} must carry "
+            f"`allowed-tools: Bash(openspec:*)`; got {fm.get('allowed-tools')!r}"
+        )
+
+    @pytest.mark.parametrize("skill_name", sorted(OPENSPEC_TOOL_SKILLS))
+    def test_claude_skill_has_metadata_block(self, skill_name: str):
+        """Skills whose opencode source declares ``metadata:`` must
+        carry the same block on the Claude mirror."""
+        oc_path = SKILL_HOME[skill_name] / "skills" / skill_name / "SKILL.md"
+        cl_root = SK_CLAUDE if SKILL_HOME[skill_name] is SK_OPENCODE else ORCH_CLAUDE
+        cl_path = cl_root / "skills" / skill_name / "SKILL.md"
+        cl_text = _read(cl_path)
+        assert "metadata:" in cl_text, (
+            f"{cl_path.relative_to(REPO_ROOT)} must carry a `metadata:` "
+            f"block per orchestrator/resources/claude/skills/AGENTS.md"
+        )
+
     @pytest.mark.parametrize(
-        "path",
-        [
-            OPENCODE / "skills/osx-review-test-compliance/SKILL.md",
-            CLAUDE / "skills/osx-review-test-compliance/SKILL.md",
-        ],
+        "root",
+        [ORCH_OPENCODE / "commands", SK_OPENCODE / "commands"],
+        ids=["orchestrator", "skills"],
     )
-    def test_no_osx_verify_stale_ref(self, path: Path):
-        text = _read(path)
-        # Strip out the well-formed "/osx:verify-tests" references so the
-        # substring check targets the dangling "/osx:verify" form only.
-        scrubbed = text.replace("/osx:verify-tests", "")
-        scrubbed = scrubbed.replace("/osx-verify-tests", "")
-        assert "/osx-verify <name>" not in scrubbed, (
-            f"{path.relative_to(REPO_ROOT)} still references stale "
-            f"`/osx-verify <name>` (should be `/opsx:verify <name>`)"
+    def test_every_opencode_command_has_description(self, root: Path):
+        for cmd in root.glob("osx-*.md"):
+            fm = _read_frontmatter(cmd)
+            assert "description" in fm, (
+                f"{cmd.relative_to(REPO_ROOT)} must carry a `description` "
+                f"frontmatter key"
+            )
+
+
+# ============================================================================
+# Schema-agnostic contract (live utility: osx-review-artifacts)
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestSchemaAgnosticContract:
+    """``osx-review-artifacts`` is the live consumer of the schema-
+    agnostic contract from §4.2 of review-modify-integration.md. Pin
+    the contract wording on both opencode and Claude mirrors."""
+
+    @pytest.mark.parametrize(
+        "skill", SCHEMA_AGNOSTIC_CONTRACT_SKILLS,
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
+    def test_skill_uses_status_cli(self, skill: Path):
+        text = _read(skill)
+        assert "openspec status --change" in text, (
+            f"{skill.relative_to(REPO_ROOT)} must use "
+            f"`openspec status --change ... --json`"
         )
-        # Claude's mirror used `/osx:verify` (without the `-tests` suffix).
-        assert "/osx:verify " not in scrubbed, (
-            f"{path.relative_to(REPO_ROOT)} still references stale "
-            f"`/osx:verify` (should be `/opsx:verify`)"
+
+    @pytest.mark.parametrize(
+        "skill", SCHEMA_AGNOSTIC_CONTRACT_SKILLS,
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
+    def test_skill_uses_instructions_cli(self, skill: Path):
+        text = _read(skill)
+        assert "openspec instructions" in text, (
+            f"{skill.relative_to(REPO_ROOT)} must use "
+            f"`openspec instructions <id> --change ... --json`"
         )
-        assert "/osx:verify\n" not in scrubbed
+
+    @pytest.mark.parametrize(
+        "skill", SCHEMA_AGNOSTIC_CONTRACT_SKILLS,
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
+    def test_skill_references_existing_output_paths(self, skill: Path):
+        text = _read(skill)
+        assert "existingOutputPaths" in text, (
+            f"{skill.relative_to(REPO_ROOT)} must reference "
+            f"`artifactPaths.<id>.existingOutputPaths`"
+        )
+
+    @pytest.mark.parametrize(
+        "skill", SCHEMA_AGNOSTIC_CONTRACT_SKILLS,
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
+    def test_skill_warns_against_resolved_output_path_writes(self, skill: Path):
+        text = _read(skill)
+        assert "resolvedOutputPath" in text, (
+            f"{skill.relative_to(REPO_ROOT)} must call out the glob "
+            f"hazard of `resolvedOutputPath`"
+        )
+
+    @pytest.mark.parametrize(
+        "skill", SCHEMA_AGNOSTIC_CONTRACT_SKILLS,
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
+    def test_skill_disallows_code_edits(self, skill: Path):
+        text = _read(skill)
+        assert "/opsx:apply" in text, (
+            f"{skill.relative_to(REPO_ROOT)} must route code-change "
+            f"implications to `/opsx:apply`"
+        )
+
+    @pytest.mark.parametrize(
+        "skill", SCHEMA_AGNOSTIC_CONTRACT_SKILLS,
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
+    def test_skill_includes_store_selection_pointer(self, skill: Path):
+        text = _read(skill)
+        assert "references/store-selection.md" in text, (
+            f"{skill.relative_to(REPO_ROOT)} must include a pointer to "
+            f"`references/store-selection.md`"
+        )
+
+
+# ============================================================================
+# No hardcoded artifact names
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestNoHardcodedArtifactNames:
+    """The schema-driven contract forbids hardcoded ``proposal.md`` /
+    ``design.md`` / ``tasks.md`` references — they break any non-spec-
+    driven schema. Apply to the rewritten review skill AND every
+    opencode command body (commands that route users to artifact editors
+    must also be schema-driven)."""
+
+    PATHS = [
+        SK_OPENCODE / "skills" / "osx-review-artifacts" / "SKILL.md",
+        SK_CLAUDE / "skills" / "osx-review-artifacts" / "SKILL.md",
+    ]
+
+    @pytest.mark.parametrize(
+        "skill", PATHS, ids=lambda p: str(p.relative_to(REPO_ROOT))
+    )
+    def test_review_skill_contains_no_hardcoded_artifact_names(self, skill: Path):
+        text = _read(skill)
+        # Tolerate a single occurrence in a "never assume" negative-example
+        # context. Outside that context, these strings must not appear.
+        for name in ("proposal.md", "design.md", "tasks.md"):
+            count = text.count(name)
+            assert count <= 1, (
+                f"{skill.relative_to(REPO_ROOT)} references hardcoded "
+                f"artifact name {name!r} {count} times; the rewritten "
+                f"skill must be schema-driven"
+            )
+
+
+# ============================================================================
+# Skill description leading word (model-invocation trigger)
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestSkillDescriptionLeadingWord:
+    """Pin the first word of every model-invoked skill's ``description``
+    frontmatter. The first word is what the model uses to decide
+    whether to fire the skill; casual description edits must not
+    silently change firing behaviour.
+
+    ``osx-changelog`` is excluded because it is no longer a skill
+    (it is a slash command with a self-contained body). ``osx-workflow``
+    fires on the literal token ``7-phase`` — pin it.
+    """
+
+    EXPECTED_LEADING_WORDS = {
+        "osx-commit": "Detect",
+        "osx-review-artifacts": "Audit",
+        "osx-review-test-compliance": "Surface",
+        "osx-workflow": "7-phase",
+    }
+
+    @pytest.mark.parametrize(
+        "skill_name,expected",
+        sorted(EXPECTED_LEADING_WORDS.items()),
+    )
+    def test_opencode_description_leads_with_expected_word(
+        self, skill_name: str, expected: str
+    ):
+        path = SKILL_HOME[skill_name] / "skills" / skill_name / "SKILL.md"
+        desc = _read_frontmatter(path).get("description", "")
+        first = desc.split(maxsplit=1)[0] if desc else ""
+        assert first == expected, (
+            f"{path.relative_to(REPO_ROOT)} description leading word "
+            f"changed: expected {expected!r}, got {first!r}. "
+            f"Update the allowlist AND the description together."
+        )
+
+    @pytest.mark.parametrize(
+        "skill_name,expected",
+        sorted(EXPECTED_LEADING_WORDS.items()),
+    )
+    def test_claude_description_matches_opencode(
+        self, skill_name: str, expected: str
+    ):
+        cl_root = SK_CLAUDE if SKILL_HOME[skill_name] is SK_OPENCODE else ORCH_CLAUDE
+        path = cl_root / "skills" / skill_name / "SKILL.md"
+        desc = _read_frontmatter(path).get("description", "")
+        first = desc.split(maxsplit=1)[0] if desc else ""
+        assert first == expected, (
+            f"Claude mirror {path.relative_to(REPO_ROOT)} drifted from "
+            f"opencode: expected leading word {expected!r}, got {first!r}. "
+            f"Run `mise run sync-mirrors`."
+        )
+
+
+# ============================================================================
+# Orchestrator contract surface (mirrors §13)
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestOrchestratorContracts:
+    """Mirror the still-load-bearing v1.8.0–v1.11.0 contracts from
+    ``docs/review-modify-integration.md`` §13. Each test pins the
+    engine/library symbol that consumes the contract; integration tests
+    cover the round-trip behaviour."""
+
+    ENGINE_PY = REPO_ROOT / "orchestrator" / "source" / "orchestrator" / "engine.py"
+    LIB_OSX_PY = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx.py"
+    CLI_PY = REPO_ROOT / "orchestrator" / "source" / "cli.py"
+    PHASE2_OPENCODE = ORCH_OPENCODE / "commands" / "osx-phase2.md"
+    PHASE2_CLAUDE = ORCH_CLAUDE / "skills" / "osx-phase2" / "SKILL.md"
+
+    def test_is_planning_complete_contract_is_consumed(self):
+        """§13.1: ``openspec status --change ... --json`` exposes
+        ``isPlanningComplete`` since v1.8.0. The library reads it."""
+        text = _read(self.LIB_OSX_PY)
+        assert "isPlanningComplete" in text, (
+            f"{self.LIB_OSX_PY.relative_to(REPO_ROOT)} must consume the "
+            f"`isPlanningComplete` v1.8.0+ contract"
+        )
+
+    def test_validate_change_dir_lives_in_engine(self):
+        """§13.1: ``validate_change_dir`` is the library helper consulted
+        by the orchestrator pre-flight."""
+        text = _read(self.ENGINE_PY)
+        assert "def validate_change_dir(" in text, (
+            f"{self.ENGINE_PY.relative_to(REPO_ROOT)} must define "
+            f"`validate_change_dir` (orchestrator pre-flight entry point)"
+        )
+
+    def test_retire_capabilities_state_field_exists(self):
+        """§13.2: ``OrchestratorState.retire_capabilities`` is the
+        v1.8.0+ marker read from ``.openspec.yaml``."""
+        text = _read(self.ENGINE_PY)
+        assert "retire_capabilities: bool" in text, (
+            f"{self.ENGINE_PY.relative_to(REPO_ROOT)} must declare "
+            f"`OrchestratorState.retire_capabilities: bool` "
+            f"(v1.8.0+ `.openspec.yaml` marker)"
+        )
+
+    def test_retire_capabilities_key_is_parsed(self):
+        """§13.2: ``read_change_metadata`` parses ``retire_capabilities``
+        alongside ``skip_specs`` and ``schema``."""
+        text = _read(self.LIB_OSX_PY)
+        assert '"retire_capabilities"' in text or "'retire_capabilities'" in text, (
+            f"{self.LIB_OSX_PY.relative_to(REPO_ROOT)} must parse "
+            f"`retire_capabilities` from `.openspec.yaml`"
+        )
+
+    def test_fetch_operation_guidance_helper_exists(self):
+        """§13.3: ``fetch_operation_guidance(operation, project_root,
+        store=None)`` reads ``openspec/config.yaml`` and returns the
+        ``operations.{apply|archive}.guidance`` list."""
+        text = _read(self.LIB_OSX_PY)
+        assert "def fetch_operation_guidance(" in text, (
+            f"{self.LIB_OSX_PY.relative_to(REPO_ROOT)} must define "
+            f"`fetch_operation_guidance` (v1.7.0+ operations guidance "
+            f"reader)"
+        )
+
+    def test_operation_guidance_literal_is_consumed(self):
+        """§13.3: the library code references the ``operationGuidance``
+        envelope field name at least once (parse or string-key)."""
+        text = _read(self.LIB_OSX_PY)
+        assert "operationGuidance" in text, (
+            f"{self.LIB_OSX_PY.relative_to(REPO_ROOT)} must reference "
+            f"the `operationGuidance` envelope field"
+        )
+
+    def test_phase2_command_embeds_show_diff(self):
+        """§13.4: PHASE2's REVIEW step fetches
+        ``openspec show <change> --diff --json`` and embeds a
+        ``## Requirement diff`` section in ``verification-report.md``."""
+        text = _read(self.PHASE2_OPENCODE)
+        assert "openspec show" in text and "--diff" in text, (
+            f"{self.PHASE2_OPENCODE.relative_to(REPO_ROOT)} must call "
+            f"`openspec show ... --diff --json` (v1.11.0+ envelope)"
+        )
+        assert "## Requirement diff" in text, (
+            f"{self.PHASE2_OPENCODE.relative_to(REPO_ROOT)} must emit "
+            f"a `## Requirement diff` section in verification-report.md"
+        )
+
+    def test_phase2_claude_mirror_carries_show_diff(self):
+        """§13.4: the Claude dual-emit of PHASE2 must also reference the
+        ``--diff`` envelope and the requirement-diff section."""
+        text = _read(self.PHASE2_CLAUDE)
+        assert "openspec show" in text and "--diff" in text, (
+            f"{self.PHASE2_CLAUDE.relative_to(REPO_ROOT)} must carry the "
+            f"`openspec show ... --diff --json` protocol"
+        )
+        assert "## Requirement diff" in text, (
+            f"{self.PHASE2_CLAUDE.relative_to(REPO_ROOT)} must carry the "
+            f"`## Requirement diff` section protocol"
+        )
+
+    def test_post_install_archived_sweep_helper_exists(self):
+        """§13.5: ``_post_install_archived_sweep`` runs
+        ``openspec validate --archived`` after deploy."""
+        text = _read(self.CLI_PY)
+        assert "def _post_install_archived_sweep(" in text, (
+            f"{self.CLI_PY.relative_to(REPO_ROOT)} must define "
+            f"`_post_install_archived_sweep` (v1.9.0+ post-install sweep)"
+        )
+
+    def test_validate_archived_in_process_helper_exists(self):
+        """§13.5: ``validate_archived`` is the in-process entry point
+        for ``osx validate archived`` (used by integration callers)."""
+        text = _read(self.LIB_OSX_PY)
+        assert "def validate_archived(" in text, (
+            f"{self.LIB_OSX_PY.relative_to(REPO_ROOT)} must define "
+            f"`validate_archived` (in-process wrapper for the "
+            f"`openspec validate --archived` envelope)"
+        )
 
 
 # ============================================================================
@@ -517,11 +708,11 @@ class TestStaleRefs:
 
 
 def _read_manifest_references(manifest_path: Path) -> dict[str, list[str]]:
-    """Return a mapping of ``skills.<name>`` -> ``references`` list from
-    the given manifest. Skills without a ``references`` field are omitted."""
-    manifest = toml.loads(_read(manifest_path))
+    """Return ``skills.<name>`` -> ``references`` list from a manifest.
+    Skills without a ``references`` field are omitted."""
+    manifest = _manifest_resources(manifest_path)
+    skills = manifest.get("skills", {})
     out: dict[str, list[str]] = {}
-    skills = manifest.get("resources", {}).get("skills", {})
     if not isinstance(skills, dict):
         return out
     for name, meta in skills.items():
@@ -564,76 +755,76 @@ def _skill_linked_references(skill_path: Path) -> set[str]:
 
 @pytest.mark.unit
 class TestSharedReferencesPackaging:
-    """Skills that link to ``references/<file>.md`` must declare every such
-    link in the manifest's ``references = [...]`` list, and every filename
-    declared must exist in the shared ``resources/<tool>/skills/references/``
-    pool. The deploy step copies the declared files into the skill's own
-    ``references/`` subdir so the link resolves in isolation."""
+    """There is a single canonical shared references pool at
+    ``orchestrator/resources/opencode/skills/references/``. Both
+    manifests may declare ``references = [...]`` entries; they all
+    resolve against that pool. Deploy copies the declared files into
+    each consuming skill's own ``references/`` subdir at the target
+    site (see ``orchestrator/resources/opencode/skills/AGENTS.md``)."""
 
-    @pytest.mark.parametrize(
-        "platform_root,manifest_path",
-        [
-            (OPENCODE, OPENCODE_MANIFEST),
-            (CLAUDE, CLAUDE_MANIFEST),
-        ],
-        ids=["opencode", "claude"],
-    )
-    def test_manifest_references_resolve_to_shared_pool(
-        self, platform_root: Path, manifest_path: Path
-    ):
-        shared_dir = platform_root / "skills" / "references"
-        for key, refs in _read_manifest_references(manifest_path).items():
+    SHARED_POOL = ORCH_OPENCODE / "skills" / "references"
+
+    def test_orchestrator_manifest_references_resolve(self):
+        for key, refs in _read_manifest_references(ORCH_OPENCODE_MANIFEST).items():
             for ref_name in refs:
-                assert (shared_dir / ref_name).is_file(), (
-                    f"{manifest_path.relative_to(REPO_ROOT)} declares "
-                    f"{ref_name!r} for {key} but it is missing from "
-                    f"{shared_dir.relative_to(REPO_ROOT)}"
+                assert (self.SHARED_POOL / ref_name).is_file(), (
+                    f"{ORCH_OPENCODE_MANIFEST.relative_to(REPO_ROOT)} "
+                    f"declares {ref_name!r} for {key} but it is missing "
+                    f"from {self.SHARED_POOL.relative_to(REPO_ROOT)}"
                 )
 
-    @pytest.mark.parametrize(
-        "platform_root,manifest_path",
-        [
-            (OPENCODE, OPENCODE_MANIFEST),
-            (CLAUDE, CLAUDE_MANIFEST),
-        ],
-        ids=["opencode", "claude"],
-    )
-    def test_skill_references_match_manifest(
-        self, platform_root: Path, manifest_path: Path
-    ):
-        declared = _read_manifest_references(manifest_path)
-        for key, refs in declared.items():
-            skill_name = key.split(".", 1)[1]
-            skill_path = platform_root / "skills" / skill_name / "SKILL.md"
-            if not skill_path.is_file():
-                continue
-            linked = _skill_linked_references(skill_path)
-            declared_set = set(refs)
-            missing = linked - declared_set
-            assert not missing, (
-                f"{skill_path.relative_to(REPO_ROOT)} links to "
-                f"{sorted(missing)!r} but the manifest entry does not "
-                f"declare them under `references = [...]`. Shared "
-                f"references must be listed so the deploy copies them "
-                f"into the skill's own references/ folder."
-            )
+    def test_skills_manifest_references_resolve(self):
+        for key, refs in _read_manifest_references(SK_OPENCODE_MANIFEST).items():
+            for ref_name in refs:
+                assert (self.SHARED_POOL / ref_name).is_file(), (
+                    f"{SK_OPENCODE_MANIFEST.relative_to(REPO_ROOT)} "
+                    f"declares {ref_name!r} for {key} but it is missing "
+                    f"from {self.SHARED_POOL.relative_to(REPO_ROOT)}"
+                )
 
-    def test_shared_pool_files_all_used(self):
-        """Every file in the shared pool must be claimed by at least one
-        skill or command (so the deploy never copies an unused file).
-        Skill claims come from the manifest; command claims come from
-        ``references/...`` links in command files."""
-        shared_dir = OPENCODE / "skills" / "references"
-        if not shared_dir.is_dir():
+    def test_skill_references_match_manifest(self):
+        """Every `references/<x>.md` link in a SKILL.md body must be
+        declared in its skill's manifest entry, so the deploy copies
+        it into the skill's own references/ subdir at install time."""
+        for manifest_path in (ORCH_OPENCODE_MANIFEST, SK_OPENCODE_MANIFEST):
+            declared = _read_manifest_references(manifest_path)
+            for key, refs in declared.items():
+                skill_name = key.split(".", 1)[1]
+                # Locate the SKILL.md wherever it lives.
+                candidates = [
+                    ORCH_OPENCODE / "skills" / skill_name / "SKILL.md",
+                    SK_OPENCODE / "skills" / skill_name / "SKILL.md",
+                ]
+                skill_path = next(
+                    (p for p in candidates if p.is_file()), None
+                )
+                if skill_path is None:
+                    continue
+                linked = _skill_linked_references(skill_path)
+                declared_set = set(refs)
+                missing = linked - declared_set
+                assert not missing, (
+                    f"{skill_path.relative_to(REPO_ROOT)} links to "
+                    f"{sorted(missing)!r} but the manifest entry does "
+                    f"not declare them under `references = [...]`."
+                )
+
+    def test_shared_pool_has_no_orphans(self):
+        """Every file in the shared pool must be claimed by at least
+        one skill (via manifest) or one command (via body link)."""
+        if not self.SHARED_POOL.is_dir():
             return
-        declared = _read_manifest_references(OPENCODE_MANIFEST)
         claimed: set[str] = set()
-        for refs in declared.values():
-            claimed.update(refs)
+        for manifest_path in (ORCH_OPENCODE_MANIFEST, SK_OPENCODE_MANIFEST):
+            for refs in _read_manifest_references(manifest_path).values():
+                claimed.update(refs)
 
-        commands_dir = OPENCODE / "commands"
-        if commands_dir.is_dir():
-            for cmd in commands_dir.glob("*.md"):
+        # Commands on either side may also reference shared pool files
+        # via `references/<x>.md` prose.
+        for root in (ORCH_OPENCODE / "commands", SK_OPENCODE / "commands"):
+            if not root.is_dir():
+                continue
+            for cmd in root.glob("*.md"):
                 text = _read(cmd)
                 for raw in text.split("`"):
                     if not raw.startswith("references/"):
@@ -642,27 +833,27 @@ class TestSharedReferencesPackaging:
                     if head.endswith(".md"):
                         claimed.add(head[len("references/") :])
 
-        orphans = {p.name for p in shared_dir.glob("*.md") if p.name not in claimed}
+        orphans = {
+            p.name for p in self.SHARED_POOL.glob("*.md") if p.name not in claimed
+        }
         assert not orphans, (
-            f"Shared references pool contains files not referenced by "
-            f"any skill or command: {sorted(orphans)!r}. "
+            f"Shared references pool "
+            f"{self.SHARED_POOL.relative_to(REPO_ROOT)} contains files "
+            f"not referenced by any skill or command: {sorted(orphans)!r}. "
             f"Either add a consumer or remove the file."
         )
 
-    @pytest.mark.parametrize(
-        "platform_root,manifest_path",
-        [
-            (OPENCODE, OPENCODE_MANIFEST),
-            (CLAUDE, CLAUDE_MANIFEST),
-        ],
-        ids=["opencode", "claude"],
-    )
-    def test_manifest_references_parity(self, platform_root: Path, manifest_path: Path):
-        """The OpenCode and Claude manifests must agree on the ``references``
-        lists, since the deploy uses the same manifest on both sides."""
-        oc = _read_manifest_references(OPENCODE_MANIFEST)
-        cl = _read_manifest_references(CLAUDE_MANIFEST)
-        assert oc == cl, (
-            f"references list drift between opencode and claude manifests: "
-            f"opencode={oc!r} claude={cl!r}. Run `mise run sync-mirrors`."
-        )
+    def test_claude_manifest_references_match_opencode(self):
+        """The OpenCode and Claude manifests must agree on per-skill
+        ``references`` lists (sync-mirrors carries them through)."""
+        for oc_manifest, cl_manifest, label in (
+            (ORCH_OPENCODE_MANIFEST, ORCH_CLAUDE_MANIFEST, "orchestrator"),
+            (SK_OPENCODE_MANIFEST, SK_CLAUDE_MANIFEST, "skills"),
+        ):
+            oc = _read_manifest_references(oc_manifest)
+            cl = _read_manifest_references(cl_manifest)
+            assert oc == cl, (
+                f"{label}: references list drift between opencode and "
+                f"claude manifests. opencode={oc!r} claude={cl!r}. "
+                f"Run `mise run sync-mirrors`."
+            )
