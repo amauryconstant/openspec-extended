@@ -306,7 +306,7 @@ Phases B and C are independent and can run in parallel. D and E both depend on B
 **Goal**: lock the schema-agnostic contract that review, modify, and PHASE0/PHASE2 will honor.
 
 **Changes**:
-- New section "Schema-agnostic contract for review/modify skills" in `resources/opencode/skills/AGENTS.md` and `resources/claude/skills/AGENTS.md` — codifies the six rules from §4.2 above.
+- New section "Schema-agnostic contract for review/modify skills" in `orchestrator/resources/opencode/skills/AGENTS.md` and `orchestrator/resources/claude/skills/AGENTS.md` (later consolidated into `orchestrator/resources/AGENTS.md` and `orchestrator/resources/claude/` deleted in the AGENTS.md consolidation refactor) — codifies the six rules from §4.2 above.
 - `resources/opencode/skills/osx-concepts/SKILL.md:104-117` taxonomy table: relabel entries to:
   - `osx-review-artifacts` → "Pre-implementation schema-driven audit"
   - `osx-modify-artifacts` → "Single-artifact surgical editor (forward-only)"
@@ -692,7 +692,7 @@ resources/opencode/commands/osx-modify.md                             # Phase E
 resources/opencode/commands/osx-verify-tests.md                       # Phase E
 resources/opencode/skills/osx-review-test-compliance/SKILL.md         # Phase E (stale-ref fix)
 resources/opencode/manifest.toml                                       # all phases
-resources/claude/skills/AGENTS.md                                      # Phase A mirror
+resources/claude/skills/AGENTS.md                                      # Phase A mirror (now deleted in v2 refactor)
 resources/claude/skills/osx-concepts/SKILL.md                          # Phase A, D.4 mirror
 resources/claude/skills/osx-review-artifacts/SKILL.md                  # Phase B mirror
 resources/claude/skills/osx-review-artifacts/references/review-criteria.md  # Phase B delete

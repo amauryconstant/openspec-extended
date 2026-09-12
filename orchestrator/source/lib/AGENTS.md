@@ -105,5 +105,5 @@ the `osx` library). Resolution helper: `_resolve_language(arg)` next to
 ## See Also
 
 - Root `AGENTS.md` — Code Style, Versioning
-- `source/AGENTS.md` — Module roles
-- `source/orchestrator/AGENTS.md` — Consumer of `osx` state
+- `orchestrator/source/AGENTS.md` — Module roles
+- `orchestrator/source/orchestrator/AGENTS.md` — Consumer of `osx` state

@@ -26,4 +26,3 @@ Tests run against the **built binary** at `dist/openspec-extended`. PyInstaller-
 
 - Root `AGENTS.md` — E2E Test Strategy
 - `tests/AGENTS.md` — Marker semantics, `E2E_CONFIRM` gating
-- `tests/e2e/helpers/AGENTS.md` — Shared helpers

@@ -9,7 +9,7 @@ Python source for the `openspec-extended` binary. Lives under `orchestrator/sour
 | `__init__.py` | `__version__` only |
 | `__main__.py` | Entry: `python -m source` (still works from the new path) |
 | `cli.py` | Typer CLI (install/update/orchestrate + mounts `osx` subcommand) |
-| `lib/osx.py` | Change-management library (10 domains). Pure functions, no CLI. |
+| `lib/osx.py` | Change-management library (11 domains). Pure functions, no CLI. |
 | `osx_cli.py` | Typer app for the `openspec-extended osx` subcommand |
 | `orchestrator/engine.py` | 7-phase autonomous workflow engine |
 

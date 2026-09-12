@@ -1,240 +1,76 @@
-# OpenSpec-extended - OpenCode Reference
+# OpenSpec-extended
 
-## Project Context
+Bridge AI coding assistants with OpenSpec — spec-driven development framework. Agree on WHAT to build before writing code. Artifacts live in the repository, not in tool-specific systems.
 
-**Purpose**: Bridge AI coding assistants with OpenSpec - spec-driven development framework.
+## Mental Map
 
-**Philosophy**: Agree on WHAT to build before writing code. Artifacts live in repository, not tool-specific systems.
+| Side                | Role                                          | Source of truth                       | Mirror                                |
+| ------------------- | --------------------------------------------- | ------------------------------------- | ------------------------------------- |
+| **Orchestrator**    | Python CLI + 7-phase workflow engine          | `orchestrator/source/`                | n/a                                   |
+| **Resources (orch.)** | Workflow skills, agents, phase commands     | `orchestrator/resources/opencode/`    | `claude/` (auto-generated)            |
+| **Resources (skills)** | Gap-filling skills (commit, review, tests) | `skills/resources/opencode/`          | `claude/` (auto-generated)            |
+| **Core (vendored)** | Upstream OpenSpec workflows (read-only)       | `orchestrator/core/`                  | synced from upstream                  |
+| **Tests**           | pytest + bats suite                           | `tests/`                              | n/a                                   |
 
-**Scope**: Minimal project - no deep infrastructure, CI, or complex install scripts.
+OpenCode is canonical. Claude mirrors are auto-generated. Core is synced from upstream. The two resource trees are disjoint (different `manifest.toml` per side).
 
----
+## Critical Rules
 
-## Naming Convention
+- **NEVER** edit files in `orchestrator/core/` directly — use `mise run sync-core`.
+- **NEVER** edit files in `**/claude/` directly — edit the opencode sibling, then `mise run sync:mirrors`.
+- **NEVER** bump versions by hand — use `mise run release` (project) or `mise run version:update` (per-resource).
+- Pre-commit hook `sync-mirrors-check` fails the commit if any Claude mirror drifts.
 
-| Resource        | Core (upstream) | Extended (local)    |
-| --------------- | --------------- | ------------------- |
-| **CLI**         | `openspec`      | `openspec-extended` |
-| **Commands**    | `/osc-*`        | `/osx-*`            |
-| **Skills**      | `osc-*`         | `osx-*`             |
-| **Agents**      | N/A             | `osx-*`             |
-| **Lib scripts** | N/A             | `osx`               |
+## Navigation
 
-**Extension Skills** (core skills tracked in `orchestrator/core/AGENTS.md`)
+| If you are…                             | Read first                                                         |
+| --------------------------------------- | ------------------------------------------------------------------ |
+| Editing Python source                   | `orchestrator/source/AGENTS.md`                                    |
+| Editing the workflow engine             | `orchestrator/source/orchestrator/AGENTS.md`                       |
+| Updating CLI/library domains (`osx`)    | `orchestrator/source/lib/AGENTS.md`                                |
+| Adding/editing a workflow skill         | `orchestrator/resources/AGENTS.md`                                 |
+| Adding/editing a gap-filling skill      | `skills/AGENTS.md`                                                 |
+| Syncing core from upstream              | `orchestrator/core/AGENTS.md`                                      |
+| Editing tests                           | `tests/AGENTS.md`                                                  |
+| Updating platform docs                  | `research/AGENTS.md`                                               |
+| Editing a Claude mirror file            | STOP — edit the opencode sibling, run `sync:mirrors`               |
+| Editing vendored subtree                | STOP — use `sync-core`                                             |
 
----
+## Cross-cutting Rules
 
-## Code Style
+- **Naming** (`osx-`/`osc-` prefixes, regex, manifest ownership): `.opencode/rules/naming-conventions.md`
+- **Versioning** (project release vs per-resource bumps): `.opencode/rules/version-management.md`
+- **Mirror generation** (Claude ↔ OpenCode, token substitution): `.opencode/rules/mirror-generation.md`
+- **Vendored subtree** (`orchestrator/core/**`): `.opencode/rules/vendored-subtree.md`
 
-### Python Requirements
-
-| Rule     | Format                                |
-| -------- | ------------------------------------- |
-| Style    | PEP 8 + ruff formatting               |
-| Imports  | Standard library, typer, rich, toml   |
-| Testing  | pytest with markers (unit/integration/mechanism/e2e) |
-| Version  | Python 3.12 or higher                 |
-
-### Tooling Languages
-
-- Project source (`source/`, `install.sh`, `openspec.spec`) is **Python**
-  except where bash is more natural.
-- `install.sh` is bash: it must run with no Python dependency when
-  bootstrapping a fresh machine.
-- All `mise` tasks are **bash**; the project content can be Python, but
-  build/release/version tooling is bash + `jq`.
-
-### Key Patterns
-
-```python
-# Typer CLI (source/cli.py)
-from typer import Typer
-app = Typer()
-
-# State management via toml (source/lib/osx.py)
-import toml
-from pathlib import Path
-
-# Rich console output
-from rich.console import Console
-console = Console()
-```
-
-### Versioning
-
-Two distinct version domains, owned by separate tasks:
-
-**Project version** (owned by `mise run release`):
-- `source/__init__.py` — `__version__`
-- `pyproject.toml` — `version`
-- `README.md` — version badge + install example
-- `uv.lock` — synced after `pyproject.toml` bump
-- git tag (`vX.Y.Z`)
-
-The new version is computed from the latest tag + bump type, written to all
-files in lockstep, then committed and tagged. Run from `main` (override
-with `RELEASE_ALLOW_BRANCH=true`).
-
-**Framework components** (owned by `mise run version:check` / `version:update`):
-- Per-resource versions in `resources/*/manifest.toml` (skills, commands, agents)
-- `install.sh` — independent installer version cycle (separate from project version)
-
-`version:check` is wired as a pre-commit hook (`.pre-commit-config.yaml`)
-and gates staged changes to resource files and `install.sh`. `version:update`
-applies the bumps detected by `version:check`.
-
-**Resource mirrors** (owned by `mise run sync:mirrors` / `sync-mirrors --check`):
-- `resources/opencode/{skills,commands}/` is the canonical source for skills and commands.
-- `resources/claude/{skills,commands}/` is auto-generated from opencode via token substitution (defined in `.mise/tasks/sync-mirrors`).
-- On Claude, every opencode command dual-emits: a legacy `.claude/commands/osx/<name>.md` plus a modern `.claude/skills/osx-<name>/SKILL.md`. This mirrors upstream OpenSpec's dual-emit strategy (introduced in v1.7.0, current as of v1.11.0).
-- `orchestrator/resources/opencode/manifest.toml` is the canonical manifest for orchestrator-side resources; `orchestrator/resources/claude/manifest.toml` is generated from it. The skills side mirrors the same shape at `skills/resources/opencode/manifest.toml` and `skills/resources/claude/manifest.toml`.
-- A pre-commit hook (`sync-mirrors-check`) fails the commit if either Claude mirror drifts.
-- `mise run sync-mirrors` regenerates both mirrors after editing opencode files.
-- `mise run sync-mirrors --check` verifies without writing (used by CI and `mise run verify`).
-
-Shared references live once at `orchestrator/resources/opencode/skills/references/` (cross-cutting, no single owning resource) and are auto-mirrored. See `orchestrator/resources/opencode/skills/AGENTS.md` for the table.
-
-Per-contract operational notes for v1.8.0+ orchestrator consumption (`isPlanningComplete`, `retire_capabilities`, `operations.{apply|archive}.guidance`, `show --diff`, `validate --archived`) live in [docs/review-modify-integration.md §13](docs/review-modify-integration.md#13-post-v170-contract-additions).
-
-### Testing
+## Commands
 
 ```bash
-# Run all default tests (unit, integration, mechanism, including bats)
-mise run test
+# Build / Test
+mise run build                       # Build binary at dist/openspec-extended
+mise run test                        # Default tests (unit + integration + mechanism + bats)
+mise run verify                      # All checks
+pytest -m unit|integration|mechanism
+E2E_CONFIRM=1 mise run test:e2e      # Full e2e against built binary (slow)
 
-# Run unit tests
-pytest -m unit
+# Sync / Mirror
+mise run sync-core                   # Pull latest upstream OpenSpec into orchestrator/core/
+mise run sync:mirrors                # Regenerate Claude mirrors from opencode source
 
-# Run install.sh unit tests (bats, hermetic via local HTTP server)
-mise run test:unit:bats
-
-# Run integration tests
-pytest -m integration
-
-# Run mechanism tests (CLI validation, no AI calls)
-pytest -m mechanism
-
-# Run bats mechanism tests against the built binary (no AI calls)
-mise run test:mechanism:bats
-
-# Run e2e full workflow tests (requires built binary + E2E_CONFIRM=1)
-E2E_CONFIRM=1 mise run test:e2e
-
-# Run all checks
-mise run verify
+# Version / Release
+mise run release patch|minor|major   # Project release (bumps + tag)
+mise run version:check               # Report pending framework bumps
+mise run version:update              # Apply framework bumps
 ```
 
-### E2E Test Strategy
+## Conventions
 
-The full workflow runs against the **built binary** (`dist/openspec-extended`).
-There is no pytest equivalent because PyInstaller freeze changes runtime
-behavior in ways that the source-only path can't reproduce.
-
-- `tests/e2e/test_mechanism.py` — pytest, `@pytest.mark.mechanism`, runs by default. Tests CLI options without AI calls.
-- `tests/e2e/mechanism.bats` — bats, runs by default. Same coverage as the pytest mechanism suite, executed against the built binary.
-- `tests/e2e/full-workflow.bats` — bats, requires `E2E_CONFIRM=1`. Runs the full workflow end-to-end against the built binary.
-
-The `test:mechanism:bats` and `test:e2e` mise tasks call `build` first so
-the binary is always current.
-
----
-
-## Project Structure
-
-```
-source/
-├── __init__.py          # __version__
-├── __main__.py          # Entry: python -m source
-├── cli.py               # Typer CLI (install/update/orchestrate)
-├── lib/
-│   └── osx.py           # Change management (baseline, ctx, git, phase, state)
-└── orchestrator/
-    └── engine.py        # 7-phase autonomous workflow
-
-install.sh              # Bash installer (downloads PyInstaller binary)
-openspec.spec           # PyInstaller spec
-pyproject.toml          # Project metadata + entry point
-
-orchestrator/           # Orchestration side
-├── source/             # Python CLI engine
-├── core/               # Official OpenSpec workflows (read-only, synced from upstream)
-└── resources/          # Skills, agents, commands (opencode + claude mirror)
-
-skills/                 # Skills side (gap-filling utilities)
-└── resources/          # Skills + wrapper commands (opencode + claude mirror)
-
-research/               # Platform documentation
-tests/                  # pytest + bats suite
-.mise/tasks/            # sync-core, release, sync-mirrors, version/{check,update,lib/*} (all bash)
-```
-
----
-
-## Build & Release
-
-```bash
-# Build the binary locally (PyInstaller)
-mise run build
-# Output: dist/openspec-extended
-
-# Cut a release (from main, no API tokens needed locally)
-mise run release patch
-# → bumps versions, commits, tags, pushes the tag
-# → GitHub Actions then builds + uploads the platform tarballs
-```
-
-Releases are published by the `.github/workflows/release.yml` workflow on
-`vX.Y.Z` tag push. The workflow matrix builds `linux-x86_64`,
-`linux-arm64`, and `darwin-arm64`, packages each binary
-into `openspec-extended-v$VERSION-{platform}.tar.gz` (with a `bin/openspec-extended`
-layout), combines per-platform `SHA256SUMS` into a single file, and
-uploads everything to the matching GitHub release.
-
-`install.sh` fetches this tarball from the release matching `VERSION` (or
-`latest`/`main` if not pinned).
-
----
-
-## Adding New Skills
-
-Create `orchestrator/resources/opencode/skills/<skill-name>/SKILL.md` (or
-`skills/resources/opencode/skills/<skill-name>/SKILL.md` if the skill
-belongs to the skills side) with frontmatter:
-
-```yaml
----
-name: osx-my-skill
-description: Brief description
-license: MIT
----
-```
-
-**Naming**: 1-64 chars, lowercase with hyphens, regex `^[a-z0-9]+(-[a-z0-9]+)*$`, must match directory name. Use `osx-` prefix for extended skills.
-
-**Platform details**: `research/opencode-docs.md`
-
----
-
-## Version Bumping
-
-Two flows, separate concerns:
-
-```bash
-# Project release (bumps source/__init__.py, pyproject.toml,
-# README.md, uv.lock, git tag)
-mise run release patch
-
-# Framework component bumps (bumps resources/*/manifest.toml entries + install.sh)
-mise run version:check       # reports what needs bumping
-mise run version:update      # applies the bumps
-```
-
-Do not edit `__version__` / `[project] version` by hand —
-those files are owned by `mise run release` and are intentionally outside
-the scope of `version:check`/`version:update`.
-
----
+- **Python**: PEP 8 + ruff, Python 3.12+, typer + rich + toml
+- **Testing**: pytest with `unit`/`integration`/`mechanism`/`e2e` markers; bats for install + e2e
+- **Resources**: `<side>/resources/opencode/` canonical; `<side>/resources/claude/` is mirror
+- **Skills**: `osx-` prefix for extended, `osc-` reserved for core (vendored) skills
+- **Project structure** (Python source lives under `orchestrator/source/` because PyInstaller's `pathex` adds that to `sys.path`; the binary lives at project root)
 
 ## License
 
-MIT License - see LICENSE file
+MIT — see LICENSE file.

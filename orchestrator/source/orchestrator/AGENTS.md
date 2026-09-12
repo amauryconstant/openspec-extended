@@ -65,7 +65,6 @@ Each phase may iterate up to `DEFAULT_MAX_PHASE_ITERATIONS` times before the orc
 ## See Also
 
 - Root `AGENTS.md` — Code Style, Versioning
-- `source/AGENTS.md` — Module roles
-- `source/lib/AGENTS.md` — `osx` library contract (state I/O)
-- `resources/opencode/commands/AGENTS.md` (now under `orchestrator/resources/`) — Phase command definitions
-- `resources/opencode/agents/AGENTS.md` (now under `orchestrator/resources/`) — Phase agent definitions
+- `orchestrator/source/AGENTS.md` — Module roles
+- `orchestrator/source/lib/AGENTS.md` — `osx` library contract (state I/O)
+- `orchestrator/resources/AGENTS.md` — Phase command + agent definitions
