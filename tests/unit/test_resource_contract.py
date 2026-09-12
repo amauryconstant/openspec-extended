@@ -1005,3 +1005,35 @@ class TestSharedReferencesPackaging:
                 f"claude manifests. opencode={oc!r} claude={cl!r}. "
                 f"Run `mise run sync-mirrors`."
             )
+
+
+# ---------------------------------------------------------------------------
+# Phase 1B: cli.py consumers route through ``source.tools.REGISTRY``
+# ---------------------------------------------------------------------------
+
+
+class TestDeployRoutesViaRegistry:
+    """Phase 1B rewires ``deploy_skills``, ``deploy_commands``,
+    ``deploy_agents`` to read from ``REGISTRY[tool].skills_dir`` and
+    dispatch on ``commands_style``. These tests pin the byte-output
+    of those dispatches for the shipped ``opencode`` / ``claude`` set
+    so future additions cannot regress."""
+
+    @pytest.mark.parametrize("tool_id", ["opencode", "claude"])
+    def test_deploy_skill_writes_no_tokens(self, tmp_path, tool_id):
+        """Existing ``TestDeployLeavesNoLeftoverTokens`` covers opencode
+        skills; this adds the same guarantee for claude skills via the
+        registry-routed dispatch."""
+        from source.cli import deploy_skills, get_resources_dir
+        from source.tools import REGISTRY
+
+        adapter = REGISTRY[tool_id]
+        source_dir = get_resources_dir() / "opencode" / "skills"
+        target = tmp_path / adapter.skills_dir
+        target.mkdir(parents=True)
+        deploy_skills(source_dir, target, "osx-workflow", tool=tool_id)
+
+        for md in (target / "skills" / "osx-workflow").rglob("*.md"):
+            assert "{{" not in md.read_text(), (
+                f"{md.relative_to(target)} still contains a token placeholder"
+            )

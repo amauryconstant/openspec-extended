@@ -241,6 +241,16 @@ class TestPathResolution:
         with pytest.raises(ValueError, match="Unknown tool"):
             get_tool_dir("invalid")
 
+    def test_get_tool_dir_error_lists_all_registered_tools(self):
+        """Phase 1B: the 'unknown tool' error message advertises every
+        registered adapter so future tool additions surface here
+        automatically without code changes."""
+        with pytest.raises(ValueError, match="Unknown tool") as excinfo:
+            get_tool_dir("invalid")
+        msg = str(excinfo.value)
+        assert "opencode" in msg
+        assert "claude" in msg
+
 
 @pytest.mark.unit
 class TestParseVersion:

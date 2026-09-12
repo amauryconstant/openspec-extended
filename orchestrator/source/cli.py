@@ -21,35 +21,34 @@ from source import __version__
 from source.lib.osx import AUTONOMOUS_RESOURCE_NAMES, REQUIRED_CORE_SKILLS
 from source.orchestrator.engine import OrchestratorState, run_orchestrator
 from source.osx_cli import osx_app
+from source.tools import REGISTRY, _adapter_tokens
 
 SCRIPT_NAME = "openspec-extended"
 
-TOOL_DIRS = {"opencode": ".opencode", "claude": ".claude"}
+# Adapter registry (Phase 1B): ``source.tools.REGISTRY`` is the single
+# source of truth for tool-specific behaviour. ``TOOL_DIRS`` and
+# ``PLATFORM_TOKENS`` below are derived views kept here so existing
+# imports (``from source.cli import TOOL_DIRS, PLATFORM_TOKENS``)
+# continue to work without edits in tests or downstream modules. The
+# substitution mechanism itself — ``{{TOKEN}}`` placeholders in resource
+# files rendered at deploy time — is unchanged; ``_substitute_tokens``
+# continues to consume ``PLATFORM_TOKENS`` from this module.
+#
+# Source files under ``orchestrator/resources/opencode/`` (the
+# orchestrator side; the skills side lives under
+# ``skills/resources/opencode/`` per Phase 4) carry ``{{TOKEN}}``
+# placeholders; the deploy step substitutes them with the values for the
+# active tool. The OpenCode source ships the same tokens literally —
+# the Python side is the single source of truth for substitution. The
+# bash ``sync-mirrors`` script is a pure mirror (no token substitution).
+# New tokens MUST be added to both platforms; the substitution is silent
+# for unknown tokens so future additions don't crash.
+TOOL_DIRS: dict[str, str] = {
+    tid: adapter.skills_dir for tid, adapter in REGISTRY.items()
+}
 
-# Per-platform token values for resource rendering. Source files under
-# ``orchestrator/resources/opencode/`` (the orchestrator side; the
-# skills side lives under ``skills/resources/opencode/`` per Phase 4) carry
-# ``{{TOKEN}}`` placeholders; the deploy step substitutes them with the
-# values for the active ``tool``. The OpenCode source ships the same tokens
-# literally — the Python side is the single source of truth for
-# substitution. The bash ``sync-mirrors`` script is a pure mirror (no
-# token substitution). New tokens MUST be added to both platforms; the
-# substitution is silent for unknown tokens so future additions don't crash.
 PLATFORM_TOKENS: dict[str, dict[str, str]] = {
-    "opencode": {
-        "ASK_TOOL": "AskUserQuestion",
-        "DOCS_FILE": "AGENTS.md",
-        "CMD_PREFIX": "osx-",
-        "TOOL_NAME": "OpenCode",
-        "PLATFORM_DIR": ".opencode",
-    },
-    "claude": {
-        "ASK_TOOL": "Ask",
-        "DOCS_FILE": "CLAUDE.md",
-        "CMD_PREFIX": "osx:",
-        "TOOL_NAME": "Claude Code",
-        "PLATFORM_DIR": ".claude",
-    },
+    tid: _adapter_tokens(adapter) for tid, adapter in REGISTRY.items()
 }
 
 _LEFTOVER_TOKEN_RE = re.compile(r"\{\{([A-Z_]+)\}\}")
@@ -138,10 +137,10 @@ def log_warn(message: str) -> None:
 
 
 def get_tool_dir(tool: str) -> str:
-    result = TOOL_DIRS.get(tool)
-    if result is None:
-        raise ValueError(f"Unknown tool: {tool}")
-    return result
+    adapter = REGISTRY.get(tool)
+    if adapter is None:
+        raise ValueError(f"Unknown tool: {tool!r}; available: {sorted(REGISTRY)}")
+    return adapter.skills_dir
 
 
 def parse_version(v: str) -> tuple[int, int, int]:
@@ -403,16 +402,19 @@ def deploy_commands(
         else:
             raise FileNotFoundError(f"Command not found: {name}")
 
-    if tool != "claude":
-        # OpenCode: single-emit command file only (its native shape).
+    adapter = REGISTRY[tool]
+    if adapter.commands_style != "namespaced-with-skill-mirror":
+        # Single-emit layouts (opencode today; future flat adapters) write
+        # the command file only — the file format and the per-tool
+        # extension come from the adapter.
         return
 
-    # Claude: dual-emit. Also write the command as a skill at
-    # ``<target>/skills/<name>/SKILL.md`` so the slash command resolves
-    # against the modern skills surface as well — mirrors upstream
-    # OpenSpec's dual-emit strategy (introduced in v1.7.0, current as
-    # of v1.11.0). The legacy .claude/commands/ file written above
-    # remains in place for back-compat.
+    # namespaced-with-skill-mirror: dual-emit. Also write the command as a
+    # skill at ``<target>/skills/<name>/SKILL.md`` so the slash command
+    # resolves against the modern skills surface as well — mirrors
+    # upstream OpenSpec's dual-emit strategy (introduced in v1.7.0,
+    # current as of v1.11.0). The legacy .claude/commands/ file written
+    # above remains in place for back-compat.
     skill_dir = target_dir / "skills" / name
     skill_dir.mkdir(parents=True, exist_ok=True)
     skill_md = skill_dir / "SKILL.md"
@@ -681,7 +683,7 @@ def purge_managed_resources(
     cause unintended removal outside the managed namespace. Directories whose
     entry was not removed but is now empty are left in place.
     """
-    if tool not in TOOL_DIRS:
+    if tool not in REGISTRY:
         raise ValueError(f"Unknown tool: {tool}")
 
     removed = 0
@@ -738,7 +740,8 @@ def purge_managed_resources(
     # Commands: layout-aware cleanup.
     commands_dir = target_dir / "commands"
     if commands_dir.is_dir():
-        if tool == "opencode":
+        adapter = REGISTRY[tool]
+        if adapter.commands_style == "flat":
             # Flat layout: commands/<name>.md
             for entry in commands_dir.iterdir():
                 if not (entry.is_file() or entry.is_symlink()):
@@ -754,7 +757,7 @@ def purge_managed_resources(
                     continue
                 if safe_remove(entry):
                     removed += 1
-        else:
+        elif adapter.commands_style == "namespaced-with-skill-mirror":
             # Claude: nested under commands/osx/ and commands/osc/. The
             # disk filenames strip the osx-/osc- prefix, so we reapply it
             # when matching against keep_names.
@@ -791,6 +794,10 @@ def purge_managed_resources(
                     continue
                 if safe_remove(entry):
                     removed += 1
+        else:
+            raise NotImplementedError(
+                f"purge_managed_resources: commands_style={adapter.commands_style!r}"
+            )
 
     return removed
 
@@ -1187,15 +1194,16 @@ def validate_deployment(target_dir: Path, manifest: dict, *, label: str = "") ->
     if not target_dir.is_dir():
         return
 
-    # Claude doesn't ship the agents/ directory — skip agent validation.
-    # Per-side manifests still list agents (for OpenCode parity); the
-    # deploy loop above skips them per the source-existence check.
-    target_tool = None
-    for tool_name, tool_dir in TOOL_DIRS.items():
-        if str(target_dir).endswith(tool_dir):
-            target_tool = tool_name
-            break
-    skip_agents = target_tool == "claude"
+    # Tools that don't expose an ``agents/`` directory (e.g. Claude Code,
+    # which uses an agent-per-conversation model rather than on-disk agent
+    # definitions) skip agent validation. Per-side manifests still list
+    # agents (for OpenCode parity); the deploy loop above skips them per
+    # the source-existence check.
+    target_adapter = next(
+        (a for a in REGISTRY.values() if str(target_dir).endswith(a.skills_dir)),
+        None,
+    )
+    skip_agents = target_adapter is not None and not target_adapter.has_agents_dir
 
     for resource_type, resources in manifest.get("resources", {}).items():
         if skip_agents and resource_type == "agents":
@@ -1276,7 +1284,9 @@ def _validate_target_after_deploy(target_dir: Path) -> None:
     help="Deploy extended resources (skills, commands, agents, scripts) to tool directory",
 )
 def install(
-    tool: str = typer.Argument(..., help="Target tool: opencode or claude"),
+    tool: str = typer.Argument(
+        ..., help="Target tool id (registered adapters; e.g. opencode, claude)"
+    ),
     with_core: bool = typer.Option(
         False, "--with-core", help="Also deploy core OpenSpec skills"
     ),
@@ -1309,12 +1319,12 @@ def install(
         help="Fail on warnings from the post-install `openspec validate --archived` sweep.",
     ),
 ) -> None:
-    if tool not in TOOL_DIRS:
+    if tool not in REGISTRY:
         log_error(f"Unknown tool: {tool}")
-        console.print("  Available tools: opencode, claude")
+        console.print(f"  Available tools: {', '.join(sorted(REGISTRY))}")
         raise SystemExit(1)
 
-    target_dir = Path.cwd() / TOOL_DIRS[tool]
+    target_dir = Path.cwd() / REGISTRY[tool].skills_dir
     deploy_all_resources(tool, force=False, with_autonomous=with_autonomous)
 
     if with_autonomous:
@@ -1445,7 +1455,9 @@ def _core_keep_set(target_dir: Path) -> set[str]:
     help="Force reinstall all resources (same as install but always overwrites)",
 )
 def update(
-    tool: str = typer.Argument(..., help="Target tool: opencode or claude"),
+    tool: str = typer.Argument(
+        ..., help="Target tool id (registered adapters; e.g. opencode, claude)"
+    ),
     with_core: bool = typer.Option(
         False, "--with-core", help="Also deploy core OpenSpec skills"
     ),
@@ -1477,12 +1489,12 @@ def update(
         help="Fail on warnings from the post-update `openspec validate --archived` sweep.",
     ),
 ) -> None:
-    if tool not in TOOL_DIRS:
+    if tool not in REGISTRY:
         log_error(f"Unknown tool: {tool}")
-        console.print("  Available tools: opencode, claude")
+        console.print(f"  Available tools: {', '.join(sorted(REGISTRY))}")
         raise SystemExit(1)
 
-    target_dir = Path.cwd() / TOOL_DIRS[tool]
+    target_dir = Path.cwd() / REGISTRY[tool].skills_dir
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Purge stale extended ``osx-*`` resources before the forced redeploy

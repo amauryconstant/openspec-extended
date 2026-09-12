@@ -18,6 +18,7 @@ from source.cli import (
     purge_managed_resources,
     rename_core_resources,
 )
+from source.tools import REGISTRY
 
 pytestmark = pytest.mark.unit
 
@@ -459,3 +460,54 @@ class TestRenameCoreResources:
 
         assert (target / "skills" / "osc-apply-change").is_dir()
         assert not (target / "skills" / "openspec-apply-change").exists()
+
+
+# ---------------------------------------------------------------------------
+# Phase 1B: registry-driven dispatch in purge_managed_resources
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("tool_id", ["opencode", "claude"])
+class TestPurgeRoutesViaAdapterCommandsStyle:
+    """Phase 1B wires ``purge_managed_resources`` dispatch through
+    ``REGISTRY[tool].commands_style`` instead of literal ``tool ==
+    "opencode"`` / ``tool != "claude"`` comparisons. These tests pin
+    the same byte-output as the pre-1B literal-id branches."""
+
+    def test_empty_target_returns_zero(self, tmp_path, tool_id):
+        """Both shipped tools dispatch cleanly when there's nothing to remove.
+
+        Regression net: pre-1B code reached the ``if tool == "opencode"``
+        / ``else`` branch without raising; the same is true after 1B
+        via ``adapter.commands_style == "flat"`` / ``elif ... ==
+        "namespaced-with-skill-mirror"``."""
+        target = tmp_path / f"fake-{tool_id}"
+        target.mkdir()
+        (target / "commands").mkdir()
+        removed = purge_managed_resources(
+            target, tool_id, keep_names=set(), prefixes=("osx-",)
+        )
+        assert removed == 0
+
+    def test_commands_style_mapping_is_shipped_set(self, tool_id):
+        """Sanity guard: every shipped tool's commands_style is one of
+        the values the dispatch understands. If a v1.11.0 adapter
+        lands with an unrecognised style and isn't accompanied by
+        dispatch support in ``purge_managed_resources``, this test
+        fails alongside the deploy itself."""
+        adapter = REGISTRY[tool_id]
+        assert adapter.commands_style in {
+            "flat",
+            "namespaced",
+            "namespaced-with-skill-mirror",
+        }
+
+
+class TestPurgeRejectsUnknownTool:
+    """``purge_managed_resources`` validation now reads from REGISTRY."""
+
+    def test_unknown_tool_raises_value_error(self, tmp_path):
+        target = tmp_path / "fake-target"
+        target.mkdir()
+        with pytest.raises(ValueError, match="Unknown tool"):
+            purge_managed_resources(target, "bogus", keep_names=set(), prefixes=("osx-",))
