@@ -262,6 +262,62 @@ class ClaudeRunner:
         )
 
 
+class GenericPrintRunner:
+    """Runner for ``runner_kind == "generic_print"`` adapters.
+
+    Dispatch pattern: ``<tool> --print --dangerously-skip-permissions
+    "<prompt>"``. Used by Cursor, Qwen Code, Kiro, and most headless
+    AI CLIs in upstream OpenSpec's adapter registry.
+
+    The class lands as a skeleton in v1.10.0 to round out the three
+    ``RunnerKind`` literals (``opencode_run`` / ``claude_print`` /
+    ``generic_print``); the first third-party adapter that drives it
+    ships in v1.11.0 (cursor / codex / kimi). Because no v1.10.0
+    adapter declares ``runner_kind == "generic_print"``, the class
+    is unreachable at runtime in this release — tests construct it
+    via a synthetic cursor-shaped adapter.
+
+    Mirrors ``ClaudeRunner``'s prompt shape (``/<command> <change_id>``)
+    but parameterises the binary name from ``adapter.runner_binary``.
+    The slash prefix in the prompt is the literal ``/``; each tool
+    resolves its own slash-command form from the deployed file layout
+    (opencode: ``osx-<id>.md`` → ``/osx-<id>``, claude: ``osx/<id>.md``
+    → ``/osx:<id>``, cursor: ``osx-<id>.md`` → ``/osx-<id>``, etc.).
+    """
+
+    def __init__(self, adapter: "ToolAdapter") -> None:
+        self.adapter = adapter
+        self.name = adapter.tool_id
+
+    def run(self, request: RunRequest, *, verbose: bool = False) -> RunResult:
+        binary = shutil.which(self.adapter.runner_binary)
+        if binary is None:
+            raise OSXError(
+                "runner_not_found",
+                f"{self.adapter.runner_binary} binary not found in PATH",
+            )
+
+        prompt = f"/{request.command} {request.change_id}"
+        if request.extra_prompt:
+            prompt = f"{request.extra_prompt}\n\n{prompt}"
+        cmd = [
+            self.adapter.runner_binary,
+            "--print",
+            "--dangerously-skip-permissions",
+            prompt,
+        ]
+        if request.model:
+            cmd.extend(["--model", request.model])
+
+        return _run_with_logging(
+            cmd,
+            request,
+            verbose=verbose,
+            label=request.agent,
+            on_pid=request.on_pid,
+        )
+
+
 def _terminate_subprocess_tree(process: subprocess.Popen, pid: int) -> None:
     """Terminate ``process`` and any descendants it spawned.
 

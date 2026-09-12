@@ -690,6 +690,29 @@ class TestRunnerForFactory:
         assert e.value.code == "unknown_runner_kind"
         assert "does_not_exist" in e.value.message
 
+    def test_generic_print_kind_returns_generic_runner(self):
+        from source.orchestrator.runner import GenericPrintRunner, _runner_for
+
+        adapter = ToolAdapter(
+            tool_id="cursor",
+            skills_dir=".cursor",
+            commands_dir="commands",
+            commands_style="flat",
+            commands_ext="md",
+            slash_prefix="osx-",
+            skill_prefix="/",
+            runner_binary="cursor",
+            runner_kind="generic_print",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            docs_file="AGENTS.md",
+            tool_name="Cursor",
+            detect_paths=(".cursor",),
+        )
+        runner = _runner_for(adapter)
+        assert isinstance(runner, GenericPrintRunner)
+        assert runner.adapter is adapter
+
 
 @pytest.mark.unit
 class TestAdapterAwareBinary:
@@ -746,3 +769,184 @@ class TestDetectRunnerErrorMessage:
         with pytest.raises(OSXError) as e:
             detect_runner(tmp_path)
         assert str(tmp_path) in e.value.message
+
+
+@pytest.mark.unit
+class TestGenericPrintRunner:
+    """The v1.11.0 runner skeleton. Exercises the ``generic_print`` shape
+    using a synthetic cursor-shaped adapter.
+
+    No v1.10.0 adapter declares ``runner_kind == "generic_print"``, so the
+    class is unreachable at runtime in this release — every test below
+    constructs an explicit ``GenericPrintRunner(<synthetic adapter>)``.
+    """
+
+    def _make_adapter(self):
+        return ToolAdapter(
+            tool_id="cursor",
+            skills_dir=".cursor",
+            commands_dir="commands",
+            commands_style="flat",
+            commands_ext="md",
+            slash_prefix="osx-",
+            skill_prefix="/",
+            runner_binary="cursor",
+            runner_kind="generic_print",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            docs_file="AGENTS.md",
+            tool_name="Cursor",
+            detect_paths=(".cursor",),
+        )
+
+    def test_missing_binary_raises(self, monkeypatch):
+        from source.orchestrator.runner import GenericPrintRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: None)
+        runner = GenericPrintRunner(self._make_adapter())
+        with pytest.raises(OSXError) as e:
+            runner.run(
+                RunRequest(
+                    command="osx-phase0", agent="osx-analyzer", change_id="foo"
+                )
+            )
+        assert e.value.code == "runner_not_found"
+        assert "cursor" in e.value.message
+
+    def test_successful_run_spawns_expected_cmd(self, monkeypatch):
+        from source.orchestrator.runner import GenericPrintRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/cursor")
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["cmd"] = cmd
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 9999
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        runner = GenericPrintRunner(self._make_adapter())
+        result = runner.run(
+            RunRequest(
+                command="osx-phase0", agent="osx-analyzer", change_id="x"
+            )
+        )
+
+        assert result.exit_code == 0
+        assert result.pid == 9999
+        assert captured["cmd"][0] == "cursor"
+        assert "--print" in captured["cmd"]
+        assert "--dangerously-skip-permissions" in captured["cmd"]
+        prompt = captured["cmd"][-1]
+        # Adapter's slash_prefix drives the prompt shape.
+        assert prompt.endswith("/osx-phase0 x")
+
+    def test_extra_prompt_prepended_to_prompt(self, monkeypatch):
+        from source.orchestrator.runner import GenericPrintRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/cursor")
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["cmd"] = cmd
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            mock.pid = 9999
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        runner = GenericPrintRunner(self._make_adapter())
+        runner.run(
+            RunRequest(
+                command="osx-phase1",
+                agent="osx-builder",
+                change_id="x",
+                extra_prompt="Run unit tests.",
+            )
+        )
+        prompt = captured["cmd"][-1]
+        assert prompt.startswith("Run unit tests.")
+        assert "/osx-phase1 x" in prompt
+
+    def test_includes_model_when_set(self, monkeypatch):
+        from source.orchestrator.runner import GenericPrintRunner, RunRequest
+
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/cursor")
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["cmd"] = cmd
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        runner = GenericPrintRunner(self._make_adapter())
+        runner.run(
+            RunRequest(
+                command="osx-phase0",
+                agent="osx-analyzer",
+                change_id="x",
+                model="claude-opus-4",
+            )
+        )
+        idx = captured["cmd"].index("--model")
+        assert captured["cmd"][idx + 1] == "claude-opus-4"
+
+    def test_name_attribute_is_adapter_tool_id(self):
+        from source.orchestrator.runner import GenericPrintRunner
+
+        runner = GenericPrintRunner(self._make_adapter())
+        assert runner.name == "cursor"
+
+    def test_slash_prefix_does_not_affect_prompt_shape(self, monkeypatch):
+        # Mirrors ClaudeRunner's convention: the prompt is always
+        # ``/<command> <change_id>``. The adapter's ``slash_prefix`` is a
+        # deploy-time concern (how the tool spells slash commands in its
+        # filesystem layout); at runtime each tool resolves its own
+        # slash-command form from the deployed files. So whether the
+        # adapter declares ``slash_prefix="osx-"`` or ``"osx:"``, the
+        # prompt is the canonical ``/osx-phase0 x`` and the tool
+        # interprets it against its own layout.
+        from source.orchestrator.runner import GenericPrintRunner, RunRequest
+
+        claude_style = ToolAdapter(
+            tool_id="cursor-claude-style",
+            skills_dir=".cursor",
+            commands_dir="commands",
+            commands_style="flat",
+            commands_ext="md",
+            slash_prefix="osx:",
+            skill_prefix="/",
+            runner_binary="cursor",
+            runner_kind="generic_print",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            docs_file="AGENTS.md",
+            tool_name="Cursor",
+            detect_paths=(".cursor",),
+        )
+        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/cursor")
+        captured = {}
+
+        def fake_popen(cmd, **kwargs):
+            captured["cmd"] = cmd
+            mock = MagicMock()
+            mock.wait.return_value = 0
+            mock.stdout = iter([])
+            return mock
+
+        monkeypatch.setattr("subprocess.Popen", fake_popen)
+        runner = GenericPrintRunner(claude_style)
+        runner.run(
+            RunRequest(
+                command="osx-phase0", agent="osx-analyzer", change_id="x"
+            )
+        )
+        prompt = captured["cmd"][-1]
+        assert prompt.endswith("/osx-phase0 x")
