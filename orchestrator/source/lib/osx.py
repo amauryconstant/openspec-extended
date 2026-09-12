@@ -1320,7 +1320,7 @@ def _load_manifest(project_root: Path) -> dict | None:
     identical for every shipped adapter — only ``skills_dir`` changes —
     so the candidate paths are derived from the active adapter rather
     than enumerated per platform. Phase 1D collapsed the
-    ``if platform == "opencode" / elif "claude"`` ladder into a single
+    opencode/claude conditional ladder into a single
     registry-driven resolution.
 
     Returns ``None`` if no manifest is found or all are unparseable —
@@ -1470,8 +1470,8 @@ def validate_commands(project_root: Path | None = None) -> dict:
     # agent-file check is driven by ``adapter.has_agents_dir`` —
     # ``opencode`` exposes an on-disk agent dispatch model, ``claude``
     # (and most future adapters) do not: the user brings their own
-    # session. Phase 1D collapsed the ``if platform == "opencode"``
-    # ladder into a registry-driven check.
+    # session. Phase 1D collapsed the opencode-only conditional ladder
+    # into a registry-driven check.
     manifest = _load_manifest(root)
     if manifest is not None:
         declared_commands = manifest.get("resources", {}).get("commands", {})

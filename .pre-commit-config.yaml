@@ -22,6 +22,13 @@ repos:
         files: ^resources/(opencode|claude)/(skills|commands)/.*\.md$
         pass_filenames: false
 
+      - id: check-platform-hardcodes
+        name: Verify no opencode/claude hardcodes in source code
+        entry: bash .opencode/scripts/check-platform-hardcodes.sh
+        language: system
+        files: ^orchestrator/source/(cli\.py|orchestrator/.*\.py|lib/.*\.py)$
+        pass_filenames: false
+
       - id: test
         name: Verify source code and tests
         entry: mise run verify
