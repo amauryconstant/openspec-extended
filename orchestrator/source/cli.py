@@ -1279,13 +1279,156 @@ def _validate_target_after_deploy(target_dir: Path) -> None:
         validate_deployment(target_dir, data, label=label)
 
 
+def _parse_tool_target(raw: str) -> list[str]:
+    """Parse a multi-tool target argument into a list of registered tool ids.
+
+    Accepts comma-separated ids (``"opencode,claude"``) or a single id
+    (``"opencode"``). Whitespace around ids is stripped. Rejects empty
+    input, unknown ids, and duplicates — every failure logs an error
+    and raises ``SystemExit(1)`` (preserving the v1.9.x exit code).
+
+    Note: ``--all`` is intentionally NOT supported. The upstream
+    ``openspec init --tools all`` flag configures all 35 upstream tools,
+    which is the wrong semantics here — this CLI deploys the extended
+    ``osx-*`` layer to specific targets, and projects rarely need
+    more than 2-3 CLIs. Users wanting multiple tools list them
+    explicitly: ``install opencode,claude``.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        log_error("tool argument cannot be empty")
+        raise SystemExit(1)
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    if not parts:
+        log_error("tool argument must contain at least one tool id")
+        raise SystemExit(1)
+    unknown = [p for p in parts if p not in REGISTRY]
+    if unknown:
+        log_error(f"Unknown tool(s): {', '.join(unknown)}")
+        log_info(f"Available tools: {', '.join(sorted(REGISTRY))}")
+        raise SystemExit(1)
+    if len(set(parts)) != len(parts):
+        log_error(f"Duplicate tool ids in: {raw!r}")
+        raise SystemExit(1)
+    return parts
+
+
+def _install_one_tool(
+    tool: str,
+    *,
+    with_core: bool,
+    with_autonomous: bool,
+    force: bool,
+    language: str | None,
+    strict_archived: bool,
+) -> None:
+    """Per-tool install body. Raises whatever ``deploy_all_resources`` or
+    ``deploy_core`` raise; the caller in ``install`` catches and records."""
+    target_dir = Path.cwd() / REGISTRY[tool].skills_dir
+    deploy_all_resources(tool, force=False, with_autonomous=with_autonomous)
+
+    if with_core:
+        effective_language = _resolve_language(language)
+        deploy_core(
+            tool,
+            force=force,
+            language=effective_language,
+            strict_archived=strict_archived,
+        )
+
+
+def _summarise(
+    label: str,
+    successes: list[str],
+    failures: list[tuple[str, str]],
+) -> None:
+    """Print a per-tool summary; raise SystemExit(1) on any failure.
+
+    Single-tool calls (1 target total) get NO summary line and no
+    exit-code change beyond what the underlying error already produced —
+    preserves byte-identical v1.9.x behaviour.
+    """
+    total = len(successes) + len(failures)
+    if total <= 1:
+        if failures:
+            raise SystemExit(1)
+        return
+    console.print()
+    if failures:
+        log_error(f"{label} summary: {len(successes)} succeeded, {len(failures)} failed")
+        for tid, err in failures:
+            console.print(f"  [red]x[/red] {tid}: {err}")
+        for tid in successes:
+            console.print(f"  [green]v[/green] {tid}")
+        raise SystemExit(1)
+    log_success(f"{label} summary: {len(successes)} succeeded")
+    for tid in successes:
+        console.print(f"  [green]v[/green] {tid}")
+
+
+def _update_one_tool(
+    tool: str,
+    *,
+    with_core: bool,
+    with_autonomous: bool,
+    force: bool,
+    language: str | None,
+    strict_archived: bool,
+) -> None:
+    """Per-tool update body: purge stale, redeploy, optionally core, reconcile."""
+    target_dir = Path.cwd() / REGISTRY[tool].skills_dir
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Purge stale extended ``osx-*`` resources before the forced redeploy
+    #    so the resulting tree exactly matches the current source manifest.
+    osx_keep = _expected_extension_names(tool, with_autonomous)
+    removed = purge_managed_resources(
+        target_dir, tool, keep_names=osx_keep, prefixes=("osx-",)
+    )
+    if removed:
+        log_info(f"Purged {removed} stale osx-* resource(s)")
+
+    deploy_all_resources(tool, force=True, with_autonomous=with_autonomous)
+
+    if with_autonomous:
+        update_gitignore()
+
+    if with_core:
+        effective_language = _resolve_language(language)
+        deploy_core(
+            tool,
+            force=force,
+            language=effective_language,
+            strict_archived=strict_archived,
+        )
+
+        # 2. After core deployment succeeds, reconcile ``osc-*`` resources
+        #    against what was just generated. Anything previously deployed
+        #    that is no longer generated upstream is removed here.
+        core_keep = _core_keep_set(target_dir)
+        removed = purge_managed_resources(
+            target_dir,
+            tool,
+            keep_names=core_keep,
+            prefixes=("osc-",),
+        )
+        if removed:
+            log_info(f"Purged {removed} stale osc-* resource(s)")
+
+    _validate_target_after_deploy(target_dir)
+
+
 @app.command(
     "install",
-    help="Deploy extended resources (skills, commands, agents, scripts) to tool directory",
+    help="Deploy extended resources (skills, commands, agents, scripts) to one or more tool directories.",
 )
 def install(
     tool: str = typer.Argument(
-        ..., help="Target tool id (registered adapters; e.g. opencode, claude)"
+        ...,
+        help=(
+            "Target tool id, or comma-separated list (e.g. 'opencode,claude'). "
+            "Registered: " + ", ".join(sorted(REGISTRY)) + "."
+        ),
     ),
     with_core: bool = typer.Option(
         False, "--with-core", help="Also deploy core OpenSpec skills"
@@ -1319,27 +1462,39 @@ def install(
         help="Fail on warnings from the post-install `openspec validate --archived` sweep.",
     ),
 ) -> None:
-    if tool not in REGISTRY:
-        log_error(f"Unknown tool: {tool}")
-        console.print(f"  Available tools: {', '.join(sorted(REGISTRY))}")
-        raise SystemExit(1)
+    targets = _parse_tool_target(tool)
+    successes: list[str] = []
+    failures: list[tuple[str, str]] = []
 
-    target_dir = Path.cwd() / REGISTRY[tool].skills_dir
-    deploy_all_resources(tool, force=False, with_autonomous=with_autonomous)
+    for target in targets:
+        try:
+            _install_one_tool(
+                target,
+                with_core=with_core,
+                with_autonomous=with_autonomous,
+                force=force,
+                language=language,
+                strict_archived=strict_archived,
+            )
+            successes.append(target)
+        except SystemExit as e:
+            failures.append((target, f"exit {e.code}"))
+            log_error(f"install {target} failed (exit {e.code})")
+        except Exception as e:  # noqa: BLE001 — per-tool isolation
+            failures.append((target, str(e)))
+            log_error(f"install {target} failed: {e}")
 
-    if with_autonomous:
+    # Global post-deploy hooks (idempotent — see update_gitignore)
+    if with_autonomous and successes:
         update_gitignore()
 
-    if with_core:
-        effective_language = _resolve_language(language)
-        deploy_core(
-            tool,
-            force=force,
-            language=effective_language,
-            strict_archived=strict_archived,
-        )
+    # Per-tool validation (only for tools that succeeded; failed tools
+    # didn't deploy anything to validate).
+    for target in successes:
+        target_dir = Path.cwd() / REGISTRY[target].skills_dir
+        _validate_target_after_deploy(target_dir)
 
-    _validate_target_after_deploy(target_dir)
+    _summarise("install", successes, failures)
 
 
 def _expected_extension_names(tool: str, with_autonomous: bool) -> set[str]:
@@ -1456,7 +1611,11 @@ def _core_keep_set(target_dir: Path) -> set[str]:
 )
 def update(
     tool: str = typer.Argument(
-        ..., help="Target tool id (registered adapters; e.g. opencode, claude)"
+        ...,
+        help=(
+            "Target tool id, or comma-separated list (e.g. 'opencode,claude'). "
+            "Registered: " + ", ".join(sorted(REGISTRY)) + "."
+        ),
     ),
     with_core: bool = typer.Option(
         False, "--with-core", help="Also deploy core OpenSpec skills"
@@ -1489,51 +1648,29 @@ def update(
         help="Fail on warnings from the post-update `openspec validate --archived` sweep.",
     ),
 ) -> None:
-    if tool not in REGISTRY:
-        log_error(f"Unknown tool: {tool}")
-        console.print(f"  Available tools: {', '.join(sorted(REGISTRY))}")
-        raise SystemExit(1)
+    targets = _parse_tool_target(tool)
+    successes: list[str] = []
+    failures: list[tuple[str, str]] = []
 
-    target_dir = Path.cwd() / REGISTRY[tool].skills_dir
-    target_dir.mkdir(parents=True, exist_ok=True)
+    for target in targets:
+        try:
+            _update_one_tool(
+                target,
+                with_core=with_core,
+                with_autonomous=with_autonomous,
+                force=force,
+                language=language,
+                strict_archived=strict_archived,
+            )
+            successes.append(target)
+        except SystemExit as e:
+            failures.append((target, f"exit {e.code}"))
+            log_error(f"update {target} failed (exit {e.code})")
+        except Exception as e:  # noqa: BLE001 — per-tool isolation
+            failures.append((target, str(e)))
+            log_error(f"update {target} failed: {e}")
 
-    # 1. Purge stale extended ``osx-*`` resources before the forced redeploy
-    #    so the resulting tree exactly matches the current source manifest.
-    osx_keep = _expected_extension_names(tool, with_autonomous)
-    removed = purge_managed_resources(
-        target_dir, tool, keep_names=osx_keep, prefixes=("osx-",)
-    )
-    if removed:
-        log_info(f"Purged {removed} stale osx-* resource(s)")
-
-    deploy_all_resources(tool, force=True, with_autonomous=with_autonomous)
-
-    if with_autonomous:
-        update_gitignore()
-
-    if with_core:
-        effective_language = _resolve_language(language)
-        deploy_core(
-            tool,
-            force=force,
-            language=effective_language,
-            strict_archived=strict_archived,
-        )
-
-        # 2. After core deployment succeeds, reconcile ``osc-*`` resources
-        #    against what was just generated. Anything previously deployed
-        #    that is no longer generated upstream is removed here.
-        core_keep = _core_keep_set(target_dir)
-        removed = purge_managed_resources(
-            target_dir,
-            tool,
-            keep_names=core_keep,
-            prefixes=("osc-",),
-        )
-        if removed:
-            log_info(f"Purged {removed} stale osc-* resource(s)")
-
-    _validate_target_after_deploy(target_dir)
+    _summarise("update", successes, failures)
 
 
 @app.command("orchestrate", help="Run the 7-phase autonomous change workflow")
