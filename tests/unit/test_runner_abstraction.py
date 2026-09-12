@@ -5,12 +5,14 @@ Unit tests for source.orchestrator.runner.
 Tests the Runner abstraction without actually spawning AI subprocesses.
 """
 
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 from source.lib.osx import OSXError
+from source.tools import REGISTRY, ToolAdapter
 
 
 @pytest.mark.unit
@@ -546,3 +548,201 @@ class TestRunRequestStoreAndSchema:
         )
 
         assert captured["env"]["OSX_STORE"] == "team-store"
+
+
+# ---------------------------------------------------------------------------
+# Phase 1C tests — registry-driven dispatch + adapter plumbing.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestDetectRunnerWalksRegistry:
+    """Phase 1C: ``detect_runner`` walks ``REGISTRY`` in registration order
+    and returns the runner for the first adapter whose ``detect_paths``
+    includes an existing directory at ``project_root``. The four original
+    tests above (``test_detects_opencode``, ``test_detects_claude``,
+    ``test_opencode_takes_precedence``, ``test_no_runner_raises``) cover
+    the shipped set; this class exercises the dispatch shape more
+    deliberately, including a synthetic third adapter.
+    """
+
+    def test_detects_opencode_via_registry(self, tmp_path):
+        (tmp_path / ".opencode").mkdir()
+        from source.orchestrator.runner import OpencodeRunner, detect_runner
+
+        runner = detect_runner(tmp_path)
+        assert runner.name == "opencode"
+        assert isinstance(runner, OpencodeRunner)
+        assert runner.adapter is REGISTRY["opencode"]
+
+    def test_detects_claude_via_registry(self, tmp_path):
+        (tmp_path / ".claude").mkdir()
+        from source.orchestrator.runner import ClaudeRunner, detect_runner
+
+        runner = detect_runner(tmp_path)
+        assert runner.name == "claude"
+        assert isinstance(runner, ClaudeRunner)
+        assert runner.adapter is REGISTRY["claude"]
+
+    def test_opencode_wins_ties_via_registration_order(self, tmp_path):
+        # opencode is registered first; verify the registry walk produces
+        # the same precedence as today's literal check.
+        (tmp_path / ".opencode").mkdir()
+        (tmp_path / ".claude").mkdir()
+        from source.orchestrator.runner import detect_runner
+
+        runner = detect_runner(tmp_path)
+        assert runner.name == "opencode"
+
+    def test_no_runner_detected_when_no_marker_dir(self, tmp_path):
+        from source.orchestrator.runner import detect_runner
+
+        with pytest.raises(OSXError) as e:
+            detect_runner(tmp_path)
+        assert e.value.code == "no_runner_detected"
+        # Hint message lists registered tools so a user with a future
+        # adapter knows their options.
+        assert e.value.context.get("hint")
+        assert "opencode" in e.value.context["hint"]
+        assert "claude" in e.value.context["hint"]
+
+    def test_detect_runner_uses_detect_paths_per_adapter(
+        self, tmp_path, monkeypatch
+    ):
+        # Inject a synthetic third adapter that detects on .foo/. Detect
+        # must walk past the opencode/claude defaults to find it.
+        #
+        # The synthetic adapter uses ``runner_kind == "opencode_run"``
+        # (which exists today) so commit 1 doesn't need
+        # ``GenericPrintRunner`` yet — that lands in commit 2.
+        from source.orchestrator.runner import OpencodeRunner, detect_runner
+
+        foo_adapter = ToolAdapter(
+            tool_id="foo",
+            skills_dir=".foo",
+            commands_dir="commands",
+            commands_style="flat",
+            commands_ext="md",
+            slash_prefix="foo-",
+            skill_prefix="/",
+            runner_binary="foo",
+            runner_kind="opencode_run",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            docs_file="AGENTS.md",
+            tool_name="Foo",
+            detect_paths=(".foo",),
+        )
+        monkeypatch.setitem(REGISTRY, "foo", foo_adapter)
+        try:
+            (tmp_path / ".foo").mkdir()
+            runner = detect_runner(tmp_path)
+            # ``name`` on a class-attribute runner class (OpencodeRunner /
+            # ClaudeRunner) is fixed at class level — it identifies the
+            # runner kind, not the adapter. Use the adapter's tool_id to
+            # verify the synthetic adapter was selected.
+            assert isinstance(runner, OpencodeRunner)
+            assert runner.adapter is foo_adapter
+            assert runner.adapter.tool_id == "foo"
+        finally:
+            monkeypatch.delitem(REGISTRY, "foo")
+
+
+@pytest.mark.unit
+class TestRunnerForFactory:
+    """``_runner_for(adapter)`` maps ``runner_kind`` to a concrete class."""
+
+    def test_opencode_kind_returns_opencode_runner(self):
+        from source.orchestrator.runner import OpencodeRunner, _runner_for
+
+        runner = _runner_for(REGISTRY["opencode"])
+        assert isinstance(runner, OpencodeRunner)
+        assert runner.adapter is REGISTRY["opencode"]
+
+    def test_claude_kind_returns_claude_runner(self):
+        from source.orchestrator.runner import ClaudeRunner, _runner_for
+
+        runner = _runner_for(REGISTRY["claude"])
+        assert isinstance(runner, ClaudeRunner)
+        assert runner.adapter is REGISTRY["claude"]
+
+    def test_unknown_kind_raises(self):
+        from source.orchestrator.runner import _runner_for
+
+        adapter = ToolAdapter(
+            tool_id="bad",
+            skills_dir=".bad",
+            commands_dir="commands",
+            commands_style="flat",
+            commands_ext="md",
+            slash_prefix="osx-",
+            skill_prefix="/",
+            runner_binary="bad",
+            runner_kind="does_not_exist",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            docs_file="AGENTS.md",
+            tool_name="Bad",
+            detect_paths=(".bad",),
+        )
+        with pytest.raises(OSXError) as e:
+            _runner_for(adapter)
+        assert e.value.code == "unknown_runner_kind"
+        assert "does_not_exist" in e.value.message
+
+
+@pytest.mark.unit
+class TestAdapterAwareBinary:
+    """``OpencodeRunner._binary()`` / ``ClaudeRunner._binary()`` resolve
+    from ``adapter.runner_binary`` when set, fall back to the literal
+    when the runner was constructed without an adapter (legacy call
+    paths).
+    """
+
+    def test_opencode_runner_binary_defaults_to_opencode(self):
+        from source.orchestrator.runner import OpencodeRunner
+
+        runner = OpencodeRunner()
+        assert runner._binary() == "opencode"
+
+    def test_opencode_runner_binary_reads_from_adapter(self):
+        from source.orchestrator.runner import OpencodeRunner
+
+        adapter = replace(REGISTRY["opencode"], runner_binary="oc-renamed")
+        runner = OpencodeRunner(adapter=adapter)
+        assert runner._binary() == "oc-renamed"
+
+    def test_claude_runner_binary_defaults_to_claude(self):
+        from source.orchestrator.runner import ClaudeRunner
+
+        runner = ClaudeRunner()
+        assert runner._binary() == "claude"
+
+    def test_claude_runner_binary_reads_from_adapter(self):
+        from source.orchestrator.runner import ClaudeRunner
+
+        adapter = replace(REGISTRY["claude"], runner_binary="cc-renamed")
+        runner = ClaudeRunner(adapter=adapter)
+        assert runner._binary() == "cc-renamed"
+
+
+@pytest.mark.unit
+class TestDetectRunnerErrorMessage:
+    """The ``no_runner_detected`` error message lists registered tool ids
+    so a user seeing it knows which commands to run."""
+
+    def test_error_hint_lists_registered_tools(self, tmp_path):
+        from source.orchestrator.runner import detect_runner
+
+        with pytest.raises(OSXError) as e:
+            detect_runner(tmp_path)
+        hint = e.value.context["hint"]
+        assert "opencode" in hint
+        assert "claude" in hint
+
+    def test_error_message_includes_project_root(self, tmp_path):
+        from source.orchestrator.runner import detect_runner
+
+        with pytest.raises(OSXError) as e:
+            detect_runner(tmp_path)
+        assert str(tmp_path) in e.value.message

@@ -3,12 +3,17 @@
 """
 Runner - Abstraction over AI-assistant CLI invocations.
 
-The orchestrator dispatches phase steps to a runner. Two implementations:
+The orchestrator dispatches phase steps to a runner. Three implementations:
 - OpencodeRunner: uses `opencode run --command <cmd> --agent <agent> <change>`
 - ClaudeRunner: uses `claude --print --dangerously-skip-permissions ... <cmd>`
+- GenericPrintRunner: `<tool> --print --dangerously-skip-permissions "<prompt>"`
+  (lands in v1.11.0 for Cursor / Qwen / Kiro; skeleton in v1.10.0)
 
-The runner is selected automatically by `detect_runner(project_root)` based
-on which tool directory (.opencode/ or .claude/) is present.
+The runner is selected automatically by `detect_runner(project_root)` which
+walks ``REGISTRY`` (orchestrator/source/tools.py) in registration order and
+returns the runner for the first adapter whose ``detect_paths`` includes an
+existing directory at ``project_root``. ``opencode`` wins ties by being
+registered first.
 """
 
 import os
@@ -22,9 +27,12 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, TYPE_CHECKING
 
 from source.lib.osx import OSXError
+
+if TYPE_CHECKING:
+    from source.tools import ToolAdapter
 
 OnPidCallback = Callable[[int], None]
 
@@ -77,25 +85,60 @@ class Runner(Protocol):
         ...
 
 
-def detect_runner(project_root: Path) -> Runner:
+def detect_runner(project_root: Path | None = None) -> Runner:
     """Detect which AI runner to use based on the project root's tool directory.
 
-    Detection order:
-      1. .opencode/ → OpencodeRunner
-      2. .claude/ → ClaudeRunner
-      3. Otherwise → raise OSXError("no_runner_detected", ...)
+    Walks ``REGISTRY`` in registration order and returns the runner for
+    the first adapter whose ``detect_paths`` includes an existing
+    directory at ``project_root``. ``opencode`` wins ties by being
+    registered first (locked by
+    ``tests/unit/test_tool_registry.py::test_detect_paths_are_unique_across_shipped_tools``
+    and confirmed by ``test_opencode_takes_precedence`` in this module).
 
-    The `project_root` defaults to the current working directory if None.
+    Raises ``OSXError("no_runner_detected", ...)`` when no adapter's
+    ``detect_paths`` match.
     """
+    from source.tools import REGISTRY
+
     root = project_root or Path.cwd()
-    if (root / ".opencode").is_dir():
-        return OpencodeRunner()
-    if (root / ".claude").is_dir():
-        return ClaudeRunner()
+    for adapter in REGISTRY.values():
+        if any((root / p).is_dir() for p in adapter.detect_paths):
+            return _runner_for(adapter)
     raise OSXError(
         "no_runner_detected",
-        f"No AI runner detected at {root}. Install .opencode/ or .claude/ first.",
-        hint="Run `openspec-extended install opencode` or `openspec-extended install claude`",
+        f"No AI runner detected at {root}.",
+        hint=(
+            "Run `openspec-extended install <tool>` for one of: "
+            + ", ".join(sorted(REGISTRY))
+        ),
+    )
+
+
+def _runner_for(adapter: "ToolAdapter") -> Runner:
+    """Construct the runner class appropriate for ``adapter.runner_kind``.
+
+    Dispatches to the three runner classes:
+
+    - ``opencode_run`` → ``OpencodeRunner``
+    - ``claude_print`` → ``ClaudeRunner``
+    - ``generic_print`` → ``GenericPrintRunner`` (lands in v1.11.0)
+
+    Raises ``OSXError("unknown_runner_kind", ...)`` for an adapter whose
+    ``runner_kind`` is not one of the three supported values. Adding a
+    new ``runner_kind`` literal to ``source/tools.py:RunnerKind``
+    without extending this factory is a TypeError-catchable programming
+    error; the explicit error message surfaces it during tests.
+    """
+    if adapter.runner_kind == "opencode_run":
+        return OpencodeRunner(adapter=adapter)
+    if adapter.runner_kind == "claude_print":
+        return ClaudeRunner(adapter=adapter)
+    if adapter.runner_kind == "generic_print":
+        return GenericPrintRunner(adapter=adapter)
+    raise OSXError(
+        "unknown_runner_kind",
+        f"Tool adapter {adapter.tool_id!r} declares unsupported "
+        f"runner_kind {adapter.runner_kind!r}",
     )
 
 
@@ -103,14 +146,28 @@ class OpencodeRunner:
     """Runner that dispatches to `opencode run`."""
 
     name = "opencode"
+    _FALLBACK_BINARY = "opencode"
+
+    def __init__(self, adapter: "ToolAdapter | None" = None) -> None:
+        self.adapter = adapter
+
+    def _binary(self) -> str:
+        """Resolve the binary name from the adapter (preferred) or fall
+        back to the literal ``"opencode"`` for legacy call paths that
+        construct ``OpencodeRunner()`` without an adapter."""
+        if self.adapter is not None:
+            return self.adapter.runner_binary
+        return self._FALLBACK_BINARY
 
     def run(self, request: RunRequest, *, verbose: bool = False) -> RunResult:
-        binary = shutil.which("opencode")
+        binary = shutil.which(self._binary())
         if binary is None:
-            raise OSXError("runner_not_found", "opencode binary not found in PATH")
+            raise OSXError(
+                "runner_not_found", f"{self._binary()} binary not found in PATH"
+            )
 
         cmd = [
-            "opencode",
+            self._binary(),
             "run",
             "--command",
             request.command,
@@ -169,16 +226,30 @@ class ClaudeRunner:
     """
 
     name = "claude"
+    _FALLBACK_BINARY = "claude"
+
+    def __init__(self, adapter: "ToolAdapter | None" = None) -> None:
+        self.adapter = adapter
+
+    def _binary(self) -> str:
+        """Resolve the binary name from the adapter (preferred) or fall
+        back to the literal ``"claude"`` for legacy call paths that
+        construct ``ClaudeRunner()`` without an adapter."""
+        if self.adapter is not None:
+            return self.adapter.runner_binary
+        return self._FALLBACK_BINARY
 
     def run(self, request: RunRequest, *, verbose: bool = False) -> RunResult:
-        binary = shutil.which("claude")
+        binary = shutil.which(self._binary())
         if binary is None:
-            raise OSXError("runner_not_found", "claude binary not found in PATH")
+            raise OSXError(
+                "runner_not_found", f"{self._binary()} binary not found in PATH"
+            )
 
         prompt = f"/{request.command} {request.change_id}"
         if request.extra_prompt:
             prompt = f"{request.extra_prompt}\n\n{prompt}"
-        cmd = ["claude", "--print", "--dangerously-skip-permissions", prompt]
+        cmd = [self._binary(), "--print", "--dangerously-skip-permissions", prompt]
         if request.model:
             cmd.extend(["--model", request.model])
 
