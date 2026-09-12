@@ -1324,7 +1324,6 @@ def _install_one_tool(
 ) -> None:
     """Per-tool install body. Raises whatever ``deploy_all_resources`` or
     ``deploy_core`` raise; the caller in ``install`` catches and records."""
-    target_dir = Path.cwd() / REGISTRY[tool].skills_dir
     deploy_all_resources(tool, force=False, with_autonomous=with_autonomous)
 
     if with_core:
@@ -1340,23 +1339,33 @@ def _install_one_tool(
 def _summarise(
     label: str,
     successes: list[str],
-    failures: list[tuple[str, str]],
+    failures: list[tuple[str, int, str]],
 ) -> None:
-    """Print a per-tool summary; raise SystemExit(1) on any failure.
+    """Print a per-tool summary; raise SystemExit on any failure.
 
-    Single-tool calls (1 target total) get NO summary line and no
-    exit-code change beyond what the underlying error already produced —
-    preserves byte-identical v1.9.x behaviour.
+    Single-tool calls (1 target total) get NO summary line, and the exit
+    code is whatever the underlying failure raised (``SystemExit(code)``
+    for refusal paths like ``deploy_core``, ``1`` for unexpected
+    exceptions) — preserves byte-identical v1.9.x behaviour of letting
+    the per-tool error reach the caller.
+
+    Multi-tool calls collapse all failures to ``SystemExit(1)`` because
+    a single composite code must summarise many heterogeneous tool
+    outcomes (the partial-failure contract pinned by
+    ``tests/unit/test_install_multi.py``).
     """
     total = len(successes) + len(failures)
     if total <= 1:
         if failures:
-            raise SystemExit(1)
+            _, exit_code, _ = failures[0]
+            raise SystemExit(exit_code if exit_code != 0 else 1)
         return
     console.print()
     if failures:
-        log_error(f"{label} summary: {len(successes)} succeeded, {len(failures)} failed")
-        for tid, err in failures:
+        log_error(
+            f"{label} summary: {len(successes)} succeeded, {len(failures)} failed"
+        )
+        for tid, _, err in failures:
             console.print(f"  [red]x[/red] {tid}: {err}")
         for tid in successes:
             console.print(f"  [green]v[/green] {tid}")
@@ -1464,7 +1473,7 @@ def install(
 ) -> None:
     targets = _parse_tool_target(tool)
     successes: list[str] = []
-    failures: list[tuple[str, str]] = []
+    failures: list[tuple[str, int, str]] = []
 
     for target in targets:
         try:
@@ -1478,10 +1487,11 @@ def install(
             )
             successes.append(target)
         except SystemExit as e:
-            failures.append((target, f"exit {e.code}"))
-            log_error(f"install {target} failed (exit {e.code})")
+            code = e.code if isinstance(e.code, int) else 1
+            failures.append((target, code, f"exit {code}"))
+            log_error(f"install {target} failed (exit {code})")
         except Exception as e:  # noqa: BLE001 — per-tool isolation
-            failures.append((target, str(e)))
+            failures.append((target, 1, str(e)))
             log_error(f"install {target} failed: {e}")
 
     # Global post-deploy hooks (idempotent — see update_gitignore)
@@ -1650,7 +1660,7 @@ def update(
 ) -> None:
     targets = _parse_tool_target(tool)
     successes: list[str] = []
-    failures: list[tuple[str, str]] = []
+    failures: list[tuple[str, int, str]] = []
 
     for target in targets:
         try:
@@ -1664,10 +1674,11 @@ def update(
             )
             successes.append(target)
         except SystemExit as e:
-            failures.append((target, f"exit {e.code}"))
-            log_error(f"update {target} failed (exit {e.code})")
+            code = e.code if isinstance(e.code, int) else 1
+            failures.append((target, code, f"exit {code}"))
+            log_error(f"update {target} failed (exit {code})")
         except Exception as e:  # noqa: BLE001 — per-tool isolation
-            failures.append((target, str(e)))
+            failures.append((target, 1, str(e)))
             log_error(f"update {target} failed: {e}")
 
     _summarise("update", successes, failures)
