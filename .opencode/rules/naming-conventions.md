@@ -21,4 +21,9 @@ paths:
 - `osx-` prefix for extended skills; `osc-` reserved for core OpenSpec skills.
 - Two disjoint resource trees: orchestrator-side (`orchestrator/resources/`) and skills-side (`skills/resources/`). Each tree has its own `manifest.toml`; never cross-register.
 - Slash command name = skill directory name (e.g. `osx-phase0` → `/osx-phase0`).
+- Slash-command prefix follows the adapter's `slash_prefix` field
+  (`osx-` for opencode, `osx:` for claude; future adapters see
+  `orchestrator/source/tools.py:ToolAdapter.slash_prefix`). The skill
+  directory name is `osx-<id>` on every adapter — never write
+  `{{CMD_PREFIX}}<x>` in resource source files.
 - `osx-concepts §2.5` enumerates the canonical taxonomy (workflow skill, agents, phase commands, gap-filling skills, slash commands with self-contained bodies).

@@ -62,6 +62,11 @@ Each phase may iterate up to `DEFAULT_MAX_PHASE_ITERATIONS` times before the orc
 - `run_orchestrator(state)` — synchronous function in `engine.py`, exposed via `source.orchestrator.__init__`.
 - Mounted under the main CLI as `openspec-extended orchestrate` (defined in `source/cli.py:orchestrate`).
 
+Phase 1C wired the runner dispatch and pre-flight binary probe through
+`source.tools.REGISTRY`; adding a new adapter that uses a different
+`runner_kind` only requires a `_runner_for` branch in
+`source/orchestrator/runner.py`.
+
 ## See Also
 
 - Root `AGENTS.md` — Code Style, Versioning

@@ -68,12 +68,15 @@ openspec-extended install opencode --with-autonomous
 
 # Include upstream OpenSpec workflows (12 osc-* commands)
 openspec-extended install opencode --with-core
+
+# Multi-CLI team: deploy to multiple tools in one call
+openspec-extended install opencode,claude --with-autonomous
 ```
 
 Verify the install:
-
 ```bash
-ls .opencode/{skills,agents,commands}/
+ls .opencode/{skills,agents,commands}/   # opencode tree
+ls .claude/{skills,commands}/             # claude tree (dual-emit)
 ```
 
 ## Install flags
@@ -95,6 +98,7 @@ ls .opencode/{skills,agents,commands}/
 | `openspec-extended install opencode`                 | Deploy utility skills + commands (default)    |
 | `openspec-extended install opencode --with-autonomous` | Also deploy 7 phase commands, 4 agents, workflow skill |
 | `openspec-extended install claude`                   | Same for Claude Code                          |
+| `openspec-extended install opencode,claude`          | Deploy to multiple tools in one call          |
 | `openspec-extended update opencode`                  | Refresh utility resources (overwrite existing)|
 | `openspec-extended update opencode --with-autonomous`| Refresh autonomous resources too              |
 | `openspec-extended update-core [path]`               | Refresh upstream OpenSpec instruction files   |

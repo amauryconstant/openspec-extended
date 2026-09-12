@@ -32,8 +32,10 @@ OpenCode is canonical. Claude mirrors are auto-generated. Core is synced from up
 | Adding/editing a gap-filling skill      | `skills/AGENTS.md`                                                 |
 | Syncing core from upstream              | `orchestrator/core/AGENTS.md`                                      |
 | Editing tests                           | `tests/AGENTS.md`                                                  |
+| Adding a new AI tool adapter            | `orchestrator/source/tools.py` + `.opencode/rules/naming-conventions.md` |
 | Updating platform docs                  | Consult <https://github.com/Fission-AI/OpenSpec/tree/main/docs> + <https://opencode.ai/docs> for canonical upstream |
 | Editing a Claude mirror file            | STOP — edit the opencode sibling, run `sync:mirrors`               |
+| Adding a per-adapter mirror task        | See "Per-adapter rendering" in `.opencode/rules/mirror-generation.md` |
 | Editing vendored subtree                | STOP — use `sync-core`                                             |
 
 ## Cross-cutting Rules
