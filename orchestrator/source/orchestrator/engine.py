@@ -27,6 +27,7 @@ from source.lib import osx as osx_lib
 from source.lib import state_io
 from source.lib.osx import PHASE_COMMANDS, PHASE_NAMES, PHASES, OSXError
 from source.orchestrator.runner import detect_runner
+from source.tools import REGISTRY
 
 PHASE_AGENTS = {
     "PHASE0": "osx-analyzer",
@@ -189,11 +190,13 @@ def _project_root(state: OrchestratorState) -> Path | None:
 def validate_skills(state: OrchestratorState) -> None:
     log(state, "Validating required skills...")
 
-    data = osx_lib.validate_skills(project_root=_project_root(state))
+    project_root = _project_root(state)
+    data = osx_lib.validate_skills(project_root=project_root)
     if not data.get("valid", False):
         log_error(state, "Required skills validation failed")
         print_validation_errors(state, data)
-        log_error(state, "Run: openspec-extended install opencode")
+        platform = osx_lib.detect_platform(project_root or Path.cwd())
+        log_error(state, f"Run: openspec-extended install {platform}")
         raise SystemExit(1)
 
     log_verbose(state, "All required skills found")
@@ -202,11 +205,13 @@ def validate_skills(state: OrchestratorState) -> None:
 def validate_commands(state: OrchestratorState) -> None:
     log(state, "Validating required commands...")
 
-    data = osx_lib.validate_commands(project_root=_project_root(state))
+    project_root = _project_root(state)
+    data = osx_lib.validate_commands(project_root=project_root)
     if not data.get("valid", False):
         log_error(state, "Required commands validation failed")
         print_validation_errors(state, data)
-        log_error(state, "Run: openspec-extended install opencode")
+        platform = osx_lib.detect_platform(project_root or Path.cwd())
+        log_error(state, f"Run: openspec-extended install {platform}")
         raise SystemExit(1)
 
     log_verbose(state, "All required commands found")
@@ -1209,7 +1214,7 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
                 raise SystemExit(2)
 
             platform = osx_lib.detect_platform(_project_root(state) or Path.cwd())
-            ai_binary = "opencode" if platform == "opencode" else "claude"
+            ai_binary = REGISTRY[platform].runner_binary
             try:
                 subprocess.run(
                     [ai_binary, "--version"], capture_output=True, check=False
