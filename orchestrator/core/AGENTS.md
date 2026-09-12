@@ -63,4 +63,4 @@ The `source/` subtree tracks upstream directly. This will:
 
 **Upstream**: <https://github.com/Fission-AI/OpenSpec>
 
-Per-contract operational notes for v1.8.0+ orchestrator consumption (`isPlanningComplete`, `retire_capabilities`, `operations.{apply|archive}.guidance`, `show --diff`, `validate --archived`) live in [docs/review-modify-integration.md §13](../../docs/review-modify-integration.md#13-post-v170-contract-additions).
+Per-contract operational notes for v1.8.0+ orchestrator consumption (`isPlanningComplete`, `retire_capabilities`, `operations.{apply|archive}.guidance`, `show --diff`, `validate --archived`) live in [`.opencode/rules/openspec-contract.md`](../../.opencode/rules/openspec-contract.md).

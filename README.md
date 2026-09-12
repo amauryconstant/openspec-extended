@@ -177,7 +177,9 @@ The default install ships **3 extended skills**. `osx-workflow` (4th skill) requ
 | `osx-workflow`               | Explains the 7-phase autonomous workflow       | opt-in (`--with-autonomous`) |
 
 Framework concepts that used to live in the `osx-concepts` skill now ship
-as `docs/concepts.md` (loaded on demand, not auto-deployed). Multi- and
+in `.opencode/rules/openspec-contract.md` (loaded on demand when working
+on `orchestrator/source/**`, `orchestrator/resources/opencode/**`, or
+`tests/**`) and the `orchestrator/source/AGENTS.md` hub. Multi- and
 single-artifact edits route through `/opsx:update` from upstream.
 
 ### Extension commands
@@ -231,11 +233,10 @@ After `PHASE6`, files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`.
 
 | Doc | Purpose |
 |-----|---------|
-| [docs/concepts.md](docs/concepts.md) | Maintainer reference: repo layout, resource taxonomy, OpenSpec framework |
-| [docs/cli-comparison.md](docs/cli-comparison.md) | Maps upstream `openspec` commands to `openspec-extended` passthroughs and the `osx` sub-app |
-| [docs/orchestrator-state-machine.md](docs/orchestrator-state-machine.md) | Phase model, transition reasons, retry budget, schema resolution, resume semantics |
-| [docs/review-modify-integration.md](docs/review-modify-integration.md) | Review/modify integration contract with core (v1.13.0 surface) |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Error code to fix table for state, git, missing CLI tools, schema, orchestrator errors |
+| [.opencode/rules/openspec-contract.md](.opencode/rules/openspec-contract.md) | v1.8.0–v1.13.0 contract surface (loaded on `orchestrator/source/**`, `orchestrator/resources/opencode/**`, `tests/**`) |
+| `orchestrator/source/orchestrator/AGENTS.md` | Phase model, transition reasons, retry budget, resume semantics |
+| `orchestrator/source/lib/AGENTS.md` | `osx` library domains + CLI/library contract |
+| `orchestrator/resources/AGENTS.md` | Resource types, manifest layout, mirror generation |
 | `osx-workflow` skill | Runtime reference for AI agents in deployed projects (4 tool layers, 7 phases, `osx` state I/O tool) |
 
 ## Development

@@ -34,11 +34,11 @@ Coverage:
     ``proposal.md``/``design.md``/``tasks.md`` references.
   - ``TestSkillDescriptionLeadingWord`` — locks in the model-invocation
     trigger word for every canonical skill.
-    - ``TestOrchestratorContracts`` — mirrors the still-load-bearing
-      v1.8.0–v1.13.0 contracts from ``docs/review-modify-integration.md``
-      §13 (``isPlanningComplete``, ``retire_capabilities``, ``operationGuidance``,
-      ``show --diff``, ``validate --archived``, ``missingPrerequisites``,
-      ``list --specs`` + ``--type spec --json --no-scenarios``).
+     - ``TestOrchestratorContracts`` — mirrors the still-load-bearing
+       v1.8.0–v1.13.0 contracts from ``.opencode/rules/openspec-contract.md``
+       (``isPlanningComplete``, ``retire_capabilities``, ``operationGuidance``,
+       ``show --diff``, ``validate --archived``, ``missingPrerequisites``,
+       ``list --specs`` + ``--type spec --json --no-scenarios``).
   - ``TestSharedReferencesPackaging`` — shared references pool files
     are all consumed by some skill or command (orchestrator-side and
     skills-side pools).
@@ -642,7 +642,7 @@ class TestSkillDescriptionLeadingWord:
 @pytest.mark.unit
 class TestOrchestratorContracts:
     """Mirror the still-load-bearing v1.8.0–v1.13.0 contracts from
-    ``docs/review-modify-integration.md`` §13. Each test pins the
+    ``.opencode/rules/openspec-contract.md``. Each test pins the
     engine/library symbol that consumes the contract; integration tests
     cover the round-trip behaviour."""
 

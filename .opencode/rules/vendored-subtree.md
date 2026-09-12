@@ -12,7 +12,7 @@ paths:
 - **NEVER** edit files in `orchestrator/core/` directly. Use `mise run sync-core`.
 - `sync-core` refuses to run if `orchestrator/core/source/` has uncommitted local changes.
 - The current upstream version and per-version contract notes live in `orchestrator/core/AGENTS.md`.
-- Per-contract operational notes for v1.8.0+ orchestrator consumption also live in `docs/review-modify-integration.md §13`.
+- Per-contract operational notes for v1.8.0+ orchestrator consumption also live in `.opencode/rules/openspec-contract.md`.
 
 ## What gets synced
 

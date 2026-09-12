@@ -257,7 +257,7 @@ class TestSkillTaxonomy:
         osx-workflow is gated by --with-autonomous. osx-changelog and
         osx-maintain-docs are slash commands, not skills.
         osx-modify-artifacts was dropped in favour of /opsx:update.
-        osx-concepts was dropped; framework content moved to docs/concepts.md.
+        osx-concepts was dropped; framework content moved to .opencode/rules/openspec-contract.md and orchestrator/source/AGENTS.md.
         """
         from source.lib import osx
 
