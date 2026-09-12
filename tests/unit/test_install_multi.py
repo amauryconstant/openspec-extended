@@ -259,18 +259,6 @@ class TestSingleToolBackwardCompat:
         assert result.exit_code == 0
         assert "summary" not in result.output.lower()
 
-    def test_install_single_tool_failure_exits_1(self, tmp_path, monkeypatch):
-        def fail(tool, force=False, with_autonomous=False):
-            raise RuntimeError("boom")
-
-        monkeypatch.setattr("source.cli.deploy_all_resources", fail)
-
-        result = runner.invoke(app, ["install", "opencode"])
-
-        assert result.exit_code == 1
-        # Single-tool failure: no summary line
-        assert "summary" not in result.output.lower()
-
     def test_install_unknown_tool_exits_1(self, tmp_path, monkeypatch):
         # Existing test_openspec_extended.py::test_install_unknown_tool_shows_error
         # already pins this. Confirm it still holds after refactor.
@@ -295,6 +283,78 @@ class TestSingleToolBackwardCompat:
 
     def test_install_duplicate_tool_id_exits_1(self, tmp_path, monkeypatch):
         result = runner.invoke(app, ["install", "opencode,opencode"])
+        assert result.exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# Single-tool exit-code preservation
+# ---------------------------------------------------------------------------
+
+
+class TestSingleToolExitCodePreserved:
+    """Single-tool install/update must surface whatever exit code the inner
+    failure raised — ``SystemExit(2)`` from refusal paths (e.g.
+    ``deploy_core --force``) reaches the caller as ``2``, ``SystemExit``
+    with code ``None`` collapses to ``1``, ``RuntimeError`` collapses to
+    ``1``. Multi-tool calls still collapse to ``1`` (one composite code
+    for many heterogeneous outcomes).
+    """
+
+    def test_runtime_error_yields_exit_1(self, tmp_path, monkeypatch):
+        def fail(tool, force=False, with_autonomous=False):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr("source.cli.deploy_all_resources", fail)
+
+        result = runner.invoke(app, ["install", "opencode"])
+
+        assert result.exit_code == 1
+        # Single-tool failure: no summary line
+        assert "summary" not in result.output.lower()
+
+    def test_system_exit_2_yields_exit_2(self, tmp_path, monkeypatch):
+        """``deploy_core --force`` refusal path raises ``SystemExit(2)``;
+        single-tool install must propagate that code, not collapse to 1."""
+
+        def refuse(tool, force=False, with_autonomous=False):
+            raise SystemExit(2)
+
+        monkeypatch.setattr("source.cli.deploy_all_resources", refuse)
+
+        result = runner.invoke(app, ["install", "opencode"])
+
+        assert result.exit_code == 2, (
+            f"single-tool SystemExit(2) must propagate; got {result.exit_code}"
+        )
+
+    def test_bare_system_exit_yields_exit_1(self, tmp_path, monkeypatch):
+        """``raise SystemExit`` (no code) carries ``code=None``; collapse
+        to exit 1 because the OS can't carry a ``None`` exit status."""
+
+        def abort(tool, force=False, with_autonomous=False):
+            raise SystemExit
+
+        monkeypatch.setattr("source.cli.deploy_all_resources", abort)
+
+        result = runner.invoke(app, ["install", "opencode"])
+
+        assert result.exit_code == 1
+
+    def test_multi_tool_system_exit_collapses_to_1(self, tmp_path, monkeypatch):
+        """Multi-tool calls collapse heterogeneous exit codes to ``1`` so
+        a single composite status summarises many tool outcomes."""
+
+        def refuse(tool, force=False, with_autonomous=False):
+            if tool == "claude":
+                raise SystemExit(2)
+            return None
+
+        monkeypatch.setattr("source.cli.deploy_all_resources", refuse)
+        monkeypatch.setattr("source.cli._validate_target_after_deploy", lambda d: None)
+        monkeypatch.setattr("source.cli.update_gitignore", lambda: None)
+
+        result = runner.invoke(app, ["install", "opencode,claude"])
+
         assert result.exit_code == 1
 
 
