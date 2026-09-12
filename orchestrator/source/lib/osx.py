@@ -177,35 +177,56 @@ AUTONOMOUS_RESOURCE_NAMES = frozenset(
     }
 )
 
-SKILLS_DIR = Path(".opencode/skills")
-COMMANDS_DIR = Path(".opencode/commands")
+# Phase 1D: ``detect_platform`` / ``skills_dir`` / ``commands_dir`` /
+# ``_load_manifest`` / ``_command_resolved_for_phase`` /
+# ``validate_commands`` are registry-driven. ``REGISTRY`` is imported
+# at module top-level so consumers (``engine.py``, ``runner.py``,
+# ``cli.py``) read the same source of truth; ``source.tools`` is a leaf
+# module with only stdlib imports, so there's no cycle.
+from source.tools import REGISTRY
 
 
 def detect_platform(project_root: Path) -> str:
-    """Detect whether the project uses opencode or claude.
+    """Return the active tool id for ``project_root``.
 
-    Mirrors `runner.detect_runner` precedence: opencode wins ties.
-    Returns "opencode" if neither is present (default).
+    Walks ``REGISTRY`` in registration order and returns the
+    ``tool_id`` of the first adapter whose ``detect_paths`` includes
+    an existing directory. Defaults to the first registered tool
+    (``"opencode"`` today; pinned by
+    ``tests/unit/test_platform_detection.py::TestDetectPlatformDefaultsToFirstRegistered``)
+    when no marker is present — matches pre-1D behavior byte-for-byte.
+
+    Opencode wins ties by being registered first (locked by
+    ``tests/unit/test_tool_registry.py``).
     """
-    if (project_root / ".opencode").exists():
-        return "opencode"
-    if (project_root / ".claude").exists():
-        return "claude"
-    return "opencode"
+    for adapter in REGISTRY.values():
+        if any((project_root / p).is_dir() for p in adapter.detect_paths):
+            return adapter.tool_id
+    return next(iter(REGISTRY))
 
 
 def skills_dir(project_root: Path) -> Path:
-    platform = detect_platform(project_root)
-    if platform == "claude":
-        return project_root / ".claude" / "skills"
-    return project_root / ".opencode" / "skills"
+    """Path to the deployed skills root for the active tool.
+
+    Resolves through ``detect_platform`` so every adapter's
+    ``skills_dir`` is honored. Today: ``.opencode/skills`` or
+    ``.claude/skills``; future adapters add their own.
+    """
+    adapter = REGISTRY[detect_platform(project_root)]
+    return project_root / adapter.skills_dir / "skills"
 
 
 def commands_dir(project_root: Path) -> Path:
-    platform = detect_platform(project_root)
-    if platform == "claude":
-        return project_root / ".claude" / "commands" / "osx"
-    return project_root / ".opencode" / "commands"
+    """Path to the deployed commands root for the active tool.
+
+    Resolves through the adapter's ``commands_dir`` field — flat
+    (``commands``) for opencode, nested (``commands/osx``) for claude.
+    ``Path / "commands/osx"`` correctly produces the nested form
+    because ``pathlib.PurePath.__truediv__`` treats strings with
+    embedded ``/`` as nested relative path components.
+    """
+    adapter = REGISTRY[detect_platform(project_root)]
+    return project_root / adapter.skills_dir / adapter.commands_dir
 
 
 class OSXError(Exception):
@@ -1291,32 +1312,32 @@ def validate_json(target: str) -> dict:
 
 
 def _load_manifest(project_root: Path) -> dict | None:
-    """Load the deployed manifests for the active platform.
+    """Load the deployed per-side manifests for the active tool.
 
     Phase 5 split the on-disk manifests into a per-side layout:
-    ``.opencode/manifest.toml`` (orchestrator side) and
-    ``.opencode/skills-manifest.toml`` (skills side); same for Claude.
-    This helper loads whichever manifests exist and returns the merged
-    resources — callers see the union as if a single manifest were on
-    disk.
+    ``<skills_dir>/manifest.toml`` (orchestrator side) and
+    ``<skills_dir>/skills-manifest.toml`` (skills side). The shape is
+    identical for every shipped adapter — only ``skills_dir`` changes —
+    so the candidate paths are derived from the active adapter rather
+    than enumerated per platform. Phase 1D collapsed the
+    ``if platform == "opencode" / elif "claude"`` ladder into a single
+    registry-driven resolution.
 
     Returns ``None`` if no manifest is found or all are unparseable —
     callers should treat missing manifest as "no cross-check available"
-    rather than as a hard failure.
+    rather than as a hard failure. The defensive ``KeyError`` branch
+    below is unreachable in practice (``detect_platform`` always
+    returns a registered id) but kept so a future caller passing an
+    unknown id fails gracefully.
     """
-    platform = detect_platform(project_root)
-    if platform == "opencode":
-        candidates = (
-            project_root / ".opencode" / "manifest.toml",
-            project_root / ".opencode" / "skills-manifest.toml",
-        )
-    elif platform == "claude":
-        candidates = (
-            project_root / ".claude" / "manifest.toml",
-            project_root / ".claude" / "skills-manifest.toml",
-        )
-    else:
+    try:
+        adapter = REGISTRY[detect_platform(project_root)]
+    except KeyError:
         return None
+    candidates = (
+        project_root / adapter.skills_dir / "manifest.toml",
+        project_root / adapter.skills_dir / "skills-manifest.toml",
+    )
     merged: dict = {"resources": {}}
     seen = False
     for path in candidates:
@@ -1381,15 +1402,26 @@ def _command_resolved_for_phase(
     root: Path, platform: str, cmd_name: str
 ) -> Path | None:
     """Return the on-disk path of a slash command, accepting either the
-    legacy ``<target>/commands/<name>.md`` form or the modern
-    ``<target>/skills/<name>/SKILL.md`` form (Claude dual-emits both —
+    legacy ``<target>/<commands_dir>/<name>.md`` form or the modern
+    ``<target>/skills/<name>/SKILL.md`` form.
+
+    The dual-emit fallthrough is driven by ``adapter.commands_style``:
+    ``"namespaced-with-skill-mirror"`` adapters (Claude today) exercise
+    both forms — the modern skill file is the back-compat surface that
     mirrors upstream OpenSpec's dual-emit strategy introduced in v1.7.0,
-    current as of v1.13.0).
+    current as of v1.13.0. Flat adapters (opencode today) only the
+    legacy command file.
+
+    The ``osx-`` prefix-strip on the deployed filename is also
+    adapter-driven: ``flat`` adapters keep the prefix in the filename,
+    namespaced adapters strip it (since the namespacing directory
+    ``osx/`` already conveys the prefix in the on-disk path).
 
     Returns ``None`` if neither form resolves.
     """
+    adapter = REGISTRY[platform]
     base = commands_dir(root)
-    if platform == "claude" and cmd_name.startswith("osx-"):
+    if adapter.commands_style != "flat" and cmd_name.startswith("osx-"):
         deployed_name = cmd_name.replace("osx-", "", 1)
     else:
         deployed_name = cmd_name
@@ -1398,8 +1430,8 @@ def _command_resolved_for_phase(
     if cmd_path.exists():
         return cmd_path
 
-    if platform == "claude":
-        skill_path = root / ".claude" / "skills" / cmd_name / "SKILL.md"
+    if adapter.commands_style == "namespaced-with-skill-mirror":
+        skill_path = root / adapter.skills_dir / "skills" / cmd_name / "SKILL.md"
         if skill_path.exists():
             return skill_path
 
@@ -1412,12 +1444,13 @@ def validate_commands(project_root: Path | None = None) -> dict:
 
     platform = detect_platform(root)
     install_hint = _install_hint(platform)
+    adapter = REGISTRY[platform]
     missing_phase_commands: list[str] = []
     for phase in PHASES:
         cmd_name = PHASE_COMMANDS.get(phase)
         if not cmd_name:
             continue
-        if platform == "claude" and cmd_name.startswith("osx-"):
+        if adapter.commands_style != "flat" and cmd_name.startswith("osx-"):
             deployed_name = cmd_name.replace("osx-", "", 1)
         else:
             deployed_name = cmd_name
@@ -1433,8 +1466,12 @@ def validate_commands(project_root: Path | None = None) -> dict:
 
     # M23: cross-check the manifest. Each phase command should be declared
     # in [resources.commands.<name>] in the deployed manifest.toml, and
-    # each PHASE_AGENTS[phase] should exist as an agent file (opencode only;
-    # Claude has no agents — the user brings their own session).
+    # each PHASE_AGENTS[phase] should exist as an agent file. The
+    # agent-file check is driven by ``adapter.has_agents_dir`` —
+    # ``opencode`` exposes an on-disk agent dispatch model, ``claude``
+    # (and most future adapters) do not: the user brings their own
+    # session. Phase 1D collapsed the ``if platform == "opencode"``
+    # ladder into a registry-driven check.
     manifest = _load_manifest(root)
     if manifest is not None:
         declared_commands = manifest.get("resources", {}).get("commands", {})
@@ -1447,10 +1484,10 @@ def validate_commands(project_root: Path | None = None) -> dict:
                     }
                 )
 
-        if platform == "opencode":
+        if adapter.has_agents_dir:
             from source.orchestrator.engine import PHASE_AGENTS
 
-            agents_dir = root / ".opencode" / "agents"
+            agents_dir = root / adapter.skills_dir / "agents"
             for phase, agent_name in PHASE_AGENTS.items():
                 if not agent_name:
                     continue

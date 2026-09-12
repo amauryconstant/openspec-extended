@@ -4,11 +4,19 @@ Unit tests for platform-aware path resolution in source.lib.osx.
 
 Covers the detect_platform / skills_dir / commands_dir helpers added
 to fix Claude Code's .claude/ layout versus OpenCode's .opencode/ layout.
+
+Phase 1D extended the helpers to read from ``REGISTRY`` (the adapter
+registry in ``source/tools.py``). The pre-1D classes below pin
+byte-identical behavior for the two shipped adapters — they continue
+to pass because the registry reproduces the legacy constants
+exactly. The three classes at the end of the file (added in 1D)
+parametrize over ``REGISTRY`` and exercise the new dispatch logic.
 """
 
 import pytest
 
 from source.lib import osx
+from source.tools import REGISTRY
 
 
 pytestmark = pytest.mark.unit
@@ -198,3 +206,92 @@ class TestValidateCommandsEitherForm:
         # The error names use the deployed filename convention (e.g. "phase1"
         # not "osx-phase1") on Claude.
         assert any("phase1" in m for m in messages)
+
+
+# ---------------------------------------------------------------------------
+# Phase 1D — registry-driven dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestDetectPlatformWalksRegistry:
+    """Phase 1D walks ``REGISTRY`` in registration order; pre-1D
+    behavior was a literal ``.opencode`` / ``.claude`` two-way check.
+    The two existing classes above (``TestDetectPlatform``,
+    ``TestSkillsDir``, ``TestCommandsDir``) already pin the
+    byte-identical behavior for opencode/claude; this class adds the
+    new dispatch logic that's exercised once a third adapter ships."""
+
+    def test_returns_first_matching_adapter_id(self, tmp_path):
+        # Only .claude marker present → "claude"
+        (tmp_path / ".claude").mkdir()
+        assert osx.detect_platform(tmp_path) == "claude"
+
+    def test_returns_first_registered_when_no_markers(self, tmp_path):
+        """No markers → defaults to the first key of ``REGISTRY``.
+
+        ``REGISTRY`` is locked by
+        ``tests/unit/test_tool_registry.py::test_registry_keys_are_opencode_and_claude``
+        to ``{"opencode", "claude"}`` — opencode is registered first
+        because it's the project's primary tool. Pre-1D behavior:
+        ``.opencode`` defaulted to ``"opencode"``."""
+        first_registered = next(iter(REGISTRY))
+        assert osx.detect_platform(tmp_path) == first_registered
+
+    def test_registration_order_resolves_ties(self, tmp_path):
+        """When both ``.opencode`` and ``.claude`` are present,
+        ``opencode`` wins because it's registered first. This is the
+        registry-driven analog of the pre-1D
+        ``if (project_root / ".opencode").exists(): return "opencode"``
+        precedence rule."""
+        (tmp_path / ".opencode").mkdir()
+        (tmp_path / ".claude").mkdir()
+        assert osx.detect_platform(tmp_path) == "opencode"
+
+
+class TestSkillsDirDerivesFromAdapter:
+    """``skills_dir`` returns ``<root>/<adapter.skills_dir>/skills`` for
+    the active adapter. Parametrized over ``REGISTRY`` so adding a new
+    adapter gets this coverage for free."""
+
+    @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
+    def test_returns_skills_dir_under_adapter_skills_dir(self, tmp_path, tool_id):
+        adapter = REGISTRY[tool_id]
+        # Drop the marker so detect_platform resolves to tool_id.
+        (tmp_path / adapter.skills_dir).mkdir()
+        assert osx.skills_dir(tmp_path) == tmp_path / adapter.skills_dir / "skills"
+
+    @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
+    def test_no_marker_returns_first_registered_skills_dir(self, tmp_path, tool_id):
+        """No marker present → detect_platform falls back to the first
+        registered tool (``"opencode"`` today). ``skills_dir`` then
+        resolves to the first adapter's skills path. This pins the
+        pre-1D ``.opencode/skills`` fallback."""
+        first_adapter = REGISTRY[next(iter(REGISTRY))]
+        assert osx.skills_dir(tmp_path) == tmp_path / first_adapter.skills_dir / "skills"
+
+
+class TestCommandsDirDerivesFromAdapter:
+    """``commands_dir`` returns ``<root>/<adapter.skills_dir>/<adapter.commands_dir>``
+    for the active adapter. Parametrized to lock the
+    ``Path / "commands/osx"`` nested-resolution behavior."""
+
+    @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
+    def test_returns_commands_dir_under_skills_dir(self, tmp_path, tool_id):
+        adapter = REGISTRY[tool_id]
+        (tmp_path / adapter.skills_dir).mkdir()
+        expected = tmp_path / adapter.skills_dir / adapter.commands_dir
+        assert osx.commands_dir(tmp_path) == expected
+
+    def test_claude_nested_commands_dir_resolves_to_osx_subdir(self, tmp_path):
+        """Pin the nested form: claude's ``commands_dir="commands/osx"``
+        produces ``<root>/.claude/commands/osx``."""
+        (tmp_path / ".claude").mkdir()
+        expected = tmp_path / ".claude" / "commands" / "osx"
+        assert osx.commands_dir(tmp_path) == expected
+
+    def test_opencode_flat_commands_dir_resolves_to_commands_root(self, tmp_path):
+        """Pin the flat form: opencode's ``commands_dir="commands"``
+        produces ``<root>/.opencode/commands``."""
+        (tmp_path / ".opencode").mkdir()
+        expected = tmp_path / ".opencode" / "commands"
+        assert osx.commands_dir(tmp_path) == expected

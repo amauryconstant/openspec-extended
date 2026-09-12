@@ -272,5 +272,108 @@ class TestRegistrySupportsEngineDispatch:
     def test_tool_name_is_nonempty(self, tool_id):
         assert REGISTRY[tool_id].tool_name, (
             f"{tool_id}: tool_name is consumed in install hints and "
-            f"log lines"
+            "log lines"
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 1D — lib/osx.py consumers are registry-driven
+# ---------------------------------------------------------------------------
+
+
+class TestLibRegistryDrivenPreflightHint:
+    """The validate_skills / validate_commands hints in engine.py read
+    from ``osx_lib.detect_platform`` (which Phase 1D made
+    registry-driven by walking ``REGISTRY.detect_paths``). Verify the
+    hint names whatever platform the lib returns, including a
+    synthetic cursor-shaped adapter.
+
+    Pins the cross-module contract: engine.py doesn't import the
+    registry directly for the hint — it reads ``detect_platform``,
+    which is the single source of truth.
+    """
+
+    def test_hint_for_synthetic_cursor_adapter(
+        self, tmp_path, monkeypatch
+    ):
+        from source.lib import osx as osx_lib
+
+        # Register a synthetic cursor-shaped adapter.
+        synthetic = ToolAdapter(
+            tool_id="cursor",
+            skills_dir=".cursor",
+            commands_dir="commands",
+            commands_style="flat",
+            commands_ext="md",
+            slash_prefix="osx-",
+            skill_prefix="/",
+            runner_binary="cursor",
+            runner_kind="generic_print",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            docs_file="AGENTS.md",
+            tool_name="Cursor",
+            detect_paths=(".cursor",),
+        )
+        monkeypatch.setitem(REGISTRY, "cursor", synthetic)
+
+        (tmp_path / ".cursor").mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        # Capture the hint emitted by the engine preflight.
+        from source.orchestrator import engine as eng
+
+        state = MagicMock()
+        state.change_dir = None
+
+        monkeypatch.setattr(
+            osx_lib,
+            "validate_skills",
+            lambda project_root=None: {
+                "valid": False,
+                "errors": [],
+                "missing_skills": ["x"],
+            },
+        )
+        captured = []
+        monkeypatch.setattr(eng, "log_error", lambda s, msg: captured.append(msg))
+        monkeypatch.setattr(eng, "log", lambda s, msg: None)
+        monkeypatch.setattr(eng, "log_verbose", lambda s, msg: None)
+        monkeypatch.setattr(
+            eng, "print_validation_errors", lambda s, d: None
+        )
+
+        with pytest.raises(SystemExit):
+            eng.validate_skills(state)
+
+        install_hints = [m for m in captured if "install" in m]
+        assert install_hints, f"no install hint in {captured!r}"
+        assert any("install cursor" in m for m in install_hints), (
+            f"hint should mention detected platform 'cursor'; "
+            f"got {install_hints!r}"
+        )
+
+
+class TestLoadManifestPathDrivenByAdapterSkillsDir:
+    """``_load_manifest`` (Phase 1D) reads from
+    ``REGISTRY[detect_platform].skills_dir``. Verify each shipped
+    adapter's ``<skills_dir>/manifest.toml`` is found.
+    """
+
+    @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
+    def test_finds_manifest_under_skills_dir(self, tmp_path, tool_id):
+        from source.lib import osx as osx_lib
+
+        adapter = REGISTRY[tool_id]
+        manifest_dir = tmp_path / adapter.skills_dir
+        manifest_dir.mkdir()
+        (manifest_dir / "manifest.toml").write_text(
+            '[resources.skills]\n[resources.skills.osx-x]\nversion = "0.1.0"\n'
+        )
+
+        manifest = osx_lib._load_manifest(tmp_path)
+        assert manifest is not None, (
+            f"{tool_id}: _load_manifest returned None despite a manifest "
+            f"at <tmp>/{adapter.skills_dir}/manifest.toml"
+        )
+        assert "osx-x" in manifest["resources"]["skills"]

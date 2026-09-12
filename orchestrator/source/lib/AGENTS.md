@@ -98,9 +98,33 @@ the `osx` library). Resolution helper: `_resolve_language(arg)` next to
 ## Conventions
 
 - Library functions return dicts and raise `OSXError`. The Typer wrappers in `source/osx_cli.py` catch `OSXError` and call `osx_error` to print + exit.
-- Low-level utilities (`_find_change_dir`, `_read_json`, `_read_json_array`, `_read_stdin_json`) raise `OSXError`. There are no CLI-exit variants in the library.
+- Low-level utilities (`_find_change_dir`, `_read_json`, `_read_json_array`, `_read_stdin`) raise `OSXError`. There are no CLI-exit variants in the library.
 - Domain commands read/write state under `.openspec/` (created on demand).
 - Never call AI processes directly — `osx` is a state/IO tool. AI invocation is the orchestrator's job.
+
+## Platform / adapter helpers (registry-driven since Phase 1D)
+
+The platform-aware path helpers used to embed hardcoded ``"opencode"`` /
+``"claude"`` literals. Phase 1D rewrote them to read from
+``source.tools.REGISTRY`` (the adapter registry landed in Phase 1A).
+They are byte-identical for the two shipped adapters because the
+registry reproduces the legacy constants exactly.
+
+| Helper | Registry field(s) consumed | Pre-1D literal |
+|---|---|---|
+| `detect_platform(project_root)` | `REGISTRY[*].detect_paths` | `.opencode`, `.claude` |
+| `skills_dir(project_root)` | `REGISTRY[platform].skills_dir` | `.opencode`, `.claude` |
+| `commands_dir(project_root)` | `REGISTRY[platform].skills_dir`, `commands_dir` | `.opencode/commands`, `.claude/commands/osx` |
+| `_load_manifest(project_root)` | `REGISTRY[platform].skills_dir` | `.opencode`, `.claude` |
+| `_command_resolved_for_phase(root, platform, cmd_name)` | `commands_style`, `skills_dir` | dual-emit check hardcoded to `.claude` |
+| `validate_commands(project_root)` (agent check) | `has_agents_dir`, `skills_dir` | `if platform == "opencode"` |
+
+`detect_platform` walks `REGISTRY` in registration order; the first
+adapter whose `detect_paths` include an existing directory at
+`project_root` wins. Opencode wins ties because it's registered first
+(locked by `tests/unit/test_tool_registry.py`). With no markers present
+`detect_platform` defaults to the first registered tool id — pre-1D
+behavior was a literal `return "opencode"`.
 
 ## See Also
 
