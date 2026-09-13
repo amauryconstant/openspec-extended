@@ -83,127 +83,138 @@ def _seed_claude_legacy(target_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# OpenCode cleanup
+# Per-tool cleanup (OpenCode + Claude)
 # ---------------------------------------------------------------------------
 
 
-class TestOpenCodeCleanup:
-    def test_removes_obsolete_osx_skill(self, tmp_path: Path):
-        target = tmp_path / ".opencode"
-        _seed_opencode_legacy(target)
-        keep = {"osx-concepts", "osx-workflow", "osx-phase0"}
+class TestCleanup:
+    """Covers ``purge_managed_resources`` per-tool behaviour on a fully
+    seeded tree. Each row is one of the original ``TestOpenCodeCleanup`` /
+    ``TestClaudeCleanup`` cases."""
 
-        removed = purge_managed_resources(
-            target, "opencode", keep_names=keep, prefixes=("osx-",)
+    @pytest.mark.parametrize(
+        "tool_id,seed_func,keep,prefixes,must_be_gone,must_remain",
+        [
+            # OpenCode cases
+            (
+                "opencode",
+                _seed_opencode_legacy,
+                {"osx-concepts", "osx-workflow", "osx-phase0"},
+                ("osx-",),
+                [Path("skills/osx-old-skill")],
+                [Path("skills/osx-concepts"), Path("skills/osx-workflow"), Path("skills/custom-review")],
+            ),
+            (
+                "opencode",
+                _seed_opencode_legacy,
+                {"osx-phase0", "osx-concepts", "osx-workflow", "osx-analyzer"},
+                ("osx-",),
+                [Path("commands/osx-old-cmd.md")],
+                [Path("commands/osx-phase0.md"), Path("commands/custom.md")],
+            ),
+            (
+                "opencode",
+                _seed_opencode_legacy,
+                {"osx-analyzer", "osx-concepts", "osx-workflow", "osx-phase0"},
+                ("osx-",),
+                [Path("agents/osx-old-agent.md")],
+                [Path("agents/osx-analyzer.md"), Path("agents/local-reviewer.md")],
+            ),
+            (
+                "opencode",
+                _seed_opencode_legacy,
+                {"osx-concepts", "osx-workflow", "osx-phase0", "osx-analyzer"},
+                ("osx-",),
+                [Path("commands/openspec-old-legacy.md")],
+                [],
+            ),
+            (
+                "opencode",
+                _seed_opencode_legacy,
+                {"osx-concepts", "osx-workflow", "osx-phase0", "osx-analyzer"},
+                ("osx-",),
+                [],
+                [Path("skills/osc-apply-change")],
+            ),
+            # Claude cases
+            (
+                "claude",
+                _seed_claude_legacy,
+                {"osx-phase0", "osx-phase1", "osx-concepts", "osx-workflow"},
+                ("osx-",),
+                [
+                    Path("commands/osx/old-cmd.md"),
+                    Path("commands/osx/phase99.md"),
+                ],
+                [
+                    Path("commands/osx/phase0.md"),
+                    Path("commands/osx/phase1.md"),
+                ],
+            ),
+            (
+                "claude",
+                _seed_claude_legacy,
+                {
+                    "osc-apply-change",
+                    "osc-archive-change",
+                    "osx-concepts",
+                    "osx-workflow",
+                    "osx-phase0",
+                },
+                ("osc-",),
+                [Path("commands/osc/old-osc-cmd.md")],
+                [
+                    Path("commands/osc/apply-change.md"),
+                    Path("commands/osc/archive-change.md"),
+                ],
+            ),
+            (
+                "claude",
+                _seed_claude_legacy,
+                {"osx-phase0", "osx-concepts", "osx-workflow"},
+                ("osx-",),
+                [Path("commands/openspec-legacy-flat.md")],
+                [],
+            ),
+            (
+                "claude",
+                _seed_claude_legacy,
+                {"osx-phase0", "osx-concepts", "osx-workflow"},
+                ("osx-",),
+                [],
+                [Path("commands/custom/my-command.md")],
+            ),
+        ],
+    )
+    def test_cleanup(
+        self,
+        tmp_path: Path,
+        tool_id: str,
+        seed_func,
+        keep: set[str],
+        prefixes: tuple[str, ...],
+        must_be_gone: list[Path],
+        must_remain: list[Path],
+    ):
+        target = tmp_path / f".{tool_id}"
+        seed_func(target)
+        purge_managed_resources(
+            target, tool_id, keep_names=keep, prefixes=prefixes
         )
-
-        assert removed >= 1
-        assert not (target / "skills" / "osx-old-skill").exists()
-        assert (target / "skills" / "osx-concepts").is_dir()
-        assert (target / "skills" / "osx-workflow").is_dir()
-        assert (target / "skills" / "custom-review").is_dir()
-
-    def test_removes_obsolete_osx_command(self, tmp_path: Path):
-        target = tmp_path / ".opencode"
-        _seed_opencode_legacy(target)
-        keep = {"osx-phase0", "osx-concepts", "osx-workflow", "osx-analyzer"}
-
-        purge_managed_resources(target, "opencode", keep_names=keep, prefixes=("osx-",))
-
-        assert not (target / "commands" / "osx-old-cmd.md").exists()
-        assert (target / "commands" / "osx-phase0.md").is_file()
-        assert (target / "commands" / "custom.md").is_file()
-
-    def test_removes_obsolete_osx_agent(self, tmp_path: Path):
-        target = tmp_path / ".opencode"
-        _seed_opencode_legacy(target)
-        keep = {"osx-analyzer", "osx-concepts", "osx-workflow", "osx-phase0"}
-
-        purge_managed_resources(target, "opencode", keep_names=keep, prefixes=("osx-",))
-
-        assert not (target / "agents" / "osx-old-agent.md").exists()
-        assert (target / "agents" / "osx-analyzer.md").is_file()
-        assert (target / "agents" / "local-reviewer.md").is_file()
-
-    def test_removes_legacy_openspec_flat_commands(self, tmp_path: Path):
-        target = tmp_path / ".opencode"
-        _seed_opencode_legacy(target)
-        keep = {"osx-concepts", "osx-workflow", "osx-phase0", "osx-analyzer"}
-
-        purge_managed_resources(target, "opencode", keep_names=keep, prefixes=("osx-",))
-
-        assert not (target / "commands" / "openspec-old-legacy.md").exists()
-
-    def test_does_not_touch_osc_resources_with_osx_prefix(self, tmp_path: Path):
-        """``osx-`` prefix cleanup must leave ``osc-*`` resources alone."""
-        target = tmp_path / ".opencode"
-        _seed_opencode_legacy(target)
-        keep = {"osx-concepts", "osx-workflow", "osx-phase0", "osx-analyzer"}
-
-        purge_managed_resources(target, "opencode", keep_names=keep, prefixes=("osx-",))
-
-        assert (target / "skills" / "osc-apply-change").is_dir()
+        for path in must_be_gone:
+            assert not (target / path).exists(), (
+                f"{path} should be gone after {tool_id} cleanup"
+            )
+        for path in must_remain:
+            assert (target / path).exists() or (target / path).is_dir(), (
+                f"{path} should remain after {tool_id} cleanup"
+            )
 
 
-# ---------------------------------------------------------------------------
-# Claude cleanup
-# ---------------------------------------------------------------------------
+class TestCleanupScopedToTargetTool:
+    """``purge_managed_resources`` must not touch the other tool's tree."""
 
-
-class TestClaudeCleanup:
-    def test_removes_obsolete_nested_osx_command(self, tmp_path: Path):
-        target = tmp_path / ".claude"
-        _seed_claude_legacy(target)
-        keep = {"osx-phase0", "osx-phase1", "osx-concepts", "osx-workflow"}
-
-        removed = purge_managed_resources(
-            target, "claude", keep_names=keep, prefixes=("osx-",)
-        )
-
-        assert removed >= 1
-        assert (target / "commands" / "osx" / "phase0.md").is_file()
-        assert (target / "commands" / "osx" / "phase1.md").is_file()
-        assert not (target / "commands" / "osx" / "old-cmd.md").exists()
-        assert not (target / "commands" / "osx" / "phase99.md").exists()
-
-    def test_removes_obsolete_nested_osc_command(self, tmp_path: Path):
-        target = tmp_path / ".claude"
-        _seed_claude_legacy(target)
-        keep = {
-            "osc-apply-change",
-            "osc-archive-change",
-            "osx-concepts",
-            "osx-workflow",
-            "osx-phase0",
-        }
-
-        purge_managed_resources(target, "claude", keep_names=keep, prefixes=("osc-",))
-
-        assert not (target / "commands" / "osc" / "old-osc-cmd.md").exists()
-        assert (target / "commands" / "osc" / "apply-change.md").is_file()
-        assert (target / "commands" / "osc" / "archive-change.md").is_file()
-
-    def test_removes_legacy_flat_command(self, tmp_path: Path):
-        target = tmp_path / ".claude"
-        _seed_claude_legacy(target)
-        keep = {"osx-phase0", "osx-concepts", "osx-workflow"}
-
-        purge_managed_resources(target, "claude", keep_names=keep, prefixes=("osx-",))
-
-        # openspec-* flat files were always considered legacy junk
-        assert not (target / "commands" / "openspec-legacy-flat.md").exists()
-
-    def test_does_not_touch_arbitrary_command_subdirectory(self, tmp_path: Path):
-        target = tmp_path / ".claude"
-        _seed_claude_legacy(target)
-        keep = {"osx-phase0", "osx-concepts", "osx-workflow"}
-
-        purge_managed_resources(target, "claude", keep_names=keep, prefixes=("osx-",))
-
-        assert (target / "commands" / "custom" / "my-command.md").is_file()
-
-    def test_does_not_touch_other_tool(self, tmp_path: Path):
-        """Cleanup is scoped to the requested tool's directory."""
+    def test_opencode_cleanup_leaves_claude_tree_alone(self, tmp_path: Path):
         opencode = tmp_path / ".opencode"
         claude = tmp_path / ".claude"
         _seed_opencode_legacy(opencode)

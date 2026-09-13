@@ -83,143 +83,59 @@ class TestCommandRegistration:
         for group in ["new", "store", "config"]:
             assert group in result.output, f"Missing group: {group}"
 
-    def test_validate_help(self):
-        """validate --help shows all flags."""
-        result = runner.invoke(app, ["validate", "--help"])
+    @pytest.mark.parametrize(
+        "command,expected_flags",
+        [
+            (
+                ["validate"],
+                ["--all", "--changes", "--specs", "--type", "--strict", "--json"],
+            ),
+            (["list"], ["--specs", "--changes", "--sort", "--json"]),
+            (["show"], ["--type", "--deltas-only", "--json"]),
+            (["status"], ["--change", "--schema", "--json"]),
+            (["instructions"], ["--change", "--schema", "--json"]),
+            (["templates"], ["--schema", "--json"]),
+            (["schemas"], ["--json"]),
+            (["init"], ["--tools", "--force", "--profile"]),
+            (["update-core"], ["--force"]),
+            (["feedback"], ["--body"]),
+            (["completion"], ["--install", "--uninstall", "--yes"]),
+            (["view"], ["--store", "--json"]),
+            (
+                ["archive"],
+                ["--yes", "--skip-specs", "--no-validate", "--json", "--store"],
+            ),
+            (["context"], ["--store", "--json", "--code-workspace", "--force"]),
+            (["doctor"], ["--store", "--json"]),
+            (
+                ["new", "change"],
+                ["--description", "--goal", "--schema", "--json", "--store"],
+            ),
+            (
+                ["store"],
+                ["setup", "register", "unregister", "remove", "list", "doctor"],
+            ),
+            (
+                ["config"],
+                [
+                    "path",
+                    "list",
+                    "get",
+                    "set",
+                    "unset",
+                    "reset",
+                    "edit",
+                    "profile",
+                ],
+            ),
+        ],
+    )
+    def test_command_help_shows_flags(self, command, expected_flags):
+        """Each command's --help shows its documented flags/subcommands."""
+        result = runner.invoke(app, command + ["--help"])
         assert result.exit_code == 0
-        for flag in ["--all", "--changes", "--specs", "--type", "--strict", "--json"]:
+        for flag in expected_flags:
             assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_list_help(self):
-        """list --help shows all flags."""
-        result = runner.invoke(app, ["list", "--help"])
-        assert result.exit_code == 0
-        for flag in ["--specs", "--changes", "--sort", "--json"]:
-            assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_show_help(self):
-        """show --help shows all flags."""
-        result = runner.invoke(app, ["show", "--help"])
-        assert result.exit_code == 0
-        for flag in ["--type", "--deltas-only", "--json"]:
-            assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_status_help(self):
-        """status --help shows all flags."""
-        result = runner.invoke(app, ["status", "--help"])
-        assert result.exit_code == 0
-        for flag in ["--change", "--schema", "--json"]:
-            assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_instructions_help(self):
-        """instructions --help shows all flags."""
-        result = runner.invoke(app, ["instructions", "--help"])
-        assert result.exit_code == 0
-        for flag in ["--change", "--schema", "--json"]:
-            assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_templates_help(self):
-        """templates --help shows all flags."""
-        result = runner.invoke(app, ["templates", "--help"])
-        assert result.exit_code == 0
-        assert "--schema" in result.output
-        assert "--json" in result.output
-
-    def test_schemas_help(self):
-        """schemas --help shows --json flag."""
-        result = runner.invoke(app, ["schemas", "--help"])
-        assert result.exit_code == 0
-        assert "--json" in result.output
-
-    def test_init_help(self):
-        """init --help shows all flags."""
-        result = runner.invoke(app, ["init", "--help"])
-        assert result.exit_code == 0
-        for flag in ["--tools", "--force", "--profile"]:
-            assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_update_core_help(self):
-        """update-core --help shows --force flag."""
-        result = runner.invoke(app, ["update-core", "--help"])
-        assert result.exit_code == 0
-        assert "--force" in result.output
-
-    def test_feedback_help(self):
-        """feedback --help shows --body flag."""
-        result = runner.invoke(app, ["feedback", "--help"])
-        assert result.exit_code == 0
-        assert "--body" in result.output
-
-    def test_completion_help(self):
-        """completion --help shows --install and --uninstall flags."""
-        result = runner.invoke(app, ["completion", "--help"])
-        assert result.exit_code == 0
-        for flag in ["--install", "--uninstall", "--yes"]:
-            assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_view_help(self):
-        """view --help shows --store and --json."""
-        result = runner.invoke(app, ["view", "--help"])
-        assert result.exit_code == 0
-        for flag in ["--store", "--json"]:
-            assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_archive_help(self):
-        """archive --help shows the documented flags."""
-        result = runner.invoke(app, ["archive", "--help"])
-        assert result.exit_code == 0
-        for flag in [
-            "--yes",
-            "--skip-specs",
-            "--no-validate",
-            "--json",
-            "--store",
-        ]:
-            assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_context_help(self):
-        """context --help shows --store, --json, --code-workspace, --force."""
-        result = runner.invoke(app, ["context", "--help"])
-        assert result.exit_code == 0
-        for flag in ["--store", "--json", "--code-workspace", "--force"]:
-            assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_doctor_help(self):
-        """doctor --help shows --store and --json."""
-        result = runner.invoke(app, ["doctor", "--help"])
-        assert result.exit_code == 0
-        for flag in ["--store", "--json"]:
-            assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_new_change_help(self):
-        """new change --help shows all documented flags."""
-        result = runner.invoke(app, ["new", "change", "--help"])
-        assert result.exit_code == 0
-        for flag in ["--description", "--goal", "--schema", "--json", "--store"]:
-            assert flag in result.output, f"Missing flag: {flag}"
-
-    def test_store_subcommands_help(self):
-        """store --help lists all 6 upstream subcommands."""
-        result = runner.invoke(app, ["store", "--help"])
-        assert result.exit_code == 0
-        for sub in ["setup", "register", "unregister", "remove", "list", "doctor"]:
-            assert sub in result.output, f"Missing subcommand: {sub}"
-
-    def test_config_subcommands_help(self):
-        """config --help lists all 8 upstream subcommands."""
-        result = runner.invoke(app, ["config", "--help"])
-        assert result.exit_code == 0
-        for sub in [
-            "path",
-            "list",
-            "get",
-            "set",
-            "unset",
-            "reset",
-            "edit",
-            "profile",
-        ]:
-            assert sub in result.output, f"Missing subcommand: {sub}"
 
 
 class TestPassthroughExecution:
@@ -304,7 +220,8 @@ class TestTemplatesSchemaFlag:
 class TestSchemaPassthrough:
     """Verifies the top-level `schema` passthrough dispatches to upstream."""
 
-    def _capture(self, monkeypatch):
+    @staticmethod
+    def _capture(monkeypatch):
         from source import cli as cli_module
 
         captured = {}
@@ -316,101 +233,71 @@ class TestSchemaPassthrough:
         monkeypatch.setattr(cli_module, "run_openspec", fake_run_openspec)
         return captured
 
-    def test_schema_list_invokes_openspec(self, monkeypatch) -> None:
+    @pytest.mark.parametrize(
+        "args,expected_prefix,expected_in_args",
+        [
+            (["schema", "list", "--json"], ["schema", "list"], ["--json"]),
+            (["schema", "list"], ["schema", "list"], []),
+            (
+                ["schema", "which", "my-schema", "--json"],
+                ["schema", "which", "my-schema"],
+                ["--json"],
+            ),
+            (["schema", "which", "--all"], ["schema", "which"], ["--all"]),
+            (
+                ["schema", "validate", "my-schema", "--json"],
+                ["schema", "validate", "my-schema"],
+                ["--json"],
+            ),
+            (
+                ["schema", "fork", "spec-driven", "my-fork", "--force"],
+                ["schema", "fork", "spec-driven", "my-fork"],
+                ["--force"],
+            ),
+            (
+                [
+                    "schema",
+                    "init",
+                    "my-schema",
+                    "--description",
+                    "My schema",
+                    "--artifacts",
+                    "proposal,specs",
+                    "--default",
+                ],
+                ["schema", "init", "my-schema"],
+                [
+                    "--description",
+                    "My schema",
+                    "--artifacts",
+                    "proposal,specs",
+                    "--default",
+                ],
+            ),
+        ],
+    )
+    def test_schema_passthrough_invokes_openspec(
+        self, monkeypatch, args, expected_prefix, expected_in_args
+    ):
         captured = self._capture(monkeypatch)
-        result = runner.invoke(app, ["schema", "list", "--json"])
+        result = runner.invoke(app, args)
         assert result.exit_code == 0, (
             f"Output: {result.output}, Exception: {result.exception}"
         )
-        assert captured["args"][:2] == ["schema", "list"]
-        assert "--json" in captured["args"]
+        assert captured["args"][: len(expected_prefix)] == expected_prefix
+        for flag in expected_in_args:
+            assert flag in captured["args"], f"Missing {flag} in {captured['args']}"
 
-    def test_schema_list_without_json_omits_flag(self, monkeypatch) -> None:
+    @pytest.mark.parametrize("args", [["schema", "fork"], ["schema", "init"]])
+    def test_schema_passthrough_missing_required_arg(self, monkeypatch, args):
+        """Required args missing -> non-zero exit and openspec never invoked."""
         captured = self._capture(monkeypatch)
-        result = runner.invoke(app, ["schema", "list"])
-        assert result.exit_code == 0, (
-            f"Output: {result.output}, Exception: {result.exception}"
-        )
-        assert captured["args"] == ["schema", "list"]
-
-    def test_schema_which_with_name(self, monkeypatch) -> None:
-        captured = self._capture(monkeypatch)
-        result = runner.invoke(app, ["schema", "which", "my-schema", "--json"])
-        assert result.exit_code == 0, (
-            f"Output: {result.output}, Exception: {result.exception}"
-        )
-        assert captured["args"][:3] == ["schema", "which", "my-schema"]
-        assert "--json" in captured["args"]
-
-    def test_schema_which_with_all_flag(self, monkeypatch) -> None:
-        captured = self._capture(monkeypatch)
-        result = runner.invoke(app, ["schema", "which", "--all"])
-        assert result.exit_code == 0, (
-            f"Output: {result.output}, Exception: {result.exception}"
-        )
-        assert "--all" in captured["args"]
-
-    def test_schema_validate_invokes_openspec(self, monkeypatch) -> None:
-        captured = self._capture(monkeypatch)
-        result = runner.invoke(app, ["schema", "validate", "my-schema", "--json"])
-        assert result.exit_code == 0, (
-            f"Output: {result.output}, Exception: {result.exception}"
-        )
-        assert captured["args"][:3] == ["schema", "validate", "my-schema"]
-        assert "--json" in captured["args"]
-
-    def test_schema_fork_requires_source(self, monkeypatch) -> None:
-        captured = self._capture(monkeypatch)
-        result = runner.invoke(app, ["schema", "fork"])
+        result = runner.invoke(app, args)
         assert result.exit_code != 0
-        assert captured == {}, "Should not invoke openspec when source is missing"
-
-    def test_schema_fork_with_source(self, monkeypatch) -> None:
-        captured = self._capture(monkeypatch)
-        result = runner.invoke(
-            app, ["schema", "fork", "spec-driven", "my-fork", "--force"]
+        assert captured == {}, (
+            f"Should not invoke openspec when required args are missing: "
+            f"args={captured.get('args')}"
         )
-        assert result.exit_code == 0, (
-            f"Output: {result.output}, Exception: {result.exception}"
-        )
-        assert captured["args"][:4] == [
-            "schema",
-            "fork",
-            "spec-driven",
-            "my-fork",
-        ]
-        assert "--force" in captured["args"]
-
-    def test_schema_init_requires_name(self, monkeypatch) -> None:
-        captured = self._capture(monkeypatch)
-        result = runner.invoke(app, ["schema", "init"])
-        assert result.exit_code != 0
-        assert captured == {}, "Should not invoke openspec when name is missing"
-
-    def test_schema_init_invokes_openspec(self, monkeypatch) -> None:
-        captured = self._capture(monkeypatch)
-        result = runner.invoke(
-            app,
-            [
-                "schema",
-                "init",
-                "my-schema",
-                "--description",
-                "My schema",
-                "--artifacts",
-                "proposal,specs",
-                "--default",
-            ],
-        )
-        assert result.exit_code == 0, (
-            f"Output: {result.output}, Exception: {result.exception}"
-        )
-        assert captured["args"][:3] == ["schema", "init", "my-schema"]
-        assert "--description" in captured["args"]
-        assert "My schema" in captured["args"]
-        assert "--artifacts" in captured["args"]
-        assert "proposal,specs" in captured["args"]
-        assert "--default" in captured["args"]
 
 
 class TestOrchestrateSchemaFlag:

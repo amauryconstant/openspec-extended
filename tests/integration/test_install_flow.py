@@ -27,6 +27,40 @@ def test_env(tmp_path):
     return env_dir
 
 
+@pytest.fixture(scope="session")
+def installed_opencode_dir(tmp_path_factory):
+    """Run ``install opencode --with-autonomous`` once per test session.
+
+    Returns the install root directory. The session also captures the
+    install output (stdout + stderr) so tests that assert on the
+    ``Deployed`` message can reuse it. NOT safe to use in tests that
+    mutate the deployed tree (``TestUpdateCommand``,
+    ``TestUpdateRemovesStale``, ``TestUpdateAutonomousToggleCleanup``,
+    ``TestInstallWithCore``, ``TestVersionAwareUpgrade``,
+    ``TestGitignore``, ``TestSkillsAndCommands``, ``TestInstallVsUpdate``,
+    ``TestValidation``).
+    """
+    d = tmp_path_factory.mktemp("installed-opencode-session")
+    result = subprocess.run(
+        [sys.executable, "-m", "source", "install", "opencode", "--with-autonomous"],
+        cwd=d,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        pytest.fail(
+            f"install opencode failed (rc={result.returncode}):\n"
+            f"stdout={result.stdout}\nstderr={result.stderr}"
+        )
+
+    class _InstallResult:
+        path = d
+        output = result.stdout + result.stderr
+
+    return _InstallResult()
+
+
 @pytest.fixture
 def git_env(tmp_path):
     """Create a test environment with git repo."""
@@ -57,56 +91,49 @@ def run_osx(args, cwd=None):
 
 
 class TestInstallOpencode:
-    """Tests for 'install opencode' command."""
+    """Tests for 'install opencode' command.
 
-    def test_install_opencode_creates_structure(self, test_env):
+    The read-only structure assertions share a session-scoped
+    ``installed_opencode_dir`` fixture so the install step runs once.
+    Tests that mutate the deployed tree (``TestUpdateCommand``,
+    ``TestUpdateRemovesStale``, etc.) keep their per-test install.
+    """
+
+    def test_install_opencode_creates_structure(self, installed_opencode_dir):
         """Install opencode creates .opencode structure."""
-        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
+        assert (installed_opencode_dir.path / ".opencode" / "skills").is_dir()
+        assert (installed_opencode_dir.path / ".opencode" / "commands").is_dir()
+        assert (installed_opencode_dir.path / ".opencode" / "agents").is_dir()
+        assert not (installed_opencode_dir.path / ".opencode" / "scripts").exists()
 
-        assert result.returncode == 0
-        assert (test_env / ".opencode" / "skills").is_dir()
-        assert (test_env / ".opencode" / "commands").is_dir()
-        assert (test_env / ".opencode" / "agents").is_dir()
-        assert not (test_env / ".opencode" / "scripts").exists()
-
-    def test_install_opencode_copies_extension_skills(self, test_env):
+    def test_install_opencode_copies_extension_skills(self, installed_opencode_dir):
         """Install opencode copies extension skills."""
-        result = run_osx(["install", "opencode"], cwd=test_env)
+        assert (installed_opencode_dir.path / ".opencode" / "skills" / "osx-commit").is_dir()
+        assert (
+            installed_opencode_dir.path / ".opencode" / "skills" / "osx-review-artifacts"
+        ).is_dir()
 
-        assert result.returncode == 0
-        assert (test_env / ".opencode" / "skills" / "osx-commit").is_dir()
-        assert (test_env / ".opencode" / "skills" / "osx-review-artifacts").is_dir()
-
-    def test_install_opencode_copies_agents(self, test_env):
+    def test_install_opencode_copies_agents(self, installed_opencode_dir):
         """Install opencode with --with-autonomous copies agents."""
-        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
+        assert (installed_opencode_dir.path / ".opencode" / "agents" / "osx-analyzer.md").is_file()
+        assert (installed_opencode_dir.path / ".opencode" / "agents" / "osx-builder.md").is_file()
+        assert (installed_opencode_dir.path / ".opencode" / "agents" / "osx-maintainer.md").is_file()
 
-        assert result.returncode == 0
-        assert (test_env / ".opencode" / "agents" / "osx-analyzer.md").is_file()
-        assert (test_env / ".opencode" / "agents" / "osx-builder.md").is_file()
-        assert (test_env / ".opencode" / "agents" / "osx-maintainer.md").is_file()
-
-    def test_install_opencode_copies_commands(self, test_env):
+    def test_install_opencode_copies_commands(self, installed_opencode_dir):
         """Install opencode with --with-autonomous copies phase commands."""
-        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
+        assert (installed_opencode_dir.path / ".opencode" / "commands" / "osx-phase0.md").is_file()
+        assert (installed_opencode_dir.path / ".opencode" / "commands" / "osx-phase1.md").is_file()
+        assert (installed_opencode_dir.path / ".opencode" / "commands" / "osx-phase2.md").is_file()
 
-        assert result.returncode == 0
-        assert (test_env / ".opencode" / "commands" / "osx-phase0.md").is_file()
-        assert (test_env / ".opencode" / "commands" / "osx-phase1.md").is_file()
-        assert (test_env / ".opencode" / "commands" / "osx-phase2.md").is_file()
-
-    def test_install_opencode_does_not_create_scripts_dir(self, test_env):
+    def test_install_opencode_does_not_create_scripts_dir(self, installed_opencode_dir):
         """Install opencode does not create a scripts/ directory.
 
         State I/O is done via the `openspec-extended osx` CLI subcommand,
         not a deployed Python script. Agents call the binary directly.
         """
-        result = run_osx(["install", "opencode"], cwd=test_env)
+        assert not (installed_opencode_dir.path / ".opencode" / "scripts").exists()
 
-        assert result.returncode == 0
-        assert not (test_env / ".opencode" / "scripts").exists()
-
-    def test_install_opencode_copies_manifest_with_version(self, test_env):
+    def test_install_opencode_copies_manifest_with_version(self, installed_opencode_dir):
         """Install opencode writes a per-side manifest with the version field.
 
         Phase 5 split: orchestrator-side resources land in
@@ -116,11 +143,10 @@ class TestInstallOpencode:
         Uses ``--with-autonomous`` so ``osx-workflow`` (the only
         orchestrator-side skill) is included in the orchestrator manifest.
         """
-        result = run_osx(["install", "opencode", "--with-autonomous"], cwd=test_env)
-
-        assert result.returncode == 0
-        orch_manifest_path = test_env / ".opencode" / "manifest.toml"
-        skills_manifest_path = test_env / ".opencode" / "skills-manifest.toml"
+        orch_manifest_path = installed_opencode_dir.path / ".opencode" / "manifest.toml"
+        skills_manifest_path = (
+            installed_opencode_dir.path / ".opencode" / "skills-manifest.toml"
+        )
         assert orch_manifest_path.is_file()
         assert skills_manifest_path.is_file()
 
@@ -140,12 +166,9 @@ class TestInstallOpencode:
         assert "osx-commit" in skills_skills
         assert orch_skills.isdisjoint(skills_skills)
 
-    def test_install_opencode_shows_deployed_message(self, test_env):
+    def test_install_opencode_shows_deployed_message(self, installed_opencode_dir):
         """Install opencode shows success message."""
-        result = run_osx(["install", "opencode"], cwd=test_env)
-
-        assert result.returncode == 0
-        assert "Deployed" in result.stdout or "Deployed" in result.stderr
+        assert "Deployed" in installed_opencode_dir.output
 
 
 class TestInstallClaude:

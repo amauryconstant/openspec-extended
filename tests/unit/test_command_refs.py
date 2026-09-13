@@ -123,17 +123,29 @@ def _lines_with_ref(text: str, dead_ref: str) -> list[tuple[int, str]]:
     return out
 
 
+def _opencode_command_files() -> list[Path]:
+    return _all_opencode_command_files()
+
+
+def _opencode_skill_files() -> list[Path]:
+    return _all_opencode_skill_files()
+
+
 @pytest.mark.unit
-class TestNoDeadSlashCommandReferences:
-    """Static guard: extended skills and commands must not reference dead
-    ``/osx-<upstream-verb>`` slash commands.
+class TestCommandBodiesNoDeadRef:
+    """Command bodies must not reference dead ``/osx-<upstream-verb>`` forms.
+
+    The Cartesian product over commands × DEAD_REFS keeps failures
+    attributable to a single (file, dead_ref) pair.
     """
 
     @pytest.mark.parametrize(
-        "path", SCAN_TARGETS, ids=lambda p: str(p.relative_to(REPO_ROOT))
+        "path",
+        _opencode_command_files(),
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
     )
     @pytest.mark.parametrize("dead_ref", sorted(DEAD_REFS))
-    def test_no_dead_ref(self, path: Path, dead_ref: str):
+    def test_no_dead_ref_in_command(self, path: Path, dead_ref: str):
         text = path.read_text()
         hits = _lines_with_ref(text, dead_ref)
         assert not hits, (
@@ -141,6 +153,35 @@ class TestNoDeadSlashCommandReferences:
             f"{dead_ref!r}; replace with `/osc-{dead_ref[len('/osx') :]}` "
             f"(post-install rename). Hits:\n"
             + "\n".join(f"  L{i}: {line.strip()}" for i, line in hits)
+        )
+
+
+@pytest.mark.unit
+class TestSkillBodiesNoDeadRef:
+    """Skill bodies must not reference dead ``/osx-<upstream-verb>`` forms.
+
+    One boolean assertion per skill (one test per file) keeps the suite
+    count bounded by the number of shipped skills.
+    """
+
+    @pytest.mark.parametrize(
+        "path",
+        _opencode_skill_files(),
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
+    def test_no_dead_ref_in_skill(self, path: Path):
+        text = path.read_text()
+        all_hits: list[tuple[str, int, str]] = []
+        for dead_ref in sorted(DEAD_REFS):
+            for line_no, line in _lines_with_ref(text, dead_ref):
+                all_hits.append((dead_ref, line_no, line))
+        assert not all_hits, (
+            f"{path.relative_to(REPO_ROOT)} references dead slash commands. "
+            "Replace with `/osc-<verb>` (post-install rename). Hits:\n"
+            + "\n".join(
+                f"  {ref!r} L{i}: {line.strip()}"
+                for ref, i, line in all_hits
+            )
         )
 
 

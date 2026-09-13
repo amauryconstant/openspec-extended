@@ -238,21 +238,48 @@ class TestRunResult:
 
 @pytest.mark.unit
 class TestOpencodeRunner:
-    def test_missing_binary_raises(self, monkeypatch):
-        from source.orchestrator.runner import OpencodeRunner, RunRequest
+    @pytest.mark.parametrize(
+        "runner_cls,binary_path",
+        [
+            ("OpencodeRunner", "/usr/bin/opencode"),
+            ("ClaudeRunner", "/usr/bin/claude"),
+        ],
+    )
+    def test_missing_binary_raises(self, monkeypatch, runner_cls, binary_path):
+        from source.orchestrator import runner as runner_mod
 
+        cls = getattr(runner_mod, runner_cls)
         monkeypatch.setattr("shutil.which", lambda _: None)
-        runner = OpencodeRunner()
+        runner = cls()
         with pytest.raises(OSXError) as e:
             runner.run(
-                RunRequest(command="osx-phase0", agent="osx-analyzer", change_id="foo")
+                runner_mod.RunRequest(
+                    command="osx-phase0", agent="osx-analyzer", change_id="foo"
+                )
             )
         assert e.value.code == "runner_not_found"
 
-    def test_successful_run(self, monkeypatch):
-        from source.orchestrator.runner import OpencodeRunner, RunRequest
+    @pytest.mark.parametrize(
+        "runner_cls,binary_path,first_arg,expect_flag,expect_prompt,pid",
+        [
+            ("OpencodeRunner", "/usr/bin/opencode", "opencode", "--command", None, 4242),
+            ("ClaudeRunner", "/usr/bin/claude", "claude", "--print", True, 7777),
+        ],
+    )
+    def test_successful_run(
+        self,
+        monkeypatch,
+        runner_cls,
+        binary_path,
+        first_arg,
+        expect_flag,
+        expect_prompt,
+        pid,
+    ):
+        from source.orchestrator import runner as runner_mod
 
-        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
+        cls = getattr(runner_mod, runner_cls)
+        monkeypatch.setattr("shutil.which", lambda _: binary_path)
         captured = {}
 
         def fake_popen(cmd, **kwargs):
@@ -260,13 +287,13 @@ class TestOpencodeRunner:
             mock = MagicMock()
             mock.wait.return_value = 0
             mock.stdout = iter([])
-            mock.pid = 4242
+            mock.pid = pid
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        runner = OpencodeRunner()
+        runner = cls()
         result = runner.run(
-            RunRequest(
+            runner_mod.RunRequest(
                 command="osx-phase0",
                 agent="osx-analyzer",
                 change_id="my-change",
@@ -274,19 +301,36 @@ class TestOpencodeRunner:
             ),
         )
         assert result.exit_code == 0
-        assert result.pid == 4242
-        assert "opencode" in captured["cmd"]
-        assert "run" in captured["cmd"]
-        assert "--command" in captured["cmd"]
-        assert "osx-phase0" in captured["cmd"]
-        assert "--agent" in captured["cmd"]
-        assert "osx-analyzer" in captured["cmd"]
-        assert "my-change" in captured["cmd"]
+        assert result.pid == pid
+        if runner_cls == "OpencodeRunner":
+            assert "opencode" in captured["cmd"]
+            assert "run" in captured["cmd"]
+            assert "osx-phase0" in captured["cmd"]
+            assert "--agent" in captured["cmd"]
+            assert "osx-analyzer" in captured["cmd"]
+            assert "my-change" in captured["cmd"]
+        else:
+            assert captured["cmd"][0] == first_arg
+        assert expect_flag in captured["cmd"]
+        if expect_prompt:
+            prompt = captured["cmd"][-1]
+            assert "/osx-phase0" in prompt
+            assert "my-change" in prompt
 
-    def test_includes_model_when_set(self, monkeypatch):
-        from source.orchestrator.runner import OpencodeRunner, RunRequest
+    @pytest.mark.parametrize(
+        "runner_cls,binary_path,expect_model",
+        [
+            ("OpencodeRunner", "/usr/bin/opencode", "--model=claude-opus-4"),
+            ("ClaudeRunner", "/usr/bin/claude", "claude-opus-4"),
+        ],
+    )
+    def test_includes_model_when_set(
+        self, monkeypatch, runner_cls, binary_path, expect_model
+    ):
+        from source.orchestrator import runner as runner_mod
 
-        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/opencode")
+        cls = getattr(runner_mod, runner_cls)
+        monkeypatch.setattr("shutil.which", lambda _: binary_path)
         captured = {}
 
         def fake_popen(cmd, **kwargs):
@@ -297,88 +341,24 @@ class TestOpencodeRunner:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        runner = OpencodeRunner()
+        runner = cls()
         runner.run(
-            RunRequest(
+            runner_mod.RunRequest(
                 command="osx-phase1",
                 agent="osx-builder",
                 change_id="x",
                 model="claude-opus-4",
             ),
         )
-        assert "--model=claude-opus-4" in captured["cmd"]
+        if runner_cls == "OpencodeRunner":
+            assert expect_model in captured["cmd"]
+        else:
+            idx = captured["cmd"].index("--model")
+            assert captured["cmd"][idx + 1] == expect_model
 
 
 @pytest.mark.unit
-class TestClaudeRunner:
-    def test_missing_binary_raises(self, monkeypatch):
-        from source.orchestrator.runner import ClaudeRunner, RunRequest
-
-        monkeypatch.setattr("shutil.which", lambda _: None)
-        runner = ClaudeRunner()
-        with pytest.raises(OSXError) as e:
-            runner.run(
-                RunRequest(command="osx-phase0", agent="osx-analyzer", change_id="foo")
-            )
-        assert e.value.code == "runner_not_found"
-
-    def test_successful_run(self, monkeypatch):
-        from source.orchestrator.runner import ClaudeRunner, RunRequest
-
-        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/claude")
-        captured = {}
-
-        def fake_popen(cmd, **kwargs):
-            captured["cmd"] = cmd
-            mock = MagicMock()
-            mock.wait.return_value = 0
-            mock.stdout = iter([])
-            mock.pid = 7777
-            return mock
-
-        monkeypatch.setattr("subprocess.Popen", fake_popen)
-        runner = ClaudeRunner()
-        result = runner.run(
-            RunRequest(
-                command="osx-phase0",
-                agent="osx-analyzer",
-                change_id="my-change",
-            ),
-        )
-        assert result.exit_code == 0
-        assert result.pid == 7777
-        assert captured["cmd"][0] == "claude"
-        assert "--print" in captured["cmd"]
-        prompt = captured["cmd"][-1]
-        assert "/osx-phase0" in prompt
-        assert "my-change" in prompt
-
-    def test_includes_model_when_set(self, monkeypatch):
-        from source.orchestrator.runner import ClaudeRunner, RunRequest
-
-        monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/claude")
-        captured = {}
-
-        def fake_popen(cmd, **kwargs):
-            captured["cmd"] = cmd
-            mock = MagicMock()
-            mock.wait.return_value = 0
-            mock.stdout = iter([])
-            return mock
-
-        monkeypatch.setattr("subprocess.Popen", fake_popen)
-        runner = ClaudeRunner()
-        runner.run(
-            RunRequest(
-                command="osx-phase1",
-                agent="osx-builder",
-                change_id="x",
-                model="claude-opus-4",
-            ),
-        )
-        idx = captured["cmd"].index("--model")
-        assert captured["cmd"][idx + 1] == "claude-opus-4"
-
+class TestOpencodeRunnerEnvMerging:
     def test_env_is_merged_and_forwarded(self, monkeypatch):
         from source.orchestrator.runner import OpencodeRunner, RunRequest
 

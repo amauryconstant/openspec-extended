@@ -240,12 +240,20 @@ class TestTranslateValidatePayload:
 
 
 @pytest.mark.unit
-class TestValidateChange:
-    def test_includes_change_id_in_args(self, monkeypatch):
-        captured = {}
+class TestValidateSubcommands:
+    """Covers ``validate_change``, ``validate_spec``, ``validate_all``,
+    ``validate_changes_only``, ``validate_specs_only``, ``validate_archived``.
 
+    Every test mocks ``osx.subprocess.run`` and asserts the function name +
+    flags + timeout that the function forwards to the upstream ``openspec``
+    CLI. Single-parametrize table consolidates the per-function cases.
+    """
+
+    @staticmethod
+    def _captured_run(captured, expected_totals_failed=0):
         def _run(*args, **kwargs):
             captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
+            captured["timeout"] = kwargs.get("timeout")
             return MagicMock(
                 returncode=0,
                 stdout=json.dumps(
@@ -257,8 +265,157 @@ class TestValidateChange:
                                 "valid": True,
                                 "issues": [],
                             }
-                        ],
-                        "summary": {"totals": {"items": 1, "passed": 1, "failed": 0}},
+                        ]
+                        if captured.get("with_change_item")
+                        else [],
+                        "summary": {"totals": {"items": 1, "passed": 1, "failed": expected_totals_failed}},
+                        "version": "1.0",
+                        "root": {},
+                    }
+                ),
+                stderr="",
+            )
+
+        return _run
+
+    @pytest.mark.parametrize(
+        "func_name,kwargs,expected_in_args,expected_not_in_args,expected_timeout,with_change_item",
+        [
+            (
+                "validate_change",
+                {"change_id": "my-change"},
+                ["validate", "my-change", "--json", "--no-interactive"],
+                None,
+                None,
+                True,
+            ),
+            (
+                "validate_change",
+                {"change_id": "c", "store": "my-store"},
+                ["--store", "my-store"],
+                None,
+                None,
+                False,
+            ),
+            (
+                "validate_change",
+                {"change_id": "c", "strict": True},
+                ["--strict"],
+                None,
+                None,
+                False,
+            ),
+            (
+                "validate_spec",
+                {"spec_id": "authentication"},
+                ["--type", "spec"],
+                None,
+                None,
+                False,
+            ),
+            (
+                "validate_all",
+                {"concurrency": 12},
+                ["--concurrency", "12"],
+                None,
+                None,
+                False,
+            ),
+            ("validate_all", {}, None, None, 60, False),
+            (
+                "validate_changes_only",
+                {},
+                ["--changes"],
+                ["--all"],
+                None,
+                False,
+            ),
+            (
+                "validate_specs_only",
+                {},
+                ["--specs"],
+                ["--all"],
+                None,
+                False,
+            ),
+            (
+                "validate_archived",
+                {},
+                ["--archived", "--no-interactive"],
+                None,
+                60,
+                False,
+            ),
+            (
+                "validate_archived",
+                {"change_id": "my-change"},
+                ["my-change", "--archived"],
+                None,
+                None,
+                False,
+            ),
+            (
+                "validate_archived",
+                {"strict": True},
+                ["--strict"],
+                None,
+                None,
+                False,
+            ),
+            (
+                "validate_archived",
+                {"store": "my-store"},
+                ["--store", "my-store"],
+                None,
+                None,
+                False,
+            ),
+        ],
+    )
+    def test_validate_subcommand(
+        self,
+        func_name,
+        kwargs,
+        expected_in_args,
+        expected_not_in_args,
+        expected_timeout,
+        with_change_item,
+        monkeypatch,
+    ):
+        captured = {"with_change_item": with_change_item}
+        monkeypatch.setattr(osx.subprocess, "run", self._captured_run(captured))
+        getattr(osx, func_name)(**kwargs)
+        if expected_in_args is not None:
+            for item in expected_in_args:
+                assert item in captured["cmd"], (
+                    f"{func_name}: missing {item!r} in cmd {captured['cmd']}"
+                )
+        if expected_not_in_args is not None:
+            for item in expected_not_in_args:
+                assert item not in captured["cmd"], (
+                    f"{func_name}: unexpected {item!r} in cmd {captured['cmd']}"
+                )
+        if expected_timeout is not None:
+            assert captured["timeout"] == expected_timeout
+
+
+@pytest.mark.unit
+class TestValidateArchivedLayout:
+    """The positional layout of ``validate_archived`` is asserted via two
+    structural cases that the parametrize table above is not expressive
+    enough to capture (positional slot index)."""
+
+    def test_archived_all_changes_layout(self, monkeypatch):
+        captured = {}
+
+        def _run(*args, **kwargs):
+            captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
+            return MagicMock(
+                returncode=0,
+                stdout=json.dumps(
+                    {
+                        "items": [],
+                        "summary": {"totals": {"failed": 0}},
                         "version": "1.0",
                         "root": {},
                     }
@@ -267,14 +424,13 @@ class TestValidateChange:
             )
 
         monkeypatch.setattr(osx.subprocess, "run", _run)
-        result = osx.validate_change("my-change")
-        assert "validate" in captured["cmd"]
-        assert "my-change" in captured["cmd"]
-        assert "--json" in captured["cmd"]
-        assert "--no-interactive" in captured["cmd"]
+        result = osx.validate_archived()
+        # Layout: [openspec, validate, --archived, --no-interactive, --json]
+        assert captured["cmd"][1] == "validate"
+        assert captured["cmd"][2] == "--archived"
         assert result["valid"] is True
 
-    def test_appends_store_flag(self, monkeypatch):
+    def test_archived_specific_change_layout(self, monkeypatch):
         captured = {}
 
         def _run(*args, **kwargs):
@@ -284,7 +440,7 @@ class TestValidateChange:
                 stdout=json.dumps(
                     {
                         "items": [],
-                        "summary": {"totals": {}},
+                        "summary": {"totals": {"failed": 0}},
                         "version": "1.0",
                         "root": {},
                     }
@@ -293,107 +449,11 @@ class TestValidateChange:
             )
 
         monkeypatch.setattr(osx.subprocess, "run", _run)
-        osx.validate_change("c", store="my-store")
-        assert "--store" in captured["cmd"]
-        assert "my-store" in captured["cmd"]
-
-    def test_appends_strict_flag(self, monkeypatch):
-        captured = {}
-
-        def _run(*args, **kwargs):
-            captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
-            return MagicMock(
-                returncode=0,
-                stdout=json.dumps(
-                    {
-                        "items": [],
-                        "summary": {"totals": {}},
-                        "version": "1.0",
-                        "root": {},
-                    }
-                ),
-                stderr="",
-            )
-
-        monkeypatch.setattr(osx.subprocess, "run", _run)
-        osx.validate_change("c", strict=True)
-        assert "--strict" in captured["cmd"]
-
-
-@pytest.mark.unit
-class TestValidateSpec:
-    def test_includes_type_spec(self, monkeypatch):
-        captured = {}
-
-        def _run(*args, **kwargs):
-            captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
-            return MagicMock(
-                returncode=0,
-                stdout=json.dumps(
-                    {
-                        "items": [],
-                        "summary": {"totals": {}},
-                        "version": "1.0",
-                        "root": {},
-                    }
-                ),
-                stderr="",
-            )
-
-        monkeypatch.setattr(osx.subprocess, "run", _run)
-        osx.validate_spec("authentication")
-        assert "--type" in captured["cmd"]
-        idx = captured["cmd"].index("--type")
-        assert captured["cmd"][idx + 1] == "spec"
-
-
-@pytest.mark.unit
-class TestValidateAll:
-    def test_includes_concurrency(self, monkeypatch):
-        captured = {}
-
-        def _run(*args, **kwargs):
-            captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
-            return MagicMock(
-                returncode=0,
-                stdout=json.dumps(
-                    {
-                        "items": [],
-                        "summary": {"totals": {}},
-                        "version": "1.0",
-                        "root": {},
-                    }
-                ),
-                stderr="",
-            )
-
-        monkeypatch.setattr(osx.subprocess, "run", _run)
-        osx.validate_all(concurrency=12)
-        assert "--concurrency" in captured["cmd"]
-        idx = captured["cmd"].index("--concurrency")
-        assert captured["cmd"][idx + 1] == "12"
-
-    def test_uses_extended_timeout(self, monkeypatch):
-        captured_kwargs = {}
-
-        def _run(*args, **kwargs):
-            captured_kwargs.update(kwargs)
-            return MagicMock(
-                returncode=0,
-                stdout=json.dumps(
-                    {
-                        "items": [],
-                        "summary": {"totals": {}},
-                        "version": "1.0",
-                        "root": {},
-                    }
-                ),
-                stderr="",
-            )
-
-        monkeypatch.setattr(osx.subprocess, "run", _run)
-        osx.validate_all()
-        assert captured_kwargs.get("timeout") == 60
+        osx.validate_archived("my-change")
+        # Layout: [openspec, validate, my-change, --archived, --no-interactive, --json]
+        assert captured["cmd"][1] == "validate"
+        assert captured["cmd"][2] == "my-change"
+        assert captured["cmd"][3] == "--archived"
 
 
 @pytest.mark.unit
@@ -423,168 +483,29 @@ class TestConcurrencyEnv:
 
         return _run
 
-    def test_env_var_used_when_no_explicit(self, monkeypatch):
-        """OPENSPEC_CONCURRENCY=12 + concurrency=None -> subprocess gets --concurrency 12."""
-        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "12")
+    @pytest.mark.parametrize(
+        "env_value,explicit_arg,expected_concurrency",
+        [
+            ("12", None, "12"),
+            ("12", 8, "8"),
+            ("invalid", None, "6"),
+            ("0", None, "6"),
+        ],
+    )
+    def test_concurrency_resolution(
+        self, monkeypatch, env_value, explicit_arg, expected_concurrency
+    ):
+        """OPENSPEC_CONCURRENCY precedence: explicit > env > default 6."""
+        monkeypatch.setenv("OPENSPEC_CONCURRENCY", env_value)
         captured = {}
-        monkeypatch.setattr(
-            osx.subprocess, "run", self._captured_run(captured)
-        )
-        osx.validate_all()
+        monkeypatch.setattr(osx.subprocess, "run", self._captured_run(captured))
+        if explicit_arg is not None:
+            osx.validate_all(concurrency=explicit_arg)
+        else:
+            osx.validate_all()
         assert "--concurrency" in captured["cmd"]
         idx = captured["cmd"].index("--concurrency")
-        assert captured["cmd"][idx + 1] == "12"
-
-    def test_explicit_wins_over_env_var(self, monkeypatch):
-        """explicit concurrency=8 beats OPENSPEC_CONCURRENCY=12."""
-        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "12")
-        captured = {}
-        monkeypatch.setattr(
-            osx.subprocess, "run", self._captured_run(captured)
-        )
-        osx.validate_all(concurrency=8)
-        assert "--concurrency" in captured["cmd"]
-        idx = captured["cmd"].index("--concurrency")
-        assert captured["cmd"][idx + 1] == "8"
-
-    def test_invalid_env_falls_back_to_default(self, monkeypatch):
-        """Non-int env values fall back to 6."""
-        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "invalid")
-        captured = {}
-        monkeypatch.setattr(
-            osx.subprocess, "run", self._captured_run(captured)
-        )
-        osx.validate_all()
-        assert "--concurrency" in captured["cmd"]
-        idx = captured["cmd"].index("--concurrency")
-        assert captured["cmd"][idx + 1] == "6"
-
-    def test_zero_env_falls_back_to_default(self, monkeypatch):
-        """Env value of 0 falls back to 6 (must be > 0)."""
-        monkeypatch.setenv("OPENSPEC_CONCURRENCY", "0")
-        captured = {}
-        monkeypatch.setattr(
-            osx.subprocess, "run", self._captured_run(captured)
-        )
-        osx.validate_all()
-        assert "--concurrency" in captured["cmd"]
-        idx = captured["cmd"].index("--concurrency")
-        assert captured["cmd"][idx + 1] == "6"
-
-
-@pytest.mark.unit
-class TestValidateChangesOnly:
-    def test_uses_changes_flag(self, monkeypatch):
-        captured = {}
-
-        def _run(*args, **kwargs):
-            captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
-            return MagicMock(
-                returncode=0,
-                stdout=json.dumps(
-                    {
-                        "items": [],
-                        "summary": {"totals": {}},
-                        "version": "1.0",
-                        "root": {},
-                    }
-                ),
-                stderr="",
-            )
-
-        monkeypatch.setattr(osx.subprocess, "run", _run)
-        osx.validate_changes_only()
-        assert "--changes" in captured["cmd"]
-        assert "--all" not in captured["cmd"]
-
-
-@pytest.mark.unit
-class TestValidateSpecsOnly:
-    def test_uses_specs_flag(self, monkeypatch):
-        captured = {}
-
-        def _run(*args, **kwargs):
-            captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
-            return MagicMock(
-                returncode=0,
-                stdout=json.dumps(
-                    {
-                        "items": [],
-                        "summary": {"totals": {}},
-                        "version": "1.0",
-                        "root": {},
-                    }
-                ),
-                stderr="",
-            )
-
-        monkeypatch.setattr(osx.subprocess, "run", _run)
-        osx.validate_specs_only()
-        assert "--specs" in captured["cmd"]
-        assert "--all" not in captured["cmd"]
-
-
-@pytest.mark.unit
-class TestValidateArchived:
-    """v1.9.0+ `validate --archived` exposed as a first-class validate action."""
-
-    def _make_run(self, captured):
-        def _run(*args, **kwargs):
-            captured["cmd"] = list(args[0]) if args else kwargs.get("args", [])
-            captured["timeout"] = kwargs.get("timeout")
-            return MagicMock(
-                returncode=0,
-                stdout=json.dumps(
-                    {
-                        "items": [],
-                        "summary": {"totals": {"failed": 0}},
-                        "version": "1.0",
-                        "root": {},
-                    }
-                ),
-                stderr="",
-            )
-
-        return _run
-
-    def test_archived_all_changes_no_positional(self, monkeypatch):
-        captured = {}
-        monkeypatch.setattr(osx.subprocess, "run", self._make_run(captured))
-        result = osx.validate_archived()
-        assert "--archived" in captured["cmd"]
-        assert "--no-interactive" in captured["cmd"]
-        # Layout: [openspec, validate, --archived, --no-interactive, --json]
-        assert captured["cmd"][1] == "validate"
-        assert captured["cmd"][2] == "--archived"
-        assert result["valid"] is True
-
-    def test_archived_specific_change(self, monkeypatch):
-        captured = {}
-        monkeypatch.setattr(osx.subprocess, "run", self._make_run(captured))
-        osx.validate_archived("my-change")
-        # Layout: [openspec, validate, my-change, --archived, --no-interactive, --json]
-        assert captured["cmd"][1] == "validate"
-        assert captured["cmd"][2] == "my-change"
-        assert captured["cmd"][3] == "--archived"
-
-    def test_archived_strict_propagates(self, monkeypatch):
-        captured = {}
-        monkeypatch.setattr(osx.subprocess, "run", self._make_run(captured))
-        osx.validate_archived(strict=True)
-        assert "--strict" in captured["cmd"]
-
-    def test_archived_store_propagates(self, monkeypatch):
-        captured = {}
-        monkeypatch.setattr(osx.subprocess, "run", self._make_run(captured))
-        osx.validate_archived(store="my-store")
-        assert "--store" in captured["cmd"]
-        assert "my-store" in captured["cmd"]
-
-    def test_archived_uses_extended_timeout(self, monkeypatch):
-        captured = {}
-        monkeypatch.setattr(osx.subprocess, "run", self._make_run(captured))
-        osx.validate_archived()
-        assert captured["timeout"] == 60
+        assert captured["cmd"][idx + 1] == expected_concurrency
 
 
 @pytest.mark.unit
