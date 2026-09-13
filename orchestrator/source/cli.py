@@ -423,7 +423,7 @@ def deploy_commands(
     if adapter.cmd_filename_strip_prefix and name.startswith(
         adapter.cmd_filename_strip_prefix
     ):
-        deployed_name = name[len(adapter.cmd_filename_strip_prefix):]
+        deployed_name = name[len(adapter.cmd_filename_strip_prefix) :]
     target_cmd_path = target_commands / f"{deployed_name}.md"
     shutil.copy2(source_path, target_cmd_path)
     _substitute_tokens_in_file(target_cmd_path, tool)

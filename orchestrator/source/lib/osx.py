@@ -1432,7 +1432,7 @@ def _command_resolved_for_phase(
     if adapter.cmd_filename_strip_prefix and cmd_name.startswith(
         adapter.cmd_filename_strip_prefix
     ):
-        deployed_name = cmd_name[len(adapter.cmd_filename_strip_prefix):]
+        deployed_name = cmd_name[len(adapter.cmd_filename_strip_prefix) :]
     else:
         deployed_name = cmd_name
 
@@ -1460,7 +1460,10 @@ def validate_commands(project_root: Path | None = None) -> dict:
         # skill invocations directly; there are no slash-command files
         # to validate. Emit a single informational note and skip the
         # per-phase walk.
-        return {"valid": True, "notes": ["skills-only adapter: no command surface to validate"]}
+        return {
+            "valid": True,
+            "notes": ["skills-only adapter: no command surface to validate"],
+        }
     missing_phase_commands: list[str] = []
     for phase in PHASES:
         cmd_name = PHASE_COMMANDS.get(phase)
@@ -1469,7 +1472,7 @@ def validate_commands(project_root: Path | None = None) -> dict:
         if adapter.cmd_filename_strip_prefix and cmd_name.startswith(
             adapter.cmd_filename_strip_prefix
         ):
-            deployed_name = cmd_name[len(adapter.cmd_filename_strip_prefix):]
+            deployed_name = cmd_name[len(adapter.cmd_filename_strip_prefix) :]
         else:
             deployed_name = cmd_name
         resolved = _command_resolved_for_phase(root, platform, cmd_name)
