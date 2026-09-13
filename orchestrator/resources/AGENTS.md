@@ -33,7 +33,7 @@ verify-tests). Phase 4 separated them so each side can version and
 ship its own manifest independently. Phase 5 finished the split: each
 side now owns a per-side manifest on disk and a per-side deploy loop.
 
-## Naming, mirroring, versioning
+## Naming, rendering, versioning
 
 | Concern | Where the rules live |
 |---|---|

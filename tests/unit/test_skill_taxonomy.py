@@ -7,7 +7,8 @@ the source of truth (manifest.toml + directory listings).
 Phase 4 split the resource tree into ``orchestrator/resources/`` and
 ``skills/resources/``. These tests union both sides — the canonical
 resource set is the merge of (orchestrator opencode) ∪ (skills opencode).
-The Claude mirrors follow the same split.
+Per-adapter rendering is handled at deploy time; see
+``.opencode/rules/per-adapter-rendering.md``.
 """
 
 from __future__ import annotations
@@ -307,7 +308,7 @@ class TestSkillTaxonomy:
             )
 
     def test_claude_skill_count_drift_is_documented(self):
-        """Phase 2A: dropped with the on-disk Claude mirror. Per-adapter
+        """Phase 2A: dropped with the on-disk mirror. Per-adapter
         rendering produces both forms from a single canonical source;
         the deploy-time parity is enforced by
         ``tests/integration/test_install_flow.py::TestInstallClaudeDualEmit``."""

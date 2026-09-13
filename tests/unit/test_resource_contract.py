@@ -379,7 +379,7 @@ class TestDualEmitDiscipline:
 
     def test_modern_skill_mirror_drops_agent_frontmatter(self, tmp_path):
         """The opencode-only ``agent:`` directive is platform-specific.
-        The Claude mirror must not leak it through."""
+        The namespaced-with-skill-mirror deploy must not leak it through."""
         cl_root = tmp_path / "claude-target"
         for src in _all_opencode_commands():
             _, modern = _claude_mirror_paths_for(src, cl_root)
@@ -431,7 +431,7 @@ class TestFrontmatterInvariants:
 
     @pytest.mark.parametrize("skill_name", sorted(OPENSPEC_TOOL_SKILLS))
     def test_claude_skill_has_metadata_block(self, skill_name: str):
-        """Phase 2A: dropped — the on-disk Claude mirror is gone. Skill
+        """Phase 2A: dropped — there is no on-disk per-adapter mirror. Skill
         parity is now driven by ``deploy_skills(<source>, tmp_path/.claude,
         skill_name, tool="claude")`` and covered by the integration
         tests in ``tests/integration/test_install_flow.py``. Kept as a
@@ -461,7 +461,7 @@ class TestFrontmatterInvariants:
 class TestSchemaAgnosticContract:
     """``osx-review-artifacts`` is the live consumer of the schema-
     agnostic contract from §4.2 of review-modify-integration.md. Pin
-    the contract wording on both opencode and Claude mirrors."""
+    the contract wording on each skill's source file."""
 
     @pytest.mark.parametrize(
         "skill", SCHEMA_AGNOSTIC_CONTRACT_SKILLS,
@@ -611,7 +611,7 @@ class TestSkillDescriptionLeadingWord:
         self, skill_name: str, expected: str
     ):
         return None
-        """Phase 2A: dropped with the on-disk Claude mirrors. Per-adapter
+        """Phase 2A: dropped with the on-disk per-adapter mirrors. Per-adapter
         deploy path (``deploy_skills``) carries the opencode source
         forward verbatim with token substitution; the leading word is
         preserved by construction. See ``test_opencode_description_leads_with_expected_word``
@@ -960,7 +960,7 @@ class TestSharedReferencesPackaging:
         )
 
     def test_claude_manifest_references_match_opencode(self):
-        """Phase 2A: dropped with the on-disk Claude mirrors. Per-adapter
+        """Phase 2A: dropped with the on-disk per-adapter mirrors. Per-adapter
         rendering is now driven by the deploy path (``deploy_commands``);
         parity is asserted by ``TestDualEmitDiscipline`` instead of by
         comparing hand-maintained manifests. Kept as a no-op

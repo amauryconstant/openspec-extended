@@ -36,15 +36,14 @@ per side).
 | Editing tests                           | `tests/AGENTS.md`                                                  |
 | Adding a new AI tool adapter            | `orchestrator/source/tools.py` + `.opencode/rules/naming-conventions.md` |
 | Updating platform docs                  | Consult <https://github.com/Fission-AI/OpenSpec/tree/main/docs> + <https://opencode.ai/docs> for canonical upstream |
-| Editing a Claude mirror file            | STOP — there is no on-disk Claude mirror. Edit the opencode source; deploy-time rendering produces the per-adapter layout |
-| Adding a per-adapter mirror task        | See "Per-adapter rendering" in `.opencode/rules/mirror-generation.md` |
+| Editing a per-adapter mirror file       | STOP — there is no on-disk per-adapter mirror. Edit the opencode source; deploy-time rendering produces the per-adapter layout |
 | Editing vendored subtree                | STOP — use `sync-core`                                             |
 
 ## Cross-cutting Rules
 
 - **Naming** (`osx-`/`osc-` prefixes, regex, manifest ownership): `.opencode/rules/naming-conventions.md`
 - **Versioning** (project release vs per-resource bumps): `.opencode/rules/version-management.md`
-- **Mirror generation** (Claude ↔ OpenCode, token substitution): `.opencode/rules/mirror-generation.md`
+- **Per-adapter rendering** (deploy-time token substitution, skill mirror): `.opencode/rules/per-adapter-rendering.md`
 - **Vendored subtree** (`orchestrator/core/**`): `.opencode/rules/vendored-subtree.md`
 
 ## Commands

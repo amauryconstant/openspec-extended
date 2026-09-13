@@ -21,35 +21,28 @@ from source import __version__
 from source.lib.osx import AUTONOMOUS_RESOURCE_NAMES, REQUIRED_CORE_SKILLS
 from source.orchestrator.engine import OrchestratorState, run_orchestrator
 from source.osx_cli import osx_app
-from source.tools import REGISTRY, ToolAdapter, _adapter_tokens
+from source.tools import PLATFORM_TOKENS, REGISTRY, TOOL_DIRS, ToolAdapter
 
 SCRIPT_NAME = "openspec-extended"
 
-# Adapter registry (Phase 1B): ``source.tools.REGISTRY`` is the single
-# source of truth for tool-specific behaviour. ``TOOL_DIRS`` and
-# ``PLATFORM_TOKENS`` below are derived views kept here so existing
-# imports (``from source.cli import TOOL_DIRS, PLATFORM_TOKENS``)
-# continue to work without edits in tests or downstream modules. The
-# substitution mechanism itself — ``{{TOKEN}}`` placeholders in resource
-# files rendered at deploy time — is unchanged; ``_substitute_tokens``
-# continues to consume ``PLATFORM_TOKENS`` from this module.
+# Adapter registry: ``source.tools.REGISTRY`` is the single source of
+# truth for tool-specific behaviour. ``TOOL_DIRS`` and ``PLATFORM_TOKENS``
+# are derived views re-exported here so existing
+# (``from source.cli import TOOL_DIRS, PLATFORM_TOKENS``) keep working.
+# The substitution mechanism itself — ``{{TOKEN}}`` placeholders in
+# resource files rendered at deploy time — is unchanged;
+# ``_substitute_tokens`` consumes ``PLATFORM_TOKENS`` from this module.
 #
 # Source files under ``orchestrator/resources/opencode/`` (the
 # orchestrator side; the skills side lives under
 # ``skills/resources/opencode/`` per Phase 4) carry ``{{TOKEN}}``
 # placeholders; the deploy step substitutes them with the values for the
 # active tool. The OpenCode source ships the same tokens literally —
-# the Python side is the single source of truth for substitution. The
-# bash ``sync-mirrors`` script is a pure mirror (no token substitution).
+# the Python side is the single source of truth for substitution. Per-
+# adapter rendering happens at deploy time via ``deploy_*``; there is no
+# on-disk per-tool mirror and no separate token-substitution step.
 # New tokens MUST be added to both platforms; the substitution is silent
 # for unknown tokens so future additions don't crash.
-TOOL_DIRS: dict[str, str] = {
-    tid: adapter.skills_dir for tid, adapter in REGISTRY.items()
-}
-
-PLATFORM_TOKENS: dict[str, dict[str, str]] = {
-    tid: _adapter_tokens(adapter) for tid, adapter in REGISTRY.items()
-}
 
 _LEFTOVER_TOKEN_RE = re.compile(r"\{\{([A-Z_]+)\}\}")
 
@@ -60,8 +53,9 @@ def _substitute_tokens(text: str, tool: str) -> str:
     Unknown tokens (or unknown tools) are left verbatim — that way a future
     token added to the source but not yet to ``PLATFORM_TOKENS`` surfaces as a
     literal in the deployed file rather than silently disappearing. The
-    substituter is the single source of truth for token values; the bash
-    ``sync-mirrors`` script no longer substitutes tokens.
+    substituter is the single source of truth for token values; deploy-time
+    rendering in ``deploy_*`` is the only mechanism that produces per-
+    adapter output.
     """
     mapping = PLATFORM_TOKENS.get(tool, {})
 
@@ -279,8 +273,8 @@ def deploy_skills(
     source_base: Path,
     target_dir: Path,
     name: str,
+    tool: str,
     shared_refs: list[str] | None = None,
-    tool: str = "opencode",
 ) -> None:
     target_skills = target_dir / "skills"
     target_skills.mkdir(parents=True, exist_ok=True)
@@ -389,9 +383,7 @@ def _referenced_skill_refs(body: str) -> list[str]:
     return sorted(seen)
 
 
-def deploy_commands(
-    source_base: Path, target_dir: Path, name: str, tool: str = "opencode"
-) -> None:
+def deploy_commands(source_base: Path, target_dir: Path, name: str, tool: str) -> None:
     adapter = REGISTRY[tool]
     if adapter.commands_style == "skills-only":
         # Tools that resolve skill invocations only (Codex, Kimi, Zed,
@@ -467,9 +459,7 @@ def deploy_commands(
                 _substitute_tokens_in_file(dst, tool)
 
 
-def deploy_agents(
-    source_base: Path, target_dir: Path, name: str, tool: str = "opencode"
-) -> None:
+def deploy_agents(source_base: Path, target_dir: Path, name: str, tool: str) -> None:
     target_agents = target_dir / "agents"
     target_agents.mkdir(parents=True, exist_ok=True)
     target_agent_path = target_agents / f"{name}.md"

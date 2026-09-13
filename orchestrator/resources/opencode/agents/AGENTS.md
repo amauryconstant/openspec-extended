@@ -39,11 +39,12 @@ project repo).
 | `osx-reviewer.md`     | PHASE2 / PHASE5 — write reports; commit                   |
 | `AGENTS.md`           | (this file) — conventions                                |
 
-## Mirror
+## Per-adapter behaviour
 
-The Claude mirror does **not** ship agents/ — Claude Code has no
-on-disk agent dispatch model. The Claude `validate_deployment`
-path skips agent validation for that reason (`has_agents_dir=False`
-on the Claude `ToolAdapter` in `orchestrator/source/tools.py`).
-The orchestrator's `RunRequest` flow looks for the CLI binary and
-skill definitions instead, relying on Claude Code's session model.
+Every adapter's `ToolAdapter` declares whether its target tree ships
+an `agents/` directory (`has_agents_dir` field). Adapters that don't
+expose an on-disk agent dispatch model (Claude Code, Cursor, Codex,
+Kimi — they use a session model instead) set `has_agents_dir=False`;
+`validate_deployment` skips agent validation for those targets. The
+orchestrator's `RunRequest` flow looks for the CLI binary and skill
+definitions instead, per the tool's session model.

@@ -190,7 +190,8 @@ single-artifact edits route through `/opsx:update` from upstream.
 
 The default install ships **9 slash commands** (7 phase commands on the
 orchestrator side + 2 utility commands on the skills side). Each is
-self-contained with its full body inline. The Claude mirror dual-emits
+self-contained with its full body inline. Adapters with
+`commands_style="namespaced-with-skill-mirror"` (Claude today) dual-emit
 them as skills too.
 
 | Command                       | Purpose                                       | Side          |
@@ -240,7 +241,7 @@ After `PHASE6`, files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`.
 | [.opencode/rules/openspec-contract.md](.opencode/rules/openspec-contract.md) | v1.8.0–v1.13.0 contract surface (loaded on `orchestrator/source/**`, `orchestrator/resources/opencode/**`, `tests/**`) |
 | `orchestrator/source/orchestrator/AGENTS.md` | Phase model, transition reasons, retry budget, resume semantics |
 | `orchestrator/source/lib/AGENTS.md` | `osx` library domains + CLI/library contract |
-| `orchestrator/resources/AGENTS.md` | Resource types, manifest layout, mirror generation |
+| `orchestrator/resources/AGENTS.md` | Resource types, manifest layout, per-adapter rendering |
 | `osx-workflow` skill | Runtime reference for AI agents in deployed projects (4 tool layers, 7 phases, `osx` state I/O tool) |
 
 ## Development

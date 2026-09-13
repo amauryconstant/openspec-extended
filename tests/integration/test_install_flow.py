@@ -305,7 +305,8 @@ class TestInstallTokenSubstitution:
         assert result.returncode == 0, result.stderr
 
         # The Claude deploy writes the legacy command form at
-        # ``commands/osx/review.md`` (matching the Claude mirror layout).
+        # ``commands/osx/review.md`` (matching the
+        # ``commands_style="namespaced-with-skill-mirror"`` layout).
         cmd = (test_env / ".claude" / "commands" / "osx" / "review.md").read_text()
         assert "/osx:review" in cmd
         # The opencode hyphen slash-command form must NOT appear in a claude
@@ -317,9 +318,7 @@ class TestInstallTokenSubstitution:
         )
         # The substituted platform dir is `.claude/...`.
         assert ".claude/skills" in cmd
-        # The skill-path reference must use the literal hyphenated directory
-        # (NOT the broken `osx:review-artifacts` form that the old
-        # sync-mirrors substitution produced).
+        # The skill-path reference must use the literal hyphenated directory.
         assert ".claude/skills/osx-review-artifacts/SKILL.md" in cmd
         assert "osx:review-artifacts" not in cmd
 

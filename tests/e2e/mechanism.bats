@@ -177,8 +177,8 @@ teardown() {
     [ "$status" -eq 0 ]
 
     # No deployed file should still carry a `{{TOKEN}}` placeholder.
-    # Phase 2A: there is no on-disk Claude mirror anymore; deploy-time
-    # rendering substitutes tokens for every adapter.
+    # Deploy-time rendering substitutes tokens for every adapter; there
+    # is no on-disk per-tool mirror.
     leftovers="$(find .opencode -name '*.md' -exec grep -lE '\{\{[A-Z_]+\}\}' {} + 2>/dev/null || true)"
     if [ -n "$leftovers" ]; then
         echo "FAIL: deployed files still contain {{TOKEN}} placeholders:"
@@ -216,7 +216,8 @@ teardown() {
     fi
 
     # Claude deploy writes the legacy command form at ``commands/osx/review.md``
-    # (matching the Claude mirror layout, not the opencode file name).
+    # (matching the ``commands_style="namespaced-with-skill-mirror"`` layout,
+    # not the opencode file name).
     local cmd=".claude/commands/osx/review.md"
     [ -f "$cmd" ]
     # Claude slash-command form: `/osx:review` (colon).

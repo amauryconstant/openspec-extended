@@ -44,7 +44,7 @@ def test_skill_autonomous_gates_precede_questions(skill: str, platform: str) -> 
     text = path.read_text()
     lines = text.splitlines()
     # The ask-tool name varies by platform and form:
-    #   opencode source:  {{ASK_TOOL}}  (literal token before sync-mirrors)
+    #   opencode source:  {{ASK_TOOL}}  (literal token in source)
     #   opencode runtime: AskUserQuestion
     #   claude source:    {{ASK_TOOL}}
     #   claude runtime:   Ask
@@ -56,7 +56,7 @@ def test_skill_autonomous_gates_precede_questions(skill: str, platform: str) -> 
         or "Ask tool" in line
         or "the **`Ask`** tool" in line
         or "{{ASK_TOOL}}" in line
-        # After sync-mirrors, the substituted name "Ask" is the marker.
+        # After deploy-time substitution, the substituted name "Ask" is the marker.
         # Use a word boundary so we don't match unrelated lines.
         or "(`Ask`" in line
         or " `Ask`" in line
