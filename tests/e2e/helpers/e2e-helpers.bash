@@ -5,7 +5,15 @@
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SCRIPTS_DIR="$PROJECT_ROOT/orchestrator/resources/opencode/scripts"
 FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures"
-OPENSPEC_BIN="$PROJECT_ROOT/dist/openspec-extended"
+# Prefer the onedir bundle (cold-start ~150ms) over the single-file
+# distribution binary (~310ms) when both are present. Falls back to the
+# single-file so non-build workflows (e.g. running bats against an
+# externally-built onefile) still work.
+if [ -x "$PROJECT_ROOT/dist/openspec-extended-onedir/openspec-extended-onedir" ]; then
+    OPENSPEC_BIN="$PROJECT_ROOT/dist/openspec-extended-onedir/openspec-extended-onedir"
+else
+    OPENSPEC_BIN="$PROJECT_ROOT/dist/openspec-extended"
+fi
 
 require_e2e_confirm() {
     if [[ "${E2E_CONFIRM:-}" != "1" ]]; then

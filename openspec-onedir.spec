@@ -1,0 +1,111 @@
+# -*- mode: python ; coding: utf-8 -*-
+# Test-only onedir build: produces dist/openspec-extended/openspec-extended
+# (a directory bundle). Cold-start is ~150ms vs ~310ms for the single-file
+# distribution binary at dist/openspec-extended (the file). Used only by
+# the bats E2E suite to keep test wall time down; the distribution story
+# is unchanged.
+
+import sys
+from pathlib import Path
+
+block_cipher = None
+
+project_root = Path.cwd()
+orchestrator_opencode_path = project_root / "orchestrator" / "resources" / "opencode"
+orchestrator_claude_path = project_root / "orchestrator" / "resources" / "claude"
+skills_opencode_path = project_root / "skills" / "resources" / "opencode"
+skills_claude_path = project_root / "skills" / "resources" / "claude"
+package_path = project_root / "orchestrator" / "source"
+
+
+def _collect_files_excluding_agents_md(src_dir, dst_prefix):
+    items = []
+    src = Path(src_dir)
+    if not src.exists():
+        return items
+    for path in src.rglob("*"):
+        if path.is_file() and path.name != "AGENTS.md":
+            rel = path.relative_to(src)
+            dst = str(Path(dst_prefix) / rel.parent)
+            items.append((str(path), dst))
+    return items
+
+
+a = Analysis(
+    [str(package_path / "__main__.py")],
+    pathex=[str(project_root)],
+    binaries=[],
+    datas=(
+        _collect_files_excluding_agents_md(
+            orchestrator_opencode_path, "resources/opencode"
+        )
+        + _collect_files_excluding_agents_md(
+            orchestrator_claude_path, "resources/claude"
+        )
+        + _collect_files_excluding_agents_md(
+            skills_opencode_path, "skills/resources/opencode"
+        )
+        + _collect_files_excluding_agents_md(
+            skills_claude_path, "skills/resources/claude"
+        )
+        + _collect_files_excluding_agents_md(
+            project_root / "orchestrator" / "source" / "orchestrator",
+            "source/orchestrator",
+        )
+        + _collect_files_excluding_agents_md(
+            project_root / "orchestrator" / "source" / "lib", "source/lib"
+        )
+    ),
+    hiddenimports=[
+        "typer",
+        "toml",
+        "rich",
+        "rich.console",
+        "rich.table",
+        "yaml",
+        "subprocess",
+        "tempfile",
+        "select",
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name="openspec-extended-onedir",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name="openspec-extended-onedir",
+)

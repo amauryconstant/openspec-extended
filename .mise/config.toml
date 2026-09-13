@@ -28,22 +28,32 @@ run = [
 description = "Run unit, integration and mechanism tests (pytest + bats)"
 depends = "build --log-level FATAL"
 run = [
-    { task = "test:pytest" },
+    { task = "test:unit" },
+    { task = "test:integration" },
+    { task = "test:mechanism" },
     { task = "test:unit:bats" },
     { task = "test:mechanism:bats" },
 ]
 
-[tasks."test:pytest"]
-description = "Run unit, integration and mechanism pytest markers in one process (parallel)"
-run = "uv run pytest -m 'unit or (integration and not upstream) or mechanism' -q -n auto -p no:cacheprovider"
+[tasks."test:unit"]
+description = "Run unit tests (parallel via pytest-xdist)"
+run = "uv run pytest -m unit -q -n auto -p no:cacheprovider"
+
+[tasks."test:integration"]
+description = "Run integration tests (parallel; skips upstream-gated tests by default)"
+run = "uv run pytest -m 'integration and not upstream' -q -n auto -p no:cacheprovider"
+
+[tasks."test:mechanism"]
+description = "Run mechanism tests against source (parallel)"
+run = "uv run pytest -m mechanism -q -n auto -p no:cacheprovider"
 
 [tasks."test:unit:bats"]
 description = "Run bats unit tests for install.sh"
 run = "bats tests/unit/install.bats"
 
 [tasks."test:mechanism:bats"]
-description = "Run bats mechanism tests against built binary (no AI calls)"
-run = "bats tests/e2e/mechanism.bats tests/e2e/store-and-config-passthrough.bats"
+description = "Run bats mechanism tests against built binary (no AI calls, parallel across tests)"
+run = "python3 .mise/tasks/bats_parallel.py 8 tests/e2e/mechanism.bats tests/e2e/store-and-config-passthrough.bats"
 
 [tasks."test:e2e"]
 description = "Run E2E full workflow tests"
@@ -67,9 +77,20 @@ description = "Type check Python files with ty"
 run = "ty check orchestrator/source/"
 
 [tasks.build]
-description = "Build pyinstaller binary (skips when up to date)"
-run = '''if [ ! -x dist/openspec-extended ] || find orchestrator/source orchestrator/resources skills/resources openspec.spec -type f -newer dist/openspec-extended -print -quit 2>/dev/null | grep -q .; then echo "==> pyinstaller"; pyinstaller openspec.spec; else echo "dist/openspec-extended up to date; skipping pyinstaller"; fi
-: "${@:-}" '''
+description = "Build pyinstaller binaries (single-file for distribution + onedir for tests)"
+run = '''
+set +e
+need_onefile=0
+need_onedir=0
+if [ ! -x dist/openspec-extended ]; then need_onefile=1; fi
+if [ ! -x dist/openspec-extended-onedir/openspec-extended-onedir ]; then need_onedir=1; fi
+newer=$(find orchestrator/source orchestrator/resources skills/resources openspec.spec openspec-onedir.spec -type f -newer dist/openspec-extended -print -quit 2>/dev/null)
+if [ -n "$newer" ] && [ ! -e dist/openspec-extended-onedir ]; then need_onedir=1; fi
+if [ $need_onefile -eq 1 ]; then echo "==> pyinstaller (onefile)"; pyinstaller openspec.spec; fi
+if [ $need_onedir -eq 1 ]; then echo "==> pyinstaller (onedir, for tests)"; pyinstaller openspec-onedir.spec; fi
+if [ $need_onefile -eq 0 ] && [ $need_onedir -eq 0 ]; then echo "dist/openspec-extended + onedir up to date; skipping pyinstaller"; fi
+: "${@:-}"
+'''
 
 [tasks.clean]
 description = "Remove PyInstaller artifacts (build/, dist/)"
