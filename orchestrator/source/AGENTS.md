@@ -1,3 +1,8 @@
+---
+paths:
+  - "orchestrator/source/**"
+---
+
 # `orchestrator/source/` - Python CLI
 
 Python source for the `openspec-extended` binary. Lives under `orchestrator/source/` per Phase 4 (the binary lives at the project root; the orchestrator side owns the CLI/module path; the skills side owns nothing under `source/`).
@@ -32,6 +37,28 @@ between AI assistants (skills dir, command layout, slash prefix, runner
 binary, agent-field transforms). Adding a new tool = one entry in
 `REGISTRY`. The CLI / runner / engine / library layers read from
 the registry — no per-tool edits there.
+
+## Adding a new tool adapter
+
+1. Add `REGISTRY[<tool_id>] = ToolAdapter(...)` in `source/tools.py`.
+2. Pick a `commands_style` that matches the target's filesystem layout; add to the set of values `purge_managed_resources` recognises.
+3. If the new `runner_kind` is not `opencode_run` or `claude_print`, add a branch in `source/orchestrator/runner.py:_runner_for`.
+4. Add the tool id to `REGISTRY` first so `detect_platform` picks it up before existing tools.
+5. Add a regression test in `tests/unit/test_runner_abstraction.py::TestDetectRunnerWalksRegistry`.
+
+The CLI / runner / engine / library layers read from the registry — no per-tool edits required there.
+
+## Library vs CLI vs subprocess
+
+| Caller | Use |
+|--------|-----|
+| Orchestrator (`source/orchestrator/engine.py`) | Library function from `source.lib.osx` |
+| Tests under `tests/unit/` | Library function from `source.lib.osx` |
+| Tests under `tests/integration/` | `python -m source <cmd>` subprocess (no CLI surface), or library function |
+| External shell users | `openspec-extended osx <domain> <action>` binary |
+| `mise run verify`, CI scripts | `openspec-extended` binary |
+
+Rationale: the library is the only fast path (no subprocess, no JSON parse). The CLI is for users. Tests under `tests/integration/` exercise the deploy path so they must shell out; tests under `tests/unit/` exercise logic so they call the library.
 
 ## See Also
 

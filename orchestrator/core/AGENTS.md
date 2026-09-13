@@ -1,3 +1,8 @@
+---
+paths:
+  - "orchestrator/core/**"
+---
+
 # OpenSpec Core Skills
 
 **Source**: Official OpenSpec workflow skills - track upstream, do not modify locally.
@@ -14,6 +19,8 @@
 - `openspec init` and `openspec update` name the workflows your profile left out and how to add them, so a missing workflow no longer reads as a broken setup.
 - `retire_capabilities: true` no longer refuses specs whose scenario bullets wrap onto a second line, nor specs whose scenarios use `+`-marker bullets.
 - `openspec update` also compares command-file content (in addition to the skill-file `generatedBy` marker) when checking whether a tool is up to date.
+
+Full per-contract operational notes for orchestrator consumption live in [`.opencode/rules/openspec-contract.md`](../../.opencode/rules/openspec-contract.md).
 
 ---
 

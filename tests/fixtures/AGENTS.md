@@ -1,3 +1,8 @@
+---
+paths:
+  - "tests/fixtures/**"
+---
+
 # Test Fixtures
 
 Static, read-only test data. Never mutate files in this directory.

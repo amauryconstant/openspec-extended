@@ -1,3 +1,8 @@
+---
+paths:
+  - "orchestrator/resources/**"
+---
+
 # Resources (Orchestrator Side)
 
 AI-assistant resources shipped inside the binary. Phase 4 split the
@@ -35,11 +40,7 @@ side now owns a per-side manifest on disk and a per-side deploy loop.
 
 ## Naming, rendering, versioning
 
-| Concern | Where the rules live |
-|---|---|
-| Naming (`osx-`/`osc-` prefixes) | `.opencode/rules/naming-conventions.md` |
-| Per-adapter rendering (deploy-time token substitution + skill mirror) | `.opencode/rules/per-adapter-rendering.md` |
-| Per-resource version bumps | `.opencode/rules/version-management.md` |
+Cross-cutting rules live in [`.opencode/rules/`](../../.opencode/rules/) (linked from root `AGENTS.md`).
 
 ## Resource types
 
@@ -104,6 +105,14 @@ references = ["schema-agnostic-contract.md", "store-selection.md"]
 `commands/osx-phase0.md` … `commands/osx-phase6.md` correspond 1:1 with the orchestrator's PHASE0–PHASE6. Each phase command inherits the **Mandatory Start**, **Mandatory End**, and **blocker semantics** from `skills/references/phase-protocol-common.md` and `blocker-semantics.md`. State the phase-specific differences inline.
 
 Phase commands are the **only** entry points the orchestrator uses; do not rename or remove them without updating `PHASE_COMMANDS` in `orchestrator/source/orchestrator/engine.py`.
+
+## Adding a new slash command
+
+1. Create `orchestrator/resources/opencode/commands/osx-<name>.md` with required frontmatter (`description` + optional `agent:`).
+2. Add an entry to `orchestrator/resources/opencode/manifest.toml` under `[resources.commands]`.
+3. Bump the version: `mise run version:update`.
+4. If the command runs as part of the orchestrator workflow, add it to `PHASE_COMMANDS` in `source/orchestrator/engine.py`.
+5. Add a unit test in `tests/unit/test_command_refs.py::TestFullCommandNames::test_expected_full_forms_present` if it introduces new full-form slash-command references.
 
 ## Conventions
 

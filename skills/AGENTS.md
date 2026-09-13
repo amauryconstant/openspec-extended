@@ -1,3 +1,8 @@
+---
+paths:
+  - "skills/**"
+---
+
 # Skills Side
 
 Gap-filling utility skills and commands, separated from the orchestrator
@@ -40,12 +45,7 @@ The three skills plus the two slash commands total 5 resources. The skills-side 
 
 ## Cross-cutting rules
 
-| Concern | Where the rules live |
-|---|---|
-| Naming (`osx-`/`osc-` prefixes) | `.opencode/rules/naming-conventions.md` |
-| Per-adapter rendering (deploy-time token substitution + skill mirror) | `.opencode/rules/per-adapter-rendering.md` |
-| Per-resource version bumps | `.opencode/rules/version-management.md` |
-| Review contract (`schema-agnostic-contract.md`, `store-selection.md`) | `orchestrator/resources/opencode/skills/references/` |
+Cross-cutting rules live in [`.opencode/rules/`](../../.opencode/rules/) (linked from root `AGENTS.md`). The review contract reference pool lives at `orchestrator/resources/opencode/skills/references/`.
 
 ## Shared references
 
@@ -56,6 +56,14 @@ Skills in this tree may consume shared references from `orchestrator/resources/o
 1. Create or edit the file under `skills/resources/opencode/{skills,commands}/osx-<name>/...` first.
 2. Add the entry to `skills/resources/opencode/manifest.toml`.
 3. Bump the version in the manifest.
+
+## Adding a new gap-filling skill
+
+1. Create `skills/resources/opencode/skills/osx-<name>/SKILL.md` with required frontmatter (`name`, `description`, `license`). Directory name MUST match `name:`.
+2. Add an entry to `skills/resources/opencode/manifest.toml` under `[resources.skills]` (and `[resources.references]` if it consumes shared references).
+3. Bump the version: `mise run version:update`.
+4. Add a unit test in `tests/unit/test_required_skills.py` if the skill should be in `REQUIRED_SKILLS`.
+5. If the skill introduces a new slash command, also create `skills/resources/opencode/commands/osx-<name>.md`.
 
 ## Conventions
 

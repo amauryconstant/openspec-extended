@@ -1,3 +1,8 @@
+---
+paths:
+  - "orchestrator/source/lib/**"
+---
+
 # `source/lib/` - Change Management Library
 
 The `osx` library: 11 command domains that read/write change state. The orchestrator and tests import these functions directly in-process. The module is a pure library — no Typer, no CLI surface.
@@ -44,22 +49,6 @@ Keep the library and the CLI module separate so the library can be imported in-p
 - **Output**: JSON to stdout
 - **Errors**: stderr JSON `{"error": code, "message": msg, ...}`, exit code 1
 
-## Command Domains (11)
-
-| Domain | Library entry | CLI form |
-|--------|---------------|----------|
-| `baseline` | `baseline_record()`, `baseline_get()` | `openspec-extended osx baseline record\|get` |
-| `ctx` | `ctx_get(change)` | `openspec-extended osx ctx get <change>` |
-| `git` | `git_get(change)` | `openspec-extended osx git get <change>` |
-| `phase` | `phase_current(change)`, `phase_next(change)`, `phase_advance(change)` | `openspec-extended osx phase current\|next\|advance <change>` |
-| `state` | `state_get(change)`, `state_complete(change)`, `state_transition(change, target, reason, details)`, `state_clear_transition(change)`, `state_set_phase(change, phase, iteration)` | `openspec-extended osx state ...` |
-| `iterations` | `iterations_get(change)`, `iterations_append(change, ...)` | `openspec-extended osx iterations ...` |
-| `log` | `log_get(change)`, `log_append(change, ...)` | `openspec-extended osx log ...` |
-| `complete` | `complete_check(change)`, `complete_get(change)`, `complete_set(change, status, blocker_reason)` | `openspec-extended osx complete ...` |
-| `validate` | `validate_json(target)`, `validate_skills(project_root=None)`, `validate_commands(project_root=None)`, `validate_change_dir(target)` (consults core's `isPlanningComplete` and falls back to a local file-existence check), `validate_archive(target)`, `validate_iterations(target)`, `validate_completion(target)`, `validate_change(change_id, *, store=None, strict=False)` (v1.8.0+ envelope), `validate_spec(spec_id, *, store=None, strict=False)`, `validate_all(*, store=None, strict=False, concurrency=None)`, `validate_changes_only(*, store=None, strict=False)`, `validate_specs_only(*, store=None, strict=False)`, `validate_archived(change_id=None, *, store=None, strict=False)` (v1.9.0+ scope) | `openspec-extended osx validate ...` |
-| `instructions` | `fetch_instructions(operation, change_id, *, store=None)` (v1.7.0+ read-only mirror) | `openspec-extended osx instructions <operation> --change <change_id>` |
-| `schema` | `schema_which`, `schema_validate`, `schema_fork`, `schema_init`, `schema_list`, `schema_fork_diff(source, target, *, force=False, project_root=None)` (v1.9.0+ YAML fidelity check) | `openspec-extended osx schema ...` |
-
 ## Constants (top of `osx.py`)
 
 | Constant | Value |
@@ -68,7 +57,7 @@ Keep the library and the CLI module separate so the library can be imported in-p
 | `VALID_TRANSITION_REASONS` | `implementation_incorrect`, `artifacts_modified`, `retry_requested` |
 | `REQUIRED_SKILLS` | 5 `osx-*` skills required for changes (default install). Excludes `osx-changelog` and `osx-maintain-docs` (slash commands with self-contained bodies, not skills) and `osx-workflow` (gated by `install --with-autonomous` and only required when the autonomous workflow is enabled). See `osx-concepts` §2.5 for the full taxonomy. |
 | `REQUIRED_CORE_SKILLS` | All 12 `osc-*` core skills from upstream OpenSpec (current v1.13.0; floor v1.13.0): propose, explore, new-change, continue-change, apply-change, update-change, ff-change, verify-change, sync-specs, archive-change, bulk-archive-change, onboard. Bumped from 4 → 12 to track the full custom-profile set; see `source/lib/osx.py`. |
-| `MIN_OPENSPEC_VERSION` | `(1, 13, 0)` — orchestrator refuses to start with older cores. The floor guarantees the v1.13.0 contract surface (`status --all`, `show --diff`, `validate --archived`, `init --language`, `isPlanningComplete`, `retire_capabilities`, `validate --report findings`, `missingPrerequisites`, `list --specs`, fenced-code preservation, retire_capabilities relaxations, etc.) is available. The `OPENSPEC_EXTENDED_NO_PLANNING_CORE=1` env var is the CI escape hatch that bypasses the core planning-status call in `validate_change_dir`; without it, falls back to a local file-existence check. Per-contract operational notes live in [`.opencode/rules/openspec-contract.md`](../../.opencode/rules/openspec-contract.md). | |
+| `MIN_OPENSPEC_VERSION` | `(1, 13, 0)` — orchestrator refuses to start with older cores. The floor guarantees the v1.13.0 contract surface is available. The `OPENSPEC_EXTENDED_NO_PLANNING_CORE=1` env var is the CI escape hatch that bypasses the core planning-status call in `validate_change_dir`; without it, falls back to a local file-existence check. Per-contract operational notes live in [`.opencode/rules/openspec-contract.md`](../../.opencode/rules/openspec-contract.md). | |
 | `AUTONOMOUS_RESOURCE_NAMES` | 12 names (4 agents + 7 phase commands + `osx-workflow` skill) gated by `install --with-autonomous`. Mirror in `deploy_type` (`source/cli.py:236`). |
 | `OSXError` | Exception class raised by library functions |
 
@@ -125,6 +114,14 @@ adapter whose `detect_paths` include an existing directory at
 (locked by `tests/unit/test_tool_registry.py`). With no markers present
 `detect_platform` defaults to the first registered tool id — pre-1D
 behavior was a literal `return "opencode"`.
+
+## Adding a new `osx` library domain
+
+1. Add the public function(s) in `source/lib/osx.py`. Pure-Python: returns `dict`, raises `OSXError`.
+2. Add the Typer wrapper in `source/osx_cli.py` under the matching sub-app. Catch `OSXError` and call `osx_error` for the JSON-shaped error.
+3. Mount the sub-app under the main `osx` Typer app if it's a new top-level domain.
+4. Add a unit test in `tests/unit/test_<domain>.py` and an integration test if it touches state I/O.
+5. Document the domain in this file's "Constants" or "Two Surfaces" sections if it adds a new public constant.
 
 ## See Also
 

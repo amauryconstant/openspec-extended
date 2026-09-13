@@ -17,11 +17,15 @@ OpenCode source at deploy time via `ToolAdapter`. Core is synced from
 upstream. The two resource trees are disjoint (different `manifest.toml`
 per side).
 
-## Critical Rules
+## Rules
 
 - **NEVER** edit files in `orchestrator/core/` directly — use `mise run sync-core`.
 - **NEVER** bump versions by hand — use `mise run release` (project) or `mise run version:update` (per-resource).
 - Pre-commit hook `check-platform-hardcodes` fails the commit if any per-tool hardcode slips into `cli.py` / `runner.py` / `lib/osx.py`.
+- **Naming** (`osx-`/`osc-` prefixes, regex, manifest ownership): `.opencode/rules/naming-conventions.md`
+- **Versioning** (project release vs per-resource bumps): `.opencode/rules/version-management.md`
+- **Per-adapter rendering** (deploy-time token substitution, skill mirror): `.opencode/rules/per-adapter-rendering.md`
+- **Vendored subtree** (`orchestrator/core/**`): `.opencode/rules/vendored-subtree.md`
 
 ## Navigation
 
@@ -29,22 +33,10 @@ per side).
 | --------------------------------------- | ------------------------------------------------------------------ |
 | Editing Python source                   | `orchestrator/source/AGENTS.md`                                    |
 | Editing the workflow engine             | `orchestrator/source/orchestrator/AGENTS.md`                       |
-| Updating CLI/library domains (`osx`)    | `orchestrator/source/lib/AGENTS.md`                                |
 | Adding/editing a workflow skill         | `orchestrator/resources/AGENTS.md`                                 |
 | Adding/editing a gap-filling skill      | `skills/AGENTS.md`                                                 |
-| Syncing core from upstream              | `orchestrator/core/AGENTS.md`                                      |
 | Editing tests                           | `tests/AGENTS.md`                                                  |
 | Adding a new AI tool adapter            | `orchestrator/source/tools.py` + `.opencode/rules/naming-conventions.md` |
-| Updating platform docs                  | Consult <https://github.com/Fission-AI/OpenSpec/tree/main/docs> + <https://opencode.ai/docs> for canonical upstream |
-| Editing a per-adapter mirror file       | STOP — there is no on-disk per-adapter mirror. Edit the opencode source; deploy-time rendering produces the per-adapter layout |
-| Editing vendored subtree                | STOP — use `sync-core`                                             |
-
-## Cross-cutting Rules
-
-- **Naming** (`osx-`/`osc-` prefixes, regex, manifest ownership): `.opencode/rules/naming-conventions.md`
-- **Versioning** (project release vs per-resource bumps): `.opencode/rules/version-management.md`
-- **Per-adapter rendering** (deploy-time token substitution, skill mirror): `.opencode/rules/per-adapter-rendering.md`
-- **Vendored subtree** (`orchestrator/core/**`): `.opencode/rules/vendored-subtree.md`
 
 ## Commands
 

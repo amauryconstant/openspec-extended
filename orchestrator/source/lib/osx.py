@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: EXE001 - shebang is intentional (PyInstaller entry may invoke it directly)
-"""
+r"""
 osx - OpenSpec Extended change management library
 
 Pure library. Every domain exposes a public function (e.g. `state_get`,
@@ -16,6 +16,22 @@ functions as `openspec-extended osx <domain> <action>` lives in
 In-process callers (the orchestrator, tests) should import the
 library functions directly to avoid subprocess overhead and JSON
 parsing.
+
+## Command Domains (11)
+
+| Domain | Library entry | CLI form |
+|--------|---------------|----------|
+| `baseline` | `baseline_record()`, `baseline_get()` | `openspec-extended osx baseline record\|get` |
+| `ctx` | `ctx_get(change)` | `openspec-extended osx ctx get <change>` |
+| `git` | `git_get(change)` | `openspec-extended osx git get <change>` |
+| `phase` | `phase_current(change)`, `phase_next(change)`, `phase_advance(change)` | `openspec-extended osx phase current\|next\|advance <change>` |
+| `state` | `state_get(change)`, `state_complete(change)`, `state_transition(change, target, reason, details)`, `state_clear_transition(change)`, `state_set_phase(change, phase, iteration)` | `openspec-extended osx state ...` |
+| `iterations` | `iterations_get(change)`, `iterations_append(change, ...)` | `openspec-extended osx iterations ...` |
+| `log` | `log_get(change)`, `log_append(change, ...)` | `openspec-extended osx log ...` |
+| `complete` | `complete_check(change)`, `complete_get(change)`, `complete_set(change, status, blocker_reason)` | `openspec-extended osx complete ...` |
+| `validate` | `validate_json(target)`, `validate_skills(project_root=None)`, `validate_commands(project_root=None)`, `validate_change_dir(target)` (consults core's `isPlanningComplete` and falls back to a local file-existence check), `validate_archive(target)`, `validate_iterations(target)`, `validate_completion(target)`, `validate_change(change_id, *, store=None, strict=False)` (v1.8.0+ envelope), `validate_spec(spec_id, *, store=None, strict=False)`, `validate_all(*, store=None, strict=False, concurrency=None)`, `validate_changes_only(*, store=None, strict=False)`, `validate_specs_only(*, store=None, strict=False)`, `validate_archived(change_id=None, *, store=None, strict=False)` (v1.9.0+ scope) | `openspec-extended osx validate ...` |
+| `instructions` | `fetch_instructions(operation, change_id, *, store=None)` (v1.7.0+ read-only mirror) | `openspec-extended osx instructions <operation> --change <change_id>` |
+| `schema` | `schema_which`, `schema_validate`, `schema_fork`, `schema_init`, `schema_list`, `schema_fork_diff(source, target, *, force=False, project_root=None)` (v1.9.0+ YAML fidelity check) | `openspec-extended osx schema ...` |
 """
 
 import json

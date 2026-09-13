@@ -1,3 +1,8 @@
+---
+paths:
+  - "orchestrator/resources/opencode/agents/**"
+---
+
 # Orchestrator Agents (`agents/`)
 
 Orchestrator-dispatched sub-agents. Phase 0 read-only; Phases 1–6

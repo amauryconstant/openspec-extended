@@ -1,3 +1,8 @@
+---
+paths:
+  - "tests/**"
+---
+
 # Tests
 
 Dual pytest + bats suite. See root `AGENTS.md` "Testing" section for run commands and the "E2E Test Strategy" subsection for the why.
@@ -35,6 +40,15 @@ tests/
 - bats tests source shared helpers via `load helpers/test-helpers.bash`.
 - Fixtures are read-only — never mutate files in `tests/fixtures/`.
 - Mechanism tests are the source of truth for CLI surface; full-workflow bats is the source of truth for end-to-end AI behavior.
+
+## Adding a new test
+
+- Pick the marker that matches the test scope: `unit` for pure logic, `integration` for filesystem/subprocess, `mechanism` for CLI surface, `e2e` for full workflow (gated on `E2E_CONFIRM=1`).
+- Place the file under `tests/<marker>/` and mark with `@pytest.mark.<marker>`.
+- For pure logic tests, import the library directly (`from source.lib import osx`) — no subprocess.
+- For integration tests, prefer the session-scoped install fixtures in `tests/integration/test_install_flow.py` if you're asserting on a deployed tree.
+- For CLI surface, prefer Typer's `CliRunner` over `subprocess.run` in unit tests.
+- See the per-marker AGENTS.md (`tests/unit/AGENTS.md`, `tests/integration/AGENTS.md`, `tests/e2e/AGENTS.md`) for conventions specific to that scope.
 
 ## See Also
 

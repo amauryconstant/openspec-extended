@@ -1,3 +1,8 @@
+---
+paths:
+  - "orchestrator/source/orchestrator/**"
+---
+
 # `source/orchestrator/` - 7-Phase Workflow Engine
 
 Drives a change through seven autonomous phases by spawning AI processes per phase and persisting state between iterations.

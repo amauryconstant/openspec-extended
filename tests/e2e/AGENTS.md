@@ -1,3 +1,8 @@
+---
+paths:
+  - "tests/e2e/**"
+---
+
 # End-to-End Tests
 
 Tests run against the **built binary** at `dist/openspec-extended`. PyInstaller-freeze behavior cannot be reproduced from the source tree, so the binary is required.
