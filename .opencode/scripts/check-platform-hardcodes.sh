@@ -24,6 +24,14 @@ readonly -a PATTERNS=(
     '[[:space:]]in[[:space:]]+\[(.*["'"'"'](opencode|claude)["'"'"'])'
     'TOOL_DIRS\[["'"'"'](opencode|claude)["'"'"']\]'
     'PLATFORM_TOKENS\[["'"'"'](opencode|claude)["'"'"']\]'
+    # Phase 2-pattern: catch per-adapter branches that hardcode a SPECIFIC
+    # tool name on the new dispatch axes. Comparisons against the
+    # *axis values* themselves ("flat", "skills-only", "claude_print",
+    # "/", etc.) are legitimate dispatch and stay unflagged — they
+    # enumerate the supported literals, not per-tool names.
+    'adapter\.commands_style[[:space:]]*==[[:space:]]*["'"'"'](opencode|claude)["'"'"']'
+    'adapter\.skill_prefix[[:space:]]*==[[:space:]]*["'"'"'](opencode|claude)["'"'"']'
+    'adapter\.runner_kind[[:space:]]*==[[:space:]]*["'"'"'](opencode|claude)["'"'"']'
 )
 
 violations=0
