@@ -293,13 +293,17 @@ def deploy_skills(
     if shared_refs:
         target_refs = target_path / "references"
         target_refs.mkdir(parents=True, exist_ok=True)
-        # Phase 4 split: the shared references pool lives on the
-        # orchestrator side (`orchestrator/resources/<tool>/skills/references/`)
-        # even when the consuming skill lives on the skills side.
-        # Resolve via the resource path's parent to find the orchestrator
-        # pool, regardless of which side the skill itself lives on.
+        # Single canonical shared-references pool — lives once on the
+        # orchestrator side at
+        # `orchestrator/resources/opencode/skills/references/`, regardless
+        # of the consuming skill's side (orchestrator or skills) and
+        # regardless of the target tool (opencode, claude, …). The
+        # per-tool `<tool>/skills/references/` directory does not exist
+        # on disk and is not generated — see
+        # `orchestrator/resources/AGENTS.md` and
+        # `tests/unit/test_resource_contract.py::TestSharedReferencesPackaging`.
         orchestrator_resources = get_resources_dir()
-        shared_refs_dir = orchestrator_resources / tool / "skills" / "references"
+        shared_refs_dir = orchestrator_resources / "opencode" / "skills" / "references"
         for ref_name in shared_refs:
             src = shared_refs_dir / ref_name
             dst = target_refs / ref_name
