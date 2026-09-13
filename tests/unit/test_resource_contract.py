@@ -429,15 +429,6 @@ class TestFrontmatterInvariants:
             f"`allowed-tools: Bash(openspec:*)`; got {fm.get('allowed-tools')!r}"
         )
 
-    @pytest.mark.parametrize("skill_name", sorted(OPENSPEC_TOOL_SKILLS))
-    def test_claude_skill_has_metadata_block(self, skill_name: str):
-        """Phase 2A: dropped — there is no on-disk per-adapter mirror. Skill
-        parity is now driven by ``deploy_skills(<source>, tmp_path/.claude,
-        skill_name, tool="claude")`` and covered by the integration
-        tests in ``tests/integration/test_install_flow.py``. Kept as a
-        no-op sentinel so the canonical skill list remains visible at
-        this site."""
-
     @pytest.mark.parametrize(
         "root",
         [ORCH_OPENCODE / "commands", SK_OPENCODE / "commands"],
@@ -603,20 +594,6 @@ class TestSkillDescriptionLeadingWord:
             f"Update the allowlist AND the description together."
         )
 
-    @pytest.mark.parametrize(
-        "skill_name,expected",
-        sorted(EXPECTED_LEADING_WORDS.items()),
-    )
-    def test_claude_description_matches_opencode(
-        self, skill_name: str, expected: str
-    ):
-        return None
-        """Phase 2A: dropped with the on-disk per-adapter mirrors. Per-adapter
-        deploy path (``deploy_skills``) carries the opencode source
-        forward verbatim with token substitution; the leading word is
-        preserved by construction. See ``test_opencode_description_leads_with_expected_word``
-        above for the opencode-side contract."""
-
 
 # ============================================================================
 # Orchestrator contract surface (mirrors §13)
@@ -708,13 +685,6 @@ class TestOrchestratorContracts:
             f"a `## Requirement diff` section in verification-report.md"
         )
 
-    def test_phase2_claude_mirror_carries_show_diff(self):
-        """§13.4: Phase 2A — the opencode source carries the ``--diff``
-        contract (locked by ``test_phase2_command_embeds_show_diff``);
-        per-adapter deploy propagates the body verbatim with token
-        substitution, so the Claude-side carry is enforced by
-        construction. Kept as a no-op sentinel for the §13.4 line."""
-
     def test_post_install_archived_sweep_helper_exists(self):
         """§13.5: ``_post_install_archived_sweep`` runs
         ``openspec validate --archived`` after deploy."""
@@ -770,12 +740,6 @@ class TestOrchestratorContracts:
             f"{self.PHASE1_OPENCODE.relative_to(REPO_ROOT)} must include "
             f"`missing_prerequisites` in the decision-log --extra JSON"
         )
-
-    def test_phase1_claude_mirror_logs_missing_prerequisites(self):
-        """§13.7.2: Phase 2A — see ``test_phase1_command_logs_missing_prerequisites``
-        for the opencode-side contract; per-adapter deploy propagates
-        the body verbatim, so the Claude-side carry is enforced by
-        construction. Kept as a no-op sentinel for the §13.7.2 line."""
 
     def test_list_specs_helper_exists(self):
         """§13.7.3: ``list_specs`` is the in-process reader for the
@@ -958,14 +922,6 @@ class TestSharedReferencesPackaging:
             f"not referenced by any skill or command: {sorted(orphans)!r}. "
             f"Either add a consumer or remove the file."
         )
-
-    def test_claude_manifest_references_match_opencode(self):
-        """Phase 2A: dropped with the on-disk per-adapter mirrors. Per-adapter
-        rendering is now driven by the deploy path (``deploy_commands``);
-        parity is asserted by ``TestDualEmitDiscipline`` instead of by
-        comparing hand-maintained manifests. Kept as a no-op
-        sentinel so anyone scanning the test file understands why
-        references parity no longer lives here."""
 
 
 # ---------------------------------------------------------------------------
