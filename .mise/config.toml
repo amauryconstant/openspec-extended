@@ -66,7 +66,7 @@ run = "bats tests/e2e/full-workflow.bats"
 description = "Lint Python files with ruff, shellcheck on bash tasks"
 run = [
     "ruff check --fix -q orchestrator/source/",
-    "shellcheck -x .mise/tasks/release .mise/tasks/sync-core .mise/tasks/version/check .mise/tasks/version/update .mise/tasks/version/lib/*.sh install.sh",
+    "shellcheck -x .mise/tasks/build .mise/tasks/release .mise/tasks/sync-core .mise/tasks/version/check .mise/tasks/version/update .mise/tasks/version/lib/*.sh install.sh",
 ]
 
 [tasks.format]
@@ -76,22 +76,6 @@ run = "ruff format -q orchestrator/source/"
 [tasks."typecheck"]
 description = "Type check Python files with ty"
 run = "ty check orchestrator/source/"
-
-[tasks.build]
-description = "Build pyinstaller binaries (single-file for distribution + onedir for tests)"
-run = '''
-set +e
-need_onefile=0
-need_onedir=0
-if [ ! -x dist/openspec-extended ]; then need_onefile=1; fi
-if [ ! -x dist/openspec-extended-onedir/openspec-extended-onedir ]; then need_onedir=1; fi
-newer=$(find orchestrator/source orchestrator/resources skills/resources openspec.spec openspec-onedir.spec -type f -newer dist/openspec-extended -print -quit 2>/dev/null)
-if [ -n "$newer" ] && [ ! -e dist/openspec-extended-onedir ]; then need_onedir=1; fi
-if [ $need_onefile -eq 1 ]; then echo "==> pyinstaller (onefile)"; pyinstaller openspec.spec; fi
-if [ $need_onedir -eq 1 ]; then echo "==> pyinstaller (onedir, for tests)"; pyinstaller openspec-onedir.spec; fi
-if [ $need_onefile -eq 0 ] && [ $need_onedir -eq 0 ]; then echo "dist/openspec-extended + onedir up to date; skipping pyinstaller"; fi
-: "${@:-}"
-'''
 
 [tasks.clean]
 description = "Remove PyInstaller artifacts (build/, dist/)"

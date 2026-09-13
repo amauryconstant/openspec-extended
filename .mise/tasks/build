@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+#MISE description="Build pyinstaller binaries (single-file for distribution + onedir for tests)"
+
+set +e
+
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$PROJECT_ROOT" || exit 1
+
+ONEFILE="dist/openspec-extended"
+ONEDIR_BIN="dist/openspec-extended-onedir/openspec-extended-onedir"
+SPEC_ONEFILE="openspec.spec"
+SPEC_ONEDIR="openspec-onedir.spec"
+
+# Source paths that, when newer than a built binary, trigger a rebuild.
+# pytest uses source directly so it always picks up changes; the frozen
+# PyInstaller binaries don't, hence the staleness check.
+readonly SOURCE_PATHS=(
+  orchestrator/source
+  orchestrator/resources
+  skills/resources
+)
+
+need_onefile=0
+need_onedir=0
+
+if [[ ! -x "$ONEFILE" ]]; then
+  need_onefile=1
+fi
+if [[ ! -x "$ONEDIR_BIN" ]]; then
+  need_onedir=1
+fi
+
+newer_onefile=$(find "${SOURCE_PATHS[@]}" "$SPEC_ONEFILE" -type f -newer "$ONEFILE" -print -quit 2>/dev/null)
+if [[ -n "$newer_onefile" ]]; then
+  need_onefile=1
+fi
+newer_onedir=$(find "${SOURCE_PATHS[@]}" "$SPEC_ONEDIR" -type f -newer "$ONEDIR_BIN" -print -quit 2>/dev/null)
+if [[ -n "$newer_onedir" ]]; then
+  need_onedir=1
+fi
+
+if [[ "$need_onefile" -eq 1 ]]; then
+  echo "==> pyinstaller (onefile)"
+  pyinstaller -y "$SPEC_ONEFILE"
+fi
+
+if [[ "$need_onedir" -eq 1 ]]; then
+  echo "==> pyinstaller (onedir, for tests)"
+  rm -rf "dist/openspec-extended-onedir"
+  pyinstaller "$SPEC_ONEDIR"
+fi
+
+if [[ "$need_onefile" -eq 0 ]] && [[ "$need_onedir" -eq 0 ]]; then
+  echo "dist/openspec-extended + onedir up to date; skipping pyinstaller"
+fi
+
+# Forward any extra args (matches the previous inline behavior).
+: "${@:-}"
