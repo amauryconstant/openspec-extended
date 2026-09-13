@@ -13,9 +13,12 @@ require_e2e_confirm() {
     fi
 }
 
-setup_e2e_repo() {
-    E2E_DIR=$(mktemp -d /tmp/openspec-e2e-XXXXXX)
-    cd "$E2E_DIR" || exit 1
+setup_file() {
+    # Build the pre-installed opencode tree once per bats file (instead of
+    # once per test). Each per-test setup() then copies this tree into a
+    # fresh tmpdir, which is ~10x faster than re-running the install.
+    SHARED_E2E_DIR=$(mktemp -d /tmp/openspec-shared-XXXXXX)
+    cd "$SHARED_E2E_DIR" || exit 1
 
     git init -q
     git config user.email "e2e@test.com"
@@ -29,6 +32,29 @@ setup_e2e_repo() {
 
     mkdir -p openspec/changes
 
+    export SHARED_E2E_DIR
+}
+
+teardown_file() {
+    if [[ -n "${SHARED_E2E_DIR:-}" ]] && [[ -d "$SHARED_E2E_DIR" ]]; then
+        rm -rf "$SHARED_E2E_DIR"
+    fi
+}
+
+setup_e2e_repo() {
+    # Per-test isolated copy of the pre-installed tree built in setup_file.
+    # Tests that want a clean repo (e.g. `install ... --with-autonomous`
+    # smoke tests) `cd "$BATS_TEST_TMPDIR"` and run their own install; this
+    # helper only needs to provide an opencode-equipped cwd for the
+    # `setup_minimal_change`-based tests (round-trip, state transitions).
+    E2E_DIR=$(mktemp -d /tmp/openspec-e2e-XXXXXX)
+
+    cp -a "$SHARED_E2E_DIR/.opencode" "$E2E_DIR/.opencode"
+    cp -a "$SHARED_E2E_DIR/.gitignore" "$E2E_DIR/.gitignore" 2>/dev/null || true
+    cp -a "$SHARED_E2E_DIR/.git" "$E2E_DIR/.git"
+    mkdir -p "$E2E_DIR/openspec/changes"
+
+    cd "$E2E_DIR" || exit 1
     export E2E_DIR
 }
 

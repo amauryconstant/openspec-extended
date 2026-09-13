@@ -32,6 +32,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=9.0",
+    "pytest-xdist>=3.6",
     "pyinstaller>=6.0",
 ]
 
@@ -57,4 +58,5 @@ markers = [
     "mechanism: Mechanism tests - CLI validation without AI calls",
     "e2e: E2E full tests - require AI calls (set E2E_CONFIRM=1)",
     "contract: Contract tests against live openspec CLI (auto-skip if absent)",
+    "upstream: Tests that require an installed upstream openspec CLI (skipped by default)",
 ]

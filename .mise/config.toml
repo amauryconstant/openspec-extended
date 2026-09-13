@@ -25,35 +25,24 @@ run = [
 ]
 
 [tasks.test]
-description = "Run unit, integration and mechanism tests"
+description = "Run unit, integration and mechanism tests (pytest + bats)"
+depends = "build --log-level FATAL"
 run = [
-    { task = "test:unit" },
+    { task = "test:pytest" },
     { task = "test:unit:bats" },
-    { task = "test:integration" },
-    { task = "test:mechanism" },
     { task = "test:mechanism:bats" },
 ]
 
-[tasks."test:unit"]
-description = "Run unit tests"
-run = "uv run pytest -m unit -q"
+[tasks."test:pytest"]
+description = "Run unit, integration and mechanism pytest markers in one process (parallel)"
+run = "uv run pytest -m 'unit or (integration and not upstream) or mechanism' -q -n auto -p no:cacheprovider"
 
 [tasks."test:unit:bats"]
 description = "Run bats unit tests for install.sh"
-depends = "build --log-level FATAL"
 run = "bats tests/unit/install.bats"
-
-[tasks."test:integration"]
-description = "Run integration tests"
-run = "uv run pytest -m integration -q"
-
-[tasks."test:mechanism"]
-description = "Run mechanism tests (no AI calls)"
-run = "uv run pytest -m mechanism -q"
 
 [tasks."test:mechanism:bats"]
 description = "Run bats mechanism tests against built binary (no AI calls)"
-depends = "build --log-level FATAL"
 run = "bats tests/e2e/mechanism.bats tests/e2e/store-and-config-passthrough.bats"
 
 [tasks."test:e2e"]
@@ -78,8 +67,9 @@ description = "Type check Python files with ty"
 run = "ty check orchestrator/source/"
 
 [tasks.build]
-description = "Build pyinstaller binary"
-run = "pyinstaller openspec.spec"
+description = "Build pyinstaller binary (skips when up to date)"
+run = '''if [ ! -x dist/openspec-extended ] || find orchestrator/source orchestrator/resources skills/resources openspec.spec -type f -newer dist/openspec-extended -print -quit 2>/dev/null | grep -q .; then echo "==> pyinstaller"; pyinstaller openspec.spec; else echo "dist/openspec-extended up to date; skipping pyinstaller"; fi
+: "${@:-}" '''
 
 [tasks.clean]
 description = "Remove PyInstaller artifacts (build/, dist/)"

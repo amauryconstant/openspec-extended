@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.upstream]
 
 
 def _run_osx(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
