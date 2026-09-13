@@ -307,23 +307,10 @@ class TestSkillTaxonomy:
             )
 
     def test_claude_skill_count_drift_is_documented(self):
-        """Claude ships more skill dirs than OpenCode; AGENTS.md explains the drift."""
-        claude_skill_dirs = _claude_skill_dirs()
-        assert len(claude_skill_dirs) > len(CANONICAL_SKILL_NAMES), (
-            f"Claude should ship more skill dirs than OpenCode (due to dual-emit); "
-            f"got {len(claude_skill_dirs)} claude dirs vs "
-            f"{len(CANONICAL_SKILL_NAMES)} opencode canonical"
-        )
-
-        agents_text = _read(CLAUDE_SKILLS_AGENTS)
-        assert "Skill count on Claude" in agents_text, (
-            "orchestrator/resources/claude/skills/AGENTS.md must include a "
-            "'Skill count on Claude' section that explains the dual-emit drift"
-        )
-        assert "dual-emit" in agents_text.lower(), (
-            "orchestrator/resources/claude/skills/AGENTS.md must reference 'dual-emit' "
-            "when explaining the count drift"
-        )
+        """Phase 2A: dropped with the on-disk Claude mirror. Per-adapter
+        rendering produces both forms from a single canonical source;
+        the deploy-time parity is enforced by
+        ``tests/integration/test_install_flow.py::TestInstallClaudeDualEmit``."""
 
     def test_required_skills_for_default_install_excludes_workflow(self):
         """osx-workflow is gated by --with-autonomous; absent from REQUIRED_SKILLS."""

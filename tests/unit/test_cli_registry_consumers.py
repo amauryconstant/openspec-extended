@@ -148,7 +148,10 @@ class TestDeployCommandsRoutesByCommandsStyle:
         target.mkdir(parents=True)
         deploy_commands(source, target, "osx-review", tool="claude")
 
-        cmd_file = target / "commands" / "osx-review.md"
+        # Phase 2A: claude's legacy form is nested under ``commands/osx/``
+        # with the ``osx-`` prefix stripped (the deploy path is now driven
+        # by ``adapter.commands_dir`` + ``adapter.cmd_filename_strip_prefix``).
+        cmd_file = target / "commands" / "osx" / "review.md"
         skill_mirror = target / "skills" / "osx-review" / "SKILL.md"
 
         assert cmd_file.is_file(), "claude: legacy command file missing"

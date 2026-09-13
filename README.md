@@ -76,7 +76,7 @@ openspec-extended install opencode,claude --with-autonomous
 Verify the install:
 ```bash
 ls .opencode/{skills,agents,commands}/   # opencode tree
-ls .claude/{skills,commands}/             # claude tree (dual-emit)
+ls .claude/{skills,commands}/             # claude tree (rendered at deploy time from opencode source)
 ```
 
 ## Install flags

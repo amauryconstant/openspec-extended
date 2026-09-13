@@ -33,7 +33,7 @@ PHASE0 dispatches `osx-analyzer` (`edit: deny`). **Do not edit artifacts inside 
 
    | Finding pattern | Recommended route |
    |---|---|
-   | All findings target a single artifact AND no coherence-level finding | `/osx-modify <name> <artifact-id>` |
+   | All findings target a single artifact AND no coherence-level finding | `{{SKILL_PREFIX}}osx-modify <name> <artifact-id>` |
    | Findings span ≥2 artifacts OR any coherence-level finding | `/opsx:update <name>` |
    | Missing artifacts | `/opsx:continue <name>` |
    | `retire_capabilities: true` in `.openspec.yaml` AND planning is complete | `/opsx:archive <name>` (skip PHASE1–PHASE5; orchestrator stamps `state.retire_capabilities = true` so PHASE6 runs directly) |
@@ -51,7 +51,7 @@ marker and short-circuits to PHASE6 automatically.
 
 6. Track iteration via `osx log` and `osx iterations` per §DECISION LOG / §ITERATIONS.JSON below. Do **not** include an `artifacts-modified` list unless the change's artifacts were modified by something other than this phase.
 
-7. After the user has applied fixes via `/osx-modify` or `/opsx:update`, the next PHASE0 iteration runs review again. Repeat up to the iteration cap.
+7. After the user has applied fixes via `{{SKILL_PREFIX}}osx-modify` or `/opsx:update`, the next PHASE0 iteration runs review again. Repeat up to the iteration cap.
 
 8. **Max iterations reached without clean review:**
    - Document all remaining Critical issues via `osx log`.
@@ -68,7 +68,7 @@ See `references/phase-protocol-common.md#mandatory-end`. PHASE0 never commits ar
 openspec-extended osx state complete "$1"
 
 # Non-clean review (routes pending — engine halts until user runs them)
-openspec-extended osx state set-routes "$1" --routes "/osx-modify,/opsx:update"
+openspec-extended osx state set-routes "$1" --routes "{{SKILL_PREFIX}}osx-modify,/opsx:update"
 
 # Critical blocker
 openspec-extended osx complete set "$1" BLOCKED --blocker-reason "[Describe the blocking issue]"
@@ -101,7 +101,7 @@ See `references/blocker-semantics.md` for the canonical signal. Phase-specific r
 
 ## GUARDRAILS
 
-- **Read-only.** Editor actions belong to `/osx-modify` (single artifact) or `/opsx:update` (multi-artifact / coherence drift).
+- **Read-only.** Editor actions belong to `{{SKILL_PREFIX}}osx-modify` (single artifact) or `/opsx:update` (multi-artifact / coherence drift).
 - **Max 10 review iterations.**
 - **Single source of artifact names**: `openspec status --change <name> --json` and `openspec instructions <id> --change <name> --json`. No hardcoded `proposal.md`/`specs/`/`design.md`/`tasks.md`.
 - **Carry `--store <id>`** when the change is store-backed.

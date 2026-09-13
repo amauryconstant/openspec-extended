@@ -21,7 +21,7 @@ from source import __version__
 from source.lib.osx import AUTONOMOUS_RESOURCE_NAMES, REQUIRED_CORE_SKILLS
 from source.orchestrator.engine import OrchestratorState, run_orchestrator
 from source.osx_cli import osx_app
-from source.tools import REGISTRY, _adapter_tokens
+from source.tools import REGISTRY, ToolAdapter, _adapter_tokens
 
 SCRIPT_NAME = "openspec-extended"
 
@@ -326,13 +326,21 @@ def _substitute_tokens_in_tree(root: Path, tool: str) -> None:
         _substitute_tokens_in_file(md_file, tool)
 
 
-def _build_claude_skill_from_command(source_path: Path, name: str) -> str:
-    """Read an opencode command file and render it as a Claude SKILL.md body.
+def _build_skill_mirror(source_path: Path, name: str, adapter: ToolAdapter) -> str:
+    """Read an opencode command file and render it as a per-adapter SKILL.md body.
 
-    Strips opencode-only ``agent:`` frontmatter (Claude has no equivalent
-    dispatch model), injects ``name: <name>`` so the skill carries a slash
-    command identifier, and preserves everything else verbatim. Returns the
-    rendered string; callers write it to disk.
+    Drives three adapter-controlled behaviours:
+
+    - ``agent_field_transform`` strips opencode-only ``agent:`` lines
+      for tools whose slash resolver doesn't read opencode's dispatch
+      model (Claude, Cursor, Codex, Kimi).
+    - ``inject_name_in_skill_mirror`` adds ``name: <name>`` for tools
+      whose slash resolver reads it from frontmatter (Claude).
+      Tools that derive the skill name from the on-disk directory
+      (opencode) skip this.
+    - inline fallback handles the rare unclosed-frontmatter case.
+
+    Returns the rendered string; callers write it to disk.
     """
     raw = source_path.read_text()
     in_fm = False
@@ -346,15 +354,18 @@ def _build_claude_skill_from_command(source_path: Path, name: str) -> str:
                 out_lines.append(line)
                 continue
             if not seen_close:
-                out_lines.append(f"name: {name}\n")
+                if adapter.inject_name_in_skill_mirror:
+                    out_lines.append(f"name: {name}\n")
                 seen_close = True
                 in_fm = False
             out_lines.append(line)
             continue
-        if in_fm and line.lstrip().startswith("agent:"):
-            continue
+        if in_fm and adapter.agent_field_transform is not None:
+            line = adapter.agent_field_transform(line)
+            if line == "":
+                continue
         out_lines.append(line)
-    if not seen_close:
+    if not seen_close and adapter.inject_name_in_skill_mirror:
         # File had no closing frontmatter fence; still inject name on a fresh header.
         return f"---\nname: {name}\n---\n{raw}"
     return "".join(out_lines)
@@ -377,14 +388,25 @@ def _referenced_skill_refs(body: str) -> list[str]:
 def deploy_commands(
     source_base: Path, target_dir: Path, name: str, tool: str = "opencode"
 ) -> None:
-    target_commands = target_dir / "commands"
+    adapter = REGISTRY[tool]
+    if adapter.commands_style == "skills-only":
+        # Tools that resolve skill invocations only (Codex, Kimi, Zed,
+        # ForgeCode) don't load slash-command files. The skill mirror
+        # is emitted by ``deploy_skills`` elsewhere; no command file
+        # is written here.
+        log_info(f"no command surface for {tool!r} (commands_style=skills-only)")
+        return
+
+    # Adapter-driven legacy form: commands_dir (subdir layout) +
+    # cmd_filename_strip_prefix (prefix strip). For opencode this is
+    # ``target/commands/<name>.md`` (flat, prefix preserved); for Claude
+    # it's ``target/commands/osx/<base>.md`` (nested, prefix stripped).
+    cmd_subdir_parts = adapter.commands_dir.split("/")
+    target_commands = target_dir.joinpath(*cmd_subdir_parts)
     target_commands.mkdir(parents=True, exist_ok=True)
+
     source_path = source_base / f"{name}.md"
-    if source_path.exists():
-        target_cmd_path = target_commands / f"{name}.md"
-        shutil.copy2(source_path, target_cmd_path)
-        _substitute_tokens_in_file(target_cmd_path, tool)
-    else:
+    if not source_path.exists():
         for subdir in source_base.iterdir():
             if subdir.is_dir():
                 base_name = (
@@ -392,17 +414,20 @@ def deploy_commands(
                 )
                 alt_source = subdir / f"{base_name}.md"
                 if alt_source.exists():
-                    subdir_name = subdir.name
-                    (target_commands / subdir_name).mkdir(parents=True, exist_ok=True)
-                    target_cmd_path = target_commands / subdir_name / f"{base_name}.md"
-                    shutil.copy2(alt_source, target_cmd_path)
-                    _substitute_tokens_in_file(target_cmd_path, tool)
                     source_path = alt_source
                     break
         else:
             raise FileNotFoundError(f"Command not found: {name}")
 
-    adapter = REGISTRY[tool]
+    deployed_name = name
+    if adapter.cmd_filename_strip_prefix and name.startswith(
+        adapter.cmd_filename_strip_prefix
+    ):
+        deployed_name = name[len(adapter.cmd_filename_strip_prefix):]
+    target_cmd_path = target_commands / f"{deployed_name}.md"
+    shutil.copy2(source_path, target_cmd_path)
+    _substitute_tokens_in_file(target_cmd_path, tool)
+
     if adapter.commands_style != "namespaced-with-skill-mirror":
         # Single-emit layouts (opencode today; future flat adapters) write
         # the command file only — the file format and the per-tool
@@ -418,7 +443,7 @@ def deploy_commands(
     skill_dir = target_dir / "skills" / name
     skill_dir.mkdir(parents=True, exist_ok=True)
     skill_md = skill_dir / "SKILL.md"
-    skill_md.write_text(_build_claude_skill_from_command(source_path, name))
+    skill_md.write_text(_build_skill_mirror(source_path, name, adapter))
     _substitute_tokens_in_file(skill_md, tool)
 
     # Copy any references/ files referenced from the body so the skill
@@ -494,17 +519,11 @@ def deploy_type(
         # so this defensive skip rarely fires — but it remains for
         # safety against manifest entries that drift from the on-disk
         # layout. Skills are directories; commands and agents are files.
-        # Claude commands may also live under a nested ``osx/`` subdir.
         if resource_type == "skills":
             source_path = source_type_dir / name
         else:
             source_path = source_type_dir / f"{name}.md"
-        if source_path.exists():
-            pass
-        elif (source_type_dir / "osx" / f"{name.replace('osx-', '', 1)}.md").exists():
-            # Claude: source lives at <tree>/osx/<base>.md
-            pass
-        else:
+        if not source_path.exists():
             continue
 
         target_path = get_target_path(resource_type, target_dir, name)
@@ -594,18 +613,25 @@ def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
     Phase 5 split the on-disk manifests: each side writes its own manifest
     at the target. Orchestrator-side resources land at ``<target>/manifest.toml``
     (legacy position); skills-side resources land at ``<target>/skills-manifest.toml``.
+
+    Phase 2A: the canonical on-disk source is ``opencode/`` for every tool;
+    the ``ToolAdapter`` drives per-tool rendering (commands_dir layout,
+    cmd_filename_strip_prefix, inject_name_in_skill_mirror,
+    agent_field_transform, token substitution). The per-tool source
+    trees were deleted in lockstep — there is no ``<tool>/`` source
+    to read from anymore.
     """
     source_version = __version__
     target_dir = Path.cwd() / TOOL_DIRS[tool]
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    orchestrator_source_dir = get_resources_dir() / tool
+    orchestrator_source_dir = get_resources_dir() / "opencode"
     _, orchestrator_manifest = _resolve_side_manifest(orchestrator_source_dir)
     if not orchestrator_manifest:
         log_error(f"Manifest not found: {orchestrator_source_dir / 'manifest.toml'}")
         raise SystemExit(1)
 
-    skills_source_dir = get_skills_resources_dir() / tool
+    skills_source_dir = get_skills_resources_dir() / "opencode"
     _, skills_manifest = _resolve_side_manifest(skills_source_dir)
 
     total_count = 0
@@ -794,6 +820,12 @@ def purge_managed_resources(
                     continue
                 if safe_remove(entry):
                     removed += 1
+        elif adapter.commands_style in ("skills-only", "namespaced"):
+            # skills-only: tool doesn't load command files at all
+            # (Codex, Kimi, Zed, ForgeCode). No commands/ subdir to walk.
+            # namespaced: declared in the type system for future use; no
+            # shipped adapter exercises it. Both are no-ops here.
+            pass
         else:
             raise NotImplementedError(
                 f"purge_managed_resources: commands_style={adapter.commands_style!r}"

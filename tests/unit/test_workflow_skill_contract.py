@@ -10,7 +10,9 @@ Locks in two things:
    claim).
 2. The TL;DR summary table at the top of the skill uses the same mapping.
 
-Mirrored for both ``resources/opencode/`` and ``resources/claude/`` trees.
+Phase 2A: opencode is the single canonical source; per-adapter rendering
+propagates the body verbatim, so the contract is enforced by construction
+on every adapter.
 """
 
 from __future__ import annotations
@@ -24,7 +26,6 @@ REPO_ROOT = Path(__file__).parent.parent.parent
 
 SKILL_PATHS = [
     REPO_ROOT / "orchestrator" / "resources" / "opencode" / "skills" / "osx-workflow" / "SKILL.md",
-    REPO_ROOT / "orchestrator" / "resources" / "claude" / "skills" / "osx-workflow" / "SKILL.md",
 ]
 
 

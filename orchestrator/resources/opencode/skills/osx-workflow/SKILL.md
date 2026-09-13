@@ -13,7 +13,7 @@ Operational reference for the 7-phase loop driven by `openspec-extended orchestr
 ## TL;DR
 
 ```
-PHASE0 ARTIFACT_REVIEW → osx-analyzer   → osx-review-artifacts (audit + routing); /osx-modify or /opsx:update for fixes
+PHASE0 ARTIFACT_REVIEW → osx-analyzer   → osx-review-artifacts (audit + routing); {{SKILL_PREFIX}}osx-modify or /opsx:update for fixes
 PHASE1 IMPLEMENTATION  → osx-builder    → osc-apply-change, osx-review-test-compliance
 PHASE2 REVIEW          → osx-reviewer   → osc-verify-change (writes verification-report.md, commits)
 PHASE3 MAINTAIN_DOCS   → osx-maintainer → osx-maintain-ai-docs
@@ -159,7 +159,7 @@ All live in `openspec/changes/<change>/` (or `openspec/changes/archive/YYYY-MM-D
 | `set-routes` | `<change> --routes "<comma-separated slash commands>"` | PHASE0 only: queue slash commands the user should run |
 | `clear-routes` | `<change>` | Clear pending routes |
 
-**Transition reasons** (canonical): `implementation_incorrect` (code wrong, don't modify artifacts), `artifacts_modified` (specs/design updated via `/opsx:update`, fallback `/osx-modify` for isolated defects, go to PHASE1), `retry_requested` (same phase, different approach).
+**Transition reasons** (canonical): `implementation_incorrect` (code wrong, don't modify artifacts), `artifacts_modified` (specs/design updated via `/opsx:update`, fallback `{{SKILL_PREFIX}}osx-modify` for isolated defects, go to PHASE1), `retry_requested` (same phase, different approach).
 
 ### `phase` — phase sequence
 
@@ -254,7 +254,7 @@ The orchestrator detects `complete.json` and halts.
 
 A blocker is **not**:
 - Failing tests (fix in PHASE1, commit, re-iterate)
-- Unclear specs (route via `osx-review-artifacts`, fix via `/osx-modify <name> <artifact-id>` or `/opsx:update <name>`)
+- Unclear specs (route via `osx-review-artifacts`, fix via `{{SKILL_PREFIX}}osx-modify <name> <artifact-id>` or `/opsx:update <name>`)
 - Missing dependency (add it)
 - Implementation bug (transition `… implementation_incorrect` to PHASE1)
 
@@ -323,7 +323,7 @@ Before any phase action, verify:
 - **Quick feature (single-session)**: `osc-new-change` → `osc-ff-change` → `osc-apply-change` → `osc-verify-change` → `osc-archive-change`
 - **Exploratory**: `osc-explore` → [investigation] → `osc-new-change` → `osc-continue-change` → ... → `osc-apply-change`
 - **Parallel changes (no orchestrator)**: switch between changes with explicit names; archive one before resuming the paused one.
-- **Enhanced manual**: `osc-new-change` → `osc-ff-change` → `/osx-review <name>` → `{/osx-modify | /opsx:update}` → `osc-apply-change` → `osx-review-test-compliance` → `osx-maintain-ai-docs` → `osc-archive-change` → `osx-generate-changelog`
+- **Enhanced manual**: `osc-new-change` → `osc-ff-change` → `{{SKILL_PREFIX}}osx-review <name>` → `{{SKILL_PREFIX}}osx-modify | /opsx:update` → `osc-apply-change` → `osx-review-test-compliance` → `osx-maintain-ai-docs` → `osc-archive-change` → `osx-generate-changelog`
 - **Autonomous (full 7-phase loop)**: `openspec-extended orchestrate <change>`. PHASE0 is read-only — emits routing report; user invokes the routed slash command externally.
 
 ---

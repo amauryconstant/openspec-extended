@@ -12,14 +12,7 @@ repos:
         name: Check version bump in versioned files
         entry: mise run version:check
         language: system
-        files: ^(resources/(opencode|claude)/(skills/.*/(SKILL\.md|references/.*\.md)|agents/.*\.md|commands/.*\.md)|install\.sh)$
-        pass_filenames: false
-
-      - id: sync-mirrors-check
-        name: Verify Claude mirror is in sync with OpenCode
-        entry: mise run sync-mirrors --check
-        language: system
-        files: ^resources/(opencode|claude)/(skills|commands)/.*\.md$
+        files: ^(resources/opencode/(skills/.*/(SKILL\.md|references/.*\.md)|agents/.*\.md|commands/.*\.md)|install\.sh)$
         pass_filenames: false
 
       - id: check-platform-hardcodes

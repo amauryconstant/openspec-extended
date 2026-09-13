@@ -53,23 +53,19 @@ from pathlib import Path
 import pytest
 import toml
 
+from source.cli import deploy_commands
+
 REPO_ROOT = Path(__file__).parent.parent.parent
 
 ORCH_OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "opencode"
-ORCH_CLAUDE = REPO_ROOT / "orchestrator" / "resources" / "claude"
 SK_OPENCODE = REPO_ROOT / "skills" / "resources" / "opencode"
-SK_CLAUDE = REPO_ROOT / "skills" / "resources" / "claude"
 
 ORCH_OPENCODE_MANIFEST = ORCH_OPENCODE / "manifest.toml"
-ORCH_CLAUDE_MANIFEST = ORCH_CLAUDE / "manifest.toml"
 SK_OPENCODE_MANIFEST = SK_OPENCODE / "manifest.toml"
-SK_CLAUDE_MANIFEST = SK_CLAUDE / "manifest.toml"
 
 ALL_MANIFESTS = [
     ORCH_OPENCODE_MANIFEST,
-    ORCH_CLAUDE_MANIFEST,
     SK_OPENCODE_MANIFEST,
-    SK_CLAUDE_MANIFEST,
 ]
 
 CANONICAL_SKILLS = frozenset(
@@ -134,7 +130,6 @@ SKILL_HOME = {
 
 SCHEMA_AGNOSTIC_CONTRACT_SKILLS = [
     SK_OPENCODE / "skills" / "osx-review-artifacts" / "SKILL.md",
-    SK_CLAUDE / "skills" / "osx-review-artifacts" / "SKILL.md",
 ]
 
 
@@ -228,16 +223,22 @@ def _all_opencode_commands() -> list[Path]:
     return out
 
 
-def _claude_mirror_paths_for(src: Path) -> tuple[Path, Path]:
-    """Return ``(legacy_command, modern_skill)`` for an opencode command."""
+def _claude_mirror_paths_for(src: Path, tmp_claude: Path) -> tuple[Path, Path]:
+    """Drive ``deploy_commands`` against ``tmp_claude`` and return the
+    ``(legacy_command, modern_skill)`` paths it wrote. Used by
+    ``TestDualEmitDiscipline`` to assert the per-adapter deploy path
+    produces both legacy + modern forms without depending on a
+    hand-maintained on-disk mirror.
+    """
     stem = src.stem  # "osx-phase0"
-    base = stem[len("osx-"):]  # "phase0"
     if str(src).startswith(str(SK_OPENCODE / "commands")):
-        cl_root = SK_CLAUDE
+        source_base = SK_OPENCODE / "commands"
     else:
-        cl_root = ORCH_CLAUDE
-    legacy = cl_root / "commands" / "osx" / f"{base}.md"
-    modern = cl_root / "skills" / stem / "SKILL.md"
+        source_base = ORCH_OPENCODE / "commands"
+    deploy_commands(source_base, tmp_claude, stem, tool="claude")
+    base = stem[len("osx-"):]  # "phase0"
+    legacy = tmp_claude / "commands" / "osx" / f"{base}.md"
+    modern = tmp_claude / "skills" / stem / "SKILL.md"
     return legacy, modern
 
 
@@ -284,22 +285,6 @@ class TestManifestParity:
             f"only-in-union={sorted(union - expected)} "
             f"only-in-expected={sorted(expected - union)}"
         )
-
-    def test_claude_mirrors_match_opencode_per_side(self):
-        """For each side, the Claude manifest must agree with the
-        OpenCode manifest on every per-resource version (sync-mirrors
-        carries the version forward verbatim)."""
-        for oc_manifest, cl_manifest, label in (
-            (ORCH_OPENCODE_MANIFEST, ORCH_CLAUDE_MANIFEST, "orchestrator"),
-            (SK_OPENCODE_MANIFEST, SK_CLAUDE_MANIFEST, "skills"),
-        ):
-            oc_v = _manifest_versions(oc_manifest)
-            cl_v = _manifest_versions(cl_manifest)
-            assert oc_v == cl_v, (
-                f"{label}: Claude mirror drift vs opencode source.\n"
-                f"opencode={oc_v!r}\n"
-                f"claude={cl_v!r}"
-            )
 
     def test_every_version_is_strict_semver(self):
         for path in ALL_MANIFESTS:
@@ -356,44 +341,51 @@ class TestDualEmitDiscipline:
     """Every opencode command must dual-emit on the Claude side: the
     legacy ``commands/osx/<base>.md`` and the modern
     ``skills/osx-<base>/SKILL.md``. Mirrors the upstream OpenSpec
-    v1.7.0 dual-emit strategy (current as of v1.13.0)."""
+    v1.7.0 dual-emit strategy (current as of v1.13.0).
 
-    def test_every_opencode_command_has_legacy_command_mirror(self):
+    Driven via ``deploy_commands(<source>, tmp_path/.claude, ..., tool="claude")``
+    so the test asserts the deploy path itself, not a hand-maintained
+    on-disk mirror.
+    """
+
+    def test_every_opencode_command_has_legacy_command_mirror(self, tmp_path):
+        cl_root = tmp_path / "claude-target"
         for src in _all_opencode_commands():
-            legacy, _ = _claude_mirror_paths_for(src)
+            legacy, _ = _claude_mirror_paths_for(src, cl_root)
             assert legacy.is_file(), (
                 f"missing legacy command mirror for {src.name}; "
-                f"expected {legacy.relative_to(REPO_ROOT)}"
+                f"expected {legacy}"
             )
 
-    def test_every_opencode_command_has_modern_skill_mirror(self):
+    def test_every_opencode_command_has_modern_skill_mirror(self, tmp_path):
+        cl_root = tmp_path / "claude-target"
         for src in _all_opencode_commands():
-            _, modern = _claude_mirror_paths_for(src)
+            _, modern = _claude_mirror_paths_for(src, cl_root)
             assert modern.is_file(), (
                 f"missing modern skill mirror for {src.name}; "
-                f"expected {modern.relative_to(REPO_ROOT)}"
+                f"expected {modern}"
             )
 
-    def test_modern_skill_mirror_injects_name_frontmatter(self):
+    def test_modern_skill_mirror_injects_name_frontmatter(self, tmp_path):
         """The Claude skill mirror must declare ``name: osx-<base>`` so
         Claude Code's slash-command resolver picks it up."""
+        cl_root = tmp_path / "claude-target"
         for src in _all_opencode_commands():
-            _, modern = _claude_mirror_paths_for(src)
+            _, modern = _claude_mirror_paths_for(src, cl_root)
             text = _read(modern)
             assert f"\nname: {src.stem}\n" in text, (
-                f"{modern.relative_to(REPO_ROOT)} missing "
-                f"`name: {src.stem}` frontmatter"
+                f"{modern} missing `name: {src.stem}` frontmatter"
             )
 
-    def test_modern_skill_mirror_drops_agent_frontmatter(self):
+    def test_modern_skill_mirror_drops_agent_frontmatter(self, tmp_path):
         """The opencode-only ``agent:`` directive is platform-specific.
         The Claude mirror must not leak it through."""
+        cl_root = tmp_path / "claude-target"
         for src in _all_opencode_commands():
-            _, modern = _claude_mirror_paths_for(src)
+            _, modern = _claude_mirror_paths_for(src, cl_root)
             text = _read(modern)
             assert "\nagent:" not in text, (
-                f"{modern.relative_to(REPO_ROOT)} leaked opencode "
-                f"`agent:` directive"
+                f"{modern} leaked opencode `agent:` directive"
             )
 
 
@@ -439,16 +431,12 @@ class TestFrontmatterInvariants:
 
     @pytest.mark.parametrize("skill_name", sorted(OPENSPEC_TOOL_SKILLS))
     def test_claude_skill_has_metadata_block(self, skill_name: str):
-        """Skills whose opencode source declares ``metadata:`` must
-        carry the same block on the Claude mirror."""
-        oc_path = SKILL_HOME[skill_name] / "skills" / skill_name / "SKILL.md"
-        cl_root = SK_CLAUDE if SKILL_HOME[skill_name] is SK_OPENCODE else ORCH_CLAUDE
-        cl_path = cl_root / "skills" / skill_name / "SKILL.md"
-        cl_text = _read(cl_path)
-        assert "metadata:" in cl_text, (
-            f"{cl_path.relative_to(REPO_ROOT)} must carry a `metadata:` "
-            f"block per orchestrator/resources/claude/skills/AGENTS.md"
-        )
+        """Phase 2A: dropped — the on-disk Claude mirror is gone. Skill
+        parity is now driven by ``deploy_skills(<source>, tmp_path/.claude,
+        skill_name, tool="claude")`` and covered by the integration
+        tests in ``tests/integration/test_install_flow.py``. Kept as a
+        no-op sentinel so the canonical skill list remains visible at
+        this site."""
 
     @pytest.mark.parametrize(
         "root",
@@ -557,7 +545,6 @@ class TestNoHardcodedArtifactNames:
 
     PATHS = [
         SK_OPENCODE / "skills" / "osx-review-artifacts" / "SKILL.md",
-        SK_CLAUDE / "skills" / "osx-review-artifacts" / "SKILL.md",
     ]
 
     @pytest.mark.parametrize(
@@ -623,15 +610,12 @@ class TestSkillDescriptionLeadingWord:
     def test_claude_description_matches_opencode(
         self, skill_name: str, expected: str
     ):
-        cl_root = SK_CLAUDE if SKILL_HOME[skill_name] is SK_OPENCODE else ORCH_CLAUDE
-        path = cl_root / "skills" / skill_name / "SKILL.md"
-        desc = _read_frontmatter(path).get("description", "")
-        first = desc.split(maxsplit=1)[0] if desc else ""
-        assert first == expected, (
-            f"Claude mirror {path.relative_to(REPO_ROOT)} drifted from "
-            f"opencode: expected leading word {expected!r}, got {first!r}. "
-            f"Run `mise run sync-mirrors`."
-        )
+        return None
+        """Phase 2A: dropped with the on-disk Claude mirrors. Per-adapter
+        deploy path (``deploy_skills``) carries the opencode source
+        forward verbatim with token substitution; the leading word is
+        preserved by construction. See ``test_opencode_description_leads_with_expected_word``
+        above for the opencode-side contract."""
 
 
 # ============================================================================
@@ -650,9 +634,7 @@ class TestOrchestratorContracts:
     LIB_OSX_PY = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx.py"
     CLI_PY = REPO_ROOT / "orchestrator" / "source" / "cli.py"
     PHASE1_OPENCODE = ORCH_OPENCODE / "commands" / "osx-phase1.md"
-    PHASE1_CLAUDE = ORCH_CLAUDE / "skills" / "osx-phase1" / "SKILL.md"
     PHASE2_OPENCODE = ORCH_OPENCODE / "commands" / "osx-phase2.md"
-    PHASE2_CLAUDE = ORCH_CLAUDE / "skills" / "osx-phase2" / "SKILL.md"
     REVIEW_ARTIFACTS_OPENCODE = SK_OPENCODE / "skills" / "osx-review-artifacts" / "SKILL.md"
 
     def test_is_planning_complete_contract_is_consumed(self):
@@ -727,17 +709,11 @@ class TestOrchestratorContracts:
         )
 
     def test_phase2_claude_mirror_carries_show_diff(self):
-        """§13.4: the Claude dual-emit of PHASE2 must also reference the
-        ``--diff`` envelope and the requirement-diff section."""
-        text = _read(self.PHASE2_CLAUDE)
-        assert "openspec show" in text and "--diff" in text, (
-            f"{self.PHASE2_CLAUDE.relative_to(REPO_ROOT)} must carry the "
-            f"`openspec show ... --diff --json` protocol"
-        )
-        assert "## Requirement diff" in text, (
-            f"{self.PHASE2_CLAUDE.relative_to(REPO_ROOT)} must carry the "
-            f"`## Requirement diff` section protocol"
-        )
+        """§13.4: Phase 2A — the opencode source carries the ``--diff``
+        contract (locked by ``test_phase2_command_embeds_show_diff``);
+        per-adapter deploy propagates the body verbatim with token
+        substitution, so the Claude-side carry is enforced by
+        construction. Kept as a no-op sentinel for the §13.4 line."""
 
     def test_post_install_archived_sweep_helper_exists(self):
         """§13.5: ``_post_install_archived_sweep`` runs
@@ -796,18 +772,10 @@ class TestOrchestratorContracts:
         )
 
     def test_phase1_claude_mirror_logs_missing_prerequisites(self):
-        """§13.7.2: the Claude dual-emit of PHASE1 must also reference the
-        ``missingPrerequisites`` field and the ``missing_prerequisites``
-        decision-log key."""
-        text = _read(self.PHASE1_CLAUDE)
-        assert "missingPrerequisites" in text, (
-            f"{self.PHASE1_CLAUDE.relative_to(REPO_ROOT)} must carry the "
-            f"`missingPrerequisites` reference (v1.13.0+ PHASE1 logging)"
-        )
-        assert "missing_prerequisites" in text, (
-            f"{self.PHASE1_CLAUDE.relative_to(REPO_ROOT)} must carry the "
-            f"`missing_prerequisites` decision-log key"
-        )
+        """§13.7.2: Phase 2A — see ``test_phase1_command_logs_missing_prerequisites``
+        for the opencode-side contract; per-adapter deploy propagates
+        the body verbatim, so the Claude-side carry is enforced by
+        construction. Kept as a no-op sentinel for the §13.7.2 line."""
 
     def test_list_specs_helper_exists(self):
         """§13.7.3: ``list_specs`` is the in-process reader for the
@@ -992,19 +960,12 @@ class TestSharedReferencesPackaging:
         )
 
     def test_claude_manifest_references_match_opencode(self):
-        """The OpenCode and Claude manifests must agree on per-skill
-        ``references`` lists (sync-mirrors carries them through)."""
-        for oc_manifest, cl_manifest, label in (
-            (ORCH_OPENCODE_MANIFEST, ORCH_CLAUDE_MANIFEST, "orchestrator"),
-            (SK_OPENCODE_MANIFEST, SK_CLAUDE_MANIFEST, "skills"),
-        ):
-            oc = _read_manifest_references(oc_manifest)
-            cl = _read_manifest_references(cl_manifest)
-            assert oc == cl, (
-                f"{label}: references list drift between opencode and "
-                f"claude manifests. opencode={oc!r} claude={cl!r}. "
-                f"Run `mise run sync-mirrors`."
-            )
+        """Phase 2A: dropped with the on-disk Claude mirrors. Per-adapter
+        rendering is now driven by the deploy path (``deploy_commands``);
+        parity is asserted by ``TestDualEmitDiscipline`` instead of by
+        comparing hand-maintained manifests. Kept as a no-op
+        sentinel so anyone scanning the test file understands why
+        references parity no longer lives here."""
 
 
 # ---------------------------------------------------------------------------

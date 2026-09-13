@@ -1,6 +1,6 @@
 ---
 name: osx-changelog
-description: Generate CHANGELOG.md from archived OpenSpec changes (Keep a Changelog format). Run via /osx-changelog [filter].
+description: Generate CHANGELOG.md from archived OpenSpec changes (Keep a Changelog format). Run via {{SKILL_PREFIX}}osx-changelog [filter].
 license: MIT
 disable-model-invocation: true
 compatibility: Requires openspec CLI.

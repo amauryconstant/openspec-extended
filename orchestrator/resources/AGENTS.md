@@ -11,17 +11,18 @@ tree.
 ```
 orchestrator/resources/
 ├── AGENTS.md                       # (you are here)
-├── opencode/                       # OpenCode platform (canonical)
+├── opencode/                       # OpenCode platform (canonical, single source)
 │   ├── manifest.toml               # Per-side manifest (orchestrator scope)
 │   ├── skills/osx-*/               # Workflow skills (osx-workflow etc.)
 │   │   └── references/             # Skill-specific deeper references
 │   ├── agents/osx-*.md             # Orchestrator-dispatched agents
 │   └── commands/osx-*.md           # Slash commands (single-emit, flat)
-└── claude/                         # Claude Code (auto-generated mirror)
-    ├── manifest.toml
-    ├── skills/osx-*/               # Mirrored skills (modern dual-emit)
-    └── commands/osx/<name>.md      # Legacy dual-emit form
 ```
+
+Phase 2A: only `opencode/` is on disk. The per-adapter Claude/Codex/Kimi/etc.
+layouts are rendered at deploy time by `orchestrator/source/cli.py:deploy_*`,
+driven by `orchestrator/source/tools.py:ToolAdapter`. There is no
+hand-maintained `claude/` mirror.
 
 ## Phase 4 / Phase 5 split rationale
 
@@ -37,7 +38,7 @@ side now owns a per-side manifest on disk and a per-side deploy loop.
 | Concern | Where the rules live |
 |---|---|
 | Naming (`osx-`/`osc-` prefixes) | `.opencode/rules/naming-conventions.md` |
-| Mirror generation (Claude ↔ OpenCode) | `.opencode/rules/mirror-generation.md` |
+| Per-adapter rendering (deploy-time token substitution + skill mirror) | `.opencode/rules/per-adapter-rendering.md` |
 | Per-resource version bumps | `.opencode/rules/version-management.md` |
 
 ## Resource types
@@ -108,5 +109,6 @@ Phase commands are the **only** entry points the orchestrator uses; do not renam
 
 - New resources get an `osx-` prefix; never collide with `osc-*` (core) names.
 - One manifest entry per resource; CI fails on missing entries.
-- Edit resources under `orchestrator/resources/opencode/` only; the `claude/` subtree is generated.
+- Edit resources under `orchestrator/resources/opencode/` only; per-adapter
+  rendering is driven by `ToolAdapter` fields at deploy time.
 - Files under `orchestrator/core/` are not in this manifest — that tree is synced from upstream.

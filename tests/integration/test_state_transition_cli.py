@@ -176,16 +176,13 @@ def _phase2_transition_blocks(platform: str) -> list[str]:
     `osx log append`/`osx iterations append` blocks; only Case A/B/C
     transition blocks remain.
     """
-    if platform == "opencode":
-        path = (
-            Path(__file__).resolve().parent.parent.parent
-            / "orchestrator/resources/opencode/commands/osx-phase2.md"
-        )
-    else:
-        path = (
-            Path(__file__).resolve().parent.parent.parent
-            / "orchestrator/resources/claude/commands/osx/phase2.md"
-        )
+    # Phase 2A: opencode is the single canonical source; per-adapter
+    # rendering propagates the body verbatim, so the contract is enforced
+    # by construction on every adapter.
+    path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "orchestrator/resources/opencode/commands/osx-phase2.md"
+    )
     text = path.read_text()
     return [b for b in _extract_bash_blocks(text) if "osx state transition " in b]
 
@@ -193,7 +190,9 @@ def _phase2_transition_blocks(platform: str) -> list[str]:
 @pytest.mark.integration
 class TestPhase2TransitionExamplesAreRunnable:
     """Regression sentinel: the Case A/B/C bash blocks in osx-phase2.md must
-    use the named-option form so they actually run against the current CLI."""
+    use the named-option form so they actually run against the current CLI.
+    Phase 2A: parametrized over the opencode source only — per-adapter
+    rendering propagates the body verbatim with token substitution."""
 
     @pytest.mark.parametrize(
         "platform,phase2_path",
@@ -202,11 +201,6 @@ class TestPhase2TransitionExamplesAreRunnable:
                 "opencode",
                 Path(__file__).resolve().parent.parent.parent
                 / "orchestrator/resources/opencode/commands/osx-phase2.md",
-            ),
-            (
-                "claude",
-                Path(__file__).resolve().parent.parent.parent
-                / "orchestrator/resources/claude/commands/osx/phase2.md",
             ),
         ],
     )
@@ -217,7 +211,7 @@ class TestPhase2TransitionExamplesAreRunnable:
         assert "--target" in text, f"{platform}: phase2.md must use --target"
         assert "--reason" in text, f"{platform}: phase2.md must use --reason"
 
-    @pytest.mark.parametrize("platform", ["opencode", "claude"])
+    @pytest.mark.parametrize("platform", ["opencode"])
     def test_every_transition_block_uses_named_options(self, platform: str) -> None:
         blocks = _phase2_transition_blocks(platform)
         assert len(blocks) >= 3, (
@@ -232,7 +226,7 @@ class TestPhase2TransitionExamplesAreRunnable:
                 f"{platform}: transition block #{i} missing --reason — full block:\n{block}"
             )
 
-    @pytest.mark.parametrize("platform", ["opencode", "claude"])
+    @pytest.mark.parametrize("platform", ["opencode"])
     def test_every_transition_block_runs_against_cli(
         self, platform: str, change_dir: Path, tmp_path: Path
     ) -> None:

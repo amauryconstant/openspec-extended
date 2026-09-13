@@ -10,7 +10,7 @@ are disjoint (locked by `tests/unit/test_resource_contract.py::TestManifestParit
 ```
 skills/resources/
 ├── AGENTS.md                       # (you are here)
-├── opencode/                       # OpenCode platform (canonical)
+├── opencode/                       # OpenCode platform (canonical, single source)
 │   ├── manifest.toml               # Skills-side manifest
 │   ├── skills/
 │   │   ├── osx-commit/             # commit message skill
@@ -19,19 +19,12 @@ skills/resources/
 │   └── commands/
 │       ├── osx-review.md           # slash command for review
 │       └── osx-verify-tests.md     # slash command for test compliance
-└── claude/                         # Claude Code (auto-generated mirror)
-    ├── manifest.toml
-    ├── skills/
-    │   ├── osx-commit/
-    │   ├── osx-review-artifacts/
-    │   ├── osx-review-test-compliance/
-    │   ├── osx-review/SKILL.md               # dual-emit of osx-review command
-    │   └── osx-verify-tests/SKILL.md         # dual-emit of osx-verify-tests command
-    └── commands/
-        └── osx/
-            ├── review.md
-            └── verify-tests.md
 ```
+
+Phase 2A: only `opencode/` is on disk. The per-adapter Claude/Codex/Kimi/etc.
+layouts are rendered at deploy time by `orchestrator/source/cli.py:deploy_*`,
+driven by `orchestrator/source/tools.py:ToolAdapter`. There is no
+hand-maintained `claude/` mirror.
 
 ## Skills in this tree
 
@@ -50,7 +43,7 @@ The three skills plus the two slash commands total 5 resources. The skills-side 
 | Concern | Where the rules live |
 |---|---|
 | Naming (`osx-`/`osc-` prefixes) | `.opencode/rules/naming-conventions.md` |
-| Mirror generation (Claude ↔ OpenCode) | `.opencode/rules/mirror-generation.md` |
+| Per-adapter rendering (deploy-time token substitution + skill mirror) | `.opencode/rules/per-adapter-rendering.md` |
 | Per-resource version bumps | `.opencode/rules/version-management.md` |
 | Review contract (`schema-agnostic-contract.md`, `store-selection.md`) | `orchestrator/resources/opencode/skills/references/` |
 
@@ -62,11 +55,11 @@ Skills in this tree may consume shared references from `orchestrator/resources/o
 
 1. Create or edit the file under `skills/resources/opencode/{skills,commands}/osx-<name>/...` first.
 2. Add the entry to `skills/resources/opencode/manifest.toml`.
-3. Run `mise run sync:mirrors` to regenerate the Claude mirror.
-4. Bump the version in the manifest.
+3. Bump the version in the manifest.
 
 ## Conventions
 
 - New resources get an `osx-` prefix; never collide with `osc-*` (core) names.
-- Edit `skills/resources/opencode/` only; the `claude/` subtree is generated.
+- Edit `skills/resources/opencode/` only; per-adapter rendering is driven
+  by `ToolAdapter` fields at deploy time.
 - The two side manifests are disjoint — never register a skills-side resource in `orchestrator/resources/opencode/manifest.toml`.

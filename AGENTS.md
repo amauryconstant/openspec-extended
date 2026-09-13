@@ -4,22 +4,24 @@ Bridge AI coding assistants with OpenSpec — spec-driven development framework.
 
 ## Mental Map
 
-| Side                | Role                                          | Source of truth                       | Mirror                                |
-| ------------------- | --------------------------------------------- | ------------------------------------- | ------------------------------------- |
-| **Orchestrator**    | Python CLI + 7-phase workflow engine          | `orchestrator/source/`                | n/a                                   |
-| **Resources (orch.)** | Workflow skills, agents, phase commands     | `orchestrator/resources/opencode/`    | `claude/` (auto-generated)            |
-| **Resources (skills)** | Gap-filling skills (commit, review, tests) | `skills/resources/opencode/`          | `claude/` (auto-generated)            |
-| **Core (vendored)** | Upstream OpenSpec workflows (read-only)       | `orchestrator/core/`                  | synced from upstream                  |
-| **Tests**           | pytest + bats suite                           | `tests/`                              | n/a                                   |
+| Side                | Role                                          | Source of truth                       |
+| ------------------- | --------------------------------------------- | ------------------------------------- |
+| **Orchestrator**    | Python CLI + 7-phase workflow engine          | `orchestrator/source/`                |
+| **Resources (orch.)** | Workflow skills, agents, phase commands     | `orchestrator/resources/opencode/`    |
+| **Resources (skills)** | Gap-filling skills (commit, review, tests) | `skills/resources/opencode/`          |
+| **Core (vendored)** | Upstream OpenSpec workflows (read-only)       | `orchestrator/core/`                  |
+| **Tests**           | pytest + bats suite                           | `tests/`                              |
 
-OpenCode is canonical. Claude mirrors are auto-generated. Core is synced from upstream. The two resource trees are disjoint (different `manifest.toml` per side).
+OpenCode is canonical on disk. Every other tool adapter renders from the
+OpenCode source at deploy time via `ToolAdapter`. Core is synced from
+upstream. The two resource trees are disjoint (different `manifest.toml`
+per side).
 
 ## Critical Rules
 
 - **NEVER** edit files in `orchestrator/core/` directly — use `mise run sync-core`.
-- **NEVER** edit files in `**/claude/` directly — edit the opencode sibling, then `mise run sync:mirrors`.
 - **NEVER** bump versions by hand — use `mise run release` (project) or `mise run version:update` (per-resource).
-- Pre-commit hook `sync-mirrors-check` fails the commit if any Claude mirror drifts.
+- Pre-commit hook `check-platform-hardcodes` fails the commit if any per-tool hardcode slips into `cli.py` / `runner.py` / `lib/osx.py`.
 
 ## Navigation
 
@@ -34,7 +36,7 @@ OpenCode is canonical. Claude mirrors are auto-generated. Core is synced from up
 | Editing tests                           | `tests/AGENTS.md`                                                  |
 | Adding a new AI tool adapter            | `orchestrator/source/tools.py` + `.opencode/rules/naming-conventions.md` |
 | Updating platform docs                  | Consult <https://github.com/Fission-AI/OpenSpec/tree/main/docs> + <https://opencode.ai/docs> for canonical upstream |
-| Editing a Claude mirror file            | STOP — edit the opencode sibling, run `sync:mirrors`               |
+| Editing a Claude mirror file            | STOP — there is no on-disk Claude mirror. Edit the opencode source; deploy-time rendering produces the per-adapter layout |
 | Adding a per-adapter mirror task        | See "Per-adapter rendering" in `.opencode/rules/mirror-generation.md` |
 | Editing vendored subtree                | STOP — use `sync-core`                                             |
 
@@ -55,9 +57,8 @@ mise run verify                      # All checks
 pytest -m unit|integration|mechanism
 E2E_CONFIRM=1 mise run test:e2e      # Full e2e against built binary (slow)
 
-# Sync / Mirror
+# Sync
 mise run sync-core                   # Pull latest upstream OpenSpec into orchestrator/core/
-mise run sync:mirrors                # Regenerate Claude mirrors from opencode source
 
 # Version / Release
 mise run release patch|minor|major   # Project release (bumps + tag)
@@ -69,7 +70,7 @@ mise run version:update              # Apply framework bumps
 
 - **Python**: PEP 8 + ruff, Python 3.12+, typer + rich + toml
 - **Testing**: pytest with `unit`/`integration`/`mechanism`/`e2e` markers; bats for install + e2e
-- **Resources**: `<side>/resources/opencode/` canonical; `<side>/resources/claude/` is mirror
+- **Resources**: `<side>/resources/opencode/` canonical, hand-edited; per-adapter rendering happens at deploy time (no on-disk mirrors)
 - **Skills**: `osx-` prefix for extended, `osc-` reserved for core (vendored) skills
 - **Project structure** (Python source lives under `orchestrator/source/` because PyInstaller's `pathex` adds that to `sys.path`; the binary lives at project root)
 

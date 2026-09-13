@@ -500,7 +500,48 @@ class TestPurgeRoutesViaAdapterCommandsStyle:
             "flat",
             "namespaced",
             "namespaced-with-skill-mirror",
+            "skills-only",
         }
+
+
+@pytest.mark.unit
+class TestPurgeHandlesNamespacedStyleAsNoop:
+    """Phase 2A: ``commands_style == "namespaced"`` is a real no-op
+    branch in ``purge_managed_resources`` (was aspirational before).
+    Confirm dispatch reaches the no-op branch without raising."""
+
+    def test_purge_handles_namespaced_style_as_noop(self, tmp_path):
+        from source.tools import ToolAdapter
+
+        synthetic = ToolAdapter(
+            tool_id="synthetic-namespaced",
+            skills_dir=".synthetic",
+            commands_dir="commands",
+            commands_style="namespaced",
+            commands_ext="md",
+            slash_prefix="osx-",
+            skill_prefix="/",
+            runner_binary="synthetic",
+            runner_kind="opencode_run",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            inject_name_in_skill_mirror=False,
+            cmd_filename_strip_prefix="osx-",
+            docs_file="AGENTS.md",
+            tool_name="Synthetic",
+            detect_paths=(".synthetic",),
+        )
+        target = tmp_path / ".synthetic"
+        target.mkdir()
+        # No need to seed any commands/ content — the no-op branch
+        # walks nothing.
+        import pytest as _pytest
+        with _pytest.MonkeyPatch().context() as mp:
+            mp.setitem(REGISTRY, "synthetic-namespaced", synthetic)
+            removed = purge_managed_resources(
+                target, "synthetic-namespaced", keep_names=set(), prefixes=("osx-",)
+            )
+        assert removed == 0
 
 
 class TestPurgeRejectsUnknownTool:

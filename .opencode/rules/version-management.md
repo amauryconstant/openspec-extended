@@ -29,9 +29,7 @@ Commands: `mise run version:check` → `mise run version:update`
 Files updated:
 
 - `orchestrator/resources/opencode/manifest.toml`
-- `orchestrator/resources/claude/manifest.toml` (mirrored)
 - `skills/resources/opencode/manifest.toml`
-- `skills/resources/claude/manifest.toml` (mirrored)
 - `install.sh` (independent installer version cycle)
 
 `version:check` runs as pre-commit hook and gates staged changes to `manifest.toml` and `install.sh`.
@@ -40,4 +38,5 @@ Files updated:
 
 - **NEVER** edit `__version__` or `[project] version` by hand — owned by `release`.
 - `version:check` is wired into `.pre-commit-config.yaml`.
-- `mise run verify` runs `sync-mirrors --check` and version gates together.
+- `mise run verify` runs version gates together with `typecheck`,
+  `format`, `lint`, and `test`.

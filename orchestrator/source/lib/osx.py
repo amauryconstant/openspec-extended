@@ -1412,17 +1412,27 @@ def _command_resolved_for_phase(
     current as of v1.13.0. Flat adapters (opencode today) only the
     legacy command file.
 
+    ``"skills-only"`` adapters (Codex, Kimi, Zed, ForgeCode) never load
+    command files; this function returns ``None`` immediately so callers
+    can short-circuit cleanly.
+
     The ``osx-`` prefix-strip on the deployed filename is also
     adapter-driven: ``flat`` adapters keep the prefix in the filename,
     namespaced adapters strip it (since the namespacing directory
     ``osx/`` already conveys the prefix in the on-disk path).
+    Adapter-driven via ``adapter.cmd_filename_strip_prefix`` so future
+    tools can choose their own convention.
 
     Returns ``None`` if neither form resolves.
     """
     adapter = REGISTRY[platform]
+    if adapter.commands_style == "skills-only":
+        return None
     base = commands_dir(root)
-    if adapter.commands_style != "flat" and cmd_name.startswith("osx-"):
-        deployed_name = cmd_name.replace("osx-", "", 1)
+    if adapter.cmd_filename_strip_prefix and cmd_name.startswith(
+        adapter.cmd_filename_strip_prefix
+    ):
+        deployed_name = cmd_name[len(adapter.cmd_filename_strip_prefix):]
     else:
         deployed_name = cmd_name
 
@@ -1445,13 +1455,21 @@ def validate_commands(project_root: Path | None = None) -> dict:
     platform = detect_platform(root)
     install_hint = _install_hint(platform)
     adapter = REGISTRY[platform]
+    if adapter.commands_style == "skills-only":
+        # Skills-only adapters (Codex, Kimi, Zed, ForgeCode) resolve
+        # skill invocations directly; there are no slash-command files
+        # to validate. Emit a single informational note and skip the
+        # per-phase walk.
+        return {"valid": True, "notes": ["skills-only adapter: no command surface to validate"]}
     missing_phase_commands: list[str] = []
     for phase in PHASES:
         cmd_name = PHASE_COMMANDS.get(phase)
         if not cmd_name:
             continue
-        if adapter.commands_style != "flat" and cmd_name.startswith("osx-"):
-            deployed_name = cmd_name.replace("osx-", "", 1)
+        if adapter.cmd_filename_strip_prefix and cmd_name.startswith(
+            adapter.cmd_filename_strip_prefix
+        ):
+            deployed_name = cmd_name[len(adapter.cmd_filename_strip_prefix):]
         else:
             deployed_name = cmd_name
         resolved = _command_resolved_for_phase(root, platform, cmd_name)

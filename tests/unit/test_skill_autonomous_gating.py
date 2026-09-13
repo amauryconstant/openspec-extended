@@ -38,7 +38,7 @@ def _resolve_skill_path(skill: str, platform: str) -> Path:
     "skill",
     ["osx-maintain-docs"],
 )
-@pytest.mark.parametrize("platform", ["opencode", "claude"])
+@pytest.mark.parametrize("platform", ["opencode"])
 def test_skill_autonomous_gates_precede_questions(skill: str, platform: str) -> None:
     path = _resolve_skill_path(skill, platform)
     text = path.read_text()

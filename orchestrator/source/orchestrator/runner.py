@@ -239,6 +239,14 @@ class ClaudeRunner:
             return self.adapter.runner_binary
         return self._FALLBACK_BINARY
 
+    def _skill_prefix(self) -> str:
+        """Resolve the invocation prefix from the adapter (preferred) or
+        fall back to ``"/"`` for legacy call paths that construct
+        ``ClaudeRunner()`` without an adapter."""
+        if self.adapter is not None:
+            return self.adapter.skill_prefix
+        return "/"
+
     def run(self, request: RunRequest, *, verbose: bool = False) -> RunResult:
         binary = shutil.which(self._binary())
         if binary is None:
@@ -246,7 +254,7 @@ class ClaudeRunner:
                 "runner_not_found", f"{self._binary()} binary not found in PATH"
             )
 
-        prompt = f"/{request.command} {request.change_id}"
+        prompt = f"{self._skill_prefix()}{request.command} {request.change_id}"
         if request.extra_prompt:
             prompt = f"{request.extra_prompt}\n\n{prompt}"
         cmd = [self._binary(), "--print", "--dangerously-skip-permissions", prompt]
@@ -297,7 +305,7 @@ class GenericPrintRunner:
                 f"{self.adapter.runner_binary} binary not found in PATH",
             )
 
-        prompt = f"/{request.command} {request.change_id}"
+        prompt = f"{self.adapter.skill_prefix}{request.command} {request.change_id}"
         if request.extra_prompt:
             prompt = f"{request.extra_prompt}\n\n{prompt}"
         cmd = [

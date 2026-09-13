@@ -233,7 +233,7 @@ graph TD
     B -->|No| C[Phase complete → PHASE3]
     B -->|Yes| D{What's the root cause?}
 
-    D -->|Artifacts wrong (typical)| E[Use /opsx:update to reconcile; isolated single-art defect → /osx-modify]
+    D -->|Artifacts wrong (typical)| E[Use /opsx:update to reconcile; isolated single-art defect → {{SKILL_PREFIX}}osx-modify]
     E --> F[Commit fixes]
     F --> G[Transition to PHASE1]
 
@@ -249,7 +249,7 @@ graph TD
 | Situation | Command | Reason Parameter |
 |-----------|----------|-----------------|
 | Artifacts are wrong (typically multi-artifact) | `osx state transition "$1" --target PHASE1 --reason artifacts_modified` | "Reconciled specs + design + tasks via /opsx:update" |
-| Artifacts are wrong (isolated single-artifact defect) | `osx state transition "$1" --target PHASE1 --reason artifacts_modified` | "Surgical fix via /osx-modify" |
+| Artifacts are wrong (isolated single-artifact defect) | `osx state transition "$1" --target PHASE1 --reason artifacts_modified` | "Surgical fix via {{SKILL_PREFIX}}osx-modify" |
 | Implementation is wrong | `osx state transition "$1" --target PHASE1 --reason implementation_incorrect` | "Missing validation in API handler" |
 | Same phase retry | `osx state transition "$1" --target PHASE2 --reason retry_requested` | "Alternative verification strategy" |
 
@@ -303,14 +303,14 @@ graph TD
 1. Load context: `osx ctx get "$1"`
 2. Run review using `osx-review-artifacts` skill (schema-driven audit).
 3. If findings exist, classify by breadth and emit a routing report:
-   - all findings on a single artifact + no coherence-level finding → `/osx-modify <name> <id>`
+   - all findings on a single artifact + no coherence-level finding → `{{SKILL_PREFIX}}osx-modify <name> <id>`
    - multi-artifact drift or any coherence-level finding → `/opsx:update <name>`
    - missing artifacts → `/opsx:continue <name>`
 4. **Do not fix inside PHASE0.** The user invokes the routed command externally.
 5. If clean: Log and complete.
 
 **Note**: PHASE0 used to fix artifacts in the same invocation. With the
-read-only `osx-analyzer`, fixes are routed to `/osx-modify` or `/opsx:update`,
+read-only `osx-analyzer`, fixes are routed to `{{SKILL_PREFIX}}osx-modify` or `/opsx:update`,
 which the user (or a follow-up slash command) performs.
 
 **State update**:
@@ -355,7 +355,7 @@ openspec-extended osx state complete "$1"
 4. **Critical decision tree** (see Section 4.2):
    - **Case A — artifacts wrong**: route to `/opsx:update <name>` for the
      typical multi-artifact drift (specs + design + tasks move together).
-     Isolated single-artifact defects may use `/osx-modify <name> <id>`.
+     Isolated single-artifact defects may use `{{SKILL_PREFIX}}osx-modify <name> <id>`.
    - **Case B — implementation wrong**: do not modify artifacts.
    - **Case C — same phase retry**: try a different approach.
 
@@ -368,7 +368,7 @@ openspec-extended osx state complete "$1"
 openspec-extended osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "Reconciled via /opsx:update"
 
 # Case A (isolated): single-artifact defect via modify
-openspec-extended osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "Surgical fix via /osx-modify"
+openspec-extended osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "Surgical fix via {{SKILL_PREFIX}}osx-modify"
 
 # Case B: implementation wrong
 openspec-extended osx state transition "$1" --target PHASE1 --reason implementation_incorrect --details "Missing validation"

@@ -176,10 +176,9 @@ teardown() {
     echo "OUTPUT=$output"
     [ "$status" -eq 0 ]
 
-    # No deployed file should still carry a `{{TOKEN}}` placeholder. The
-    # `AUTO-GENERATED` header in the Claude mirror is the only place that
-    # legitimately mentions token names — and that's not deployed to
-    # users' projects, only kept in resources/claude/ for audit.
+    # No deployed file should still carry a `{{TOKEN}}` placeholder.
+    # Phase 2A: there is no on-disk Claude mirror anymore; deploy-time
+    # rendering substitutes tokens for every adapter.
     leftovers="$(find .opencode -name '*.md' -exec grep -lE '\{\{[A-Z_]+\}\}' {} + 2>/dev/null || true)"
     if [ -n "$leftovers" ]; then
         echo "FAIL: deployed files still contain {{TOKEN}} placeholders:"

@@ -66,6 +66,11 @@ CommandsStyle = Literal[
     # ``.claude/skills/osx-<id>/SKILL.md`` modern — dual-emit mirrors
     # upstream OpenSpec's v1.7.0 strategy (current as of v1.13.0).
     "namespaced-with-skill-mirror",
+    # future: tools that only resolve skill invocations (Codex, Kimi, Zed,
+    # ForgeCode, etc.) and do not load slash-command files. ``deploy_commands``
+    # is a no-op for these adapters; ``purge_managed_resources`` skips
+    # command cleanup.
+    "skills-only",
 ]
 
 RunnerKind = Literal[
@@ -149,10 +154,23 @@ class ToolAdapter:
 
     agent_field_transform: Callable[[str], str] | None
     """Transform applied to a command file's frontmatter ``agent:``
-    line during deploy. ``None`` = strip the line (claude's case;
-    opencode ships the literal ``agent:`` through). Future adapters
-    may rewrite ``agent:`` to a tool-specific equivalent (e.g.
-    Anthropic-style ``subagent_type:``)."""
+    line during deploy. ``None`` = ship the line verbatim. The
+    default ``strip_agent_line`` drops the line entirely (the right
+    behaviour for Claude Code, Cursor, and Codex, which don't read
+    opencode's ``agent:`` directive). Future adapters may rewrite
+    ``agent:`` to a tool-specific equivalent (e.g. Anthropic-style
+    ``subagent_type:``)."""
+
+    inject_name_in_skill_mirror: bool
+    """Whether the deploy step should inject ``name: <name>`` when
+    emitting the modern skill mirror. Claude Code's slash resolver
+    reads it from frontmatter; tools that derive the skill name from
+    the on-disk directory (opencode) do not need it."""
+
+    cmd_filename_strip_prefix: str | None
+    """When non-``None``, the deploy step strips this prefix from the
+    on-disk filename before writing. Default ``"osx-"`` for shipped
+    adapters; ``None`` to preserve the canonical name verbatim."""
 
     docs_file: str
     """Filename the tool reads for project documentation. Most tools
@@ -177,7 +195,7 @@ class ToolAdapter:
 
 
 def _adapter_tokens(adapter: ToolAdapter) -> dict[str, str]:
-    """Derive the 5-token ``PLATFORM_TOKENS`` dict for one adapter.
+    """Derive the 6-token ``PLATFORM_TOKENS`` dict for one adapter.
 
     Single source of truth: token values are computed from
     ``ToolAdapter`` fields, not hand-maintained per tool. The dict
@@ -185,23 +203,29 @@ def _adapter_tokens(adapter: ToolAdapter) -> dict[str, str]:
     ``tests/unit/test_token_substitution.py`` snapshots stay green
     after Phase 1B rewires ``cli.py``.
 
-    The five tokens cover everything that varies between opencode and
+    The six tokens cover everything that varies between opencode and
     claude in today's shipped resources:
 
     - ``ASK_TOOL``: the user-question tool name (``AskUserQuestion``
       / ``Ask``).
     - ``DOCS_FILE``: project documentation filename (``AGENTS.md`` /
       ``CLAUDE.md``).
-    - ``CMD_PREFIX``: slash-command prefix (``osx-`` / ``osx:``).
+    - ``CMD_PREFIX``: slash-command filename prefix (``osx-`` /
+      ``osx:``).
     - ``TOOL_NAME``: human-readable tool name in log lines
       (``OpenCode`` / ``Claude Code``).
     - ``PLATFORM_DIR``: the skills_dir (``{{PLATFORM_DIR}}`` is
       substituted literally into ``.opencode/`` / ``.claude/``
       prose references).
+    - ``SKILL_PREFIX``: user-facing invocation prefix (``/``,
+      ``$``, ``/skill:``). Distinct from ``CMD_PREFIX`` (filename):
+      every source-file ``/osx-...`` reference becomes
+      ``{{SKILL_PREFIX}}osx-...`` so a single canonical source
+      serves tools with different invocation forms.
 
     Forward-compat: the underlying ``_substitute_tokens`` in
     ``cli.py`` leaves unknown tokens verbatim, so a future adapter
-    that needs a sixth token can extend this dict without breaking
+    that needs a seventh token can extend this dict without breaking
     earlier tokens.
     """
     return {
@@ -210,6 +234,7 @@ def _adapter_tokens(adapter: ToolAdapter) -> dict[str, str]:
         "CMD_PREFIX": adapter.slash_prefix,
         "TOOL_NAME": adapter.tool_name,
         "PLATFORM_DIR": adapter.skills_dir,
+        "SKILL_PREFIX": adapter.skill_prefix,
     }
 
 
@@ -226,6 +251,17 @@ def _adapter_ask_tool(adapter: ToolAdapter) -> str:
     if adapter.tool_id == "claude":
         return "Ask"
     return "AskUserQuestion"
+
+
+def strip_agent_line(line: str) -> str:
+    """Drop an opencode-only ``agent:`` frontmatter line.
+
+    Return ``""`` to drop the line, or the original ``line`` to keep
+    it. Used by ``agent_field_transform`` on every adapter whose
+    slash-command resolver does not read opencode's dispatch model
+    (Claude Code, Cursor, Codex, Kimi).
+    """
+    return "" if line.lstrip().startswith("agent:") else line
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +282,8 @@ REGISTRY: dict[str, ToolAdapter] = {
         runner_kind="opencode_run",
         has_agents_dir=True,
         agent_field_transform=None,  # ship the literal `agent:` through
+        inject_name_in_skill_mirror=False,
+        cmd_filename_strip_prefix=None,  # flat layout keeps the prefix in the filename
         docs_file="AGENTS.md",
         tool_name="OpenCode",
         detect_paths=(".opencode",),
@@ -261,7 +299,9 @@ REGISTRY: dict[str, ToolAdapter] = {
         runner_binary="claude",
         runner_kind="claude_print",
         has_agents_dir=False,
-        agent_field_transform=None,  # strip `agent:` via the claude-only build helper
+        agent_field_transform=strip_agent_line,  # Claude doesn't read opencode's `agent:`
+        inject_name_in_skill_mirror=True,
+        cmd_filename_strip_prefix="osx-",  # namespaced layout conveys prefix via `commands/osx/`
         docs_file="CLAUDE.md",
         tool_name="Claude Code",
         detect_paths=(".claude",),
@@ -300,4 +340,5 @@ __all__ = [
     "RunnerKind",
     "ToolAdapter",
     "_adapter_tokens",
+    "strip_agent_line",
 ]

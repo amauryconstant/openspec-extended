@@ -101,6 +101,7 @@ class TestTokenSubstitutionParity:
             "CMD_PREFIX": "osx-",
             "TOOL_NAME": "OpenCode",
             "PLATFORM_DIR": ".opencode",
+            "SKILL_PREFIX": "/",
         }
 
     def test_claude_tokens_match_documented_table(self):
@@ -110,10 +111,18 @@ class TestTokenSubstitutionParity:
             "CMD_PREFIX": "osx:",
             "TOOL_NAME": "Claude Code",
             "PLATFORM_DIR": ".claude",
+            "SKILL_PREFIX": "/",
         }
 
     def test_all_adapters_have_full_token_set(self):
-        documented = {"ASK_TOOL", "DOCS_FILE", "CMD_PREFIX", "TOOL_NAME", "PLATFORM_DIR"}
+        documented = {
+            "ASK_TOOL",
+            "DOCS_FILE",
+            "CMD_PREFIX",
+            "TOOL_NAME",
+            "PLATFORM_DIR",
+            "SKILL_PREFIX",
+        }
         for tid, tokens in PLATFORM_TOKENS.items():
             assert documented.issubset(tokens), (
                 f"{tid}: tokens missing {documented - tokens}"
