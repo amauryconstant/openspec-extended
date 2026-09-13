@@ -53,6 +53,7 @@ run = "bats tests/unit/install.bats"
 
 [tasks."test:mechanism:bats"]
 description = "Run bats mechanism tests against built binary (no AI calls, parallel across tests)"
+depends = "build --log-level FATAL"
 run = "python3 .mise/tasks/bats_parallel.py 8 tests/e2e/mechanism.bats tests/e2e/store-and-config-passthrough.bats"
 
 [tasks."test:e2e"]
