@@ -21,7 +21,14 @@ from source import __version__
 from source.lib.osx import AUTONOMOUS_RESOURCE_NAMES, REQUIRED_CORE_SKILLS
 from source.orchestrator.engine import OrchestratorState, run_orchestrator
 from source.osx_cli import osx_app
-from source.tools import PLATFORM_TOKENS, REGISTRY, TOOL_DIRS, ToolAdapter
+from source.tools import (
+    PLATFORM_TOKENS,
+    REGISTRY,
+    TOOL_DIRS,
+    ToolAdapter,
+    _adapter_tokens,
+    strip_agent_line,
+)
 
 SCRIPT_NAME = "openspec-extended"
 
@@ -52,6 +59,42 @@ _LEFTOVER_TOKEN_RE = re.compile(r"\{\{([A-Z_]+)\}\}")
 # (e.g. ``.opencode/skills/osx-modify/SKILL.md`` is left untouched).
 _SLASH_OSX_RE = re.compile(r"(?<![\w/])/osx-([a-z0-9-]+)(?!/)")
 
+# Cross-reference to upstream OpenSpec core skills in the colon-form
+# slash command: ``/opsx:<verb>``. Rewritten to the adapter's
+# ``cross_ref_prefix`` form (e.g. Codex's ``$openspec-propose``) for
+# skills-only adapters. Shipped adapters (``cross_ref_prefix=""`` →
+# falls back to ``skill_prefix="/"``) skip the rewrite so the canonical
+# upstream spelling survives. Same lookbehind/lookahead guard as
+# ``_SLASH_OSX_RE`` keeps path components (``.opencode/skills/...``)
+# untouched.
+_SLASH_OPSX_RE = re.compile(r"(?<![\w/])/opsx:([a-z][a-z-]+)(?!/)")
+
+
+def _rewrite_skill_body_refs(body: str, adapter: ToolAdapter) -> str:
+    """Rewrite ``/opsx:<cmd>`` cross-references in a SKILL.md body
+    to the adapter's ``cross_ref_prefix`` form.
+
+    For shipped adapters (opencode, claude), ``cross_ref_prefix``
+    defaults to ``""`` and falls back to ``skill_prefix`` (``"/"``),
+    so the canonical ``/opsx:<cmd>`` form is preserved.
+
+    For skills-only adapters with a different cross-ref prefix
+    (Codex's ``$``, Kimi's ``/skill:``), the references are
+    rewritten to ``<cross_ref_prefix>openspec-<cmd>`` — the upstream
+    core skill name (``openspec-propose``, ``openspec-apply``, …),
+    not the extended ``osx-<cmd>`` name.
+
+    Unknown ``/opsx:<cmd>`` references are left verbatim (matches
+    upstream ``transformToSkillReferences`` semantics in
+    ``core/source/src/utils/command-references.ts``); the regex
+    only matches ``[a-z][a-z-]+`` so false positives in markdown
+    prose stay rare.
+    """
+    cross_ref_prefix = adapter.cross_ref_prefix or adapter.skill_prefix
+    if cross_ref_prefix == "/":
+        return body
+    return _SLASH_OPSX_RE.sub(f"{cross_ref_prefix}openspec-\\1", body)
+
 
 def _substitute_tokens(text: str, tool: str) -> str:
     """Replace every ``{{TOKEN}}`` in ``text`` with the value for ``tool``.
@@ -69,6 +112,15 @@ def _substitute_tokens(text: str, tool: str) -> str:
     are left untouched.
     """
     mapping = PLATFORM_TOKENS.get(tool, {})
+    if not mapping:
+        # Fall back to a live REGISTRY read so monkeypatched / synthesised
+        # adapters (e.g. the skills-only test fixtures that land after
+        # module import) still see their token values. For shipped
+        # adapters PLATFORM_TOKENS already covers them so the fallback
+        # never fires in production.
+        adapter = REGISTRY.get(tool)
+        if adapter is not None:
+            mapping = _adapter_tokens(adapter)
 
     def repl(match: re.Match[str]) -> str:
         key = match.group(1)
@@ -348,7 +400,12 @@ def _build_skill_mirror(source_path: Path, name: str, adapter: ToolAdapter) -> s
 
     - ``agent_field_transform`` strips opencode-only ``agent:`` lines
       for tools whose slash resolver doesn't read opencode's dispatch
-      model (Claude, Cursor, Codex, Kimi).
+      model (Claude, Cursor, Codex, Kimi). When the adapter is
+      ``commands_style="skills-only"`` and ``agent_field_transform`` is
+      ``None``, falls back to :func:`strip_agent_line` — skills-only
+      tools never read opencode's ``agent:`` directive, so dropping it
+      is the right default. Shipped adapters that set
+      ``agent_field_transform`` explicitly still win.
     - ``inject_name_in_skill_mirror`` adds ``name: <name>`` for tools
       whose slash resolver reads it from frontmatter (Claude). Only
       consulted when ``"name"`` is not present in ``frontmatter_extras``;
@@ -362,6 +419,9 @@ def _build_skill_mirror(source_path: Path, name: str, adapter: ToolAdapter) -> s
     extras = adapter.frontmatter_extras
     name_via_extras = "name" in extras
     want_inject_name = adapter.inject_name_in_skill_mirror and not name_via_extras
+    transform = adapter.agent_field_transform
+    if transform is None and adapter.commands_style == "skills-only":
+        transform = strip_agent_line
     raw = source_path.read_text()
     in_fm = False
     seen_close = False
@@ -382,8 +442,8 @@ def _build_skill_mirror(source_path: Path, name: str, adapter: ToolAdapter) -> s
                 in_fm = False
             out_lines.append(line)
             continue
-        if in_fm and adapter.agent_field_transform is not None:
-            line = adapter.agent_field_transform(line)
+        if in_fm and transform is not None:
+            line = transform(line)
             if line == "":
                 continue
         out_lines.append(line)
@@ -414,24 +474,89 @@ def _referenced_skill_refs(body: str) -> list[str]:
     return sorted(seen)
 
 
+def _deploy_skill_mirror(
+    source_path: Path,
+    source_base: Path,
+    target_dir: Path,
+    name: str,
+    tool: str,
+    adapter: ToolAdapter,
+) -> Path:
+    """Render ``source_path`` as a modern ``<target>/skills/<name>/SKILL.md``
+    skill mirror and copy any ``references/<file>.md`` files referenced
+    from the body so the skill is self-sufficient at deploy time.
+
+    Shared between two ``commands_style`` branches:
+
+    - ``namespaced-with-skill-mirror`` (Claude): the legacy command file
+      was already written by ``deploy_commands``; this helper dual-emits
+      the skill mirror so the slash command resolves against the modern
+      skills surface too (mirrors upstream OpenSpec's dual-emit
+      strategy introduced in v1.7.0, current as of v1.13.0).
+    - ``skills-only`` (Codex, Kimi, Zed, ForgeCode): the legacy command
+      file is *not* written (the target doesn't load it). The skill
+      mirror is the only command surface.
+
+    Drives three adapter-controlled behaviours:
+
+    - :func:`_build_skill_mirror` for frontmatter rewriting (``agent:``
+      strip via ``agent_field_transform`` — defaults to
+      ``strip_agent_line`` for skills-only adapters that don't override
+      it — plus ``name:`` injection and ``frontmatter_extras``).
+    - :func:`_substitute_tokens_in_file` for ``{{TOKEN}}`` substitution
+      driven by ``PLATFORM_TOKENS``.
+    - :func:`_rewrite_skill_body_refs` for body cross-reference
+      rewriting (``/opsx:<cmd>`` → ``<cross_ref_prefix>openspec-<cmd>``
+      for skills-only adapters with a non-canonical cross-ref prefix).
+      Shipped adapters (``cross_ref_prefix=""`` → falls back to
+      ``skill_prefix="/"``) hit the no-op branch.
+
+    Returns the path of the written ``SKILL.md``. References are copied
+    as a side effect; their on-disk token substitution is independent of
+    the skill mirror's body rewrite.
+    """
+    skill_dir = target_dir / "skills" / name
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_md = skill_dir / "SKILL.md"
+    skill_md.write_text(_build_skill_mirror(source_path, name, adapter))
+    _substitute_tokens_in_file(skill_md, tool)
+
+    # Apply the cross-ref prefix rewrite (L4.3) AFTER token substitution
+    # so any ``{{CROSS_REF_PREFIX}}`` substitution has already run on
+    # tokens; the rewrite targets literal ``/opsx:<cmd>`` references
+    # only and is a no-op for shipped adapters.
+    body = skill_md.read_text()
+    body = _rewrite_skill_body_refs(body, adapter)
+    skill_md.write_text(body)
+
+    # Copy any references/ files referenced from the body so the skill
+    # is self-sufficient at deploy time. Source refs live once under
+    # the source skills/references/ pool. Read the *rewritten* body
+    # because the cross-ref rewrite can never affect reference paths —
+    # refs are slash-form commands, never ``/opsx:<cmd>`` — but reading
+    # after the rewrite keeps the helper consistent.
+    ref_names = _referenced_skill_refs(body)
+    if ref_names:
+        source_refs_dir = source_base.parent / "skills" / "references"
+        target_refs_dir = skill_dir / "references"
+        target_refs_dir.mkdir(parents=True, exist_ok=True)
+        for ref_name in ref_names:
+            src = source_refs_dir / ref_name
+            if src.is_file():
+                dst = target_refs_dir / ref_name
+                shutil.copy2(src, dst)
+                _substitute_tokens_in_file(dst, tool)
+    return skill_md
+
+
 def deploy_commands(source_base: Path, target_dir: Path, name: str, tool: str) -> None:
     adapter = REGISTRY[tool]
-    if adapter.commands_style == "skills-only":
-        # Tools that resolve skill invocations only (Codex, Kimi, Zed,
-        # ForgeCode) don't load slash-command files. The skill mirror
-        # is emitted by ``deploy_skills`` elsewhere; no command file
-        # is written here.
-        log_info(f"no command surface for {tool!r} (commands_style=skills-only)")
-        return
 
-    # Adapter-driven legacy form: commands_dir (subdir layout) +
-    # cmd_filename_strip_prefix (prefix strip). For opencode this is
-    # ``target/commands/<name>.md`` (flat, prefix preserved); for Claude
-    # it's ``target/commands/osx/<base>.md`` (nested, prefix stripped).
-    cmd_subdir_parts = adapter.commands_dir.split("/")
-    target_commands = target_dir.joinpath(*cmd_subdir_parts)
-    target_commands.mkdir(parents=True, exist_ok=True)
-
+    # Adapter-driven source resolution: search ``source_base/<name>.md``,
+    # then fall back to ``source_base/<subdir>/<base_name>.md``. Works
+    # for both flat and namespaced command trees today; skills-only
+    # adapters need the same resolution because the source command file
+    # is the input to the skill mirror (see L4.1).
     source_path = source_base / f"{name}.md"
     if not source_path.exists():
         for subdir in source_base.iterdir():
@@ -445,6 +570,30 @@ def deploy_commands(source_base: Path, target_dir: Path, name: str, tool: str) -
                     break
         else:
             raise FileNotFoundError(f"Command not found: {name}")
+
+    if adapter.commands_style == "skills-only":
+        # Skills-only adapters (Codex, Kimi, Zed, ForgeCode) don't
+        # load slash-command files — the slash command surface is the
+        # modern skills tree (``<target>/<skills_dir>/skills/<name>/SKILL.md``).
+        # Skip the ``commands/`` directory entirely (no legacy file
+        # written) and dual-emit the skill mirror only.
+        skill_md = _deploy_skill_mirror(
+            source_path, source_base, target_dir, name, tool, adapter
+        )
+        relative = skill_md.relative_to(target_dir)
+        log_info(
+            f"deployed skill mirror for {tool!r} "
+            f"(commands_style=skills-only): {relative}"
+        )
+        return
+
+    # Adapter-driven legacy form: commands_dir (subdir layout) +
+    # cmd_filename_strip_prefix (prefix strip). For opencode this is
+    # ``target/commands/<name>.md`` (flat, prefix preserved); for Claude
+    # it's ``target/commands/osx/<base>.md`` (nested, prefix stripped).
+    cmd_subdir_parts = adapter.commands_dir.split("/")
+    target_commands = target_dir.joinpath(*cmd_subdir_parts)
+    target_commands.mkdir(parents=True, exist_ok=True)
 
     deployed_name = name
     if adapter.cmd_filename_strip_prefix and name.startswith(
@@ -467,27 +616,7 @@ def deploy_commands(source_base: Path, target_dir: Path, name: str, tool: str) -
     # upstream OpenSpec's dual-emit strategy (introduced in v1.7.0,
     # current as of v1.11.0). The legacy .claude/commands/ file written
     # above remains in place for back-compat.
-    skill_dir = target_dir / "skills" / name
-    skill_dir.mkdir(parents=True, exist_ok=True)
-    skill_md = skill_dir / "SKILL.md"
-    skill_md.write_text(_build_skill_mirror(source_path, name, adapter))
-    _substitute_tokens_in_file(skill_md, tool)
-
-    # Copy any references/ files referenced from the body so the skill
-    # is self-sufficient at deploy time. Source refs live once under
-    # the source skills/references/ pool.
-    body = skill_md.read_text()
-    ref_names = _referenced_skill_refs(body)
-    if ref_names:
-        source_refs_dir = source_base.parent / "skills" / "references"
-        target_refs_dir = skill_dir / "references"
-        target_refs_dir.mkdir(parents=True, exist_ok=True)
-        for ref_name in ref_names:
-            src = source_refs_dir / ref_name
-            if src.is_file():
-                dst = target_refs_dir / ref_name
-                shutil.copy2(src, dst)
-                _substitute_tokens_in_file(dst, tool)
+    _deploy_skill_mirror(source_path, source_base, target_dir, name, tool, adapter)
 
 
 def deploy_agents(source_base: Path, target_dir: Path, name: str, tool: str) -> None:

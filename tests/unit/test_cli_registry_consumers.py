@@ -28,7 +28,7 @@ from source.cli import (
     purge_managed_resources,
     validate_deployment,
 )
-from source.tools import REGISTRY
+from source.tools import REGISTRY, ToolAdapter
 
 
 pytestmark = pytest.mark.unit
@@ -515,3 +515,330 @@ class TestEveryShippedAdapterDeploysCleanly:
             assert "{{" not in md.read_text(), (
                 f"{md.relative_to(target)}: leftover {{{{TOKEN}}}} after deploy"
             )
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 L4.1–L4.3: skills-only deploy branch
+# ---------------------------------------------------------------------------
+
+
+class TestSkillsOnlyDeploy:
+    """L4.1–L4.4: ``deploy_commands`` for a synthetic
+    ``commands_style="skills-only"`` adapter (Codex/Kimi/Zed shape).
+
+    The skills-only branch must:
+
+    1. Skip the legacy ``commands/`` directory entirely (no slash-command
+       file written there).
+    2. Write the modern skill mirror at
+       ``<target>/<skills_dir>/skills/<name>/SKILL.md``.
+    3. Apply ``frontmatter_extras`` and the ``agent_field_transform``
+       fallback (``L4.2``) so skills-only adapters that don't override
+       ``agent_field_transform`` still get the opencode-only ``agent:``
+       line stripped.
+    4. Apply ``cross_ref_prefix`` rewriting (``L4.3``) so
+       ``/opsx:<cmd>`` references in the body become the adapter's
+       invocation form (``$openspec-<cmd>`` for Codex).
+    5. Leave no ``{{TOKEN}}`` placeholder in the rendered body.
+
+    Built around a synthesised ``codex`` adapter (cross_ref_prefix="$")
+    and a synthesised ``kimi`` adapter (``cross_ref_prefix="/skill:"``)
+    so the body rewrite is exercised for both non-canonical prefixes.
+    """
+
+    @pytest.fixture
+    def source(self) -> Path:
+        return get_skills_resources_dir() / "canonical" / "commands"
+
+    @pytest.fixture
+    def codex_adapter(self) -> ToolAdapter:
+        return ToolAdapter(
+            tool_id="codex",
+            skills_dir=".agents",
+            commands_dir="commands",
+            commands_style="skills-only",
+            commands_ext="md",
+            slash_prefix="/",
+            skill_prefix="$",
+            runner_binary="codex",
+            runner_kind="generic_print",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            inject_name_in_skill_mirror=False,
+            frontmatter_extras={"source": "openspec-extended"},
+            cmd_filename_strip_prefix=None,
+            docs_file="AGENTS.md",
+            tool_name="Codex",
+            detect_paths=(".agents",),
+            ask_tool="AskUserQuestion",
+            install_hint=(
+                "Run `openspec-extended install codex` after installing the codex CLI"
+            ),
+            cross_ref_prefix="$",
+            runner_args=(),
+        )
+
+    @pytest.fixture
+    def kimi_adapter(self) -> ToolAdapter:
+        return ToolAdapter(
+            tool_id="kimi",
+            skills_dir=".kimi",
+            commands_dir="commands",
+            commands_style="skills-only",
+            commands_ext="md",
+            slash_prefix="/skill:",
+            skill_prefix="/skill:",
+            runner_binary="kimi",
+            runner_kind="generic_print",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            inject_name_in_skill_mirror=True,
+            frontmatter_extras={},
+            cmd_filename_strip_prefix=None,
+            docs_file="AGENTS.md",
+            tool_name="Kimi",
+            detect_paths=(".kimi",),
+            ask_tool="AskUserQuestion",
+            install_hint=(
+                "Run `openspec-extended install kimi` after installing the Kimi CLI"
+            ),
+            cross_ref_prefix="/skill:",
+            runner_args=(),
+        )
+
+    def test_no_legacy_command_file_written_under_commands(
+        self, tmp_path, source, codex_adapter
+    ):
+        """L4.1: the skills-only branch must NOT touch ``<target>/commands/``.
+
+        Codex resolves invocations from the skills tree; the legacy
+        ``commands/<name>.md`` file would never be loaded, and writing
+        it would just add noise to the deployed tree."""
+        from source.tools import REGISTRY
+
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setitem(REGISTRY, "codex", codex_adapter)
+            target = tmp_path / codex_adapter.skills_dir
+            target.mkdir(parents=True)
+            deploy_commands(source, target, "osx-review", tool="codex")
+
+        commands_dir = target / "commands"
+        assert not commands_dir.exists() or not any(commands_dir.iterdir()), (
+            "skills-only adapter: legacy commands/ subtree must NOT be written"
+        )
+
+    def test_writes_modern_skill_mirror_under_skills(
+        self, tmp_path, source, codex_adapter
+    ):
+        """L4.1: skills-only adapter emits a ``skills/<name>/SKILL.md``
+        modern skill mirror and nothing else."""
+        from source.tools import REGISTRY
+
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setitem(REGISTRY, "codex", codex_adapter)
+            target = tmp_path / codex_adapter.skills_dir
+            target.mkdir(parents=True)
+            deploy_commands(source, target, "osx-review", tool="codex")
+
+        skill_mirror = target / "skills" / "osx-review" / "SKILL.md"
+        assert skill_mirror.is_file(), (
+            f"skills-only adapter: {skill_mirror} not written"
+        )
+
+    def test_skill_mirror_carries_frontmatter_extras(
+        self, tmp_path, source, codex_adapter
+    ):
+        """L4.2: ``frontmatter_extras`` (``source: openspec-extended``)
+        ends up in the deployed frontmatter."""
+        from source.tools import REGISTRY
+
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setitem(REGISTRY, "codex", codex_adapter)
+            target = tmp_path / codex_adapter.skills_dir
+            target.mkdir(parents=True)
+            deploy_commands(source, target, "osx-review", tool="codex")
+
+        text = (target / "skills" / "osx-review" / "SKILL.md").read_text()
+        assert "source: openspec-extended" in text, (
+            "frontmatter_extras not injected into skill mirror"
+        )
+
+    def test_cross_ref_prefix_rewrites_opsx_references_to_dollar_form(
+        self, tmp_path, codex_adapter
+    ):
+        """L4.3: ``/opsx:propose`` is rewritten to ``$openspec-propose``
+        for the Codex adapter (cross_ref_prefix="$").
+
+        Canonical source files don't currently contain ``/opsx:<cmd>``
+        references (the post-rename form ``/osc-<verb>`` is the shipped
+        surface); the rewrite is forward-compat infrastructure that
+        kicks in if a future source file targets upstream core via the
+        canonical slash form. Use a synthetic source file here so the
+        test exercises the rewrite end-to-end through ``deploy_commands``.
+        """
+        from source.tools import REGISTRY
+
+        synth_source = tmp_path / "synth-commands"
+        synth_source.mkdir()
+        (synth_source / "osx-review.md").write_text(
+            "---\n"
+            "name: osx-review\n"
+            "description: synthetic\n"
+            "license: MIT\n"
+            "compatibility: Requires openspec CLI.\n"
+            "---\n\n"
+            "Run `/opsx:propose <name>` to start a change.\n"
+        )
+
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setitem(REGISTRY, "codex", codex_adapter)
+            target = tmp_path / codex_adapter.skills_dir
+            target.mkdir(parents=True)
+            deploy_commands(synth_source, target, "osx-review", tool="codex")
+
+        text = (target / "skills" / "osx-review" / "SKILL.md").read_text()
+        assert "$openspec-propose" in text, (
+            "codex: /opsx:propose should rewrite to $openspec-propose; "
+            f"body was:\n{text}"
+        )
+        # Original colon form must NOT survive.
+        assert "/opsx:propose" not in text, (
+            f"codex: canonical /opsx:propose should be rewritten; body was:\n{text}"
+        )
+
+    def test_cross_ref_prefix_rewrites_opsx_references_to_skill_colon_form(
+        self, tmp_path, kimi_adapter
+    ):
+        """L4.3: ``/opsx:propose`` is rewritten to ``/skill:openspec-propose``
+        for the Kimi adapter (cross_ref_prefix="/skill:")."""
+        from source.tools import REGISTRY
+
+        synth_source = tmp_path / "synth-commands"
+        synth_source.mkdir()
+        (synth_source / "osx-review.md").write_text(
+            "---\n"
+            "name: osx-review\n"
+            "description: synthetic\n"
+            "license: MIT\n"
+            "compatibility: Requires openspec CLI.\n"
+            "---\n\n"
+            "Run `/opsx:propose <name>` to start a change.\n"
+        )
+
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setitem(REGISTRY, "kimi", kimi_adapter)
+            target = tmp_path / kimi_adapter.skills_dir
+            target.mkdir(parents=True)
+            deploy_commands(synth_source, target, "osx-review", tool="kimi")
+
+        text = (target / "skills" / "osx-review" / "SKILL.md").read_text()
+        assert "/skill:openspec-propose" in text, (
+            "kimi: /opsx:propose should rewrite to /skill:openspec-propose; "
+            f"body was:\n{text}"
+        )
+        # Original colon form must NOT survive.
+        assert "/opsx:propose" not in text, (
+            f"kimi: canonical /opsx:propose should be rewritten; body was:\n{text}"
+        )
+
+    def test_skill_mirror_has_no_leftover_token_placeholders(
+        self, tmp_path, source, codex_adapter
+    ):
+        """L4.1: token substitution still runs in the skills-only branch.
+
+        ``{{PLATFORM_DIR}}`` (the most common one) must render to the
+        adapter's ``skills_dir`` (``/home/.agents`` here is irrelevant —
+        we check the literal ``.agents`` is rendered)."""
+        from source.tools import REGISTRY
+
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setitem(REGISTRY, "codex", codex_adapter)
+            target = tmp_path / codex_adapter.skills_dir
+            target.mkdir(parents=True)
+            deploy_commands(source, target, "osx-review", tool="codex")
+
+        text = (target / "skills" / "osx-review" / "SKILL.md").read_text()
+        assert "{{PLATFORM_DIR}}" not in text, (
+            "skills-only deploy: {{PLATFORM_DIR}} leaked through substitution"
+        )
+        assert "{{" not in text, (
+            f"skills-only deploy: leftover token placeholder in body:\n{text}"
+        )
+
+    def test_skill_mirror_strips_agent_field_when_transform_unset(
+        self, tmp_path, source, codex_adapter
+    ):
+        """L4.2: ``_build_skill_mirror`` falls back to
+        ``strip_agent_line`` for skills-only adapters that don't
+        override ``agent_field_transform``. ``osx-review.md`` source
+        has no ``agent:`` line (it's a non-phase command), so we drop a
+        synthetic file with one to exercise the strip."""
+        from source.cli import _build_skill_mirror
+        from source.tools import REGISTRY
+
+        synthetic_dir = tmp_path / "synth-commands"
+        synthetic_dir.mkdir()
+        synth_file = synthetic_dir / "osx-phase2.md"
+        synth_file.write_text(
+            "---\n"
+            "name: osx-phase2\n"
+            "description: synthetic\n"
+            "agent: osx-reviewer\n"
+            "---\n\n"
+            "Body uses /opsx:apply when needed.\n"
+        )
+
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setitem(REGISTRY, "codex", codex_adapter)
+            rendered = _build_skill_mirror(synth_file, "osx-phase2", codex_adapter)
+
+        assert "agent: osx-reviewer" not in rendered, (
+            f"skills-only adapter: agent: line should be stripped by "
+            f"strip_agent_line fallback; got:\n{rendered}"
+        )
+        assert "name: osx-phase2" in rendered
+
+    def test_skill_mirror_does_not_rewrite_when_cross_ref_prefix_is_slash(
+        self, tmp_path, source
+    ):
+        """L4.3 + L4 verification: a Claude-shaped skills-only adapter
+        (cross_ref_prefix="/") keeps the canonical ``/opsx:propose`` form.
+
+        Not a real shipped adapter — just sanity-checks the no-op branch
+        of :func:`_rewrite_skill_body_refs`."""
+        from source.cli import _rewrite_skill_body_refs
+        from source.tools import REGISTRY
+
+        canonical_prefix_adapter = ToolAdapter(
+            tool_id="canonical-prefix",
+            skills_dir=".opencode",
+            commands_dir="commands",
+            commands_style="skills-only",
+            commands_ext="md",
+            slash_prefix="osx-",
+            skill_prefix="/",
+            runner_binary="opencode",
+            runner_kind="generic_print",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            inject_name_in_skill_mirror=False,
+            frontmatter_extras={},
+            cmd_filename_strip_prefix=None,
+            docs_file="AGENTS.md",
+            tool_name="CanonicalPrefix",
+            detect_paths=(".opencode",),
+            ask_tool="AskUserQuestion",
+            install_hint="Run `openspec-extended install canonical-prefix`",
+            cross_ref_prefix="",
+            runner_args=(),
+        )
+
+        body = "Run `/opsx:propose <name>` to start."
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setitem(REGISTRY, "canonical-prefix", canonical_prefix_adapter)
+            rewritten = _rewrite_skill_body_refs(body, canonical_prefix_adapter)
+
+        assert rewritten == body, (
+            "cross_ref_prefix='' (fallback to skill_prefix='/') must be a no-op; "
+            f"expected {body!r}, got {rewritten!r}"
+        )
