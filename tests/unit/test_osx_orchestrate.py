@@ -154,15 +154,39 @@ class TestStateMachine:
 
     def test_check_complete_detection(self, temp_change_dir, monkeypatch):
         """COMPLETE signal detection via complete.json."""
+        import json
+
         from source.orchestrator.engine import check_complete
 
         monkeypatch.chdir(temp_change_dir.parent.parent.parent)
+        (temp_change_dir / "complete.json").write_text(
+            json.dumps({"status": "COMPLETE"})
+        )
         st = OrchestratorState(change_dir=temp_change_dir, change_id="test-change")
 
         with patch("source.lib.osx.complete_check") as mock_check:
             mock_check.return_value = {"exists": True}
             result = check_complete(st)
             assert result is True
+            # state.change_dir is set, so the orchestrator reads complete.json
+            # directly and never shells out to openspec (preflight contract for
+            # --from-phase: zero fresh-start binary probes).
+            mock_check.assert_not_called()
+
+    def test_check_complete_detection_without_change_dir(
+        self, temp_change_dir, monkeypatch
+    ):
+        """Without state.change_dir, check_complete falls back to osx.complete_check."""
+        from source.orchestrator.engine import check_complete
+
+        monkeypatch.chdir(temp_change_dir.parent.parent.parent)
+        st = OrchestratorState(change_dir=None, change_id="test-change")
+
+        with patch("source.lib.osx.complete_check") as mock_check:
+            mock_check.return_value = {"exists": True}
+            result = check_complete(st)
+            assert result is True
+            mock_check.assert_called_once_with("test-change")
 
 
 @pytest.mark.unit

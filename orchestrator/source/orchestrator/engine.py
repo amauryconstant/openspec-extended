@@ -96,7 +96,23 @@ def get_timestamp() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def find_change_dir(change: str, *, store: str | None = None) -> Path | None:
+def find_change_dir(
+    change: str,
+    *,
+    store: str | None = None,
+    state: OrchestratorState | None = None,
+) -> Path | None:
+    # Honour a pre-resolved change_dir that still points at an existing
+    # change directory (e.g. the orchestrator set it on ``state`` during
+    # the start-of-run resolve, or the caller passed one in). Skipping the
+    # openspec round-trip is required by the preflight contract for
+    # ``--from-phase`` (no fresh-start binary probes) and is cheaper in
+    # general — re-resolving the same change_id would otherwise re-shell
+    # out. When ``state.change_dir`` is stale (e.g. the change moved to the
+    # archive after PHASE6), the directory no longer exists on disk and we
+    # fall through to the openspec resolve.
+    if state is not None and state.change_dir is not None and state.change_dir.is_dir():
+        return state.change_dir
     try:
         return osx_lib._find_change_dir(
             change, store=store or osx_lib.current_store.get()
@@ -507,6 +523,18 @@ def clear_transition(state: OrchestratorState) -> None:
 
 
 def check_complete(state: OrchestratorState) -> bool:
+    # Use the already-resolved state.change_dir to avoid spawning the
+    # openspec CLI on each loop iteration (the preflight contract for
+    # ``--from-phase`` requires zero fresh-start binary probes).
+    if state.change_dir is not None:
+        complete_file = state.change_dir / "complete.json"
+        if not complete_file.exists():
+            return False
+        try:
+            json.loads(complete_file.read_text())
+            return True
+        except json.JSONDecodeError:
+            return False
     try:
         data = osx_lib.complete_check(state.change_id)
     except osx_lib.OSXError as e:
@@ -894,8 +922,17 @@ def _resolve_post_phase6_path(state: OrchestratorState) -> Path | None:
     we re-resolve via ``find_change_dir`` (which falls back to walking the
     archive directory) and additionally do a direct archive walk so the
     resolve still works if the ``openspec`` binary is unavailable.
+
+    Short-circuits when ``state.change_dir`` still points at an existing
+    change directory: in that case the active path is intact (PHASE6 did not
+    run, or the orchestrator was invoked mid-run) and there is nothing to
+    re-resolve. Skipping the openspec round-trip is required by the
+    preflight contract for ``--from-phase``.
     """
-    resolved = find_change_dir(state.change_id, store=state.store)
+    if state.change_dir is not None and state.change_dir.is_dir():
+        return state.change_dir
+
+    resolved = find_change_dir(state.change_id, store=state.store, state=state)
     if resolved is not None:
         return resolved
 
@@ -1073,7 +1110,12 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
         state.store = store_id
         state.change_id = change
 
-    state.change_dir = find_change_dir(state.change_id, store=state.store)
+    # Honour a pre-resolved change_dir (e.g. callers like the preflight test
+    # set state.change_dir explicitly to avoid spawning the openspec CLI on
+    # path resolution; also a future caller that already knows the path can
+    # skip the round-trip).
+    if state.change_dir is None:
+        state.change_dir = find_change_dir(state.change_id, store=state.store)
     if not state.change_dir:
         log_error(state, f"Change not found: {state.change_id}")
         print()
