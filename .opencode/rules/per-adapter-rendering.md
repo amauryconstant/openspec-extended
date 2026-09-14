@@ -71,6 +71,28 @@ adapters (Codex, Kimi) diverge here.
 | Frontmatter strip  | `agent_field_transform`        | None (keep)   | strip_agent_line |
 | Skill mirror name  | `inject_name_in_skill_mirror`  | False         | True          |
 | Filename prefix    | `cmd_filename_strip_prefix`    | None          | `osx-`        |
+| Ask tool           | `ask_tool`                     | `AskUserQuestion` | `Ask`     |
+| Install hint       | `install_hint`                 | non-empty, names `openspec-extended install opencode` | non-empty, names `openspec-extended install claude` |
+| Cross-ref prefix   | `cross_ref_prefix`             | `""` (→ `/`)  | `""` (→ `/`)  |
+| Runner args        | `runner_args`                  | `()`          | `()`          |
+| Frontmatter extras | `frontmatter_extras`           | `{}`          | `{}`          |
+
+`ask_tool` and `install_hint` are the two user-facing fields every
+shipped adapter must populate: `ask_tool` renders into `{{ASK_TOOL}}`
+(the AI's user-question tool name), and `install_hint` is the
+single-sentence remediation message surfaced when the validator or
+engine preflight finds missing resources. Both shipped adapters follow
+the same template — name the install command and the tool's display
+name — locked by `tests/unit/test_tool_registry.py::TestAdapterFieldDefaults`.
+
+`cross_ref_prefix` is empty for the shipped set (both fall back to
+`skill_prefix="/"`, keeping the canonical `/opsx:<cmd>` form). Skills-only
+adapters (Codex, Kimi) set it explicitly: `$` for Codex, `/skill:` for
+Kimi, so the body rewrite kicks in. `runner_args` stays empty for the
+shipped set — runner-specific CLI flags belong on the runner class, not
+on the adapter (OpencodeRunner / ClaudeRunner ignore the field).
+`frontmatter_extras` stays empty until an adapter actually needs to
+inject extra `key: value` pairs into the modern skill mirror.
 
 Adding a new tool = one `REGISTRY[<tool_id>] = ToolAdapter(...)` entry
 plus, where its layout diverges enough from a shipped adapter, a new

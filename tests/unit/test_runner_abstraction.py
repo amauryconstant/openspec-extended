@@ -236,6 +236,44 @@ class TestRunResult:
         assert result.pid is None
 
 
+@pytest.fixture
+def cursor_adapter(monkeypatch):
+    """Register a cursor-shaped synthetic adapter for the duration of the test.
+
+    The cursor adapter uses ``runner_kind="generic_print"`` (third-party
+    ``<tool> --print --dangerously-skip-permissions "<prompt>"`` shape) —
+    the canonical Cursor entry from upstream OpenSpec. Adding cursor to
+    these parametrized runner tests exercises the ``GenericPrintRunner``
+    branch in lockstep with ``OpencodeRunner`` / ``ClaudeRunner``."""
+    synthetic = ToolAdapter(
+        tool_id="cursor",
+        skills_dir=".cursor",
+        commands_dir="commands",
+        commands_style="flat",
+        commands_ext="md",
+        slash_prefix="osx-",
+        skill_prefix="/",
+        cross_ref_prefix="",
+        ask_tool="AskUserQuestion",
+        install_hint=(
+            "Run `openspec-extended install cursor` after installing the Cursor CLI"
+        ),
+        runner_binary="cursor",
+        runner_kind="generic_print",
+        runner_args=(),
+        has_agents_dir=False,
+        agent_field_transform=None,
+        inject_name_in_skill_mirror=False,
+        cmd_filename_strip_prefix=None,
+        frontmatter_extras={},
+        docs_file="AGENTS.md",
+        tool_name="Cursor",
+        detect_paths=(".cursor",),
+    )
+    monkeypatch.setitem(REGISTRY, "cursor", synthetic)
+    yield synthetic
+
+
 @pytest.mark.unit
 class TestOpencodeRunner:
     @pytest.mark.parametrize(
@@ -243,10 +281,11 @@ class TestOpencodeRunner:
         [
             ("OpencodeRunner", "/usr/bin/opencode", "opencode"),
             ("ClaudeRunner", "/usr/bin/claude", "claude"),
+            ("GenericPrintRunner", "/usr/bin/cursor", "cursor"),
         ],
     )
     def test_missing_binary_raises(
-        self, monkeypatch, runner_cls, binary_path, adapter_id
+        self, monkeypatch, runner_cls, binary_path, adapter_id, cursor_adapter
     ):
         from source.orchestrator import runner as runner_mod
 
@@ -266,6 +305,7 @@ class TestOpencodeRunner:
         [
             ("OpencodeRunner", "/usr/bin/opencode", "opencode", "opencode", "--command", None, 4242),
             ("ClaudeRunner", "/usr/bin/claude", "claude", "claude", "--print", True, 7777),
+            ("GenericPrintRunner", "/usr/bin/cursor", "cursor", "cursor", "--print", True, 9999),
         ],
     )
     def test_successful_run(
@@ -278,6 +318,7 @@ class TestOpencodeRunner:
         expect_flag,
         expect_prompt,
         pid,
+        cursor_adapter,
     ):
         from source.orchestrator import runner as runner_mod
 
@@ -325,10 +366,17 @@ class TestOpencodeRunner:
         [
             ("OpencodeRunner", "/usr/bin/opencode", "opencode", "--model=claude-opus-4"),
             ("ClaudeRunner", "/usr/bin/claude", "claude", "claude-opus-4"),
+            ("GenericPrintRunner", "/usr/bin/cursor", "cursor", "claude-opus-4"),
         ],
     )
     def test_includes_model_when_set(
-        self, monkeypatch, runner_cls, binary_path, adapter_id, expect_model
+        self,
+        monkeypatch,
+        runner_cls,
+        binary_path,
+        adapter_id,
+        expect_model,
+        cursor_adapter,
     ):
         from source.orchestrator import runner as runner_mod
 

@@ -244,3 +244,108 @@ class TestAdapterTokensAreConsistent:
         for adapter in REGISTRY.values():
             tokens = _adapter_tokens(adapter)
             assert tokens["PLATFORM_DIR"] == adapter.skills_dir
+
+
+class TestAdapterFieldDefaults:
+    """Regression net: every shipped adapter must populate the new
+    Phase 1 surface fields so the deploy / runner / engine paths have
+    the data they need without falling back to unsafe defaults.
+
+    Walks ``REGISTRY`` (the actual shipped adapters, not synthetic
+    fixtures) and asserts the per-adapter contract. A regression here
+    means a future adapter shipped with an empty ``install_hint`` (no
+    remediation message for users) or with non-empty ``runner_args``
+    that would corrupt the OpencodeRunner / ClaudeRunner CLI shapes
+    that ignore the field.
+
+    Phase 1 added five fields that every shipped adapter must populate:
+
+    - ``ask_tool`` — non-empty (the AI's user-question tool name)
+    - ``install_hint`` — non-empty and contains the install command
+    - ``cross_ref_prefix`` — empty for shipped adapters (falls back
+      to ``skill_prefix``); non-empty values belong on skills-only
+      adapters that diverge from ``/`` for cross-references
+    - ``runner_args`` — empty tuple; runner-specific flags belong on
+      the runner class, not on the adapter
+    - ``frontmatter_extras`` — empty dict; only set when an adapter
+      actually needs to inject extra frontmatter pairs
+    """
+
+    @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
+    def test_ask_tool_is_nonempty(self, tool_id):
+        adapter = REGISTRY[tool_id]
+        assert adapter.ask_tool, (
+            f"{tool_id}: ask_tool must be populated (the AI's "
+            f"user-question tool name; AskUserQuestion for opencode, "
+            f"Ask for Claude, etc.)"
+        )
+
+    @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
+    def test_install_hint_is_nonempty_and_names_install_command(self, tool_id):
+        adapter = REGISTRY[tool_id]
+        assert adapter.install_hint, (
+            f"{tool_id}: install_hint must be a non-empty user-facing "
+            f"remediation message (e.g. 'Run `openspec-extended install "
+            f"<tool>` after installing the <Tool> CLI')"
+        )
+        expected = f"openspec-extended install {tool_id}"
+        assert expected in adapter.install_hint, (
+            f"{tool_id}: install_hint {adapter.install_hint!r} must "
+            f"name the install command {expected!r}"
+        )
+
+    @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
+    def test_cross_ref_prefix_is_empty_for_shipped_adapters(self, tool_id):
+        # Both shipped adapters (opencode, claude) keep the canonical
+        # ``/opsx:<cmd>`` form, so ``cross_ref_prefix`` falls back to
+        # ``skill_prefix`` (``/``). Skills-only adapters that diverge
+        # (``$`` for Codex, ``/skill:`` for Kimi) set this explicitly.
+        adapter = REGISTRY[tool_id]
+        assert adapter.cross_ref_prefix == "", (
+            f"{tool_id}: shipped adapters must declare "
+            f"cross_ref_prefix='' (falls back to skill_prefix); non-empty "
+            f"values belong on skills-only adapters that diverge from '/'"
+        )
+
+    @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
+    def test_runner_args_is_empty_tuple(self, tool_id):
+        # ``runner_args`` is consumed by ``GenericPrintRunner`` only.
+        # OpencodeRunner / ClaudeRunner have bespoke invocations and
+        # ignore the field, so shipping an adapter with non-empty
+        # ``runner_args`` would silently do nothing on those runner
+        # classes. The empty default is the only safe shipped value.
+        adapter = REGISTRY[tool_id]
+        assert adapter.runner_args == (), (
+            f"{tool_id}: runner_args {adapter.runner_args!r} must be "
+            f"the empty tuple for shipped adapters — runner-specific "
+            f"CLI flags belong on the runner class, not on the adapter"
+        )
+
+    @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
+    def test_frontmatter_extras_is_empty_dict(self, tool_id):
+        adapter = REGISTRY[tool_id]
+        assert adapter.frontmatter_extras == {}, (
+            f"{tool_id}: frontmatter_extras {adapter.frontmatter_extras!r} "
+            f"must be empty for shipped adapters — only set when an "
+            f"adapter actually needs to inject extra frontmatter pairs"
+        )
+
+    @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
+    def test_detect_paths_is_nonempty_string_tuple(self, tool_id):
+        adapter = REGISTRY[tool_id]
+        assert isinstance(adapter.detect_paths, tuple), (
+            f"{tool_id}: detect_paths must be a tuple, got "
+            f"{type(adapter.detect_paths).__name__}"
+        )
+        assert adapter.detect_paths, (
+            f"{tool_id}: detect_paths must be non-empty (engine's "
+            f"detect_runner walks it to resolve the active tool)"
+        )
+        for entry in adapter.detect_paths:
+            assert isinstance(entry, str), (
+                f"{tool_id}: detect_paths entry {entry!r} must be a string, "
+                f"got {type(entry).__name__}"
+            )
+            assert entry, (
+                f"{tool_id}: detect_paths entry must be non-empty"
+            )

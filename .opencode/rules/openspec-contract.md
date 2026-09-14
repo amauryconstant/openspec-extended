@@ -139,3 +139,15 @@ The six rules in §4.2 (Schema source of truth, Glob safety, Frontier discipline
 
 - **Rule 1 (Schema source of truth)** — extended to include `isPlanningComplete`, `retire_capabilities`, `operationGuidance`, `missingPrerequisites`, and the spec inventory. Review and modify skills must consume these when present.
 - **Rule 2 (Glob safety)** — unchanged. The `requires` field (v1.7.0+) does not change which paths are safe to write. The v1.13.0 fenced-code preservation in archive means `existingOutputPaths` written by previous archives now retain their internal whitespace, but the path surface is unchanged.
+
+## 13.9 Orchestrator's per-adapter surface
+
+The orchestrator exposes a `ToolAdapter` dataclass (`orchestrator/source/tools.py`) that captures every axis on which supported AI assistants vary. Five fields added in Phase 1 are part of this per-adapter surface — `source.tools.REGISTRY[<tool_id>]` declares them and the deploy / runner / engine paths read them:
+
+- **`ask_tool`** — name of the AI's user-question tool (`AskUserQuestion` for opencode, `Ask` for Claude Code). Renders into the `{{ASK_TOOL}}` token.
+- **`install_hint`** — single-sentence user-facing remediation shown when the validator or engine preflight finds missing resources for an adapter. Must contain the `openspec-extended install <tool_id>` command and the tool's display name.
+- **`cross_ref_prefix`** — user-facing prefix used when a skill refers to another skill by invocation. Empty `""` means "fall back to `skill_prefix`" — the default for the shipped set. Skills-only adapters with a non-canonical prefix (Codex's `$`, Kimi's `/skill:`) set this explicitly so the body rewrite of `/opsx:<cmd>` cross-references kicks in. Renders into `{{CROSS_REF_PREFIX}}` (effective value: this field when non-empty, otherwise `skill_prefix`).
+- **`runner_args`** — extra CLI args `GenericPrintRunner` inserts between the binary name and `["--print", "--dangerously-skip-permissions"]`. OpencodeRunner / ClaudeRunner have bespoke invocations and ignore this field. Default `()`.
+- **`frontmatter_extras`** — extra `key: value` pairs to inject into the modern skill mirror's frontmatter, in iteration order. When `"name"` is present, it overrides the auto-injected `name: <name>` from `inject_name_in_skill_mirror`. Default `{}`.
+
+Every shipped adapter must populate `ask_tool` and `install_hint`; `cross_ref_prefix`, `runner_args`, and `frontmatter_extras` stay at their defaults until an adapter actually needs them. The contract is locked by `tests/unit/test_tool_registry.py::TestAdapterFieldDefaults` — adding a new adapter with an empty `install_hint` (no remediation message for users) fails the test.

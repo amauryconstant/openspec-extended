@@ -33,6 +33,43 @@ from source.tools import REGISTRY, ToolAdapter
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture
+def cursor_adapter(monkeypatch):
+    """Register a cursor-shaped synthetic adapter for the test, restore after.
+
+    Mirrors the canonical Cursor adapter from upstream OpenSpec
+    (``runner_kind="generic_print"``, ``commands_style="flat"``,
+    ``has_agents_dir=False``). The fixture is module-scoped per test
+    invocation so the registry mutation is reverted at teardown."""
+    synthetic = ToolAdapter(
+        tool_id="cursor",
+        skills_dir=".cursor",
+        commands_dir="commands",
+        commands_style="flat",
+        commands_ext="md",
+        slash_prefix="osx-",
+        skill_prefix="/",
+        cross_ref_prefix="",
+        ask_tool="AskUserQuestion",
+        install_hint=(
+            "Run `openspec-extended install cursor` after installing the Cursor CLI"
+        ),
+        runner_binary="cursor",
+        runner_kind="generic_print",
+        runner_args=(),
+        has_agents_dir=False,
+        agent_field_transform=None,
+        inject_name_in_skill_mirror=False,
+        cmd_filename_strip_prefix=None,
+        frontmatter_extras={},
+        docs_file="AGENTS.md",
+        tool_name="Cursor",
+        detect_paths=(".cursor",),
+    )
+    monkeypatch.setitem(REGISTRY, "cursor", synthetic)
+    yield synthetic
+
+
 # ---------------------------------------------------------------------------
 # _load_manifest: registry-driven path resolution
 # ---------------------------------------------------------------------------
@@ -326,8 +363,8 @@ class TestInstallHint:
     via ``detect_platform``.
     """
 
-    @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
-    def test_hint_names_each_shipped_platform(self, tool_id):
+    @pytest.mark.parametrize("tool_id", ["opencode", "claude", "cursor"])
+    def test_hint_names_each_shipped_platform(self, tool_id, cursor_adapter):
         hint = osx._install_hint(tool_id)
         expected = REGISTRY[tool_id].install_hint
         assert hint == expected, (

@@ -81,7 +81,23 @@ genuine, not cosmetic:
 | `{{TOOL_NAME}}` | keep | Display name only. |
 | `{{SKILL_PREFIX}}` | keep | Adapter-routed slash prefix; non-trivial rewrite. |
 | `{{CMD_PREFIX}}` | keep | Adapter-routed filename prefix. |
+| `{{CROSS_REF_PREFIX}}` | keep | Adapter-routed prefix for skill-to-skill cross references (skills-only adapters rewrite `/opsx:<cmd>` → `<cross_ref_prefix>openspec-<cmd>`). Resolves to `adapter.cross_ref_prefix` when non-empty, else `adapter.skill_prefix`. Shipped adapters default to empty → `"/"`. |
 | `{{ASK_TOOL}}`, `{{DOCS_FILE}}`, `{{TOOL_NAME}}`, `{{PLATFORM_DIR}}` | keep | These have no canonical cross-tool form. |
+
+## Per-adapter `ToolAdapter` field contract
+
+Every shipped `REGISTRY[<tool_id>]` entry in `orchestrator/source/tools.py`
+must populate the Phase 1 surface so deploy / runner / engine consumers
+have what they need without falling back to unsafe defaults. Locked by
+`tests/unit/test_tool_registry.py::TestAdapterFieldDefaults`:
+
+| Field | Contract | Why |
+| --- | --- | --- |
+| `ask_tool` | non-empty | Name of the AI's user-question tool. Renders into `{{ASK_TOOL}}`. Shipped values: `AskUserQuestion` (opencode), `Ask` (claude). |
+| `install_hint` | non-empty, contains `openspec-extended install <tool_id>` | User-facing remediation when an adapter's resources are missing on disk. The validator and engine preflight both surface this hint. |
+| `cross_ref_prefix` | empty for shipped adapters (`/`, `/`); set explicitly on skills-only adapters with a non-canonical prefix | Drives the body rewrite of `/opsx:<cmd>` cross-references. Empty = fallback to `skill_prefix`. |
+| `runner_args` | empty tuple `()` | CLI args inserted between the binary name and `--print --dangerously-skip-permissions` by `GenericPrintRunner`. Shipped adapters leave this empty — OpencodeRunner / ClaudeRunner have bespoke invocations and ignore the field. |
+| `frontmatter_extras` | empty dict `{}` | Extra `key: value` pairs injected into the modern skill mirror's frontmatter. Shipped adapters leave this empty; only override when an adapter needs to inject (e.g. `source: openspec-extended`). |
 
 The orchestrator deploy rewrites `/osx:<id>` → `/osx-<id>` for OpenCode
 and `/osx:<id>` → `/osx:<id>` for Claude Code (already the form) via

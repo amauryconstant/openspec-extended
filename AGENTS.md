@@ -38,6 +38,15 @@ per side).
 | Editing tests                           | `tests/AGENTS.md`                                                  |
 | Adding a new AI tool adapter            | `orchestrator/source/tools.py` + `.opencode/rules/naming-conventions.md` |
 
+## Adding a new AI tool adapter
+
+1. Add `REGISTRY[<tool_id>] = ToolAdapter(...)` in `orchestrator/source/tools.py`. Register it before existing tools so `detect_platform` picks it up first.
+2. Pick the `commands_style` that matches the target's filesystem layout; if the new `runner_kind` is not `opencode_run` / `claude_print`, add a branch in `orchestrator/source/orchestrator/runner.py:_runner_for`.
+3. Every adapter must populate the five Phase 1 surface fields: `ask_tool` (non-empty), `install_hint` (non-empty, names `openspec-extended install <tool_id>`), and leave `cross_ref_prefix`, `runner_args`, `frontmatter_extras` at their defaults unless the adapter actually needs them. Locked by `tests/unit/test_tool_registry.py::TestAdapterFieldDefaults`.
+4. If the adapter's body cross-references diverge from the canonical `/` form (Codex's `$`, Kimi's `/skill:`), set `cross_ref_prefix` explicitly so `orchestrator/source/cli.py:_rewrite_skill_body_refs` rewrites `/opsx:<cmd>` → `<cross_ref_prefix>openspec-<cmd>`.
+5. If the adapter's CLI shape differs from `<tool> --print --dangerously-skip-permissions "<prompt>"` (Cursor / Qwen Code / Kiro), declare `runner_args` so `GenericPrintRunner` (`orchestrator/source/orchestrator/runner.py`) inserts the right flags between the binary name and `--print`.
+6. CLI / runner / engine / library layers read from the registry — no per-tool edits required there.
+
 ## Commands
 
 ```bash

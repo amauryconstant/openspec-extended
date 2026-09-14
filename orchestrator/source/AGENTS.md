@@ -45,6 +45,9 @@ the registry — no per-tool edits there.
 3. If the new `runner_kind` is not `opencode_run` or `claude_print`, add a branch in `source/orchestrator/runner.py:_runner_for`.
 4. Add the tool id to `REGISTRY` first so `detect_platform` picks it up before existing tools.
 5. Add a regression test in `tests/unit/test_runner_abstraction.py::TestDetectRunnerWalksRegistry`.
+6. Populate the five Phase 1 surface fields on every adapter entry: `ask_tool` (non-empty), `install_hint` (non-empty, names `openspec-extended install <tool_id>`), and leave `cross_ref_prefix`, `runner_args`, `frontmatter_extras` at their defaults unless the adapter actually needs them. Locked by `tests/unit/test_tool_registry.py::TestAdapterFieldDefaults`.
+7. If the adapter's body cross-references diverge from the canonical `/` form (e.g. Codex's `$`, Kimi's `/skill:`), set `cross_ref_prefix` explicitly so the `/opsx:<cmd>` rewrite in `source/cli.py:_rewrite_skill_body_refs` kicks in.
+8. If the adapter's CLI shape differs from the standard `<tool> --print --dangerously-skip-permissions "<prompt>"` (Cursor / Qwen Code / Kiro), declare `runner_args` so `GenericPrintRunner` (`source/orchestrator/runner.py`) inserts the right flags between the binary name and `--print`.
 
 The CLI / runner / engine / library layers read from the registry — no per-tool edits required there.
 

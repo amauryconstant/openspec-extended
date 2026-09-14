@@ -34,6 +34,44 @@ from source.tools import REGISTRY, ToolAdapter
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture
+def cursor_adapter(monkeypatch):
+    """Register a cursor-shaped synthetic adapter for the test, restore after.
+
+    Mirrors upstream OpenSpec's cursor adapter: flat command layout,
+    ``runner_kind="generic_print"`` (no on-disk agents). Cursor shares the
+    shipped ``slash_prefix="osx-"`` / ``skill_prefix="/"`` with opencode
+    but uses its own ``.cursor`` directory, so byte-equality assertions
+    for the shipped set are preserved."""
+    synthetic = ToolAdapter(
+        tool_id="cursor",
+        skills_dir=".cursor",
+        commands_dir="commands",
+        commands_style="flat",
+        commands_ext="md",
+        slash_prefix="osx-",
+        skill_prefix="/",
+        cross_ref_prefix="",
+        ask_tool="AskUserQuestion",
+        install_hint=(
+            "Run `openspec-extended install cursor` after installing the Cursor CLI"
+        ),
+        runner_binary="cursor",
+        runner_kind="generic_print",
+        runner_args=(),
+        has_agents_dir=False,
+        agent_field_transform=None,
+        inject_name_in_skill_mirror=False,
+        cmd_filename_strip_prefix=None,
+        frontmatter_extras={},
+        docs_file="AGENTS.md",
+        tool_name="Cursor",
+        detect_paths=(".cursor",),
+    )
+    monkeypatch.setitem(REGISTRY, "cursor", synthetic)
+    yield synthetic
+
+
 # ---------------------------------------------------------------------------
 # deploy_skills
 # ---------------------------------------------------------------------------
@@ -52,8 +90,10 @@ class TestDeploySkillsReproducesRegistryLayout:
     def sk_source(self) -> Path:
         return get_skills_resources_dir() / "canonical" / "skills"
 
-    @pytest.mark.parametrize("tool_id", ["opencode", "claude"])
-    def test_writes_skill_under_target_skills(self, tmp_path, tool_id, oc_source):
+    @pytest.mark.parametrize("tool_id", ["opencode", "claude", "cursor"])
+    def test_writes_skill_under_target_skills(
+        self, tmp_path, tool_id, oc_source, cursor_adapter
+    ):
         adapter = REGISTRY[tool_id]
         target = tmp_path / adapter.skills_dir
         target.mkdir(parents=True)
@@ -67,9 +107,9 @@ class TestDeploySkillsReproducesRegistryLayout:
             f"{tool_id}: SKILL.md missing from deployed skill"
         )
 
-    @pytest.mark.parametrize("tool_id", ["opencode", "claude"])
+    @pytest.mark.parametrize("tool_id", ["opencode", "claude", "cursor"])
     def test_token_substitution_matches_adapter(
-        self, tmp_path, tool_id
+        self, tmp_path, tool_id, cursor_adapter
     ):
         """For every shipped adapter, ``{{PLATFORM_DIR}}`` and
         ``{{CMD_PREFIX}}`` (which appear in ``osx-review``'s body
@@ -230,8 +270,8 @@ class TestDeployAgentsRoutesByHasAgentsDir:
     def source(self) -> Path:
         return get_resources_dir() / "canonical" / "agents"
 
-    @pytest.mark.parametrize("tool_id", ["opencode", "claude"])
-    def test_writes_agent_md(self, tmp_path, tool_id, source):
+    @pytest.mark.parametrize("tool_id", ["opencode", "claude", "cursor"])
+    def test_writes_agent_md(self, tmp_path, tool_id, source, cursor_adapter):
         adapter = REGISTRY[tool_id]
         target = tmp_path / adapter.skills_dir
         target.mkdir(parents=True)
@@ -299,8 +339,10 @@ class TestPurgeReproducesRegistryLayout:
         assert not skill_mirror.exists()
         assert (kept_modern / "SKILL.md").exists()
 
-    @pytest.mark.parametrize("tool_id", ["opencode", "claude"])
-    def test_unknown_tool_raises_value_error(self, tmp_path, tool_id):
+    @pytest.mark.parametrize("tool_id", ["opencode", "claude", "cursor"])
+    def test_unknown_tool_raises_value_error(
+        self, tmp_path, tool_id, cursor_adapter
+    ):
         """Phase 1B: validation reads ``REGISTRY`` (was ``TOOL_DIRS``)."""
         target = tmp_path / f"fake-{tool_id}"
         target.mkdir()
@@ -386,9 +428,9 @@ class TestValidateDeploymentSharedSkillsRootNote:
     the shipped set. Hypothetical ``.agents``-using adapters (Codex, Zed,
     Antigravity, …) would trigger it."""
 
-    @pytest.mark.parametrize("tool_id", ["opencode", "claude"])
+    @pytest.mark.parametrize("tool_id", ["opencode", "claude", "cursor"])
     def test_no_shared_root_note_for_shipped_adapters(
-        self, tmp_path, capsys, tool_id
+        self, tmp_path, capsys, tool_id, cursor_adapter
     ):
         adapter = REGISTRY[tool_id]
         target = tmp_path / adapter.skills_dir
@@ -488,8 +530,10 @@ class TestEveryShippedAdapterDeploysCleanly:
     ``{{TOKEN}}`` remains. This is the regression net for the entire
     Phase 1B refactor."""
 
-    @pytest.mark.parametrize("tool_id", ["opencode", "claude"])
-    def test_no_leftover_tokens_after_full_deploy(self, tmp_path, tool_id):
+    @pytest.mark.parametrize("tool_id", ["opencode", "claude", "cursor"])
+    def test_no_leftover_tokens_after_full_deploy(
+        self, tmp_path, tool_id, cursor_adapter
+    ):
         from source.cli import deploy_type, _resolve_side_manifest
         from source.tools import REGISTRY
 

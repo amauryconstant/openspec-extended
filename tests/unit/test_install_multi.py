@@ -21,12 +21,45 @@ import pytest
 from typer.testing import CliRunner
 
 from source.cli import REGISTRY, _parse_tool_target, app
+from source.tools import ToolAdapter
 
 
 pytestmark = pytest.mark.unit
 
 
 runner = CliRunner()
+
+
+@pytest.fixture
+def cursor_adapter(monkeypatch):
+    """Register a cursor-shaped synthetic adapter for the test, restore after."""
+    synthetic = ToolAdapter(
+        tool_id="cursor",
+        skills_dir=".cursor",
+        commands_dir="commands",
+        commands_style="flat",
+        commands_ext="md",
+        slash_prefix="osx-",
+        skill_prefix="/",
+        cross_ref_prefix="",
+        ask_tool="AskUserQuestion",
+        install_hint=(
+            "Run `openspec-extended install cursor` after installing the Cursor CLI"
+        ),
+        runner_binary="cursor",
+        runner_kind="generic_print",
+        runner_args=(),
+        has_agents_dir=False,
+        agent_field_transform=None,
+        inject_name_in_skill_mirror=False,
+        cmd_filename_strip_prefix=None,
+        frontmatter_extras={},
+        docs_file="AGENTS.md",
+        tool_name="Cursor",
+        detect_paths=(".cursor",),
+    )
+    monkeypatch.setitem(REGISTRY, "cursor", synthetic)
+    yield synthetic
 
 
 # ---------------------------------------------------------------------------
@@ -51,6 +84,23 @@ class TestParseToolTargetValid:
         # does NOT secretly accept "all".
         assert "opencode" in REGISTRY
         assert "claude" in REGISTRY
+
+    @pytest.mark.parametrize("raw,expected", [
+        ("cursor", ["cursor"]),
+        ("opencode,cursor", ["opencode", "cursor"]),
+        ("cursor,opencode,claude", ["cursor", "opencode", "claude"]),
+        ("opencode, claude, cursor", ["opencode", "claude", "cursor"]),
+    ])
+    def test_accepts_three_tool_inputs(self, cursor_adapter, raw, expected):
+        # Cursor (a future third-party adapter) extends the multi-tool
+        # parse path: same comma-separated / whitespace-stripped contract,
+        # just with an extra registered id.
+        assert _parse_tool_target(raw) == expected
+
+    def test_three_shipped_or_cursor_tools_listed(self, cursor_adapter):
+        assert "opencode" in REGISTRY
+        assert "claude" in REGISTRY
+        assert "cursor" in REGISTRY
 
 
 class TestParseToolTargetInvalid:
@@ -94,6 +144,28 @@ class TestInstallCommaSeparated:
         assert result.exit_code == 0, result.output
         assert deploy_calls == ["opencode", "claude"]
         assert len(validate_calls) == 2
+
+    def test_three_tools_each_deploy(
+        self, tmp_path, monkeypatch, cursor_adapter
+    ):
+        deploy_calls: list[str] = []
+        validate_calls: list[str] = []
+
+        def fake_deploy(tool, force=False, with_autonomous=False):
+            deploy_calls.append(tool)
+
+        def fake_validate(target_dir):
+            validate_calls.append(str(target_dir))
+
+        monkeypatch.setattr("source.cli.deploy_all_resources", fake_deploy)
+        monkeypatch.setattr("source.cli._validate_target_after_deploy", fake_validate)
+        monkeypatch.setattr("source.cli.update_gitignore", lambda: None)
+
+        result = runner.invoke(app, ["install", "opencode,claude,cursor"])
+
+        assert result.exit_code == 0, result.output
+        assert deploy_calls == ["opencode", "claude", "cursor"]
+        assert len(validate_calls) == 3
 
     def test_order_preserved(self, tmp_path, monkeypatch):
         deploy_calls: list[str] = []
