@@ -77,7 +77,7 @@ genuine, not cosmetic:
 | --- | --- | --- |
 | `{{DOCS_FILE}}` | keep | `AGENTS.md` (OpenCode) vs `CLAUDE.md` (Claude Code) — no canonical cross-tool form. |
 | `{{PLATFORM_DIR}}` | keep | `.opencode` vs `.claude` — no canonical cross-tool form. |
-| `{{ASK_TOOL}}` | keep | `AskUserQuestion` vs `Ask` — tool-specific UI affordance. |
+| `{{ASK_TOOL}}` | keep | `AskUserQuestion` vs `Ask` — tool-specific UI affordance. Source comes from `adapter.ask_tool` (per-adapter field on the registry, not a derived constant). |
 | `{{TOOL_NAME}}` | keep | Display name only. |
 | `{{SKILL_PREFIX}}` | keep | Adapter-routed slash prefix; non-trivial rewrite. |
 | `{{CMD_PREFIX}}` | keep | Adapter-routed filename prefix. |

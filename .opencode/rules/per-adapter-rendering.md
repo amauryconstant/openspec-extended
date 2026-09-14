@@ -18,14 +18,15 @@ fields; the deploy functions do not branch on tool id.
 
 ## Token substitution
 
-| Token             | OpenCode value     | Claude value   |
-| ----------------- | ------------------ | -------------- |
-| `{{ASK_TOOL}}`    | `AskUserQuestion`  | `Ask`          |
-| `{{DOCS_FILE}}`   | `AGENTS.md`        | `CLAUDE.md`    |
-| `{{CMD_PREFIX}}`  | `osx-`             | `osx:`         |
-| `{{TOOL_NAME}}`   | `OpenCode`         | `Claude Code`  |
-| `{{PLATFORM_DIR}}`| `.opencode`        | `.claude`      |
-| `{{SKILL_PREFIX}}`| `/`                | `/`            |
+| Token                  | OpenCode value     | Claude value   |
+| ---------------------- | ------------------ | -------------- |
+| `{{ASK_TOOL}}`         | `AskUserQuestion`  | `Ask`          |
+| `{{DOCS_FILE}}`        | `AGENTS.md`        | `CLAUDE.md`    |
+| `{{CMD_PREFIX}}`       | `osx-`             | `osx:`         |
+| `{{TOOL_NAME}}`        | `OpenCode`         | `Claude Code`  |
+| `{{PLATFORM_DIR}}`     | `.opencode`        | `.claude`      |
+| `{{SKILL_PREFIX}}`     | `/`                | `/`            |
+| `{{CROSS_REF_PREFIX}}` | `/`                | `/`            |
 
 Single source of truth: `orchestrator/source/tools.py:_adapter_tokens`.
 Adding a new token requires extending the helper and adding a regression
@@ -33,6 +34,17 @@ test in `tests/unit/test_token_substitution.py`. Unknown tokens are left
 verbatim — a future token added to source but not yet to the helper
 surfaces as a literal in the deployed file rather than silently
 disappearing.
+
+`{{ASK_TOOL}}` is read from `adapter.ask_tool`; the per-tool values
+`AskUserQuestion` (opencode) and `Ask` (claude) live in the registry,
+not in a separate dispatch table. Adding a new tool = set the field on
+its `ToolAdapter` entry; no `_adapter_tokens` edit required.
+
+`{{CROSS_REF_PREFIX}}` is read as `adapter.cross_ref_prefix` when
+non-empty, otherwise `adapter.skill_prefix`. Both shipped adapters
+declare `cross_ref_prefix=""`, so the token resolves to `"/"` —
+identical to `{{SKILL_PREFIX}}` for opencode and claude. Skills-only
+adapters (Codex, Kimi) diverge here.
 
 ## Scope rules
 

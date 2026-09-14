@@ -344,19 +344,24 @@ def _substitute_tokens_in_tree(root: Path, tool: str) -> None:
 def _build_skill_mirror(source_path: Path, name: str, adapter: ToolAdapter) -> str:
     """Read an opencode command file and render it as a per-adapter SKILL.md body.
 
-    Drives three adapter-controlled behaviours:
+    Drives four adapter-controlled behaviours:
 
     - ``agent_field_transform`` strips opencode-only ``agent:`` lines
       for tools whose slash resolver doesn't read opencode's dispatch
       model (Claude, Cursor, Codex, Kimi).
     - ``inject_name_in_skill_mirror`` adds ``name: <name>`` for tools
-      whose slash resolver reads it from frontmatter (Claude).
-      Tools that derive the skill name from the on-disk directory
-      (opencode) skip this.
+      whose slash resolver reads it from frontmatter (Claude). Only
+      consulted when ``"name"`` is not present in ``frontmatter_extras``;
+      an extras-supplied name wins.
+    - ``frontmatter_extras`` injects arbitrary ``key: value`` pairs
+      into the closing-fence frontmatter, in iteration order.
     - inline fallback handles the rare unclosed-frontmatter case.
 
     Returns the rendered string; callers write it to disk.
     """
+    extras = adapter.frontmatter_extras
+    name_via_extras = "name" in extras
+    want_inject_name = adapter.inject_name_in_skill_mirror and not name_via_extras
     raw = source_path.read_text()
     in_fm = False
     seen_close = False
@@ -369,8 +374,10 @@ def _build_skill_mirror(source_path: Path, name: str, adapter: ToolAdapter) -> s
                 out_lines.append(line)
                 continue
             if not seen_close:
-                if adapter.inject_name_in_skill_mirror:
+                if want_inject_name:
                     out_lines.append(f"name: {name}\n")
+                for extra_key, extra_value in extras.items():
+                    out_lines.append(f"{extra_key}: {extra_value}\n")
                 seen_close = True
                 in_fm = False
             out_lines.append(line)
@@ -380,9 +387,16 @@ def _build_skill_mirror(source_path: Path, name: str, adapter: ToolAdapter) -> s
             if line == "":
                 continue
         out_lines.append(line)
-    if not seen_close and adapter.inject_name_in_skill_mirror:
-        # File had no closing frontmatter fence; still inject name on a fresh header.
-        return f"---\nname: {name}\n---\n{raw}"
+    if not seen_close and (want_inject_name or extras):
+        # File had no closing frontmatter fence; still inject a fresh
+        # header with the name/extras so downstream readers get one.
+        head = ["---\n"]
+        if want_inject_name:
+            head.append(f"name: {name}\n")
+        for extra_key, extra_value in extras.items():
+            head.append(f"{extra_key}: {extra_value}\n")
+        head.append("---\n")
+        return "".join(head) + raw
     return "".join(out_lines)
 
 
@@ -628,9 +642,10 @@ def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
     Phase 2A: the canonical on-disk source is ``canonical/`` (a single,
     tool-neutral tree); the ``ToolAdapter`` drives per-tool rendering
     (commands_dir layout, cmd_filename_strip_prefix,
-    inject_name_in_skill_mirror, agent_field_transform, token
-    substitution). The per-tool source trees were deleted in lockstep —
-    there is no ``<tool>/`` source to read from anymore.
+    inject_name_in_skill_mirror, frontmatter_extras,
+    agent_field_transform, token substitution). The per-tool source
+    trees were deleted in lockstep — there is no ``<tool>/`` source
+    to read from anymore.
     """
     source_version = __version__
     target_dir = Path.cwd() / TOOL_DIRS[tool]
@@ -1137,7 +1152,7 @@ def deploy_core(
             "An existing core deployment was detected. Re-run with --force to"
             " overwrite (a snapshot will be saved to .openspec-extended-baseline.json)."
         )
-        console.print("  Hint: openspec-extended install <tool> --with-core --force")
+        console.print(f"  Hint: openspec-extended install {tool} --with-core --force")
         console.print("  Restore later with: openspec-extended restore-core")
         raise SystemExit(2)
 

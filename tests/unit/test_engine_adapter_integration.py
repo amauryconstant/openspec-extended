@@ -318,6 +318,9 @@ class TestLibRegistryDrivenPreflightHint:
             docs_file="AGENTS.md",
             tool_name="Cursor",
             detect_paths=(".cursor",),
+            install_hint=(
+                "Run `openspec-extended install cursor` after installing the Cursor CLI"
+            ),
         )
         monkeypatch.setitem(REGISTRY, "cursor", synthetic)
 

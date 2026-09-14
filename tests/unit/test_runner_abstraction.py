@@ -92,7 +92,7 @@ class TestRunRequestExtraPrompt:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        OpencodeRunner().run(
+        OpencodeRunner(REGISTRY["opencode"]).run(
             RunRequest(
                 command="osx-phase1",
                 agent="osx-builder",
@@ -125,7 +125,7 @@ class TestRunRequestExtraPrompt:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        OpencodeRunner().run(
+        OpencodeRunner(REGISTRY["opencode"]).run(
             RunRequest(
                 command="osx-phase1",
                 agent="osx-builder",
@@ -152,7 +152,7 @@ class TestRunRequestExtraPrompt:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        OpencodeRunner().run(
+        OpencodeRunner(REGISTRY["opencode"]).run(
             RunRequest(
                 command="osx-phase1",
                 agent="osx-builder",
@@ -180,7 +180,7 @@ class TestRunRequestExtraPrompt:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        ClaudeRunner().run(
+        ClaudeRunner(REGISTRY["claude"]).run(
             RunRequest(
                 command="osx-phase1",
                 agent="osx-builder",
@@ -208,7 +208,7 @@ class TestRunRequestExtraPrompt:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        ClaudeRunner().run(
+        ClaudeRunner(REGISTRY["claude"]).run(
             RunRequest(
                 command="osx-phase1",
                 agent="osx-builder",
@@ -239,18 +239,20 @@ class TestRunResult:
 @pytest.mark.unit
 class TestOpencodeRunner:
     @pytest.mark.parametrize(
-        "runner_cls,binary_path",
+        "runner_cls,binary_path,adapter_id",
         [
-            ("OpencodeRunner", "/usr/bin/opencode"),
-            ("ClaudeRunner", "/usr/bin/claude"),
+            ("OpencodeRunner", "/usr/bin/opencode", "opencode"),
+            ("ClaudeRunner", "/usr/bin/claude", "claude"),
         ],
     )
-    def test_missing_binary_raises(self, monkeypatch, runner_cls, binary_path):
+    def test_missing_binary_raises(
+        self, monkeypatch, runner_cls, binary_path, adapter_id
+    ):
         from source.orchestrator import runner as runner_mod
 
         cls = getattr(runner_mod, runner_cls)
         monkeypatch.setattr("shutil.which", lambda _: None)
-        runner = cls()
+        runner = cls(REGISTRY[adapter_id])
         with pytest.raises(OSXError) as e:
             runner.run(
                 runner_mod.RunRequest(
@@ -260,10 +262,10 @@ class TestOpencodeRunner:
         assert e.value.code == "runner_not_found"
 
     @pytest.mark.parametrize(
-        "runner_cls,binary_path,first_arg,expect_flag,expect_prompt,pid",
+        "runner_cls,binary_path,adapter_id,first_arg,expect_flag,expect_prompt,pid",
         [
-            ("OpencodeRunner", "/usr/bin/opencode", "opencode", "--command", None, 4242),
-            ("ClaudeRunner", "/usr/bin/claude", "claude", "--print", True, 7777),
+            ("OpencodeRunner", "/usr/bin/opencode", "opencode", "opencode", "--command", None, 4242),
+            ("ClaudeRunner", "/usr/bin/claude", "claude", "claude", "--print", True, 7777),
         ],
     )
     def test_successful_run(
@@ -271,6 +273,7 @@ class TestOpencodeRunner:
         monkeypatch,
         runner_cls,
         binary_path,
+        adapter_id,
         first_arg,
         expect_flag,
         expect_prompt,
@@ -291,7 +294,7 @@ class TestOpencodeRunner:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        runner = cls()
+        runner = cls(REGISTRY[adapter_id])
         result = runner.run(
             runner_mod.RunRequest(
                 command="osx-phase0",
@@ -318,14 +321,14 @@ class TestOpencodeRunner:
             assert "my-change" in prompt
 
     @pytest.mark.parametrize(
-        "runner_cls,binary_path,expect_model",
+        "runner_cls,binary_path,adapter_id,expect_model",
         [
-            ("OpencodeRunner", "/usr/bin/opencode", "--model=claude-opus-4"),
-            ("ClaudeRunner", "/usr/bin/claude", "claude-opus-4"),
+            ("OpencodeRunner", "/usr/bin/opencode", "opencode", "--model=claude-opus-4"),
+            ("ClaudeRunner", "/usr/bin/claude", "claude", "claude-opus-4"),
         ],
     )
     def test_includes_model_when_set(
-        self, monkeypatch, runner_cls, binary_path, expect_model
+        self, monkeypatch, runner_cls, binary_path, adapter_id, expect_model
     ):
         from source.orchestrator import runner as runner_mod
 
@@ -341,7 +344,7 @@ class TestOpencodeRunner:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        runner = cls()
+        runner = cls(REGISTRY[adapter_id])
         runner.run(
             runner_mod.RunRequest(
                 command="osx-phase1",
@@ -374,7 +377,7 @@ class TestOpencodeRunnerEnvMerging:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        OpencodeRunner().run(
+        OpencodeRunner(REGISTRY["opencode"]).run(
             RunRequest(
                 command="osx-phase0",
                 agent="osx-analyzer",
@@ -410,7 +413,7 @@ class TestRunRequestStoreAndSchema:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        OpencodeRunner().run(
+        OpencodeRunner(REGISTRY["opencode"]).run(
             RunRequest(
                 command="osx-phase0",
                 agent="osx-analyzer",
@@ -437,7 +440,7 @@ class TestRunRequestStoreAndSchema:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        OpencodeRunner().run(
+        OpencodeRunner(REGISTRY["opencode"]).run(
             RunRequest(
                 command="osx-phase0",
                 agent="osx-analyzer",
@@ -464,7 +467,7 @@ class TestRunRequestStoreAndSchema:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        OpencodeRunner().run(
+        OpencodeRunner(REGISTRY["opencode"]).run(
             RunRequest(
                 command="osx-phase0",
                 agent="osx-analyzer",
@@ -492,7 +495,7 @@ class TestRunRequestStoreAndSchema:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        OpencodeRunner().run(
+        OpencodeRunner(REGISTRY["opencode"]).run(
             RunRequest(
                 command="osx-phase0",
                 agent="osx-analyzer",
@@ -518,7 +521,7 @@ class TestRunRequestStoreAndSchema:
             return mock
 
         monkeypatch.setattr("subprocess.Popen", fake_popen)
-        ClaudeRunner().run(
+        ClaudeRunner(REGISTRY["claude"]).run(
             RunRequest(
                 command="osx-phase0",
                 agent="osx-analyzer",
@@ -703,15 +706,15 @@ class TestRunnerForFactory:
 @pytest.mark.unit
 class TestAdapterAwareBinary:
     """``OpencodeRunner._binary()`` / ``ClaudeRunner._binary()`` resolve
-    from ``adapter.runner_binary`` when set, fall back to the literal
-    when the runner was constructed without an adapter (legacy call
-    paths).
+    from ``adapter.runner_binary``. L1.2 collapsed the no-adapter
+    fallback — the runner factory always passes an adapter, and the
+    ``OSXError("missing_adapter")`` branch is unreachable.
     """
 
     def test_opencode_runner_binary_defaults_to_opencode(self):
         from source.orchestrator.runner import OpencodeRunner
 
-        runner = OpencodeRunner()
+        runner = OpencodeRunner(REGISTRY["opencode"])
         assert runner._binary() == "opencode"
 
     def test_opencode_runner_binary_reads_from_adapter(self):
@@ -724,7 +727,7 @@ class TestAdapterAwareBinary:
     def test_claude_runner_binary_defaults_to_claude(self):
         from source.orchestrator.runner import ClaudeRunner
 
-        runner = ClaudeRunner()
+        runner = ClaudeRunner(REGISTRY["claude"])
         assert runner._binary() == "claude"
 
     def test_claude_runner_binary_reads_from_adapter(self):

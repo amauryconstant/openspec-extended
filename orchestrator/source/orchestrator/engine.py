@@ -212,7 +212,7 @@ def validate_skills(state: OrchestratorState) -> None:
         log_error(state, "Required skills validation failed")
         print_validation_errors(state, data)
         platform = osx_lib.detect_platform(project_root or Path.cwd())
-        log_error(state, f"Run: openspec-extended install {platform}")
+        log_error(state, REGISTRY[platform].install_hint)
         raise SystemExit(1)
 
     log_verbose(state, "All required skills found")
@@ -227,7 +227,7 @@ def validate_commands(state: OrchestratorState) -> None:
         log_error(state, "Required commands validation failed")
         print_validation_errors(state, data)
         platform = osx_lib.detect_platform(project_root or Path.cwd())
-        log_error(state, f"Run: openspec-extended install {platform}")
+        log_error(state, REGISTRY[platform].install_hint)
         raise SystemExit(1)
 
     log_verbose(state, "All required commands found")

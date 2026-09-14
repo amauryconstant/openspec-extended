@@ -29,7 +29,7 @@ Public surface
     additions must be explicit.
 
 ``_adapter_tokens(adapter) -> dict[str, str]``
-    Derive the 5-token ``PLATFORM_TOKENS`` dict for one adapter.
+    Derive the 7-token ``PLATFORM_TOKENS`` dict for one adapter.
     Source files under ``orchestrator/resources/canonical/`` ship
     ``{{TOKEN}}`` placeholders; the deploy step renders them per
     active tool. Single source of truth: token values are computed
@@ -48,7 +48,7 @@ Public surface
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 # ---------------------------------------------------------------------------
@@ -165,7 +165,8 @@ class ToolAdapter:
     """Whether the deploy step should inject ``name: <name>`` when
     emitting the modern skill mirror. Claude Code's slash resolver
     reads it from frontmatter; tools that derive the skill name from
-    the on-disk directory (opencode) do not need it."""
+    the on-disk directory (opencode) do not need it. Only consulted
+    when ``"name"`` is not present in ``frontmatter_extras``."""
 
     cmd_filename_strip_prefix: str | None
     """When non-``None``, the deploy step strips this prefix from the
@@ -188,6 +189,41 @@ class ToolAdapter:
     whose ``detect_paths`` include an existing directory. Opencode
     wins ties by being registered first."""
 
+    ask_tool: str = "AskUserQuestion"
+    """Name of the user-question tool the AI runner invokes when it
+    needs interactive clarification. ``AskUserQuestion`` for opencode;
+    ``Ask`` for Claude Code. The ``{{ASK_TOOL}}`` token renders this
+    value verbatim into resource files."""
+
+    install_hint: str = ""
+    """Single-sentence user-facing hint shown when an adapter's
+    resources are missing on disk. Includes the ``openspec-extended
+    install <tool>`` command and the tool's display name. Both shipped
+    adapters follow the same template (so the byte-equivalent test in
+    ``test_tool_registry.py`` locks the format)."""
+
+    cross_ref_prefix: str = ""
+    """User-facing prefix used when a skill refers to another skill
+    by invocation. Empty ``""`` means "fall back to ``skill_prefix``"
+    — the default for both shipped adapters. Future skills-only
+    adapters (Codex, Kimi) may set a non-empty value to diverge from
+    the slash-command form. The ``{{CROSS_REF_PREFIX}}`` token renders
+    the effective value (this field when non-empty, otherwise
+    ``skill_prefix``)."""
+
+    runner_args: tuple[str, ...] = ()
+    """Extra CLI args ``GenericPrintRunner`` inserts into the argv
+    between the binary name and ``["--print", "--dangerously-skip-permissions"]``.
+    Default ``()`` (no extras). OpenCodeRunner and ClaudeRunner have
+    bespoke invocations and ignore this field."""
+
+    frontmatter_extras: dict[str, str] = field(default_factory=dict)
+    """Extra ``key: value`` pairs to inject into the modern skill
+    mirror's frontmatter at the closing fence, in iteration order.
+    Default ``{}``. When ``"name"`` is present, it overrides the
+    auto-injected ``name: <name>`` from ``inject_name_in_skill_mirror``;
+    both shipped adapters leave this empty."""
+
 
 # ---------------------------------------------------------------------------
 # Token derivation
@@ -195,7 +231,7 @@ class ToolAdapter:
 
 
 def _adapter_tokens(adapter: ToolAdapter) -> dict[str, str]:
-    """Derive the 6-token ``PLATFORM_TOKENS`` dict for one adapter.
+    """Derive the token ``PLATFORM_TOKENS`` dict for one adapter.
 
     Single source of truth: token values are computed from
     ``ToolAdapter`` fields, not hand-maintained per tool. The dict
@@ -203,7 +239,7 @@ def _adapter_tokens(adapter: ToolAdapter) -> dict[str, str]:
     ``tests/unit/test_token_substitution.py`` snapshots stay green
     after Phase 1B rewires ``cli.py``.
 
-    The six tokens cover everything that varies between opencode and
+    The seven tokens cover everything that varies between opencode and
     claude in today's shipped resources:
 
     - ``ASK_TOOL``: the user-question tool name (``AskUserQuestion``
@@ -222,35 +258,25 @@ def _adapter_tokens(adapter: ToolAdapter) -> dict[str, str]:
       every source-file ``/osx-...`` reference becomes
       ``{{SKILL_PREFIX}}osx-...`` so a single canonical source
       serves tools with different invocation forms.
+    - ``CROSS_REF_PREFIX``: user-facing prefix for cross-skill
+      references. Falls back to ``SKILL_PREFIX`` when the adapter's
+      ``cross_ref_prefix`` is empty (both shipped adapters default
+      to empty → effective ``/``).
 
     Forward-compat: the underlying ``_substitute_tokens`` in
     ``cli.py`` leaves unknown tokens verbatim, so a future adapter
-    that needs a seventh token can extend this dict without breaking
+    that needs an eighth token can extend this dict without breaking
     earlier tokens.
     """
     return {
-        "ASK_TOOL": _adapter_ask_tool(adapter),
+        "ASK_TOOL": adapter.ask_tool,
         "DOCS_FILE": adapter.docs_file,
         "CMD_PREFIX": adapter.slash_prefix,
         "TOOL_NAME": adapter.tool_name,
         "PLATFORM_DIR": adapter.skills_dir,
         "SKILL_PREFIX": adapter.skill_prefix,
+        "CROSS_REF_PREFIX": adapter.cross_ref_prefix or adapter.skill_prefix,
     }
-
-
-def _adapter_ask_tool(adapter: ToolAdapter) -> str:
-    """Resolve the ask-tool token for an adapter.
-
-    Today both shipped tools have a distinct ask tool name
-    (``AskUserQuestion`` for opencode, ``Ask`` for claude). The
-    mapping lives here as the single point of truth; future
-    adapters default to ``'AskUserQuestion'`` unless overridden
-    by a per-adapter field added in v1.11.0+."""
-    if adapter.tool_id == "opencode":
-        return "AskUserQuestion"
-    if adapter.tool_id == "claude":
-        return "Ask"
-    return "AskUserQuestion"
 
 
 def strip_agent_line(line: str) -> str:
@@ -283,10 +309,17 @@ REGISTRY: dict[str, ToolAdapter] = {
         has_agents_dir=True,
         agent_field_transform=None,  # ship the literal `agent:` through
         inject_name_in_skill_mirror=False,
+        frontmatter_extras={},
         cmd_filename_strip_prefix=None,  # flat layout keeps the prefix in the filename
         docs_file="AGENTS.md",
         tool_name="OpenCode",
         detect_paths=(".opencode",),
+        ask_tool="AskUserQuestion",
+        install_hint=(
+            "Run `openspec-extended install opencode` after installing the opencode CLI"
+        ),
+        cross_ref_prefix="",
+        runner_args=(),
     ),
     "claude": ToolAdapter(
         tool_id="claude",
@@ -301,10 +334,17 @@ REGISTRY: dict[str, ToolAdapter] = {
         has_agents_dir=False,
         agent_field_transform=strip_agent_line,  # Claude doesn't read opencode's `agent:`
         inject_name_in_skill_mirror=True,
+        frontmatter_extras={},
         cmd_filename_strip_prefix="osx-",  # namespaced layout conveys prefix via `commands/osx/`
         docs_file="CLAUDE.md",
         tool_name="Claude Code",
         detect_paths=(".claude",),
+        ask_tool="Ask",
+        install_hint=(
+            "Run `openspec-extended install claude` after installing the Claude Code CLI"
+        ),
+        cross_ref_prefix="",
+        runner_args=(),
     ),
 }
 

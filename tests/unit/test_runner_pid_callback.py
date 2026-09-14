@@ -21,6 +21,7 @@ from source.orchestrator.runner import (
     RunRequest,
     _run_with_logging,
 )
+from source.tools import REGISTRY
 
 
 @pytest.mark.unit
@@ -180,7 +181,7 @@ class TestPopenFunctionAcceptsOnPid:
             on_pid=_capture,
         )
 
-        runner = OpencodeRunner()
+        runner = OpencodeRunner(REGISTRY["opencode"])
         result = runner.run(request, verbose=False)
         assert result.pid == 9999
         assert captured["pids"] == [9999]

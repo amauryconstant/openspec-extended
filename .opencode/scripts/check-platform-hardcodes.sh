@@ -32,6 +32,12 @@ readonly -a PATTERNS=(
     'adapter\.commands_style[[:space:]]*==[[:space:]]*["'"'"'](opencode|claude)["'"'"']'
     'adapter\.skill_prefix[[:space:]]*==[[:space:]]*["'"'"'](opencode|claude)["'"'"']'
     'adapter\.runner_kind[[:space:]]*==[[:space:]]*["'"'"'](opencode|claude)["'"'"']'
+    # L1.5: cross_ref_prefix joined the axis family.
+    'adapter\.cross_ref_prefix[[:space:]]*==[[:space:]]*["'"'"'](opencode|claude)["'"'"']'
+    # L1.7: generic pattern covering the new fields added in L1.1, L1.3,
+    # L1.4, L1.5, L1.6. Per-axis duplicates above stay so each new axis
+    # also gets its own line for grep diagnostics.
+    'adapter\.(ask_tool|cross_ref_prefix|runner_args|frontmatter_extras|install_hint)[[:space:]]*==[[:space:]]*["'"'"'](opencode|claude)["'"'"']'
 )
 
 violations=0

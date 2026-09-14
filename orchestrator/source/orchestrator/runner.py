@@ -146,18 +146,17 @@ class OpencodeRunner:
     """Runner that dispatches to `opencode run`."""
 
     name = "opencode"
-    _FALLBACK_BINARY = "opencode"
 
-    def __init__(self, adapter: "ToolAdapter | None" = None) -> None:
+    def __init__(self, adapter: "ToolAdapter") -> None:
         self.adapter = adapter
 
     def _binary(self) -> str:
-        """Resolve the binary name from the adapter (preferred) or fall
-        back to the literal ``"opencode"`` for legacy call paths that
-        construct ``OpencodeRunner()`` without an adapter."""
-        if self.adapter is not None:
-            return self.adapter.runner_binary
-        return self._FALLBACK_BINARY
+        """Resolve the binary name from the adapter.
+
+        Adapter is required at construction time (the only no-arg call
+        paths live in the test suite, which construct a synthetic
+        adapter). The factory ``_runner_for`` always passes one."""
+        return self.adapter.runner_binary
 
     def run(self, request: RunRequest, *, verbose: bool = False) -> RunResult:
         binary = shutil.which(self._binary())
@@ -226,26 +225,24 @@ class ClaudeRunner:
     """
 
     name = "claude"
-    _FALLBACK_BINARY = "claude"
 
-    def __init__(self, adapter: "ToolAdapter | None" = None) -> None:
+    def __init__(self, adapter: "ToolAdapter") -> None:
         self.adapter = adapter
 
     def _binary(self) -> str:
-        """Resolve the binary name from the adapter (preferred) or fall
-        back to the literal ``"claude"`` for legacy call paths that
-        construct ``ClaudeRunner()`` without an adapter."""
-        if self.adapter is not None:
-            return self.adapter.runner_binary
-        return self._FALLBACK_BINARY
+        """Resolve the binary name from the adapter.
+
+        Adapter is required at construction time (the only no-arg call
+        paths live in the test suite, which construct a synthetic
+        adapter). The factory ``_runner_for`` always passes one."""
+        return self.adapter.runner_binary
 
     def _skill_prefix(self) -> str:
-        """Resolve the invocation prefix from the adapter (preferred) or
-        fall back to ``"/"`` for legacy call paths that construct
-        ``ClaudeRunner()`` without an adapter."""
-        if self.adapter is not None:
-            return self.adapter.skill_prefix
-        return "/"
+        """Resolve the invocation prefix from the adapter.
+
+        Adapter is required at construction time; the test suite uses
+        a synthetic adapter that mirrors the shipped contract."""
+        return self.adapter.skill_prefix
 
     def run(self, request: RunRequest, *, verbose: bool = False) -> RunResult:
         binary = shutil.which(self._binary())
@@ -310,6 +307,7 @@ class GenericPrintRunner:
             prompt = f"{request.extra_prompt}\n\n{prompt}"
         cmd = [
             self.adapter.runner_binary,
+            *self.adapter.runner_args,
             "--print",
             "--dangerously-skip-permissions",
             prompt,

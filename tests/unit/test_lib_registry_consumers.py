@@ -312,25 +312,34 @@ class TestValidateCommandsAgentCheck:
 
 
 class TestInstallHint:
-    """``_install_hint`` is unchanged in Phase 1D; it was already a
-    generic template that names whichever ``platform`` is passed in.
-    The 1C engine tests at
-    ``test_engine_adapter_integration.py`` pin substrings; this class
-    pins the full template.
+    """``_install_hint`` reads ``REGISTRY[platform].install_hint`` for
+    the requested platform. Both shipped adapters declare a hint that
+    follows the same template — names the install command and the
+    tool's display name — so the byte-equivalent test below locks the
+    shape.
+
+    L1.3 moved the hint off a hand-rolled ``f"Re-run: openspec-extended
+    install {platform} --with-autonomous"`` template and onto the
+    adapter's ``install_hint`` field. Unknown platforms still hit a
+    KeyError at REGISTRY lookup — the helper is no longer tolerant
+    of an unregistered id, which the engine's callers already guard
+    via ``detect_platform``.
     """
 
     @pytest.mark.parametrize("tool_id", sorted(REGISTRY))
     def test_hint_names_each_shipped_platform(self, tool_id):
         hint = osx._install_hint(tool_id)
-        assert hint == f"Re-run: openspec-extended install {tool_id} --with-autonomous", (
-            f"{tool_id}: hint {hint!r} did not match template"
+        expected = REGISTRY[tool_id].install_hint
+        assert hint == expected, (
+            f"{tool_id}: hint {hint!r} did not match adapter.install_hint {expected!r}"
         )
 
-    def test_hint_for_unknown_platform_still_renders(self):
-        """The hint is a pure template — an unknown platform id
-        still renders, even if installing it would fail."""
-        hint = osx._install_hint("not-a-real-tool")
-        assert hint == "Re-run: openspec-extended install not-a-real-tool --with-autonomous"
+    def test_hint_for_unknown_platform_raises(self):
+        """An unknown platform id raises ``KeyError`` (REGISTRY lookup
+        fails). Callers upstream always go through ``detect_platform``
+        which guarantees a registered id, so the helper stays strict."""
+        with pytest.raises(KeyError):
+            osx._install_hint("not-a-real-tool")
 
 
 # ---------------------------------------------------------------------------
@@ -409,4 +418,4 @@ class TestSyntheticCursorAdapterDrivesAllLibHelpers:
 
     def test_install_hint_names_cursor(self, cursor_marker, monkeypatch_cursor):
         hint = osx._install_hint("cursor")
-        assert hint == "Re-run: openspec-extended install cursor --with-autonomous"
+        assert hint == monkeypatch_cursor.install_hint

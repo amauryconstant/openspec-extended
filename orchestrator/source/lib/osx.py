@@ -1411,7 +1411,16 @@ def validate_skills(project_root: Path | None = None) -> dict:
 
 
 def _install_hint(platform: str) -> str:
-    return f"Re-run: openspec-extended install {platform} --with-autonomous"
+    """Single-sentence user-facing install hint for ``platform``.
+
+    Reads from ``REGISTRY[platform].install_hint``; both shipped
+    adapters declare a byte-identical-shape hint that names the
+    ``openspec-extended install <platform>`` command and the tool's
+    display name. A future adapter overrides the field on its
+    ``ToolAdapter`` entry; ``_install_hint`` is just the per-platform
+    reader.
+    """
+    return REGISTRY[platform].install_hint
 
 
 def _command_resolved_for_phase(

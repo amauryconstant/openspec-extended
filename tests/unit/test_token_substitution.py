@@ -42,6 +42,7 @@ DOCUMENTED_TOKENS = {
     "TOOL_NAME",
     "PLATFORM_DIR",
     "SKILL_PREFIX",
+    "CROSS_REF_PREFIX",
 }
 
 
@@ -68,6 +69,7 @@ class TestTokenTableContract:
             "TOOL_NAME": "OpenCode",
             "PLATFORM_DIR": ".opencode",
             "SKILL_PREFIX": "/",
+            "CROSS_REF_PREFIX": "/",
         }
 
     def test_claude_values(self):
@@ -78,6 +80,7 @@ class TestTokenTableContract:
             "TOOL_NAME": "Claude Code",
             "PLATFORM_DIR": ".claude",
             "SKILL_PREFIX": "/",
+            "CROSS_REF_PREFIX": "/",
         }
 
     def test_skill_path_prefix_is_hyphen_on_both_platforms(self):
