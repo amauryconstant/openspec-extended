@@ -30,7 +30,7 @@ Public surface
 
 ``_adapter_tokens(adapter) -> dict[str, str]``
     Derive the 5-token ``PLATFORM_TOKENS`` dict for one adapter.
-    Source files under ``orchestrator/resources/opencode/`` ship
+    Source files under ``orchestrator/resources/canonical/`` ship
     ``{{TOKEN}}`` placeholders; the deploy step renders them per
     active tool. Single source of truth: token values are computed
     from adapter fields, not hand-maintained per tool.

@@ -208,7 +208,7 @@ class TestDeployLeavesNoLeftoverTokens:
         return tmp_path / ".opencode"
 
     def test_deploy_skill_writes_no_tokens(self, target: Path):
-        source_dir = get_skills_resources_dir() / "opencode"
+        source_dir = get_skills_resources_dir() / "canonical"
         deploy_skills(
             source_dir / "skills", target, "osx-review-artifacts", tool="opencode"
         )
@@ -218,20 +218,20 @@ class TestDeployLeavesNoLeftoverTokens:
             )
 
     def test_deploy_command_writes_no_tokens(self, target: Path):
-        source_dir = get_skills_resources_dir() / "opencode"
+        source_dir = get_skills_resources_dir() / "canonical"
         deploy_commands(source_dir / "commands", target, "osx-review", tool="opencode")
         text = (target / "commands" / "osx-review.md").read_text()
         assert "{{" not in text
 
     def test_deploy_agent_writes_no_tokens(self, target: Path):
-        source_dir = get_resources_dir() / "opencode"
+        source_dir = get_resources_dir() / "canonical"
         deploy_agents(source_dir / "agents", target, "osx-analyzer", tool="opencode")
         text = (target / "agents" / "osx-analyzer.md").read_text()
         assert "{{" not in text
 
     def test_deploy_claude_command_substitutes_claude_values(self, tmp_path: Path):
         target = tmp_path / ".claude"
-        source_dir = get_skills_resources_dir() / "opencode"
+        source_dir = get_skills_resources_dir() / "canonical"
         deploy_commands(source_dir / "commands", target, "osx-review", tool="claude")
         command_text = (target / "commands" / "osx" / "review.md").read_text()
         import re
@@ -248,7 +248,7 @@ class TestDeployLeavesNoLeftoverTokens:
 
     def test_deploy_claude_skill_mirror_has_correct_path(self, tmp_path: Path):
         target = tmp_path / ".claude"
-        source_dir = get_skills_resources_dir() / "opencode"
+        source_dir = get_skills_resources_dir() / "canonical"
         deploy_commands(source_dir / "commands", target, "osx-review", tool="claude")
         skill_md = target / "skills" / "osx-review" / "SKILL.md"
         text = skill_md.read_text()

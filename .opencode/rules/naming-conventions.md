@@ -1,7 +1,7 @@
 ---
 paths:
-  - "orchestrator/resources/opencode/**"
-  - "skills/resources/opencode/**"
+  - "orchestrator/resources/canonical/**"
+  - "skills/resources/canonical/**"
 ---
 
 # Naming Conventions
@@ -95,7 +95,7 @@ inside the core package.
 Upstream skills ship with zero `references/` subdirectories. We
 declare shared cross-cutting material (`scoring-rubric.md`,
 `schema-agnostic-contract.md`, `store-selection.md`, etc.) under
-`orchestrator/resources/opencode/skills/references/` and copy each
+`orchestrator/resources/canonical/skills/references/` and copy each
 consumed reference into the deploying skill's own `references/`
 subdir so the deployed skill is self-sufficient. The
 `skills-side manifest` declares which references each skill reads

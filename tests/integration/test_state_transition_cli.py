@@ -176,12 +176,12 @@ def _phase2_transition_blocks(platform: str) -> list[str]:
     `osx log append`/`osx iterations append` blocks; only Case A/B/C
     transition blocks remain.
     """
-    # Phase 2A: opencode is the single canonical source; per-adapter
-    # rendering propagates the body verbatim, so the contract is enforced
-    # by construction on every adapter.
+    # Phase 2A: the canonical/ source is the single canonical source;
+    # per-adapter rendering propagates the body verbatim, so the contract
+    # is enforced by construction on every adapter.
     path = (
         Path(__file__).resolve().parent.parent.parent
-        / "orchestrator/resources/opencode/commands/osx-phase2.md"
+        / "orchestrator/resources/canonical/commands/osx-phase2.md"
     )
     text = path.read_text()
     return [b for b in _extract_bash_blocks(text) if "osx state transition " in b]
@@ -200,7 +200,7 @@ class TestPhase2TransitionExamplesAreRunnable:
             (
                 "opencode",
                 Path(__file__).resolve().parent.parent.parent
-                / "orchestrator/resources/opencode/commands/osx-phase2.md",
+                / "orchestrator/resources/canonical/commands/osx-phase2.md",
             ),
         ],
     )

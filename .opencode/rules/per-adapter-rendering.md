@@ -1,20 +1,20 @@
 ---
 paths:
-  - "orchestrator/resources/opencode/**"
-  - "skills/resources/opencode/**"
+  - "orchestrator/resources/canonical/**"
+  - "skills/resources/canonical/**"
 ---
 
 # Per-adapter rendering
 
-OpenCode is canonical on disk. Every other tool adapter is rendered at
-deploy time from the OpenCode source via `orchestrator/source/cli.py:deploy_*`,
+A single canonical source tree lives on disk and every supported tool adapter
+renders from it at deploy time via `orchestrator/source/cli.py:deploy_*`,
 parameterised by `source.tools.ToolAdapter`.
 
 The on-disk source tree is single-tree since Phase 2A: there is exactly one
-`orchestrator/resources/opencode/` and one `skills/resources/opencode/`. Every
-shipped adapter renders from those same files. Per-tool layout, dispatch model,
-and slash-command spelling are all driven by `ToolAdapter` fields; the deploy
-functions do not branch on tool id.
+`orchestrator/resources/canonical/` and one `skills/resources/canonical/`.
+Every shipped adapter renders from those same files. Per-tool layout,
+dispatch model, and slash-command spelling are all driven by `ToolAdapter`
+fields; the deploy functions do not branch on tool id.
 
 ## Token substitution
 

@@ -6,7 +6,7 @@ the source of truth (manifest.toml + directory listings).
 
 Phase 4 split the resource tree into ``orchestrator/resources/`` and
 ``skills/resources/``. These tests union both sides — the canonical
-resource set is the merge of (orchestrator opencode) ∪ (skills opencode).
+resource set is the merge of (orchestrator canonical) ∪ (skills canonical).
 Per-adapter rendering is handled at deploy time; see
 ``.opencode/rules/per-adapter-rendering.md``.
 """
@@ -19,8 +19,8 @@ import pytest
 import toml
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-ORCHESTRATOR_OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "opencode"
-SKILLS_OPENCODE = REPO_ROOT / "skills" / "resources" / "opencode"
+ORCHESTRATOR_OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "canonical"
+SKILLS_OPENCODE = REPO_ROOT / "skills" / "resources" / "canonical"
 ORCHESTRATOR_CLAUDE = REPO_ROOT / "orchestrator" / "resources" / "claude"
 SKILLS_CLAUDE = REPO_ROOT / "skills" / "resources" / "claude"
 
@@ -66,7 +66,7 @@ def _read(path: Path) -> str:
 
 
 def _all_skill_dirs() -> set[str]:
-    """Union of skill dirs across orchestrator and skills opencode trees."""
+    """Union of skill dirs across orchestrator and skills canonical trees."""
     names: set[str] = set()
     for root in (ORCHESTRATOR_OPENCODE / "skills", SKILLS_OPENCODE / "skills"):
         if not root.is_dir():
@@ -78,7 +78,7 @@ def _all_skill_dirs() -> set[str]:
 
 
 def _all_command_files() -> set[str]:
-    """Union of osx-*.md command files across orchestrator and skills opencode trees."""
+    """Union of osx-*.md command files across orchestrator and skills canonical trees."""
     names: set[str] = set()
     for root in (ORCHESTRATOR_OPENCODE / "commands", SKILLS_OPENCODE / "commands"):
         if not root.is_dir():
@@ -131,7 +131,7 @@ class TestSkillTaxonomy:
     """Every doc that claims a count or a name must match the source of truth."""
 
     def test_opencode_skill_count_matches_manifest(self):
-        """orchestrator/ + skills/ opencode trees union to the 4 canonical skills; each is in manifest.toml."""
+        """orchestrator/ + skills/ canonical trees union to the 4 canonical skills; each is in manifest.toml."""
         skill_dirs = _all_skill_dirs()
         assert skill_dirs == CANONICAL_SKILL_NAMES, (
             f"skill directory set drift: dirs={skill_dirs} "
@@ -145,7 +145,7 @@ class TestSkillTaxonomy:
         )
 
     def test_opencode_command_count_matches_manifest(self):
-        """orchestrator/ + skills/ opencode trees union to 11 osx-*.md files; each is in manifest.toml."""
+        """orchestrator/ + skills/ canonical trees union to 11 osx-*.md files; each is in manifest.toml."""
         cmd_files = _all_command_files()
         assert cmd_files == CANONICAL_COMMAND_NAMES, (
             f"command file set drift: files={cmd_files} "
@@ -164,7 +164,7 @@ class TestSkillTaxonomy:
     def test_changelog_and_maintain_docs_are_commands_not_skills(self):
         """osx-changelog and osx-maintain-docs are slash commands, not skills.
 
-        The merged bodies live in orchestrator/resources/opencode/commands/{changelog,maintain-docs}.md.
+        The merged bodies live in orchestrator/resources/canonical/commands/{changelog,maintain-docs}.md.
         The historical skills/osx-{generate-changelog,maintain-ai-docs} directories
         were removed in favour of the slash command bodies.
         """

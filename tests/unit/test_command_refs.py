@@ -23,16 +23,16 @@ import pytest
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 ORCHESTRATOR_OPENCODE_COMMANDS = (
-    REPO_ROOT / "orchestrator" / "resources" / "opencode" / "commands"
+    REPO_ROOT / "orchestrator" / "resources" / "canonical" / "commands"
 )
 ORCHESTRATOR_OPENCODE_SKILLS = (
-    REPO_ROOT / "orchestrator" / "resources" / "opencode" / "skills"
+    REPO_ROOT / "orchestrator" / "resources" / "canonical" / "skills"
 )
 SKILLS_OPENCODE_COMMANDS = (
-    REPO_ROOT / "skills" / "resources" / "opencode" / "commands"
+    REPO_ROOT / "skills" / "resources" / "canonical" / "commands"
 )
 SKILLS_OPENCODE_SKILLS = (
-    REPO_ROOT / "skills" / "resources" / "opencode" / "skills"
+    REPO_ROOT / "skills" / "resources" / "canonical" / "skills"
 )
 
 
@@ -232,7 +232,7 @@ class TestLogCommandTerminology:
 # ``/osc-verify`` in osx-review-test-compliance, where the hyphenated OpenCode
 # command file maps to that exact slash form) are exempted below.
 ALLOWED_ABBREVIATED_FORMS: dict[str, set[str]] = {
-    "skills/resources/opencode/skills/osx-review-test-compliance/SKILL.md": {
+    "skills/resources/canonical/skills/osx-review-test-compliance/SKILL.md": {
         "/osc-verify"
     },
     "skills/resources/claude/skills/osx-review-test-compliance/SKILL.md": {
@@ -307,15 +307,15 @@ class TestFullCommandNames:
         "path,expected_full_forms",
         [
             (
-                "orchestrator/resources/opencode/commands/osx-changelog.md",
+                "orchestrator/resources/canonical/commands/osx-changelog.md",
                 ["/osc-apply-change", "/osc-verify-change", "/osc-archive-change"],
             ),
             (
-                "orchestrator/resources/opencode/commands/osx-maintain-docs.md",
+                "orchestrator/resources/canonical/commands/osx-maintain-docs.md",
                 ["/osc-archive-change", "/osc-sync-specs"],
             ),
             (
-                "skills/resources/opencode/skills/osx-review-test-compliance/SKILL.md",
+                "skills/resources/canonical/skills/osx-review-test-compliance/SKILL.md",
                 ["/osc-verify"],
             ),
         ],

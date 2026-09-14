@@ -1,6 +1,6 @@
 ---
 paths:
-  - "orchestrator/resources/opencode/agents/**"
+  - "orchestrator/resources/canonical/agents/**"
 ---
 
 # Orchestrator Agents (`agents/`)

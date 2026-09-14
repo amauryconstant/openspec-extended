@@ -7,8 +7,8 @@ Bridge AI coding assistants with OpenSpec — spec-driven development framework.
 | Side                | Role                                          | Source of truth                       |
 | ------------------- | --------------------------------------------- | ------------------------------------- |
 | **Orchestrator**    | Python CLI + 7-phase workflow engine          | `orchestrator/source/`                |
-| **Resources (orch.)** | Workflow skills, agents, phase commands     | `orchestrator/resources/opencode/`    |
-| **Resources (skills)** | Gap-filling skills (commit, review, tests) | `skills/resources/opencode/`          |
+| **Resources (orch.)** | Workflow skills, agents, phase commands     | `orchestrator/resources/canonical/`   |
+| **Resources (skills)** | Gap-filling skills (commit, review, tests) | `skills/resources/canonical/`         |
 | **Core (vendored)** | Upstream OpenSpec workflows (read-only)       | `orchestrator/core/`                  |
 | **Tests**           | pytest + bats suite                           | `tests/`                              |
 
@@ -61,7 +61,7 @@ mise run version:update              # Apply framework bumps
 
 - **Python**: PEP 8 + ruff, Python 3.12+, typer + rich + toml
 - **Testing**: pytest with `unit`/`integration`/`mechanism`/`e2e` markers; bats for install + e2e
-- **Resources**: `<side>/resources/opencode/` canonical, hand-edited; per-adapter rendering happens at deploy time (no on-disk mirrors)
+- **Resources**: `<side>/resources/canonical/` canonical, hand-edited; per-adapter rendering happens at deploy time (no on-disk mirrors)
 - **Skills**: `osx-` prefix for extended, `osc-` reserved for core (vendored) skills
 - **Project structure** (Python source lives under `orchestrator/source/` because PyInstaller's `pathex` adds that to `sys.path`; the binary lives at project root)
 

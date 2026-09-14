@@ -46,11 +46,11 @@ class TestDeploySkillsReproducesRegistryLayout:
 
     @pytest.fixture
     def oc_source(self) -> Path:
-        return get_resources_dir() / "opencode" / "skills"
+        return get_resources_dir() / "canonical" / "skills"
 
     @pytest.fixture
     def sk_source(self) -> Path:
-        return get_skills_resources_dir() / "opencode" / "skills"
+        return get_skills_resources_dir() / "canonical" / "skills"
 
     @pytest.mark.parametrize("tool_id", ["opencode", "claude"])
     def test_writes_skill_under_target_skills(self, tmp_path, tool_id, oc_source):
@@ -83,7 +83,7 @@ class TestDeploySkillsReproducesRegistryLayout:
         visible in the body."""
         from source.cli import get_skills_resources_dir
 
-        cmd_source = get_skills_resources_dir() / "opencode" / "commands"
+        cmd_source = get_skills_resources_dir() / "canonical" / "commands"
         adapter = REGISTRY[tool_id]
         target = tmp_path / adapter.skills_dir
         target.mkdir(parents=True)
@@ -127,7 +127,7 @@ class TestDeployCommandsRoutesByCommandsStyle:
 
     @pytest.fixture
     def source(self) -> Path:
-        return get_skills_resources_dir() / "opencode" / "commands"
+        return get_skills_resources_dir() / "canonical" / "commands"
 
     def test_opencode_single_emits_flat(self, tmp_path, source):
         target = tmp_path / REGISTRY["opencode"].skills_dir
@@ -228,7 +228,7 @@ class TestDeployAgentsRoutesByHasAgentsDir:
 
     @pytest.fixture
     def source(self) -> Path:
-        return get_resources_dir() / "opencode" / "agents"
+        return get_resources_dir() / "canonical" / "agents"
 
     @pytest.mark.parametrize("tool_id", ["opencode", "claude"])
     def test_writes_agent_md(self, tmp_path, tool_id, source):
@@ -395,7 +395,7 @@ class TestEveryShippedAdapterDeploysCleanly:
         target.mkdir(parents=True)
 
         # Drive the full deploy path: orchestrator side first.
-        oc_root = get_resources_dir() / "opencode"
+        oc_root = get_resources_dir() / "canonical"
         _, manifest = _resolve_side_manifest(oc_root)
         deploy_type(
             "skills",

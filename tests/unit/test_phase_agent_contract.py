@@ -5,7 +5,7 @@ Static contract tests for the orchestrator's agent ↔ phase wiring.
 Locks in:
 
 - Every entry in ``engine.PHASE_AGENTS`` resolves to an existing agent file
-  in ``orchestrator/orchestrator/resources/opencode/agents/``.
+  in ``orchestrator/orchestrator/resources/canonical/agents/``.
 - Every entry in ``engine.PHASE_AGENTS`` has a manifest entry with a version.
 - Agents used by ``PHASE2`` and ``PHASE5`` must allow ``edit`` (those phases
   write ``verification-report.md`` / ``reflections.md`` and ``git commit``).
@@ -24,9 +24,9 @@ import pytest
 import toml
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-OPENCODE_AGENTS = REPO_ROOT / "orchestrator" / "resources" / "opencode" / "agents"
-OPENCODE_COMMANDS = REPO_ROOT / "orchestrator" / "resources" / "opencode" / "commands"
-OPENCODE_MANIFEST = REPO_ROOT / "orchestrator" / "resources" / "opencode" / "manifest.toml"
+OPENCODE_AGENTS = REPO_ROOT / "orchestrator" / "resources" / "canonical" / "agents"
+OPENCODE_COMMANDS = REPO_ROOT / "orchestrator" / "resources" / "canonical" / "commands"
+OPENCODE_MANIFEST = REPO_ROOT / "orchestrator" / "resources" / "canonical" / "manifest.toml"
 
 
 def _read(p: Path) -> str:
@@ -188,7 +188,7 @@ class TestAgentsAreSubagent:
 
     ``mode: all`` exposes them in the user-driven picker; orchestrator
     dispatch picks them by name so they should be invisible to users.
-    See ``orchestrator/orchestrator/resources/opencode/agents/AGENTS.md`` §Conventions.
+    See ``orchestrator/orchestrator/resources/canonical/agents/AGENTS.md`` §Conventions.
     """
 
     ORCHESTRATOR_AGENTS = [

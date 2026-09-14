@@ -10,9 +10,9 @@ rewrite pins the post-split surface.
 
 Source of truth is the four split manifests:
 
-  - ``orchestrator/resources/opencode/manifest.toml``
+  - ``orchestrator/resources/canonical/manifest.toml``
   - ``orchestrator/resources/claude/manifest.toml``
-  - ``skills/resources/opencode/manifest.toml``
+  - ``skills/resources/canonical/manifest.toml``
   - ``skills/resources/claude/manifest.toml``
 
 Coverage:
@@ -57,8 +57,8 @@ from source.cli import deploy_commands
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 
-ORCH_OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "opencode"
-SK_OPENCODE = REPO_ROOT / "skills" / "resources" / "opencode"
+ORCH_OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "canonical"
+SK_OPENCODE = REPO_ROOT / "skills" / "resources" / "canonical"
 
 ORCH_OPENCODE_MANIFEST = ORCH_OPENCODE / "manifest.toml"
 SK_OPENCODE_MANIFEST = SK_OPENCODE / "manifest.toml"
@@ -841,11 +841,11 @@ def _skill_linked_references(skill_path: Path) -> set[str]:
 @pytest.mark.unit
 class TestSharedReferencesPackaging:
     """There is a single canonical shared references pool at
-    ``orchestrator/resources/opencode/skills/references/``. Both
+    ``orchestrator/resources/canonical/skills/references/``. Both
     manifests may declare ``references = [...]`` entries; they all
     resolve against that pool. Deploy copies the declared files into
     each consuming skill's own ``references/`` subdir at the target
-    site (see ``orchestrator/resources/opencode/skills/AGENTS.md``)."""
+    site (see ``orchestrator/resources/canonical/skills/AGENTS.md``)."""
 
     SHARED_POOL = ORCH_OPENCODE / "skills" / "references"
 
@@ -950,7 +950,7 @@ class TestDeployRoutesViaRegistry:
         from source.tools import REGISTRY
 
         adapter = REGISTRY[tool_id]
-        source_dir = get_resources_dir() / "opencode" / "skills"
+        source_dir = get_resources_dir() / "canonical" / "skills"
         target = tmp_path / adapter.skills_dir
         target.mkdir(parents=True)
         deploy_skills(source_dir, target, "osx-workflow", tool=tool_id)

@@ -24,8 +24,8 @@ import pytest
 import toml
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "opencode"
-SKILLS_OPENCODE = REPO_ROOT / "skills" / "resources" / "opencode"
+OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "canonical"
+SKILLS_OPENCODE = REPO_ROOT / "skills" / "resources" / "canonical"
 
 from source.lib import osx  # noqa: E402
 

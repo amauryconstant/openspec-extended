@@ -7,7 +7,7 @@ Verifies the post-refactor boundaries:
 1. ``source/lib/osx.py`` is a pure library (no Typer/Click surface).
 2. ``source/osx_cli.py`` owns the Typer app.
 3. ``source/cli.py`` mounts the ``osx`` subcommand.
-4. ``resources/opencode/manifest.toml`` ships only skills, agents, and
+4. ``resources/canonical/manifest.toml`` ships only skills, agents, and
    commands (no ``[resources.scripts]`` or ``[resources.lib]``).
 5. Agent/command/skill prompts reference ``openspec-extended osx`` and
    never the legacy ``.opencode/scripts/lib/osx`` path.
@@ -29,10 +29,10 @@ REPO_ROOT = Path(__file__).parent.parent.parent
 LIB_OSX = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx.py"
 ENGINE = REPO_ROOT / "orchestrator" / "source" / "orchestrator" / "engine.py"
 OSX_CLI = REPO_ROOT / "orchestrator" / "source" / "osx_cli.py"
-MANIFEST = REPO_ROOT / "orchestrator" / "resources" / "opencode" / "manifest.toml"
-SKILLS_MANIFEST = REPO_ROOT / "skills" / "resources" / "opencode" / "manifest.toml"
-ORCHESTRATOR_PROMPT_ROOT = REPO_ROOT / "orchestrator" / "resources" / "opencode"
-SKILLS_PROMPT_ROOT = REPO_ROOT / "skills" / "resources" / "opencode"
+MANIFEST = REPO_ROOT / "orchestrator" / "resources" / "canonical" / "manifest.toml"
+SKILLS_MANIFEST = REPO_ROOT / "skills" / "resources" / "canonical" / "manifest.toml"
+ORCHESTRATOR_PROMPT_ROOT = REPO_ROOT / "orchestrator" / "resources" / "canonical"
+SKILLS_PROMPT_ROOT = REPO_ROOT / "skills" / "resources" / "canonical"
 
 PROMPT_FILES = [
     ("orchestrator", "commands/osx-phase0.md"),

@@ -16,7 +16,7 @@ tree.
 ```
 orchestrator/resources/
 ├── AGENTS.md                       # (you are here)
-├── opencode/                       # OpenCode platform (canonical, single source)
+├── canonical/                      # Canonical source (single, tool-neutral)
 │   ├── manifest.toml               # Per-side manifest (orchestrator scope)
 │   ├── skills/osx-*/               # Workflow skills (osx-workflow etc.)
 │   │   └── references/             # Skill-specific deeper references
@@ -24,7 +24,7 @@ orchestrator/resources/
 │   └── commands/osx-*.md           # Slash commands (single-emit, flat)
 ```
 
-Phase 2A: only `opencode/` is on disk. The per-adapter Claude/Codex/Kimi/etc.
+Phase 2A: only `canonical/` is on disk. The per-adapter Claude/Codex/Kimi/etc.
 layouts are rendered at deploy time by `orchestrator/source/cli.py:deploy_*`,
 driven by `orchestrator/source/tools.py:ToolAdapter`. There is no
 hand-maintained `claude/` mirror.
@@ -61,8 +61,8 @@ sides (e.g. `validate_skills`) read and merge them.
 
 | Tree                                         | Scope                                                                                |
 | -------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `orchestrator/resources/opencode/manifest.toml` | Workflow skill, agents, phase commands, `osx-changelog`, `osx-maintain-docs`          |
-| `skills/resources/opencode/manifest.toml`    | `osx-commit`, `osx-review-artifacts`, `osx-review-test-compliance`, `osx-review`, `osx-verify-tests` |
+| `orchestrator/resources/canonical/manifest.toml` | Workflow skill, agents, phase commands, `osx-changelog`, `osx-maintain-docs`          |
+| `skills/resources/canonical/manifest.toml`    | `osx-commit`, `osx-review-artifacts`, `osx-review-test-compliance`, `osx-review`, `osx-verify-tests` |
 
 The two manifests are disjoint; their union is the canonical resource surface (locked by `tests/unit/test_resource_contract.py::TestManifestParity`).
 
@@ -108,8 +108,8 @@ Phase commands are the **only** entry points the orchestrator uses; do not renam
 
 ## Adding a new slash command
 
-1. Create `orchestrator/resources/opencode/commands/osx-<name>.md` with required frontmatter (`description` + optional `agent:`).
-2. Add an entry to `orchestrator/resources/opencode/manifest.toml` under `[resources.commands]`.
+1. Create `orchestrator/resources/canonical/commands/osx-<name>.md` with required frontmatter (`description` + optional `agent:`).
+2. Add an entry to `orchestrator/resources/canonical/manifest.toml` under `[resources.commands]`.
 3. Bump the version: `mise run version:update`.
 4. If the command runs as part of the orchestrator workflow, add it to `PHASE_COMMANDS` in `source/orchestrator/engine.py`.
 5. Add a unit test in `tests/unit/test_command_refs.py::TestFullCommandNames::test_expected_full_forms_present` if it introduces new full-form slash-command references.
@@ -118,6 +118,6 @@ Phase commands are the **only** entry points the orchestrator uses; do not renam
 
 - New resources get an `osx-` prefix; never collide with `osc-*` (core) names.
 - One manifest entry per resource; CI fails on missing entries.
-- Edit resources under `orchestrator/resources/opencode/` only; per-adapter
+- Edit resources under `orchestrator/resources/canonical/` only; per-adapter
   rendering is driven by `ToolAdapter` fields at deploy time.
 - Files under `orchestrator/core/` are not in this manifest — that tree is synced from upstream.

@@ -3,21 +3,24 @@ from pathlib import Path
 import pytest
 
 
-def _resolve_skill_path(skill: str, platform: str) -> Path:
-    """Return the path to the skill/command body for ``skill`` on ``platform``.
+def _resolve_skill_path(skill: str, source_tree: str) -> Path:
+    """Return the path to the skill/command body for ``skill`` on the
+    canonical source tree.
 
     ``osx-maintain-docs`` is a slash command (post-rename + body merge), not a
     skill directory. Its body lives at ``commands/<skill>.md`` on the source
-    platform; on Claude the dual-emit produces a ``skills/<skill>/SKILL.md``
+    tree; on Claude the dual-emit produces a ``skills/<skill>/SKILL.md``
     mirror. We probe both and return whichever exists.
 
     Phase 4 split the resource tree into ``orchestrator/resources/`` and
     ``skills/resources/``; we probe both roots in order so the lookup works
-    for resources that ship on either side.
+    for resources that ship on either side. Phase 2A collapsed per-tool
+    source mirrors into a single tool-neutral tree; only ``canonical/`` is
+    on disk.
     """
     repo_root = Path(__file__).parents[2]
     for tree in ("orchestrator", "skills"):
-        root = repo_root / tree / "resources" / platform
+        root = repo_root / tree / "resources" / source_tree
         candidates = [
             root / "skills" / skill / "SKILL.md",
             root / "commands" / f"{skill}.md",
@@ -27,9 +30,9 @@ def _resolve_skill_path(skill: str, platform: str) -> Path:
             if candidate.is_file():
                 return candidate
     raise FileNotFoundError(
-        f"no body file found for skill {skill!r} on {platform}; "
-        f"probed both orchestrator/resources/{platform}/ and "
-        f"skills/resources/{platform}/"
+        f"no body file found for skill {skill!r} on canonical source tree; "
+        f"probed both orchestrator/resources/{source_tree}/ and "
+        f"skills/resources/{source_tree}/"
     )
 
 
@@ -38,15 +41,14 @@ def _resolve_skill_path(skill: str, platform: str) -> Path:
     "skill",
     ["osx-maintain-docs"],
 )
-@pytest.mark.parametrize("platform", ["opencode"])
-def test_skill_autonomous_gates_precede_questions(skill: str, platform: str) -> None:
-    path = _resolve_skill_path(skill, platform)
+@pytest.mark.parametrize("source_tree", ["canonical"])
+def test_skill_autonomous_gates_precede_questions(skill: str, source_tree: str) -> None:
+    path = _resolve_skill_path(skill, source_tree)
     text = path.read_text()
     lines = text.splitlines()
-    # The ask-tool name varies by platform and form:
-    #   opencode source:  {{ASK_TOOL}}  (literal token in source)
+    # The ask-tool name varies by adapter and form:
+    #   canonical source: {{ASK_TOOL}}        (literal token in source)
     #   opencode runtime: AskUserQuestion
-    #   claude source:    {{ASK_TOOL}}
     #   claude runtime:   Ask
     # Match any of these so the test is token-aware.
     question_lines = [

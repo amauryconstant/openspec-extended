@@ -5,9 +5,9 @@ from pathlib import Path
 block_cipher = None
 
 project_root = Path.cwd()
-orchestrator_opencode_path = project_root / "orchestrator" / "resources" / "opencode"
+orchestrator_canonical_path = project_root / "orchestrator" / "resources" / "canonical"
 orchestrator_claude_path = project_root / "orchestrator" / "resources" / "claude"
-skills_opencode_path = project_root / "skills" / "resources" / "opencode"
+skills_canonical_path = project_root / "skills" / "resources" / "canonical"
 skills_claude_path = project_root / "skills" / "resources" / "claude"
 package_path = project_root / "orchestrator" / "source"
 
@@ -31,13 +31,13 @@ a = Analysis(
     binaries=[],
     datas=(
         _collect_files_excluding_agents_md(
-            orchestrator_opencode_path, "resources/opencode"
+            orchestrator_canonical_path, "resources/canonical"
         )
         + _collect_files_excluding_agents_md(
             orchestrator_claude_path, "resources/claude"
         )
         + _collect_files_excluding_agents_md(
-            skills_opencode_path, "skills/resources/opencode"
+            skills_canonical_path, "skills/resources/canonical"
         )
         + _collect_files_excluding_agents_md(
             skills_claude_path, "skills/resources/claude"

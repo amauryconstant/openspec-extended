@@ -12,7 +12,7 @@ repos:
         name: Check version bump in versioned files
         entry: mise run version:check
         language: system
-        files: ^(resources/opencode/(skills/.*/(SKILL\.md|references/.*\.md)|agents/.*\.md|commands/.*\.md)|install\.sh)$
+        files: ^(resources/canonical/(skills/.*/(SKILL\.md|references/.*\.md)|agents/.*\.md|commands/.*\.md)|install\.sh)$
         pass_filenames: false
 
       - id: check-platform-hardcodes

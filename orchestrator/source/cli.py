@@ -33,11 +33,11 @@ SCRIPT_NAME = "openspec-extended"
 # resource files rendered at deploy time — is unchanged;
 # ``_substitute_tokens`` consumes ``PLATFORM_TOKENS`` from this module.
 #
-# Source files under ``orchestrator/resources/opencode/`` (the
+# Source files under ``orchestrator/resources/canonical/`` (the
 # orchestrator side; the skills side lives under
-# ``skills/resources/opencode/`` per Phase 4) carry ``{{TOKEN}}``
+# ``skills/resources/canonical/`` per Phase 4) carry ``{{TOKEN}}``
 # placeholders; the deploy step substitutes them with the values for the
-# active tool. The OpenCode source ships the same tokens literally —
+# active tool. The canonical source ships the same tokens literally —
 # the Python side is the single source of truth for substitution. Per-
 # adapter rendering happens at deploy time via ``deploy_*``; there is no
 # on-disk per-tool mirror and no separate token-substitution step.
@@ -306,7 +306,7 @@ def deploy_skills(
         target_refs.mkdir(parents=True, exist_ok=True)
         # Single canonical shared-references pool — lives once on the
         # orchestrator side at
-        # `orchestrator/resources/opencode/skills/references/`, regardless
+        # `orchestrator/resources/canonical/skills/references/`, regardless
         # of the consuming skill's side (orchestrator or skills) and
         # regardless of the target tool (opencode, claude, …). The
         # per-tool `<tool>/skills/references/` directory does not exist
@@ -314,7 +314,7 @@ def deploy_skills(
         # `orchestrator/resources/AGENTS.md` and
         # `tests/unit/test_resource_contract.py::TestSharedReferencesPackaging`.
         orchestrator_resources = get_resources_dir()
-        shared_refs_dir = orchestrator_resources / "opencode" / "skills" / "references"
+        shared_refs_dir = orchestrator_resources / "canonical" / "skills" / "references"
         for ref_name in shared_refs:
             src = shared_refs_dir / ref_name
             dst = target_refs / ref_name
@@ -625,24 +625,24 @@ def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
     at the target. Orchestrator-side resources land at ``<target>/manifest.toml``
     (legacy position); skills-side resources land at ``<target>/skills-manifest.toml``.
 
-    Phase 2A: the canonical on-disk source is ``opencode/`` for every tool;
-    the ``ToolAdapter`` drives per-tool rendering (commands_dir layout,
-    cmd_filename_strip_prefix, inject_name_in_skill_mirror,
-    agent_field_transform, token substitution). The per-tool source
-    trees were deleted in lockstep — there is no ``<tool>/`` source
-    to read from anymore.
+    Phase 2A: the canonical on-disk source is ``canonical/`` (a single,
+    tool-neutral tree); the ``ToolAdapter`` drives per-tool rendering
+    (commands_dir layout, cmd_filename_strip_prefix,
+    inject_name_in_skill_mirror, agent_field_transform, token
+    substitution). The per-tool source trees were deleted in lockstep —
+    there is no ``<tool>/`` source to read from anymore.
     """
     source_version = __version__
     target_dir = Path.cwd() / TOOL_DIRS[tool]
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    orchestrator_source_dir = get_resources_dir() / "opencode"
+    orchestrator_source_dir = get_resources_dir() / "canonical"
     _, orchestrator_manifest = _resolve_side_manifest(orchestrator_source_dir)
     if not orchestrator_manifest:
         log_error(f"Manifest not found: {orchestrator_source_dir / 'manifest.toml'}")
         raise SystemExit(1)
 
-    skills_source_dir = get_skills_resources_dir() / "opencode"
+    skills_source_dir = get_skills_resources_dir() / "canonical"
     _, skills_manifest = _resolve_side_manifest(skills_source_dir)
 
     total_count = 0
@@ -1556,10 +1556,14 @@ def _expected_extension_names(tool: str, with_autonomous: bool) -> set[str]:
 
     The set mirrors ``deploy_all_resources`` filtering: autonomous names are
     included only when ``with_autonomous`` is set. Reads both the orchestrator
-    and skills side manifests (Phase 5 split) and returns their union.
+    and skills side manifests (Phase 5 split) from the single canonical
+    source tree and returns their union.
     """
     expected: set[str] = set()
-    for source_dir in (get_resources_dir() / tool, get_skills_resources_dir() / tool):
+    for source_dir in (
+        get_resources_dir() / "canonical",
+        get_skills_resources_dir() / "canonical",
+    ):
         manifest_path = source_dir / "manifest.toml"
         if not manifest_path.is_file():
             continue

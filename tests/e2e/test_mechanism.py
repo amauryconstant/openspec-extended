@@ -16,9 +16,9 @@ pytestmark = pytest.mark.mechanism
 
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-OPENCODE_SOURCE = PROJECT_ROOT / "orchestrator" / "resources" / "opencode"
-SKILLS_OPENCODE_SOURCE = PROJECT_ROOT / "skills" / "resources" / "opencode"
-RESOURCES_OPENCODE = PROJECT_ROOT / "orchestrator" / "resources" / "opencode"
+OPENCODE_SOURCE = PROJECT_ROOT / "orchestrator" / "resources" / "canonical"
+SKILLS_OPENCODE_SOURCE = PROJECT_ROOT / "skills" / "resources" / "canonical"
+RESOURCES_OPENCODE = PROJECT_ROOT / "orchestrator" / "resources" / "canonical"
 
 
 @pytest.fixture

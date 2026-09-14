@@ -1,7 +1,7 @@
 ---
 paths:
   - "orchestrator/source/**"
-  - "orchestrator/resources/opencode/**"
+  - "orchestrator/resources/canonical/**"
   - "tests/**"
 ---
 
@@ -25,11 +25,11 @@ This file catalogues every v1.8.0–v1.13.0 contract the extended orchestrator d
 
 **Contract**: A change with `retire_capabilities: true` in `.openspec.yaml` (alongside the mandatory `schema:`) declares that `openspec archive` may delete the capability's main spec if its last requirement is REMOVED. Without the marker, archive aborts with "Spec must have at least one requirement". Core additionally aborts when the emptied spec also holds content the merge cannot account for — the abort names the blocking lines and reports the marker as the way out (v1.10.0).
 
-**Consumer**: `osx.read_change_metadata(change_dir)` (`source/lib/osx.py:2037`) reads `.openspec.yaml` once during pre-flight. The result is stashed on `OrchestratorState.retire_capabilities` (`source/orchestrator/engine.py:79`; set in `validate_change_dir` wrapper at `:262` and in `validate_archive` at `:324`). PHASE0's routing table (`orchestrator/resources/opencode/commands/osx-phase0.md`) routes the change to `/opsx:archive <name>` (skipping PHASE1–PHASE5) when the marker is set *and* planning is complete.
+**Consumer**: `osx.read_change_metadata(change_dir)` (`source/lib/osx.py:2037`) reads `.openspec.yaml` once during pre-flight. The result is stashed on `OrchestratorState.retire_capabilities` (`source/orchestrator/engine.py:79`; set in `validate_change_dir` wrapper at `:262` and in `validate_archive` at `:324`). PHASE0's routing table (`orchestrator/resources/canonical/commands/osx-phase0.md`) routes the change to `/opsx:archive <name>` (skipping PHASE1–PHASE5) when the marker is set *and* planning is complete.
 
 **Operational note**: An in-flight MODIFIED change against the retired capability will keep validating clean and then refuse to archive ("target spec does not exist; only ADDED requirements are allowed for new specs"). Close or rework that change alongside the retirement. The retirement is whole-file deletion: the marker is honored only when the emptied spec has nothing left but its title, `## Purpose`, and its requirement blocks — any `## Notes` section or comment under a requirement causes the abort to name those lines.
 
-**Reference**: `source/lib/osx.py:2037`, `source/orchestrator/engine.py` (OrchestratorState.retire_capabilities), `orchestrator/resources/opencode/commands/osx-phase0.md` (routing table). Tests: `tests/unit/test_validation_translator.py::TestReadChangeMetadata`, `tests/integration/test_phase_workflow.py::test_validate_change_dir_stamps_retire_capabilities`, `tests/contract/test_upstream_envelopes.py::TestArchiveWithRetireCapabilities`.
+**Reference**: `source/lib/osx.py:2037`, `source/orchestrator/engine.py` (OrchestratorState.retire_capabilities), `orchestrator/resources/canonical/commands/osx-phase0.md` (routing table). Tests: `tests/unit/test_validation_translator.py::TestReadChangeMetadata`, `tests/integration/test_phase_workflow.py::test_validate_change_dir_stamps_retire_capabilities`, `tests/contract/test_upstream_envelopes.py::TestArchiveWithRetireCapabilities`.
 
 ## 13.3 `operations.{apply,archive}.guidance` (v1.7.0+)
 
@@ -58,11 +58,11 @@ The strings surface as `operationGuidance: string[]` in `openspec instructions a
 
 **Contract**: `openspec show <change> --diff --json` renders each MODIFIED requirement as a unified diff against the requirement it replaces in the main spec; ADDED requirements print in full (no `diff` block); REMOVED print authored Reason/Migration; RENAMED print FROM/TO. `--json --diff` adds `diff` and `warning` fields to MODIFIED deltas only. Main specs resolve against the same root as the change.
 
-**Consumer**: PHASE2 (REVIEW) fetches this payload during its MANDATORY CHECKPOINT step 3 (`orchestrator/resources/opencode/commands/osx-phase2.md`) and embeds it as a `## Requirement diff` appendix in `verification-report.md`. ADDED/REMOVED/RENAMED deltas appear in a separate `## Delta inventory` section; MODIFIED deltas with a `warning` field get a `## Verification warnings` section.
+**Consumer**: PHASE2 (REVIEW) fetches this payload during its MANDATORY CHECKPOINT step 3 (`orchestrator/resources/canonical/commands/osx-phase2.md`) and embeds it as a `## Requirement diff` appendix in `verification-report.md`. ADDED/REMOVED/RENAMED deltas appear in a separate `## Delta inventory` section; MODIFIED deltas with a `warning` field get a `## Verification warnings` section.
 
 **Operational note**: The diff payload replaces the hand-rolled "what changed in this requirement?" prose that earlier versions of PHASE2 produced. Reviewers should still write their own narrative — the diff is supplementary context, not the report.
 
-**Reference**: `orchestrator/resources/opencode/commands/osx-phase2.md`. Tests: `tests/contract/test_upstream_envelopes.py::TestShowDiffEnvelope`, `tests/integration/test_phase_workflow.py` line 962, `tests/e2e/mechanism.bats` line 462.
+**Reference**: `orchestrator/resources/canonical/commands/osx-phase2.md`. Tests: `tests/contract/test_upstream_envelopes.py::TestShowDiffEnvelope`, `tests/integration/test_phase_workflow.py` line 962, `tests/e2e/mechanism.bats` line 462.
 
 ## 13.5 `validate --archived` (v1.9.0+)
 
@@ -76,7 +76,7 @@ The strings surface as `operationGuidance: string[]` in `openspec instructions a
 
 ## 13.6 Related v1.7.0+ contracts (informational)
 
-- **`requires: string[]`** on each `artifacts[]` entry — used by `osx-review-artifacts` Step 4 to build the dependency graph. See `orchestrator/resources/opencode/skills/osx-review-artifacts/SKILL.md`.
+- **`requires: string[]`** on each `artifacts[]` entry — used by `osx-review-artifacts` Step 4 to build the dependency graph. See `orchestrator/resources/canonical/skills/osx-review-artifacts/SKILL.md`.
 - **`skip_specs: true`** change metadata — zero-delta changes (pure refactors). Honoured by core's validator; extended side surfaces it in `read_change_metadata` (`source/lib/osx.py:2037`).
 - **`defaultStore` machine-level fallback** — `openspec config set defaultStore <id>` sets a per-machine fallback. The status `root` block reports `source: "global_default"` when used. Resolution flows through `current_store.get()`.
 - **`instructions archive`** — read-only mirror of `instructions apply`. Returns `{ "changeName", "context"?, "operationGuidance"?, "root" }`.
@@ -97,21 +97,21 @@ The strings surface as `operationGuidance: string[]` in `openspec instructions a
 
 **Contract**: `openspec instructions apply --change <name> --json` adds a `missingPrerequisites` array naming the full build-order chain for an apply whose `applyRequires` set is not yet satisfied — not just the first hop. A change with no delta specs (and no `skip_specs: true`) is reported as a warning at apply time. PR #1783 in v1.13.0.
 
-**Consumer**: PHASE1 (IMPLEMENTATION) fetches the envelope during its MANDATORY CHECKPOINT step (`orchestrator/resources/opencode/commands/osx-phase1.md`). When the response carries a non-empty `missingPrerequisites`, each entry's name + remedy command is surfaced in the decision log via `osx log append --extra '{"missing_prerequisites": [...]}'`; PHASE1 still proceeds with the existing apply gate (logging is informational, not blocking). The in-process helper is `osx.fetch_apply_prerequisites(change_id, *, store=None)` (`source/lib/osx.py`), which returns `list[str] | None` (`None` for cores that don't surface the field).
+**Consumer**: PHASE1 (IMPLEMENTATION) fetches the envelope during its MANDATORY CHECKPOINT step (`orchestrator/resources/canonical/commands/osx-phase1.md`). When the response carries a non-empty `missingPrerequisites`, each entry's name + remedy command is surfaced in the decision log via `osx log append --extra '{"missing_prerequisites": [...]}'`; PHASE1 still proceeds with the existing apply gate (logging is informational, not blocking). The in-process helper is `osx.fetch_apply_prerequisites(change_id, *, store=None)` (`source/lib/osx.py`), which returns `list[str] | None` (`None` for cores that don't surface the field).
 
 **Operational note**: The `missingPrerequisites` array is the structured counterpart to the text remedies; consumers should prefer it over regex-parsing the text response. When the field is absent but the change has no `applyRequires` blockers, core simply reports apply-ready.
 
-**Reference**: `source/lib/osx.py` (`fetch_apply_prerequisites`); `orchestrator/resources/opencode/commands/osx-phase1.md`. Tests: `tests/unit/test_apply_prerequisites.py::TestFetchApplyPrerequisites`, `tests/unit/test_resource_contract.py::TestOrchestratorContracts::test_missing_prerequisites_helper_exists`.
+**Reference**: `source/lib/osx.py` (`fetch_apply_prerequisites`); `orchestrator/resources/canonical/commands/osx-phase1.md`. Tests: `tests/unit/test_apply_prerequisites.py::TestFetchApplyPrerequisites`, `tests/unit/test_resource_contract.py::TestOrchestratorContracts::test_missing_prerequisites_helper_exists`.
 
 ### 13.7.3 `openspec list --specs` + `show <id> --type spec --json --no-scenarios` (v1.13.0+)
 
 **Contract**: `openspec list --specs` is a first-class spec-inventory command (parallel to `openspec list` for changes); `openspec show <id> --type spec --json --no-scenarios` is the filtered read used by generated guidance. The filtered read is only an overview; agents still read relevant specs in full (with scenarios) before deciding what is already covered. PR #1700 in v1.13.0.
 
-**Consumer**: PHASE0 spec-aware review (`orchestrator/resources/opencode/skills/osx-review-artifacts/SKILL.md` Step 2) runs `openspec list --specs` and a per-spec `show --type spec --json --no-scenarios` for every spec id, building a `{spec_id → {path, purpose, requirements_count}}` map. Step 4 (Cross-artifact consistency) adds a "Capability-already-exists" check: for each delta `ADDED Requirements` capability path, if the spec inventory already has that path, emit a `Warning` finding pointing to `/opsx:update <name>`. In-process helpers: `osx.list_specs(*, store=None)` and `osx.show_spec(spec_id, *, store=None)` (`source/lib/osx.py`).
+**Consumer**: PHASE0 spec-aware review (`orchestrator/resources/canonical/skills/osx-review-artifacts/SKILL.md` Step 2) runs `openspec list --specs` and a per-spec `show --type spec --json --no-scenarios` for every spec id, building a `{spec_id → {path, purpose, requirements_count}}` map. Step 4 (Cross-artifact consistency) adds a "Capability-already-exists" check: for each delta `ADDED Requirements` capability path, if the spec inventory already has that path, emit a `Warning` finding pointing to `/opsx:update <name>`. In-process helpers: `osx.list_specs(*, store=None)` and `osx.show_spec(spec_id, *, store=None)` (`source/lib/osx.py`).
 
 **Operational note**: The new check is **additive** and never escalates above `Warning` per the calibration rule (prefer `Suggestion`). When the spec inventory can't be loaded (older core, missing `--specs` flag), the helper returns `None` and the consumer silently skips the new check — backwards-compatible with v1.11.0 cores.
 
-**Reference**: `source/lib/osx.py` (`list_specs`, `show_spec`); `orchestrator/resources/opencode/skills/osx-review-artifacts/SKILL.md`. Tests: `tests/unit/test_spec_inventory.py`, `tests/unit/test_resource_contract.py::TestOrchestratorContracts::test_spec_inventory_consumer_is_wired`.
+**Reference**: `source/lib/osx.py` (`list_specs`, `show_spec`); `orchestrator/resources/canonical/skills/osx-review-artifacts/SKILL.md`. Tests: `tests/unit/test_spec_inventory.py`, `tests/unit/test_resource_contract.py::TestOrchestratorContracts::test_spec_inventory_consumer_is_wired`.
 
 ### 13.7.4 Archive preserves fenced code blocks (v1.13.0+)
 
@@ -129,7 +129,7 @@ The strings surface as `operationGuidance: string[]` in `openspec instructions a
 
 **Contract**: `retire_capabilities: true` no longer refuses specs whose scenario bullets wrap onto a second line. Specs whose scenarios use `+`-marker bullets are also covered. PR #1782.
 
-**Consumer**: `osx-phase6` Step 0 (Precondition check) at `orchestrator/resources/opencode/commands/osx-phase6.md`. The previous strict precondition is now redundant — the check is: confirm `state.retire_capabilities == true`; confirm `openspec show "$1" --json` reports at least one REMOVED delta; log `retirement_intent: true`; defer the rest to core.
+**Consumer**: `osx-phase6` Step 0 (Precondition check) at `orchestrator/resources/canonical/commands/osx-phase6.md`. The previous strict precondition is now redundant — the check is: confirm `state.retire_capabilities == true`; confirm `openspec show "$1" --json` reports at least one REMOVED delta; log `retirement_intent: true`; defer the rest to core.
 
 **Operational note**: Users who relied on the strict preflight to surface "wrap your bullets" or "use `-` markers" warnings before archive will see those warnings suppressed; core now handles them. The orchestrator's `BLOCKED` path is unchanged.
 

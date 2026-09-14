@@ -21,21 +21,21 @@ source "$SCRIPT_DIR/lib/state.sh"
 FILES_JSON="[]"
 
 get_staged_files() {
-    # OpenCode is the canonical source; per-adapter rendering at deploy
-    # time derives the on-disk layouts from it. Skip claude-side files
-    # here so version bumps happen once, on the opencode side — deploy-
-    # time rendering carries the new versions forward.
+    # The canonical/ tree is the single source; per-adapter rendering at
+    # deploy time derives the on-disk layouts from it. Skip claude-side
+    # files here so version bumps happen once, on the canonical side —
+    # deploy-time rendering carries the new versions forward.
     git diff --cached --name-only --diff-filter=ACMR -- \
-        "orchestrator/resources/opencode/skills/*/SKILL.md" \
-        "orchestrator/resources/opencode/skills/*/references/*.md" \
-        "orchestrator/resources/opencode/skills/*/scripts/*" \
-        "orchestrator/resources/opencode/agents/*.md" \
-        "orchestrator/resources/opencode/commands/*.md" \
-        "orchestrator/resources/opencode/commands/*/*.md" \
-        "skills/resources/opencode/skills/*/SKILL.md" \
-        "skills/resources/opencode/skills/*/references/*.md" \
-        "skills/resources/opencode/agents/*.md" \
-        "skills/resources/opencode/commands/*.md" 2>/dev/null \
+        "orchestrator/resources/canonical/skills/*/SKILL.md" \
+        "orchestrator/resources/canonical/skills/*/references/*.md" \
+        "orchestrator/resources/canonical/skills/*/scripts/*" \
+        "orchestrator/resources/canonical/agents/*.md" \
+        "orchestrator/resources/canonical/commands/*.md" \
+        "orchestrator/resources/canonical/commands/*/*.md" \
+        "skills/resources/canonical/skills/*/SKILL.md" \
+        "skills/resources/canonical/skills/*/references/*.md" \
+        "skills/resources/canonical/agents/*.md" \
+        "skills/resources/canonical/commands/*.md" 2>/dev/null \
         | grep -v "/AGENTS\.md$" || true
 }
 
@@ -129,10 +129,11 @@ check_resource_file() {
         return 0
     fi
 
-    # The version for a resource lives in resources/<platform>/manifest.toml,
-    # not in the file itself. Compare the working-tree version to the
-    # version in HEAD's manifest: a bump is "done" iff the two differ.
-    # `manifest` is an absolute filesystem path; `git show` needs a path
+    # The version for a resource lives in
+    # resources/<source-tree>/manifest.toml, not in the file itself.
+    # Compare the working-tree version to the version in HEAD's
+    # manifest: a bump is "done" iff the two differ. `manifest` is an
+    # absolute filesystem path; `git show` needs a path
     # relative to the repo root, so strip the project root prefix.
     local repo_root manifest_relpath head_version
     repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)

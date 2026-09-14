@@ -7,10 +7,10 @@ Locks in:
 - The autonomous set is exactly 12 entries (4 agents + 7 phase commands +
   ``osx-workflow`` skill).
 - Every name in the autonomous set corresponds to a real resource directory
-  or file under ``resources/opencode/``.
+  or file under ``resources/canonical/``.
 - No autonomous name appears in the utility default.
 - The utility default (24 - 12 = 12) is the complement of the autonomous set
-  within the opencode manifest.
+  within the canonical manifest.
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ import toml
 from source.lib import osx
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-ORCHESTRATOR_OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "opencode"
-SKILLS_OPENCODE = REPO_ROOT / "skills" / "resources" / "opencode"
+ORCHESTRATOR_OPENCODE = REPO_ROOT / "orchestrator" / "resources" / "canonical"
+SKILLS_OPENCODE = REPO_ROOT / "skills" / "resources" / "canonical"
 
 
 def _manifest_resources(path: Path) -> dict[str, dict[str, dict]]:
@@ -106,8 +106,8 @@ class TestInstallGrouping:
             kind for kind, entries in resources.items() if name in entries
         ]
         assert declared_kinds, (
-            f"Autonomous resource {name!r} is not declared in either opencode "
-            f"manifest. Either add it to resources/{{opencode,claude}}/manifest.toml "
+            f"Autonomous resource {name!r} is not declared in either canonical "
+            f"manifest. Either add it to resources/{{canonical,claude}}/manifest.toml "
             f"or remove it from AUTONOMOUS_RESOURCE_NAMES."
         )
         for kind in declared_kinds:

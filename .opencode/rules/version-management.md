@@ -28,8 +28,8 @@ Commands: `mise run version:check` → `mise run version:update`
 
 Files updated:
 
-- `orchestrator/resources/opencode/manifest.toml`
-- `skills/resources/opencode/manifest.toml`
+- `orchestrator/resources/canonical/manifest.toml`
+- `skills/resources/canonical/manifest.toml`
 - `install.sh` (independent installer version cycle)
 
 `version:check` runs as pre-commit hook and gates staged changes to `manifest.toml` and `install.sh`.

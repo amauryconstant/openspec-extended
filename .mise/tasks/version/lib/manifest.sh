@@ -6,13 +6,15 @@
 MANIFEST_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_PROJECT_ROOT="$(cd "$MANIFEST_LIB_DIR/../../../.." && pwd)"
 
-# Path to the manifest file for a given side and platform.
+# Path to the manifest file for a given side and source-tree name.
 # Phase 4 split resources into orchestrator/ and skills/ side-trees,
 # each with its own per-side manifest. Caller passes both.
+# The source-tree name is `canonical` in Phase 2A — the single tool-
+# neutral tree rendered per-adapter at deploy time.
 manifest_path_for_platform() {
     local side="$1"
-    local platform="$2"
-    printf '%s\n' "$MANIFEST_PROJECT_ROOT/$side/resources/$platform/manifest.toml"
+    local source_tree="$2"
+    printf '%s\n' "$MANIFEST_PROJECT_ROOT/$side/resources/$source_tree/manifest.toml"
 }
 
 # Resolve side from a staged file path. Echoes "orchestrator" or
@@ -44,7 +46,7 @@ resource_info_from_path() {
     if (( idx < 0 )) || (( ${#parts[@]} <= idx + 3 )); then
         return 1
     fi
-    # Shared references: resources/<platform>/skills/references/<name>.md.
+    # Shared references: resources/<source>/skills/references/<name>.md.
     # Skip these — they don't map to a single resource in the manifest.
     if [[ "${parts[$idx + 2]}" == "skills" \
             && "${parts[$idx + 3]}" == "references" ]]; then
@@ -82,7 +84,12 @@ platform_for_path() {
         return 1
     fi
     local platform="${parts[$idx + 1]}"
-    if [[ "$platform" != "opencode" && "$platform" != "claude" ]]; then
+    # Phase 2A: the only on-disk source tree is the tool-neutral
+    # `canonical` tree; per-adapter layouts are rendered at deploy time
+    # and never contain versioned source files. A `claude/...` staged
+    # path is therefore either a stale leftover from pre-2A or a manual
+    # edit that should be ignored here.
+    if [[ "$platform" != "canonical" ]]; then
         return 1
     fi
     printf '%s\n' "$platform"

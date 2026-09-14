@@ -3,7 +3,7 @@
 # Each test runs in an isolated /tmp directory
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-SCRIPTS_DIR="$PROJECT_ROOT/orchestrator/resources/opencode/scripts"
+SCRIPTS_DIR="$PROJECT_ROOT/orchestrator/resources/canonical/skills"
 FIXTURES_DIR="$PROJECT_ROOT/tests/fixtures"
 # Prefer the onedir bundle (cold-start ~150ms) over the single-file
 # distribution binary (~310ms) when both are present. Falls back to the

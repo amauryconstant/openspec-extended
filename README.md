@@ -182,7 +182,7 @@ The default install ships **3 extended skills**. `osx-workflow` (4th skill) requ
 
 Framework concepts that used to live in the `osx-concepts` skill now ship
 in `.opencode/rules/openspec-contract.md` (loaded on demand when working
-on `orchestrator/source/**`, `orchestrator/resources/opencode/**`, or
+on `orchestrator/source/**`, `orchestrator/resources/canonical/**`, or
 `tests/**`) and the `orchestrator/source/AGENTS.md` hub. Multi- and
 single-artifact edits route through `/opsx:update` from upstream.
 
@@ -238,7 +238,7 @@ After `PHASE6`, files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`.
 
 | Doc | Purpose |
 |-----|---------|
-| [.opencode/rules/openspec-contract.md](.opencode/rules/openspec-contract.md) | v1.8.0–v1.13.0 contract surface (loaded on `orchestrator/source/**`, `orchestrator/resources/opencode/**`, `tests/**`) |
+| [.opencode/rules/openspec-contract.md](.opencode/rules/openspec-contract.md) | v1.8.0–v1.13.0 contract surface (loaded on `orchestrator/source/**`, `orchestrator/resources/canonical/**`, `tests/**`) |
 | `orchestrator/source/orchestrator/AGENTS.md` | Phase model, transition reasons, retry budget, resume semantics |
 | `orchestrator/source/lib/AGENTS.md` | `osx` library domains + CLI/library contract |
 | `orchestrator/resources/AGENTS.md` | Resource types, manifest layout, per-adapter rendering |
