@@ -86,7 +86,12 @@ copy_fixture() {
 }
 
 run_osx_orchestrate() {
-    run "$OPENSPEC_BIN" orchestrate "$@"
+    # Bats subprocesses inherit the parent's stdin, so on a TTY the
+    # dirty-git prompt in validate_git (engine.py:262) blocks forever
+    # because setup_e2e_repo leaves the test repo uncommitted. --force
+    # is the documented escape hatch; prepending it here keeps every
+    # bats caller non-interactive by default.
+    run "$OPENSPEC_BIN" orchestrate --force "$@"
 }
 
 run_streaming() {
