@@ -1,31 +1,24 @@
 ---
 name: osx-changelog
-description: Generate CHANGELOG.md from archived OpenSpec changes (Keep a Changelog format). Run via {{SKILL_PREFIX}}osx-changelog [filter].
+description: Generate CHANGELOG.md from archived OpenSpec changes (Keep a Changelog format). Use after a release cutoff, or on demand to draft a release section.
 license: MIT
 disable-model-invocation: true
 compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
+metadata:
+  audience: user-invoked /osx-changelog invocation (not orchestrator-dispatched)
+  workflow: orthogonal — release-time changelog generation
 ---
 
 Generate CHANGELOG.md from archived OpenSpec changes using Keep a Changelog format.
 
-**IMPORTANT: This skill processes ARCHIVED changes only.** Changes must be archived via `osc-archive-change` (originally `openspec-archive-change`) before they appear in the changelog. Active (unarchived) changes are not included.
+**IMPORTANT: This skill processes ARCHIVED changes only.** Changes must be archived via `/osc-archive-change` (skill `osc-archive-change`) before they appear in the changelog. Active (unarchived) changes are not included.
 
 **IMPORTANT**: This is an AI-guided workflow. It does not use CLI flags. All filtering is done through user interaction.
 
 **Prerequisite**: Changes must be archived in `openspec/changes/archive/YYYY-MM-DD-<name>/`
 
----
-
-## Input
-
-Optionally specify filters. If omitted, processes all archived changes.
-
-**Arguments**: `[filter]`
-
-**Examples**:
-- `/{{CMD_PREFIX}}changelog` - Generate from all archived changes
-- `/{{CMD_PREFIX}}changelog --since 2025-01-01` - Changes after date
-- `/{{CMD_PREFIX}}changelog add-dark-mode` - Only specific change(s)
+**Input**: Specify optional `[<filter>]` as `$1` (e.g., `/osx-changelog`, `/osx-changelog --since 2025-01-01`, `/osx-changelog add-dark-mode`). Supported filters: `--since YYYY-MM-DD` (date cutoff), or one or more change names. If omitted, processes all archived changes. When the change is store-backed, carry `--store <id>` on every `openspec …` command.
 
 ---
 
@@ -187,7 +180,7 @@ No changes found in `openspec/changes/archive/`.
 1. Complete implementation: `/osc-apply-change <name>`
 2. Verify implementation: `/osc-verify-change <name>`
 3. Archive the change: `/osc-archive-change <name>`
-4. Re-run changelog generation: `/{{CMD_PREFIX}}changelog`
+4. Re-run changelog generation: `/osx-changelog`
 ```
 
 ---

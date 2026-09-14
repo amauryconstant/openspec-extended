@@ -38,7 +38,7 @@ project repo).
 
 | File                  | Purpose                                                   |
 | --------------------- | --------------------------------------------------------- |
-| `osx-analyzer.md`     | PHASE0 + PHASE2 + PHASE5 — review, verify, self-reflect    |
+| `osx-analyzer.md`     | PHASE0 — read-only artifact review; emits routing reports |
 | `osx-builder.md`      | PHASE1 — implement `tasks.md`; milestone commits          |
 | `osx-maintainer.md`   | PHASE3 / PHASE4 / PHASE6 — docs, sync, archive            |
 | `osx-reviewer.md`     | PHASE2 / PHASE5 — write reports; commit                   |

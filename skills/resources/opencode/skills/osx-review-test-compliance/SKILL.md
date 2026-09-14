@@ -1,48 +1,34 @@
 ---
 name: osx-review-test-compliance
-description: Surface test coverage gaps and orphaned tests for OpenSpec changes. Use after implementation, between /opsx:apply and /opsx:archive. Pair with /osc-verify-change for full verification.
+description: Surface test coverage gaps and orphaned tests for OpenSpec changes. Use after implementation, between /osc-apply-change and /osc-archive-change. Pair with /osc-verify-change for full verification.
 license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
 metadata:
-  audience: agents running post-implementation spec-to-test alignment review (PHASE1 end, ad-hoc /{{CMD_PREFIX}}verify-tests)
-  workflow: post-implementation — after `osc-apply-change` and before `osc-verify-change`
+  audience: agents running post-implementation spec-to-test alignment review (PHASE1 end, ad-hoc /osx-verify-tests)
+  workflow: post-implementation — after `/osc-apply-change` and before `/osc-verify-change`
 ---
 
 Surface spec-to-test alignment to identify gaps for OpenSpec changes.
 
 **IMPORTANT: This is a semantic analysis skill, not a CLI tool.** Read spec files, discover test files, analyse coverage by comparing scenarios to test implementations.
 
----
+**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Without a store, commands act on the nearest local `openspec/` root.
 
-## Input
+**Input**: Optionally specify `[<change-name>]` as `$1` (e.g., `/osx-verify-tests add-auth`). PHASE1 end-of-iteration dispatches the change name automatically. For ad-hoc invocations: if omitted, check if it can be inferred from conversation context; auto-select if only one active change exists; otherwise run `openspec list --json` and prompt via `{{ASK_TOOL}}`. When the change is store-backed, carry `--store <id>` on every `openspec …` command.
 
-Optionally specify a change name. If omitted, the skill will infer from context or prompt for selection.
-
-**Arguments**: `[change-name]`
-
-**Examples**:
-- `/{{CMD_PREFIX}}verify-tests add-auth` — analyse test coverage for "add-auth"
-- "Check test coverage" — infer change from context
-
----
-
-## When to Use
-
-After implementation, between `/opsx:apply` and `/opsx:archive`.
-
----
+When to use: after implementation, between `/osc-apply-change` and `/osc-archive-change`.
 
 ## Steps
 
 ### 1. Select the change
 
-If a name is provided, use it. Otherwise:
-- Infer from conversation context.
-- Auto-select if only one active change exists.
-- If ambiguous, run `openspec list --json` to get available changes and prompt the user to select.
+If a name is provided (as `$1`), use it. Otherwise:
+- Infer from conversation context
+- Auto-select if only one active change exists
+- If ambiguous, run `openspec list --json` to get available changes and ask the user to select one with `{{ASK_TOOL}}`
 
-Always announce: "Analysing test compliance for: <name>"
+Always announce: "Analysing test compliance for: <change-name>" and how to override (e.g., `/osx-verify-tests <other>`).
 
 ### 2. Check change status
 
@@ -154,23 +140,23 @@ Present the analysis with actionable recommendations.
 
 ### Next Steps
 - Address gaps: Add recommended tests
-- Re-run compliance: `/{{CMD_PREFIX}}verify-tests <name>`
-- Verify implementation: `/osc-verify <name>`
-```
+- Re-run compliance: `/osx-verify-tests <name>`
+- Verify implementation: `/osc-verify-change <name>`
+    ```
 
-**Quick Summary** (for clean changes):
+    **Quick Summary** (for clean changes):
 
-```markdown
-## Test Compliance: <change-name>
+    ```markdown
+    ## Test Compliance: <change-name>
 
-✅ **All scenarios covered**
+    ✅ **All scenarios covered**
 
-- 5 requirements, 12 scenarios
-- All scenarios have corresponding tests
-- 0 coverage gaps
+    - 5 requirements, 12 scenarios
+    - All scenarios have corresponding tests
+    - 0 coverage gaps
 
-Ready to verify: `/osc-verify <name>`
-```
+    Ready to verify: `/osc-verify-change <name>`
+    ```
 
 ---
 
@@ -182,3 +168,10 @@ Ready to verify: `/osc-verify <name>`
 - Don't require 100% coverage — focus on critical path scenarios.
 - Confidence scores are subjective — explain reasoning per the scoring rubric.
 - If no tests exist, report that clearly rather than failing.
+
+## Tips
+
+- Run on a single change at a time — multi-change compliance analysis bloats the report and dilutes per-change findings.
+- For languages not in the table (Rust, Kotlin, Swift), check `openspec/config.yaml`'s `context` field for project-specific test patterns before scanning.
+- Use `references/scoring-rubric.md` to keep tier assignments (`High` / `Partial` / `None`) consistent across runs.
+- Re-run after fixes to confirm previously-missing scenarios now have tests; the report does not store incremental state.

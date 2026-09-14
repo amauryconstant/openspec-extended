@@ -1,73 +1,53 @@
 ---
-description: PHASE5 - Self-Reflection
+name: osx-phase5
+description: PHASE5 — autonomous reflection over the change's iteration history. Use when dispatched by the orchestrator after sync, or ad-hoc via the orchestrator to harvest improvement suggestions.
+license: MIT
+compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
 agent: osx-reviewer
+metadata:
+  audience: PHASE5 self-reflection (dispatched by orchestrator)
+  workflow: post-implementation — reflection on iteration history
 ---
 
 # PHASE5: Self-Reflection
 
 Change: $1
 
+> **Protocol spine** — see `references/phase-protocol-common.md`.
 > **Tools** — see `osx-workflow` §1.
+> **Store selection** — see `references/store-selection.md`.
 
-## MANDATORY START
+**Input**: The orchestrator dispatches `<change-name>` as `$1` (e.g., `/osx-phase5 add-auth`). For ad-hoc invocations: if omitted, check if it can be inferred from conversation context; auto-select if only one active change exists; otherwise run `openspec list --json` and prompt via `{{ASK_TOOL}}`. PHASE5 also reads `iterations.json` and `decision-log.json` for the change's full history, plus `verification-report.md` and `test-compliance-report.md` from earlier phases.
 
-See `references/phase-protocol-common.md#mandatory-start`.
+## Steps
 
-## PURPOSE
+1. **Select the change**
 
-Evaluate the workflow retrospectively. Identify what worked, what didn't, and what to change. Capture in `reflections.md`.
+   If a name is provided (the orchestrator dispatches `<change-name>` as `$1`), use it. Otherwise:
+   - Infer from conversation context if the user mentioned a change
+   - Auto-select if only one active change exists
+   - If ambiguous, run `openspec list --json` and ask the user to select one
 
-## PROCESS
+   Always announce: "Using change: <change-name>" and how to override (e.g., `/osx-phase5 <other>`).
 
-1. Load recent state: `openspec-extended osx ctx get "$1"`. Review `iterations.json` for total iterations across phases; review `decision-log.json` for high-level decisions; review `verification-report.md` (from PHASE2) and `test-compliance-report.md` (from PHASE1) for outcomes.
+2. Load context per protocol spine.
+3. **Pull history** via `openspec-extended osx ctx get "$1"` — extract `history.iterations_recorded`, `decision_log`, and the latest `verification_report` and `test_compliance_report`.
+4. **Reflect autonomously** — review workflow execution, identify recurring patterns (blockers, reroutes, milestone-commit cadence), and surface improvements as concrete suggestions.
+5. Write `reflections.md` with: phase-by-phase iteration counts, dominant blocker categories, recurring routing decisions, and 1–5 actionable improvement suggestions for the orchestrator's future runs.
+6. Commit `reflections.md` via `osx-commit`. Capture the commit hash in the decision-log entry.
+7. **Mandatory end** — append `osx log` and `osx iterations` per protocol spine, then `osx state complete "$1"`. Script advances to PHASE6.
 
-2. Synthesise the reflection:
+## Output
 
-   - **What worked** — patterns that delivered clean reviews / quick transitions
-   - **What didn't** — repeated failures, blocked phases, excessive iterations
-   - **What to change** — concrete recommendations for skill body, agent prompts, or phase protocol
+`reflections.md` with phase summary, dominant blocker categories, recurring routing decisions, and 1–5 actionable suggestions. Commit hash recorded in `decision-log.json` and `iterations.json`.
 
-3. Write `openspec/changes/$1/reflections.md`. Markdown body, free-form. Include total_phases and total_iterations in the frontmatter.
+## Guardrails
 
-## MANDATORY END
-
-Invoke `osx-commit` skill, commit `reflections.md`, record commit hash in decision log and `iterations.json`.
-
-See `references/phase-protocol-common.md#mandatory-end` for the standard end sequence.
-
-## STATE FILE UPDATES
-
-```bash
-openspec-extended osx state complete "$1"
-```
-
-## LOGGING
-
-```bash
-# decision log
-openspec-extended osx log append "$1" --phase SELF_REFLECTION --iteration N \
-  --summary "..." --commit-hash "<hash or null>" --next-steps "Proceeding to PHASE6 (ARCHIVE)" \
-  --extra '{"reflections_path":"openspec/changes/$1/reflections.md","total_phases":N,"total_iterations":N}'
-
-# iterations log
-openspec-extended osx iterations append "$1" --phase SELF_REFLECTION --iteration N \
-  --commit-hash "<hash or null>" --notes "..." \
-  --extra '{"reflections_path":"...","total_phases":N,"total_iterations":N}'
-```
-
-Full schema in `references/osx-decision-logging.md`.
-
-## BLOCKER HANDLING
-
-See `references/blocker-semantics.md` for the canonical signal. Phase-specific reasons:
-
-- Unable to read `iterations.json` or `decision-log.json` (state corruption)
-- Reflection synthesis impossible without phase history
-
-## TRANSITION
-
-Log: "Reflection complete, proceeding to ARCHIVE". Mark phase complete via `osx state`. Script advances to PHASE6.
-
-## SHELL ARGUMENT SAFETY
-
-See `references/shell-argument-safety.md`.
+- **Agent**: `osx-reviewer` (`edit: allow`).
+- **Read-only on artifacts** — `reflections.md` is the only write target. Never modify planning or implementation artifacts here.
+- **No tool-specific fallback** — there is no `osc-*` core skill for self-reflection; this phase runs autonomous reasoning over the change's iteration history.
+- **Max 10 iterations** per phase. If exceeded, signal `BLOCKED` with `iteration_budget_exceeded`.
+- **Failure modes**:
+  - `iterations.json` corrupt or missing → log warning, write `reflections.md` with partial data, mark phase complete.
+  - `decision-log.json` not parseable → fall back to `state.json.history` for the summary.

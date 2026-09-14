@@ -18,8 +18,8 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 **Project Scope**: This is a rough, minimal project.
 
 **Skills Distributed**:
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
-- `osx-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
+- `osx-workflow`: 7-phase autonomous workflow reference
+- `osc-update-change`: Modifies OpenSpec artifacts with dependency tracking
 
 ## Quick Reference
 
@@ -43,8 +43,8 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 **Project Scope**: This is a rough, minimal project. No deep infrastructure, CI, or complex install scripts needed.
 
 **Skills Distributed**:
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
-- `osx-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
+- `osx-workflow`: 7-phase autonomous workflow reference
+- `osc-update-change`: Modifies OpenSpec artifacts with dependency tracking
 - `osx-review-artifacts`: Reviews OpenSpec artifacts for quality, completeness, and consistency
 ```
 
@@ -52,8 +52,8 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 ```markdown
 **Skills Distributed**:
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
-- `osx-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
+- `osx-workflow`: 7-phase autonomous workflow reference
+- `osc-update-change`: Modifies OpenSpec artifacts with dependency tracking
 - `osx-review-artifacts`: Reviews OpenSpec artifacts for quality, completeness, and consistency
 ```
 
@@ -100,8 +100,8 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 ```markdown
 **Skills Distributed**:
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
-- `osx-modify-artifacts`: Modifies OpenSpec artifacts
+- `osx-workflow`: 7-phase autonomous workflow reference
+- `osc-update-change`: Modifies OpenSpec artifacts
 - `osx-review-artifacts`: Reviews OpenSpec artifacts
 ```
 
@@ -109,13 +109,13 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 ```markdown
 **Skills Distributed**:
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
-- `osx-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking (v1.0)
+- `osx-workflow`: 7-phase autonomous workflow reference
+- `osc-update-change`: Modifies OpenSpec artifacts with dependency tracking (v1.0)
 - `osx-review-artifacts`: Reviews OpenSpec artifacts for quality and consistency
 ```
 
 **Changes**:
-- Added version (v1.0) to `osx-modify-artifacts` entry
+- Added version (v1.0) to `osc-update-change` entry
 - Preserved other entries unchanged
 - Version format consistent across all skills
 
@@ -127,8 +127,8 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 ```markdown
 **Skills Distributed**:
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
-- `osx-modify-artifacts`: Modifies OpenSpec artifacts
+- `osx-workflow`: 7-phase autonomous workflow reference
+- `osc-update-change`: Modifies OpenSpec artifacts
 - `osx-review-artifacts`: Reviews OpenSpec artifacts
 - `osc-new-change`: Start a new OpenSpec change
 - `osc-apply-change`: Implement tasks from an OpenSpec change
@@ -140,10 +140,10 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 **Skills Distributed**:
 
 **Core Skills**:
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
+- `osx-workflow`: 7-phase autonomous workflow reference
 
 **Artifact Management**:
-- `osx-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
+- `osc-update-change`: Modifies OpenSpec artifacts with dependency tracking
 - `osx-review-artifacts`: Reviews OpenSpec artifacts for quality
 
 **Workflow Skills**:
@@ -166,10 +166,10 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 # OpenSpec-extended - OpenCode Reference
 
 **Skills Distributed**:
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
-- `osx-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
+- `osx-workflow`: 7-phase autonomous workflow reference
+- `osc-update-change`: Modifies OpenSpec artifacts with dependency tracking
 - `osx-review-artifacts`: Reviews OpenSpec artifacts
-- `osx-maintain-ai-docs`: Maintain AGENTS.md and CLAUDE.md documentation
+- `osx-maintain-docs`: Maintain AGENTS.md and CLAUDE.md documentation
 ```
 
 **Changes**:
@@ -179,7 +179,7 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 ### CLAUDE.md Update (not needed)
 
 **Action**: No update to CLAUDE.md
-**Reason**: `osx-maintain-ai-docs` is a general-purpose skill, not Claude Code-specific
+**Reason**: `osx-maintain-docs` is a general-purpose skill, not Claude Code-specific
 
 ---
 
@@ -189,8 +189,8 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 ```markdown
 **Skills Distributed**:
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
-- `osx-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
+- `osx-workflow`: 7-phase autonomous workflow reference
+- `osc-update-change`: Modifies OpenSpec artifacts with dependency tracking
 - `osx-review-artifacts`: Reviews OpenSpec artifacts
 - `osx-review-artifacts`: Reviews OpenSpec artifacts for quality
 ```
@@ -214,8 +214,8 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 **Purpose**: Bridge AI coding assistants with OpenSpec
 
 **Skills Distributed**:
-- `osx-concepts`: Framework understanding
-- `osx-modify-artifacts`: Artifact modification
+- `osx-workflow`: 7-phase autonomous workflow reference
+- `osc-update-change`: Artifact modification
 
 ## Quick Reference
 
@@ -238,8 +238,8 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 **Project Scope**: This is a rough, minimal project.
 
 **Skills Distributed**:
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
-- `osx-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
+- `osx-workflow`: 7-phase autonomous workflow reference
+- `osc-update-change`: Modifies OpenSpec artifacts with dependency tracking
 - `osx-review-artifacts`: Reviews OpenSpec artifacts for quality, completeness, and consistency
 
 ## Quick Reference
@@ -290,12 +290,12 @@ Before and after examples showing how AGENTS.md and CLAUDE.md are updated.
 
 **Before**: 
 ```markdown
-- osx-concepts Teaches AI agents about OpenSpec framework
+- osx-workflow Teaches AI agents about the 7-phase loop
 ```
 
 **After**:
 ```markdown
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
+- `osx-workflow`: Teaches AI agents about the 7-phase loop
 ```
 
 **Action**: Fix formatting (add backticks, add colon separator)

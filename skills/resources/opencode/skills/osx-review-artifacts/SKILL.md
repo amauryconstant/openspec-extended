@@ -1,28 +1,25 @@
 ---
 name: osx-review-artifacts
-description: Audit artifacts against schema + dependency graph before implementation. Use between artifact creation (/opsx:continue, /opsx:propose, /opsx:ff) and /opsx:apply. Emits a routing report only; never edits.
+description: Audit artifacts against schema + dependency graph before implementation. Use between artifact creation (/osc-continue-change, /osc-propose, /osc-ff-change) and /osc-apply-change. Emits a routing report only; never edits.
 license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
 metadata:
-  audience: agents running pre-implementation artifact review (PHASE0, ad-hoc /{{CMD_PREFIX}}review)
-  workflow: pre-implementation — between artifact creation and /opsx:apply
+  audience: agents running pre-implementation artifact review (PHASE0, ad-hoc /osx-review)
+  workflow: pre-implementation — between artifact creation and /osc-apply-change
 ---
 
 # osx-review-artifacts
 
 Read-only, schema-driven audit of the planning artifacts in a change. Emits a routing report — never edits artifacts. Reading is allowed on every concrete file listed in `artifactPaths.<id>.existingOutputPaths`.
 
+**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run `openspec store list --json` to discover registered store ids, then pass `--store <id>` on the commands that read or write specs and changes (`new change`, `status`, `instructions`, `list`, `show`, `validate`, `archive`, `doctor`, `context`, `schemas`, `view`). Once selected, treat `--store <id>` as sticky for the rest of the workflow. Without a store, commands act on the nearest local `openspec/` root. Full flag matrix in `references/store-selection.md`.
+
 > **Schema-agnostic contract** — see `references/schema-agnostic-contract.md`.
-> **Store selection** — see `references/store-selection.md`.
 
-Sits in the pre-implementation workflow between artifact creation (`/opsx:continue`, `/opsx:propose`, `/opsx:ff`) and implementation (`/opsx:apply`). Use it standalone via `/{{CMD_PREFIX}}review <change>` or as part of PHASE0.
+Sits in the pre-implementation workflow between artifact creation (`/osc-continue-change`, `/osc-propose`, `/osc-ff-change`) and implementation (`/osc-apply-change`). Use it standalone via `/osx-review <change>` or as part of PHASE0.
 
----
-
-## Inputs
-
-- Optional positional argument: `<change-name>`. If omitted or ambiguous, prompt.
+**Input**: Optionally specify `[<change-name>]` as `$1` (e.g., `/osx-review add-auth`). PHASE0 dispatches the change name automatically. For ad-hoc invocations: if omitted, check if it can be inferred from conversation context; auto-select if only one active change exists; otherwise run `openspec list --json` and prompt via `{{ASK_TOOL}}`. Mark the most-recently modified active change as `(Recommended)`. When the change is store-backed, carry `--store <id>` on every `openspec …` command.
 
 ---
 
@@ -30,13 +27,12 @@ Sits in the pre-implementation workflow between artifact creation (`/opsx:contin
 
 ### Step 1 — Select the change
 
-Adopt the `openspec-update-change` policy: **never auto-select**. If the argument is missing or matches more than one active change, ask the user to choose with `{{ASK_TOOL}}`. Mark the most-recently modified active change as `(Recommended)`.
+If a name is provided (as `$1`), use it. Otherwise:
+- Infer from conversation context if the user mentioned a change
+- Auto-select if only one active change exists
+- If ambiguous, run `openspec list --json` to get available changes and ask the user to select one with `{{ASK_TOOL}}`. Mark the most-recently modified active change as `(Recommended)`.
 
-List candidates with:
-
-```bash
-openspec list --json
-```
+Always announce: "Using change: <change-name>" and how to override (e.g., `/osx-review <other>`).
 
 ### Step 2 — Load schema state
 
@@ -123,7 +119,7 @@ for spec_id in spec_inventory.keys(): ...
 # If the ADDED capability path is already in the inventory, flag it.
 ```
 
-If the spec inventory (Step 2b) has an existing capability at the same path as the delta's `ADDED Requirements` block, emit a `Warning` finding naming the existing spec id and pointing to `/opsx:update <name>` — the right way to MODIFY/extend an existing capability is `update`, not a fresh `ADDED Requirements` block in a new change. The `Suggestion` ↔ `Warning` ↔ `Critical` calibration rule applies (prefer `Suggestion`).
+If the spec inventory (Step 2b) has an existing capability at the same path as the delta's `ADDED Requirements` block, emit a `Warning` finding naming the existing spec id and pointing to `/osc-update-change <name>` — the right way to MODIFY/extend an existing capability is `update`, not a fresh `ADDED Requirements` block in a new change. The `Suggestion` ↔ `Warning` ↔ `Critical` calibration rule applies (prefer `Suggestion`).
 
 Skip Step 4b when the spec inventory is unavailable (older core, CLI failure) — backwards-compatible with v1.11.0 cores. Do not raise.
 
@@ -144,11 +140,10 @@ Produce one routing line per finding category. Pick the single best editor for t
 
 | Finding pattern | Recommended route |
 |---|---|
-| Single-artifact defect (1 artifact, format/content) | `/{{CMD_PREFIX}}modify <name> <artifact-id>` |
-| Multi-artifact coherence drift (≥2 artifacts OR any coherence-level finding) | `/opsx:update <name>` |
-| Missing artifact (referenced but not created) | `/opsx:continue <name>` |
-| All clean, pre-impl (PHASE0) | `/opsx:apply <name>` |
-| Intent-level change detected | `/opsx:new <name>` (per "Update vs. Start Fresh" heuristic) |
+| Findings on existing artifacts (single- or multi-artifact) | `/osc-update-change <name>` — `osc-update-change` reconciles any combination |
+| Missing artifact (referenced but not created) | `/osc-continue-change <name>` |
+| All clean, pre-impl (PHASE0) | `/osc-apply-change <name>` |
+| Intent-level change detected | `/osc-new-change <name>` (per "Update vs. Start Fresh" heuristic) |
 
 Exactly one routing line, matching this matrix.
 
@@ -169,14 +164,14 @@ The review skill never invokes the routed command itself. It only emits the rout
 ### <Severity> findings
 - **<artifact-id>:<file:line>**: <issue>
   - Fix: <concrete fix>
-  - Route: </{{CMD_PREFIX}}modify|/opsx:update|/opsx:continue|/opsx:apply|/opsx:new> <name> [<artifact-id>]
+  - Route: </osc-update-change|/osc-continue-change|/osc-apply-change|/osc-new-change> <name>
 
 ### Routing recommendation
 <single sentence picking ONE of the routes from §Step 7>
 
 ### Next steps
 - Address findings via the routed command above.
-- Re-run review after fixes: `/{{CMD_PREFIX}}review <name>`
+- Re-run review after fixes: `/osx-review <name>`
 ```
 
 ### All checks passed
@@ -191,7 +186,7 @@ The review skill never invokes the routed command itself. It only emits the rout
 **Implementation readiness**: <brief judgment>
 
 ### Next steps
-- Start (or resume) implementation: `/opsx:apply <name>`
+- Start (or resume) implementation: `/osc-apply-change <name>`
 ```
 
 ---
@@ -199,8 +194,8 @@ The review skill never invokes the routed command itself. It only emits the rout
 ## Guardrails
 
 - **Read-only.** Emits findings; never edits artifacts.
-- **No code edits.** Surface issues, route the user to `/opsx:apply`.
-- **No new artifacts.** Missing artifacts are reported; their creation is `/opsx:continue`'s job.
+- **No code edits.** Surface issues, route the user to `/osc-apply-change`.
+- **No new artifacts.** Missing artifacts are reported; their creation is `/osc-continue-change`'s job.
 - **No hardcoded artifact names.** Schema is the source of truth.
 
 ---

@@ -1,5 +1,9 @@
 ---
-description: Implementation agent for OpenSpec changes
+name: osx-builder
+description: PHASE1 implementation agent; reads tasks.md and writes project code with milestone commits
+license: MIT
+compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
 hidden: true
 mode: subagent
 temperature: 0.4
@@ -19,6 +23,9 @@ permission:
   lsp: allow
   external_directory:
     "/tmp/*": allow
+metadata:
+  audience: PHASE1 dispatcher (osx-builder)
+  workflow: implementation
 ---
 
 # OpenSpec Builder

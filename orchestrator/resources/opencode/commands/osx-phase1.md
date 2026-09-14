@@ -1,121 +1,74 @@
 ---
-description: PHASE1 - Implementation
+name: osx-phase1
+description: PHASE1 — implement the change's tasks with milestone commits. Use when dispatched by the orchestrator after artifact review passes, or ad-hoc to apply tasks from a change's `tasks.md`.
+license: MIT
+compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
 agent: osx-builder
+metadata:
+  audience: PHASE1 implementation (dispatched by orchestrator)
+  workflow: implementation
 ---
 
 # PHASE1: Implementation
 
 Change: $1
 
-## Project Operation Guidance (advisory)
+> **Protocol spine** — see `references/phase-protocol-common.md`. **Blocker semantics** — `references/blocker-semantics.md`. **Decision-log schema** — `references/osx-decision-logging.md`. **Shell-arg safety** — `references/shell-argument-safety.md`. **Tools** — `osx-workflow` §1. **Store selection** — `references/store-selection.md`.
 
-If `openspec-extended` injects guidance at the top of this prompt (via
-`RunRequest.extra_prompt`, surfaced from `operations.apply.guidance` in
-`openspec/config.yaml`), treat it as authoritative project context. Read,
-internalize, and let it shape implementation choices that align with the
-project's conventions.
+**Input**: The orchestrator dispatches `<change-name>` as `$1` (e.g., `/osx-phase1 add-auth`). For ad-hoc invocations: if omitted, check if it can be inferred from conversation context; auto-select if only one active change exists; otherwise run `openspec list --json` and prompt via `{{ASK_TOOL}}`. When the change is store-backed, carry `--store <id>` on every `openspec …` command.
 
-**Do not** copy the guidance verbatim into artifacts or implementation
-files. It is meta-context about how to work, not content to ship.
-
-> **Tools** — see `osx-workflow` §1 for the 4 tool layers.
-
-## MANDATORY START
-
-See `references/phase-protocol-common.md#mandatory-start`. PHASE1 also reads the change artifacts (`proposal.md`, `specs/`, `design.md`, `tasks.md`) and determines which tasks to implement this iteration.
-
-## MANDATORY CHECKPOINT: CLI Output Logging
-
-Before implementation:
-
-1. `openspec status --change "$1" --json` → log via `osx log` with `cli_status` field
-2. `openspec instructions apply --change "$1" --json` → log via `osx log` with `cli_instructions` field
-3. If `cli_instructions` carries `missingPrerequisites` (OpenSpec v1.13.0+ — the full build-order chain, not just the first hop), surface each entry's name + remedy command in the decision log via `--extra '{"missing_prerequisites": [...]}'. Logging is informational; PHASE1 still proceeds with the existing apply gate. The in-process reader is `osx.fetch_apply_prerequisites("$1")` (returns `list[str] | None`; `None` on older cores).
-
-## PURPOSE
-
-Implement tasks from the change, making logical milestone commits and validating test coverage.
-
-## PROCESS
-
-### 1. Load Implementation Skill
-
-Load `osc-apply-change` (originally `openspec-apply-change`) skill for change "$1". Follow its task execution pattern.
-
-### 2. Implement Tasks
-
-- Read `tasks.md` to identify unchecked tasks.
-- Implement sequentially.
-- Mark complete: `- [ ]` → `- [x]`.
-- Continue until all tasks complete OR iteration limit reached.
-
-### 3. Milestone Commits
-
-**You MUST commit after completing logical work units.** Min 1 / max 5 commits per iteration. Subject: imperative verb + brief description (40–72 chars). For each commit: invoke `osx-commit` skill, stage, commit.
-
-**Pre-commit hook guardrails (always apply):**
-
-- NEVER use `--no-verify` to bypass pre-commit hooks.
-- If pre-commit hooks fail, fix the issues. Re-run commit.
-- After 3 failed attempts, document via `osx log` and consider signaling `BLOCKED`.
-
-**Documentation scope for PHASE1:**
-
-- ✅ Inline code comments, README updates for new features, package-level doc files, CLI help text.
-- ❌ `AGENTS.md` files → deferred to PHASE3 (PHASE3 handles `AGENTS.md` after implementation is final).
-
-### 4. Validate Test Coverage
-
-After implementation: run `osx-review-test-compliance` skill. If gaps: implement missing tests, commit, re-run. Until: clean or only suggestions remain.
-
-## ERROR HANDLING
-
-- Git commit fails: check staged files, verify clean working directory, retry once.
-- Tests fail repeatedly (>3 attempts): subagent to debug, check spec clarity.
-- Iteration loop stuck (>3 with no progress): document blocker, signal COMPLETE.
-- `openspec` CLI fails: proceed without CLI output, document via `osx log`.
-
-## MANDATORY END
-
-See `references/phase-protocol-common.md#mandatory-end`. AGENTS.md updates happen in PHASE3 even if `tasks.md` lists them.
-
-## STATE FILE UPDATES
-
-When all tasks complete:
+## Mandatory start / end
 
 ```bash
+# Start
+openspec-extended osx ctx get "$1"
+# Apply prerequisites (v1.13.0+ envelope includes missingPrerequisites)
+openspec-extended osx fetch_apply_prerequisites "$1"
+# End — log missing prerequisites when present
+openspec-extended osx log append "$1" --phase IMPLEMENTATION --iteration N \
+  --summary "..." --commit-hash "<hash or null>" --next-steps "..." \
+  --extra '{"missing_prerequisites":[...],"milestone_commits":[...]}'
+openspec-extended osx iterations append "$1" --phase IMPLEMENTATION --iteration N \
+  --commit-hash "<hash or null>" --notes "..."
+# Phase end
 openspec-extended osx state complete "$1"
 ```
 
-## LOGGING
+**Advisory project guidance** (optional): if `openspec-extended` injects guidance at the top of this prompt via `RunRequest.extra_prompt` (surfaced from `operations.apply.guidance` in `openspec/config.yaml`), treat it as authoritative project context.
 
-```bash
-# decision log
-openspec-extended osx log append "$1" --phase IMPLEMENTATION --iteration N \
-  --summary "..." --next-steps "..." --errors '[]' \
-  --extra '{"tasks_completed":["1.1","1.2"],"tasks_remaining":0,"commits_made":N,"cli_status":{},"cli_instructions":{},"missing_prerequisites":[]}'
+## Steps
 
-# iterations log
-openspec-extended osx iterations append "$1" --phase IMPLEMENTATION --iteration N \
-  --notes "..." --errors '[]' \
-  --extra '{"tasks_completed":["1.1","1.2","1.3"],"tasks_remaining":0,"tasks_this_session":3,"commits_made":N,"cli_status":{},"cli_instructions":{},"missing_prerequisites":[]}'
-```
+1. **Select the change**
 
-Full schema in `references/osx-decision-logging.md`.
+   If a name is provided (the orchestrator dispatches `<change-name>` as `$1`), use it. Otherwise:
+   - Infer from conversation context if the user mentioned a change
+   - Auto-select if only one active change exists
+   - If ambiguous, run `openspec list --json` and ask the user to select one
 
-## BLOCKER HANDLING
+   Always announce: "Using change: <change-name>" and how to override (e.g., `/osx-phase1 <other>`).
 
-See `references/blocker-semantics.md` for the canonical signal. Phase-specific reasons:
+2. Load context per protocol spine.
+3. **Load apply prerequisites** via `osx fetch_apply_prerequisites "$1"` — reads `instructions apply --json` and surfaces `missingArtifacts`, `missingPrerequisites`, `tasks`, `contextFiles`, `operationGuidance`. Address missing prerequisites via PHASE0 routing before continuing.
+4. Load and use `osc-apply-change` skill for change `<change-name>`. Follow its task execution pattern.
+5. Implement tasks in order. Dispatched via `osx-builder` (`edit: allow`).
+6. **Milestone commits** — 1–5 commits per iteration, invoked via `osx-commit`. Each commit advances `state.json.current_commit` and is logged in `decision-log.json` and `iterations.json`. Cap at the iteration budget.
+7. **End-of-iteration coverage check** — invoke `osx-review-test-compliance` skill. If a `Critical` or unresolved `Warning` finding appears, fix it (re-iterate) or transition (`implementation_incorrect` → PHASE1 with new details).
+8. **Validation** — `openspec validate --change "$1" --type all --strict --json`. If invalid, fix and re-iterate.
+9. **Mandatory end** — append `osx log` and `osx iterations` per protocol spine, then `osx state complete "$1"`.
 
-- Pre-commit hook failures that cannot be resolved after 3 attempts
-- Implementation fundamentally blocked by unclear or contradictory specs
-- External dependencies unavailable or broken
-- Task cannot be completed due to missing information
+## Output
 
-## TRANSITION
+Completed implementation with `openspec validate --strict` passing, end-of-iteration `test-compliance-report.md` free of Critical findings, milestone commits recorded in `iterations.json`, and `state.json.phase = PHASE1_COMPLETE`.
 
-When all tasks in `tasks.md` are marked `[x]`: log "All tasks complete, transitioning to PHASE2 (REVIEW)", mark phase complete via `osx state`. Script advances to PHASE2.
+## Guardrails
 
-## SHELL ARGUMENT SAFETY
-
-See `references/shell-argument-safety.md`.
+- **Agent**: `osx-builder` (`edit: allow`).
+- **Never edits OpenSpec planning artifacts** in PHASE1 (`openspec/changes/<name>/{proposal,design,specs,tasks}.md`); those belong to `/osc-update-change` (called by the user outside the dispatched phase).
+- **Never invokes `osx log` or `osx iterations` with backticks in arg values** — shell interprets backticks as command substitution. See `references/shell-argument-safety.md`.
+- **Max 10 iterations** per phase; if exceeded, signal `BLOCKED` with `iteration_budget_exceeded` and let the user investigate.
+- **Failure modes**:
+  - Apply instructions report `state: "blocked"` (missing artifacts) → route back to PHASE0 via `state transition --target PHASE0 --reason artifacts_missing`.
+  - `state: "all_done"` → skip to PHASE2.
+  - `openspec validate` fails → fix and re-iterate within PHASE1 (not a blocker).
+- **Pre-commit hook failure** → fix and re-stage. Never bypass with `--no-verify`.

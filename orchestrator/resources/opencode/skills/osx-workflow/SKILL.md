@@ -1,7 +1,12 @@
 ---
 name: osx-workflow
-description: 7-phase workflow reference. INVOKE when dispatched into PHASE0..PHASE6, when calling the osx state I/O tool, or when troubleshooting the loop.
+description: 7-phase workflow reference for the OpenSpec-extended orchestrator. Use when dispatched into PHASE0..PHASE6, when calling the osx state I/O tool, or when troubleshooting the loop.
 license: MIT
+compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
+metadata:
+  audience: orchestrator-dispatched agents (PHASE0..PHASE6) and ad-hoc troubleshooters
+  workflow: orchestration — wraps the openspec-extended autonomous loop
 ---
 
 # OpenSpec-extended Autonomous Workflow
@@ -13,10 +18,10 @@ Operational reference for the 7-phase loop driven by `openspec-extended orchestr
 ## TL;DR
 
 ```
-PHASE0 ARTIFACT_REVIEW → osx-analyzer   → osx-review-artifacts (audit + routing); {{SKILL_PREFIX}}osx-modify or /opsx:update for fixes
+PHASE0 ARTIFACT_REVIEW → osx-analyzer   → osx-review-artifacts (audit + routing); /osc-update-change for fixes (single- or multi-artifact)
 PHASE1 IMPLEMENTATION  → osx-builder    → osc-apply-change, osx-review-test-compliance
 PHASE2 REVIEW          → osx-reviewer   → osc-verify-change (writes verification-report.md, commits)
-PHASE3 MAINTAIN_DOCS   → osx-maintainer → osx-maintain-ai-docs
+PHASE3 MAINTAIN_DOCS   → osx-maintainer → osx-maintain-docs
 PHASE4 SYNC            → osx-maintainer → osc-sync-specs
 PHASE5 SELF_REFLECTION → osx-reviewer   → (writes reflections.md, commits)
 PHASE6 ARCHIVE         → osx-maintainer → osc-archive-change / osc-bulk-archive-change
@@ -78,17 +83,17 @@ For the full action set of layer 3, see §4.
 
 | Phase | Name in `state.json` | Agent | Key skills | Purpose |
 |-------|----------------------|-------|------------|---------|
-| PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts` + `osc-update-change` (default) or `osx-modify-artifacts` (surgical fallback) | Schema-driven audit; routing report (read-only)[^a3] |
+| PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts` + `/osc-update-change` (single- or multi-artifact) | Schema-driven audit; routing report (read-only)[^a3] |
 | PHASE1 | `IMPLEMENTATION` | `osx-builder` | `osc-apply-change`, `osx-review-test-compliance` | Implement `tasks.md`; milestone commits |
-| PHASE2 | `REVIEW` | `osx-reviewer` | `osc-verify-change`; Case A → `osc-update-change` (default) or `osx-modify-artifacts` (isolated defect) | Verify implementation; writes `verification-report.md` |
-| PHASE3 | `MAINTAIN_DOCS` | `osx-maintainer` | `osx-maintain-ai-docs` | Update `AGENTS.md` and `CLAUDE.md` |
+| PHASE2 | `REVIEW` | `osx-reviewer` | `osc-verify-change`; Case A → `/osc-update-change` (default; covers single- and multi-artifact defects) | Verify implementation; writes `verification-report.md` |
+| PHASE3 | `MAINTAIN_DOCS` | `osx-maintainer` | `osx-maintain-docs` | Update `AGENTS.md` and `CLAUDE.md` |
 | PHASE4 | `SYNC` | `osx-maintainer` | `osc-sync-specs` | Merge delta specs into main specs |
 | PHASE5 | `SELF_REFLECTION` | `osx-reviewer` | (autonomous reasoning) | Evaluate the workflow; writes `reflections.md` |
 | PHASE6 | `ARCHIVE` | `osx-maintainer` | `osc-archive-change` or `osc-bulk-archive-change` | Archive change; clean transient files |
 
 [^a3]: When `.openspec.yaml` declares `retire_capabilities: true` and planning
       is complete, PHASE0 short-circuits to PHASE6 via the routing report
-      (`/opsx:archive <name>`). See `osx-phase0` and `osx-phase6` for the
+      (`/osc-archive-change <name>`). See `osx-phase0` and `osx-phase6` for the
       full protocol.
 
 > **Name disambiguation**: engine canonical is `REVIEW`; skill is `osc-verify-change`. Both refer to PHASE2.
@@ -159,7 +164,7 @@ All live in `openspec/changes/<change>/` (or `openspec/changes/archive/YYYY-MM-D
 | `set-routes` | `<change> --routes "<comma-separated slash commands>"` | PHASE0 only: queue slash commands the user should run |
 | `clear-routes` | `<change>` | Clear pending routes |
 
-**Transition reasons** (canonical): `implementation_incorrect` (code wrong, don't modify artifacts), `artifacts_modified` (specs/design updated via `/opsx:update`, fallback `{{SKILL_PREFIX}}osx-modify` for isolated defects, go to PHASE1), `retry_requested` (same phase, different approach).
+**Transition reasons** (canonical): `implementation_incorrect` (code wrong, don't modify artifacts), `artifacts_modified` (specs/design updated via `/osc-update-change`, fallback `/osc-update-change` for isolated defects, go to PHASE1), `retry_requested` (same phase, different approach).
 
 ### `phase` — phase sequence
 
@@ -254,7 +259,7 @@ The orchestrator detects `complete.json` and halts.
 
 A blocker is **not**:
 - Failing tests (fix in PHASE1, commit, re-iterate)
-- Unclear specs (route via `osx-review-artifacts`, fix via `{{SKILL_PREFIX}}osx-modify <name> <artifact-id>` or `/opsx:update <name>`)
+- Unclear specs (route via `osx-review-artifacts`, fix via `/osc-update-change <name> <artifact-id>` or `/osc-update-change <name>`)
 - Missing dependency (add it)
 - Implementation bug (transition `… implementation_incorrect` to PHASE1)
 
@@ -320,19 +325,20 @@ Before any phase action, verify:
 
 ## §10 Workflow patterns
 
-- **Quick feature (single-session)**: `osc-new-change` → `osc-ff-change` → `osc-apply-change` → `osc-verify-change` → `osc-archive-change`
-- **Exploratory**: `osc-explore` → [investigation] → `osc-new-change` → `osc-continue-change` → ... → `osc-apply-change`
+- **Quick feature (single-session)**: `/osc-new-change` → `/osc-ff-change` → `/osc-apply-change` → `/osc-verify-change` → `/osc-archive-change`
+- **Exploratory**: `/osc-explore` → [investigation] → `/osc-new-change` → `/osc-continue-change` → ... → `/osc-apply-change`
 - **Parallel changes (no orchestrator)**: switch between changes with explicit names; archive one before resuming the paused one.
-- **Enhanced manual**: `osc-new-change` → `osc-ff-change` → `{{SKILL_PREFIX}}osx-review <name>` → `{{SKILL_PREFIX}}osx-modify | /opsx:update` → `osc-apply-change` → `osx-review-test-compliance` → `osx-maintain-ai-docs` → `osc-archive-change` → `osx-generate-changelog`
+- **Enhanced manual**: `/osc-new-change` → `/osc-ff-change` → `/osx-review <name>` → `/osc-update-change` → `/osc-apply-change` → `/osx-verify-tests` → `/osx-maintain-docs` → `/osc-archive-change` → `/osx-changelog`
 - **Autonomous (full 7-phase loop)**: `openspec-extended orchestrate <change>`. PHASE0 is read-only — emits routing report; user invokes the routed slash command externally.
 
 ---
 
 ## §11 Decision guidance
 
-The pre-implementation decision flow that used to live in `osx-concepts`
-§3 was retired when the framework-content split landed. The same four
-questions still drive the routing call; answer them in order before
+The pre-implementation decision flow used to live in the now-removed
+`osx-concepts` skill. The same four questions still drive the routing
+call (see [`.opencode/rules/openspec-contract.md`]({{PLATFORM_DIR}}/rules/openspec-contract.md)
+for the framework contract); answer them in order before
 dispatching into a workflow above.
 
 ### Use OpenSpec when
@@ -363,12 +369,12 @@ needs to remember**:
   behavior and the code is the only thing that's wrong
 
 When in doubt: write a one-paragraph proposal anyway. The cost of
-`osc-new-change` is ~2 minutes; the cost of a missing capability six
+`/osc-new-change` is ~2 minutes; the cost of a missing capability six
 months later is a re-derivation pass.
 
 ### Update vs new change
 
-- **Update** (`/opsx:update`) when you are modifying an
+- **Update** (`/osc-update-change`) when you are modifying an
   *existing* capability, requirement, or scenario in place. The change
   folder gets an `archive/` marker; the proposal diffs against the
   current spec.

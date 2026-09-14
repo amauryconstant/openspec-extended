@@ -1,112 +1,86 @@
 ---
-description: PHASE0 - Artifact Review (read-only audit + routing; do not edit here)
+name: osx-phase0
+description: PHASE0 — read-only artifact review and routing report. Use when dispatched by the orchestrator between artifact creation and implementation, or when running ad-hoc to surface issues before apply.
+license: MIT
+compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
 agent: osx-analyzer
+metadata:
+  audience: PHASE0 read-only audit (dispatched by orchestrator)
+  workflow: pre-implementation — between artifact creation and apply
 ---
 
 # PHASE0: Artifact Review
 
 Change: $1
 
-> **Tools** — see `osx-workflow` §1 for the 4 tool layers.
+> **Protocol spine** — see `references/phase-protocol-common.md` (Mandatory Start / Mandatory End / State File Updates / Logging / Blocker Handling / Shell-Argument Safety). Phase-specific blocker reasons and logging fields are listed below.
+> **Blocker semantics** — `references/blocker-semantics.md`. **Decision-log schema** — `references/osx-decision-logging.md`. **Shell-arg safety** — `references/shell-argument-safety.md`. **Tools** — `osx-workflow` §1. **Store selection** — `references/store-selection.md`.
 
-## MANDATORY START
+**Input**: The orchestrator dispatches `<change-name>` as `$1` (e.g., `/osx-phase0 add-auth`). For ad-hoc invocations: if omitted, check if it can be inferred from conversation context; auto-select if only one active change exists; otherwise run `openspec list --json` and prompt via `{{ASK_TOOL}}`. When the change is store-backed, carry `--store <id>` on every `openspec …` command.
 
-See `references/phase-protocol-common.md#mandatory-start`.
-
-## PURPOSE
-
-Ensure OpenSpec artifacts are excellent before implementation. Validate:
-
-- Schema-driven format conformance (per `openspec instructions <id> --json`'s `template` and `rules`).
-- Cross-artifact consistency across the `dependencies` / `unlocks` graph.
-- Implementation readiness (dependencies, scope achievability, task specificity).
-
-PHASE0 dispatches `osx-analyzer` (`edit: deny`). **Do not edit artifacts inside this phase** — emit a routing report; the user or another invocation performs the edits via `osx-modify-artifacts` or `/opsx:update`.
-
-## PROCESS
-
-1. Load and use `osx-review-artifacts` skill for change "$1".
-2. Execute review instructions from the skill.
-3. Review findings bucketed as Critical / Warning / Suggestion.
-
-4. **Routing rule.** Produce a routing recommendation:
-
-   | Finding pattern | Recommended route |
-   |---|---|
-   | All findings target a single artifact AND no coherence-level finding | `{{SKILL_PREFIX}}osx-modify <name> <artifact-id>` |
-   | Findings span ≥2 artifacts OR any coherence-level finding | `/opsx:update <name>` |
-   | Missing artifacts | `/opsx:continue <name>` |
-   | `retire_capabilities: true` in `.openspec.yaml` AND planning is complete | `/opsx:archive <name>` (skip PHASE1–PHASE5; orchestrator stamps `state.retire_capabilities = true` so PHASE6 runs directly) |
-   | All clean | mark phase complete and hand off to PHASE1 |
-
-5. **Do not fix in this phase.** Surface the routing; the user (or a follow-up slash command) performs the fixes.
-
-When a retirement is detected, the routing report must include a one-line
-summary naming the capabilities being removed (parse `## REMOVED Requirements`
-for capability paths). The orchestrator's pre-flight reads `.openspec.yaml`
-once and stashes `retire_capabilities` on `state.json`. Subsequent phases
-PHASE1–PHASE5 should be skipped via `--from-phase PHASE6`; if the user
-re-invokes `orchestrate` without skipping, the orchestrator checks the
-marker and short-circuits to PHASE6 automatically.
-
-6. Track iteration via `osx log` and `osx iterations` per §DECISION LOG / §ITERATIONS.JSON below. Do **not** include an `artifacts-modified` list unless the change's artifacts were modified by something other than this phase.
-
-7. After the user has applied fixes via `{{SKILL_PREFIX}}osx-modify` or `/opsx:update`, the next PHASE0 iteration runs review again. Repeat up to the iteration cap.
-
-8. **Max iterations reached without clean review:**
-   - Document all remaining Critical issues via `osx log`.
-   - Create `complete.json` with BLOCKED status (workflow stops).
-
-## MANDATORY END
-
-See `references/phase-protocol-common.md#mandatory-end`. PHASE0 never commits artifacts (it never edits them); the user invokes `osx-commit` after running the routed editor. When `artifacts_modified` is later recorded by the transition, capture the commit hash in the decision log entry below.
-
-## STATE FILE UPDATES
+## Mandatory start / end
 
 ```bash
-# Phase complete (clean review)
-openspec-extended osx state complete "$1"
-
-# Non-clean review (routes pending — engine halts until user runs them)
-openspec-extended osx state set-routes "$1" --routes "{{SKILL_PREFIX}}osx-modify,/opsx:update"
-
-# Critical blocker
-openspec-extended osx complete set "$1" BLOCKED --blocker-reason "[Describe the blocking issue]"
-```
-
-The engine reads `routes_pending` from `state.json` after the phase ends. If non-empty (and `phase_complete` is false), the orchestrator exits 0 with a "Halted for routed commands" message. After the user runs the routed commands, the next `orchestrate` run re-enters PHASE0 to verify the fix.
-
-## LOGGING
-
-```bash
-# decision log (one entry per phase/sub-decision)
+# Start
+openspec-extended osx ctx get "$1"
+# End
 openspec-extended osx log append "$1" --phase ARTIFACT_REVIEW --iteration N \
   --summary "..." --commit-hash "<hash or null>" --next-steps "..." \
   --extra '{"routed_to":"...","issues_found":{"critical":N,"warning":N,"suggestion":N}}'
-
-# iterations log (chronological record)
 openspec-extended osx iterations append "$1" --phase ARTIFACT_REVIEW --iteration N \
   --commit-hash "<hash or null>" --notes "..." \
   --extra '{"artifacts_audited":["<id>"],"issues_found":{},"routed_to":"..."}'
+# Phase end
+openspec-extended osx state complete "$1"   # clean review
+openspec-extended osx state set-routes "$1" --routes "/osc-update-change"   # routes pending
+openspec-extended osx complete set "$1" BLOCKED --blocker-reason "..."   # blocker
 ```
 
-Full schema in `references/osx-decision-logging.md`.
+## Input
 
-## BLOCKER HANDLING
+`<change-name>` (kebab-case). Carries `--store <id>` when the change is store-backed.
 
-See `references/blocker-semantics.md` for the canonical signal. Phase-specific reasons:
+## Steps
 
-- Routing rules exhausted (no editor in `osx-review-artifacts` Step 7 matrix fits)
-- Schema corruption that no editor can fix
+1. **Select the change**
 
-## GUARDRAILS
+   If a name is provided (the orchestrator dispatches `<change-name>` as `$1`), use it. Otherwise:
+   - Infer from conversation context if the user mentioned a change
+   - Auto-select if only one active change exists
+   - If ambiguous, run `openspec list --json` to get available changes and ask the user to select one
 
-- **Read-only.** Editor actions belong to `{{SKILL_PREFIX}}osx-modify` (single artifact) or `/opsx:update` (multi-artifact / coherence drift).
-- **Max 10 review iterations.**
-- **Single source of artifact names**: `openspec status --change <name> --json` and `openspec instructions <id> --change <name> --json`. No hardcoded `proposal.md`/`specs/`/`design.md`/`tasks.md`.
+   Always announce: "Using change: <change-name>" and how to override (e.g., `/osx-phase0 <other>`).
+
+2. Load context per protocol spine.
+3. Load and use `osx-review-artifacts` skill for change `<change-name>`. Follow the skill's Steps 1–7 (select change → load schema state → per-artifact audit → cross-artifact consistency → implementation-readiness → classify findings → routing recommendation).
+4. Classify findings Critical / Warning / Suggestion. Apply the verify calibration rule — implementation-readiness concerns are never Critical.
+
+5. **Routing rule.** Produce a routing recommendation:
+
+   | Finding pattern | Recommended route |
+   |---|---|
+   | Findings (regardless of breadth) | `/osc-update-change <name>` — single- and multi-artifact fixes both use this command; the skill reconciles any combination of findings against the dependency graph |
+   | Missing artifacts | `/osc-continue-change <name>` |
+   | `retire_capabilities: true` in `.openspec.yaml` AND planning is complete | `/osc-archive-change <name>` (skip PHASE1–PHASE5; orchestrator stamps `state.retire_capabilities = true` so PHASE6 runs directly) |
+   | All clean | mark phase complete and hand off to PHASE1 |
+
+   **Do not fix in this phase.** Surface the routing; the user (or a follow-up slash command) performs the fixes.
+
+5. When a retirement is detected, the routing report must include a one-line summary naming the capabilities being removed (parse `## REMOVED Requirements` for capability paths). The orchestrator's pre-flight reads `.openspec.yaml` once and stashes `retire_capabilities` on `state.json`. Subsequent phases PHASE1–PHASE5 should be skipped via `--from-phase PHASE6`.
+
+6. **Max iterations reached without clean review:** document all remaining Critical issues via `osx log`, create `complete.json` with BLOCKED status (workflow stops).
+
+## Output
+
+Routing report with the single best editor for the aggregate finding set, plus the per-finding Severity / Artifact / File:line / Fix / Route lines. The skill never invokes the routed command itself.
+
+## Guardrails
+
+- **Read-only.** Editor actions belong to `/osc-update-change` (covers single- and multi-artifact fixes; PHASE0 routes all corrective edits through this command). Dispatched via `osx-analyzer` (`edit: deny`).
+- **Max 10 review iterations** (`--max-phase-iterations`).
+- **Single source of artifact names**: `openspec status --change <name> --json` and `openspec instructions <id> --change <name> --json`. No hardcoded `proposal.md` / `specs/` / `design.md` / `tasks.md`.
 - **Carry `--store <id>`** when the change is store-backed.
 - **Early exit** if the first review returns clean.
-
-## SHELL ARGUMENT SAFETY
-
-See `references/shell-argument-safety.md`.
+- **State updates**: `osx state complete "$1"` on clean review; `osx state set-routes "$1" --routes "/osc-update-change"` on routed fixes pending; `osx complete set "$1" BLOCKED --blocker-reason "..."` on Critical blockers. The engine reads `routes_pending` from `state.json` after the phase ends — if non-empty (and `phase_complete` is false), the orchestrator exits 0 with "Halted for routed commands". After the user runs the routed commands, the next `orchestrate` run re-enters PHASE0 to verify the fix.
+- **Never commits** (this phase never edits); the user invokes `osx-commit` after running the routed editor. Capture the commit hash in the decision-log entry when `artifacts_modified` is later recorded.

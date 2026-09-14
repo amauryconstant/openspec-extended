@@ -41,16 +41,16 @@ Rules for updating AGENTS.md and CLAUDE.md documentation files when adding, upda
 **Grouped by purpose** (if applicable):
 ```markdown
 **Core Skills**:
-- `osx-concepts`: Framework understanding
-- `osx-modify-artifacts`: Artifact modification
-
-**Quality Skills**:
+- `osx-workflow`: 7-phase autonomous workflow reference
 - `osx-review-artifacts`: Artifact review
-- `osc-verify-change`: Implementation verification
+
+**Phase Commands**:
+- `osx-phase0` … `osx-phase6`: One per autonomous phase
 
 **Utility Skills**:
-- `osc-new-change`: Change creation
-- `osc-apply-change`: Implementation
+- `osx-commit`: Conventional commit messages
+- `osx-maintain-docs`: AGENTS.md and CLAUDE.md docs
+- `osx-changelog`: CHANGELOG.md from archived changes
 ```
 
 **Grouping rules**:
@@ -200,8 +200,8 @@ def update_skills_distributed(content, skill_name, new_description):
 
 | Command | Purpose |
 |----------|----------|
-| `osx-maintain-ai-docs`: Maintain AGENTS.md and CLAUDE.md |
-| `osc-new-change`: Start a new OpenSpec change |
+| `/osx-maintain-docs` | Maintain AGENTS.md and CLAUDE.md |
+| `/osx-changelog` | Generate CHANGELOG.md from archived changes |
 ```
 
 **Update command description**:
@@ -227,8 +227,8 @@ def update_skills_distributed(content, skill_name, new_description):
 
 Some changes should apply to both files:
 
-- Core framework skills (osx-concepts, osx-modify-artifacts)
-- General utility skills
+- Core framework skills (`osx-workflow`, `osx-review-artifacts`, `osc-update-change`)
+- General utility skills (`osx-commit`, `osx-maintain-docs`, `osx-changelog`)
 - Project configuration changes
 
 ### AGENTS.md-Specific

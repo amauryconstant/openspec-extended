@@ -46,6 +46,12 @@ SCRIPT_NAME = "openspec-extended"
 
 _LEFTOVER_TOKEN_RE = re.compile(r"\{\{([A-Z_]+)\}\}")
 
+# Canonical slash form in source: ``/osx-<id>`` (matches opencode native).
+# The Claude adapter rewrites this to ``/osx:<id>`` at deploy time.
+# The negative lookbehind / lookahead avoids matching path components
+# (e.g. ``.opencode/skills/osx-modify/SKILL.md`` is left untouched).
+_SLASH_OSX_RE = re.compile(r"(?<![\w/])/osx-([a-z0-9-]+)(?!/)")
+
 
 def _substitute_tokens(text: str, tool: str) -> str:
     """Replace every ``{{TOKEN}}`` in ``text`` with the value for ``tool``.
@@ -56,6 +62,11 @@ def _substitute_tokens(text: str, tool: str) -> str:
     substituter is the single source of truth for token values; deploy-time
     rendering in ``deploy_*`` is the only mechanism that produces per-
     adapter output.
+
+    After token substitution, the canonical slash form ``/osx-<id>`` is
+    rewritten to the Claude slash form ``/osx:<id>`` for tools whose
+    ``slash_prefix`` is colon-terminated. Filenames containing ``/osx-<id>/``
+    are left untouched.
     """
     mapping = PLATFORM_TOKENS.get(tool, {})
 
@@ -65,7 +76,13 @@ def _substitute_tokens(text: str, tool: str) -> str:
             return mapping[key]
         return match.group(0)
 
-    return _LEFTOVER_TOKEN_RE.sub(repl, text)
+    text = _LEFTOVER_TOKEN_RE.sub(repl, text)
+
+    slash_prefix = mapping.get("CMD_PREFIX", "")
+    if slash_prefix.endswith(":"):
+        text = _SLASH_OSX_RE.sub(r"/osx:\1", text)
+
+    return text
 
 
 console = Console()

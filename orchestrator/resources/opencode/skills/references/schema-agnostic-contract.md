@@ -6,8 +6,8 @@ The six rules every pre-implementation review / modify / update skill must honou
 
 1. **Schema source of truth** — read artifact ids, descriptions, and paths from `openspec status --change <name> --json` and `openspec instructions <id> --change <name> --json`. Never hardcode `proposal.md`/`specs/`/`design.md`/`tasks.md`. v1.7.0 status adds a `requires` array per artifact — prefer it over a separate `instructions` call when building the dependency graph.
 2. **Glob safety** — write only to concrete files in `existingOutputPaths`. Never write to a glob `resolvedOutputPath` (it is still a pattern).
-3. **Frontier discipline** — refuse to create new artifacts or new files under glob artifacts. Route missing-artifact cases to `/opsx:continue <name>`.
-4. **No code edits** — refuse to touch implementation code. If a finding implies code changes, stop and point to `/opsx:apply <name>`.
+3. **Frontier discipline** — refuse to create new artifacts or new files under glob artifacts. Route missing-artifact cases to `/osc-continue-change <name>`.
+4. **No code edits** — refuse to touch implementation code. If a finding implies code changes, stop and point to `/osc-apply-change <name>`.
 5. **Per-edit confirmation** — show each proposed revision and write only after the user confirms. Rejected revisions are left unchanged.
 6. **Severity calibration** — adopt the same rule as `openspec-verify-change`: when uncertain, prefer `Suggestion` over `Warning`, `Warning` over `Critical`. Implementation-readiness issues are never `Critical`.
 
@@ -24,7 +24,7 @@ When the change lives in a registered store, pass `--store <id>` on every `opens
 ## v1.8.0+ additions
 
 - `status --json` adds `isPlanningComplete` distinct from `isComplete`. Use `isPlanningComplete` when verifying the plan is finished before triggering apply/archive; treat `isComplete` as the legacy alias. `osx-review-artifacts` Step 2 and the orchestrator pre-flight consult this field directly; the local file-existence check is a fallback only.
-- `retire_capabilities: true` change metadata (v1.8.0+) — archive can delete a capability whose last requirement is removed. The orchestrator's PHASE0 pre-flight reads this marker; when set, the routing report points to `/opsx:archive <name>` instead of `/opsx:apply`. Coordinate with any in-flight MODIFIED change against the retired capability (it will refuse to archive cleanly).
+- `retire_capabilities: true` change metadata (v1.8.0+) — archive can delete a capability whose last requirement is removed. The orchestrator's PHASE0 pre-flight reads this marker; when set, the routing report points to `/osc-archive-change <name>` instead of `/osc-apply-change`. Coordinate with any in-flight MODIFIED change against the retired capability (it will refuse to archive cleanly).
 
 ## v1.11.0 additions
 

@@ -148,8 +148,8 @@ Patterns unique to Claude Code development
 **Format**:
 ```markdown
 **Skills Distributed**:
-- `osx-concepts`: Teaches AI agents about OpenSpec framework
-- `osx-modify-artifacts`: Modifies OpenSpec artifacts with dependency tracking
+- `osx-workflow`: 7-phase autonomous workflow reference
+- `osc-update-change`: Modifies OpenSpec artifacts with dependency tracking
 - `osx-review-artifacts`: Reviews OpenSpec artifacts for quality
 ```
 

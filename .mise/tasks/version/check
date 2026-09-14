@@ -26,12 +26,16 @@ get_staged_files() {
     # here so version bumps happen once, on the opencode side — deploy-
     # time rendering carries the new versions forward.
     git diff --cached --name-only --diff-filter=ACMR -- \
-        "resources/opencode/skills/*/SKILL.md" \
-        "resources/opencode/skills/*/references/*.md" \
-        "resources/opencode/skills/*/scripts/*" \
-        "resources/opencode/agents/*.md" \
-        "resources/opencode/commands/*.md" \
-        "resources/opencode/commands/*/*.md" 2>/dev/null \
+        "orchestrator/resources/opencode/skills/*/SKILL.md" \
+        "orchestrator/resources/opencode/skills/*/references/*.md" \
+        "orchestrator/resources/opencode/skills/*/scripts/*" \
+        "orchestrator/resources/opencode/agents/*.md" \
+        "orchestrator/resources/opencode/commands/*.md" \
+        "orchestrator/resources/opencode/commands/*/*.md" \
+        "skills/resources/opencode/skills/*/SKILL.md" \
+        "skills/resources/opencode/skills/*/references/*.md" \
+        "skills/resources/opencode/agents/*.md" \
+        "skills/resources/opencode/commands/*.md" 2>/dev/null \
         | grep -v "/AGENTS\.md$" || true
 }
 
@@ -56,9 +60,12 @@ append_entry() {
 
 check_resource_file() {
     local file_path="$1"
-    local resource_info platform resource_type resource_name manifest
+    local resource_info side platform resource_type resource_name manifest
 
     if ! resource_info=$(resource_info_from_path "$file_path"); then
+        return 0
+    fi
+    if ! side=$(side_for_path "$file_path"); then
         return 0
     fi
     if ! platform=$(platform_for_path "$file_path"); then
@@ -67,15 +74,16 @@ check_resource_file() {
 
     resource_type="${resource_info%%:*}"
     resource_name="${resource_info##*:}"
-    manifest=$(manifest_path_for_platform "$platform")
+    manifest=$(manifest_path_for_platform "$side" "$platform")
 
     if [[ ! -f "$manifest" ]]; then
         append_entry "$(jq -n \
             --arg path "$file_path" \
+            --arg side "$side" \
             --arg platform "$platform" \
             --arg rt "$resource_type" \
             --arg rn "$resource_name" \
-            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:"", status:"error", error:("Could not load " + $platform + " manifest")}')"
+            '{path:$path, side:$side, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:"", status:"error", error:("Could not load " + $platform + " manifest")}')"
         return 0
     fi
 
@@ -84,21 +92,23 @@ check_resource_file() {
     if [[ -z "$current_version" ]]; then
         append_entry "$(jq -n \
             --arg path "$file_path" \
+            --arg side "$side" \
             --arg platform "$platform" \
             --arg rt "$resource_type" \
             --arg rn "$resource_name" \
-            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:"", status:"error", error:("Resource \"" + $rn + "\" not found in " + $platform + " manifest")}')"
+            '{path:$path, side:$side, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:"", status:"error", error:("Resource \"" + $rn + "\" not found in " + $platform + " manifest")}')"
         return 0
     fi
 
     if ! validate_semver "$current_version"; then
         append_entry "$(jq -n \
             --arg path "$file_path" \
+            --arg side "$side" \
             --arg platform "$platform" \
             --arg rt "$resource_type" \
             --arg rn "$resource_name" \
             --arg v "$current_version" \
-            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"error", error:"Invalid version format"}')"
+            '{path:$path, side:$side, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"error", error:"Invalid version format"}')"
         return 0
     fi
 
@@ -110,11 +120,12 @@ check_resource_file() {
     if [[ -z "$diff_text" ]]; then
         append_entry "$(jq -n \
             --arg path "$file_path" \
+            --arg side "$side" \
             --arg platform "$platform" \
             --arg rt "$resource_type" \
             --arg rn "$resource_name" \
             --arg v "$current_version" \
-            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"ok", error:""}')"
+            '{path:$path, side:$side, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"ok", error:""}')"
         return 0
     fi
 
@@ -137,19 +148,21 @@ check_resource_file() {
     if [[ "$current_version" != "$head_version" ]]; then
         append_entry "$(jq -n \
             --arg path "$file_path" \
+            --arg side "$side" \
             --arg platform "$platform" \
             --arg rt "$resource_type" \
             --arg rn "$resource_name" \
             --arg v "$current_version" \
-            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"ok", error:""}')"
+            '{path:$path, side:$side, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"ok", error:""}')"
     else
         append_entry "$(jq -n \
             --arg path "$file_path" \
+            --arg side "$side" \
             --arg platform "$platform" \
             --arg rt "$resource_type" \
             --arg rn "$resource_name" \
             --arg v "$current_version" \
-            '{path:$path, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"needs_bump", error:""}')"
+            '{path:$path, side:$side, platform:$platform, resource_type:$rt, resource_name:$rn, current_version:$v, status:"needs_bump", error:""}')"
     fi
 }
 

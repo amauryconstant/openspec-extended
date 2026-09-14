@@ -2,11 +2,18 @@
 name: osx-commit
 description: Detect the project's commit standard (Conventional / Angular / Gitmoji / Classic) and apply it. Use when the user names a style or commits in an unfamiliar repo.
 license: MIT
+compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
+metadata:
+  audience: orchestrator phase commits (PHASE1 / PHASE2 / PHASE3 / PHASE4 / PHASE5 / PHASE6) and ad-hoc /osx-commit invocations
+  workflow: orthogonal — invoked after every orchestrated write
 ---
 
 # osx-commit
 
 Create commits that match project style.
+
+**Input**: No positional arguments. The orchestrator invokes `/osx-commit` after every phase write (PHASE1 / PHASE2 / PHASE3 / PHASE4 / PHASE5 / PHASE6); ad-hoc `/osx-commit` invocations operate on the user's currently staged or unstaged changes. Detect the commit standard from the project, draft a subject that matches, and commit. If no standard is detected and the user invoked ad-hoc, fall back to Conventional Commits and ask via `{{ASK_TOOL}}` only when there is genuine ambiguity (multiple standards matched).
 
 ## Process
 

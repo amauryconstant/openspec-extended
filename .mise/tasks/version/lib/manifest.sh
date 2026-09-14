@@ -6,10 +6,24 @@
 MANIFEST_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST_PROJECT_ROOT="$(cd "$MANIFEST_LIB_DIR/../../../.." && pwd)"
 
-# Path to the manifest file for a given platform.
+# Path to the manifest file for a given side and platform.
+# Phase 4 split resources into orchestrator/ and skills/ side-trees,
+# each with its own per-side manifest. Caller passes both.
 manifest_path_for_platform() {
-    local platform="$1"
-    printf '%s\n' "$MANIFEST_PROJECT_ROOT/resources/$platform/manifest.toml"
+    local side="$1"
+    local platform="$2"
+    printf '%s\n' "$MANIFEST_PROJECT_ROOT/$side/resources/$platform/manifest.toml"
+}
+
+# Resolve side from a staged file path. Echoes "orchestrator" or
+# "skills" on stdout, returns 1 if the path is not under either.
+side_for_path() {
+    local file_path="$1"
+    case "$file_path" in
+        orchestrator/resources/*) printf '%s\n' "orchestrator" ;;
+        skills/resources/*)      printf '%s\n' "skills" ;;
+        *) return 1 ;;
+    esac
 }
 
 # Parse resource info (type:name) from a staged file path.

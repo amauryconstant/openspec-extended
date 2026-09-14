@@ -9,7 +9,7 @@ Every phase command begins with these four steps before doing anything else:
 1. Load context: `openspec-extended osx ctx get "$1"`.
 2. Confirm `phase` field matches the current dispatch.
 3. Review `history.iterations_recorded` for previous attempts.
-4. Load reference skills `osx-concepts` and `osx-workflow` (do not edit them; read on demand).
+4. Load reference skill `osx-workflow` (do not edit; read on demand for the orchestrator contract). Framework concepts live in `.opencode/rules/openspec-contract.md`.
 
 ## Mandatory end
 
@@ -26,7 +26,7 @@ PHASE6 is the exception: it does not call `osx state complete`. The orchestrator
 | Transition | Command |
 |---|---|
 | Phase complete, advance | `openspec-extended osx state complete "$1"` |
-| Phase complete with routes pending (PHASE0 only) | `openspec-extended osx state set-routes "$1" --routes "{{SKILL_PREFIX}}osx-modify,/opsx:update"` |
+| Phase complete with routes pending (PHASE0 only) | `openspec-extended osx state set-routes "$1" --routes "/osc-update-change"` |
 | Blocker (unrecoverable) | `openspec-extended osx complete set "$1" BLOCKED --blocker-reason "..."` |
 | Explicit transition (PHASE2) | `openspec-extended osx state transition "$1" --target <PHASEN> --reason <reason> --details "..."` |
 

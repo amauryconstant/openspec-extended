@@ -1,5 +1,9 @@
 ---
-description: Critical analyzer for OpenSpec review, verification, and reflection
+name: osx-analyzer
+description: PHASE0 read-only artifact auditor; emits routing reports, never edits
+license: MIT
+compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
 hidden: true
 mode: subagent
 temperature: 0.1
@@ -19,6 +23,9 @@ permission:
   lsp: allow
   external_directory:
     "/tmp/*": allow
+metadata:
+  audience: PHASE0 dispatcher (osx-analyzer)
+  workflow: pre-implementation — read-only audit
 ---
 
 # OpenSpec Analyzer

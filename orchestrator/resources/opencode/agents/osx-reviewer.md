@@ -1,5 +1,9 @@
 ---
-description: Critical reviewer for OpenSpec verification and reflection phases; writes verification-report.md / reflections.md
+name: osx-reviewer
+description: PHASE2 / PHASE5 reviewer; writes verification-report.md and reflections.md and commits
+license: MIT
+compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
 hidden: true
 mode: subagent
 temperature: 0.1
@@ -19,6 +23,9 @@ permission:
   lsp: allow
   external_directory:
     "/tmp/*": allow
+metadata:
+  audience: PHASE2 / PHASE5 dispatcher (osx-reviewer)
+  workflow: verification / reflection
 ---
 
 # OpenSpec Reviewer
@@ -40,7 +47,7 @@ OpenSpec changes.
 - Never assume previous iterations were correct - always verify
 - Stay at temperature 0.1 so reruns produce comparable reports
 - Never use backticks (`like this`) in shell arguments - use single quotes or
-  plain text (see `osx-concepts` for shell-safety rationale)
+  plain text (see the project's `AGENTS.md` shell-safety rules)
 - `websearch: deny` - this role does not need the open web
 
 ## Approach

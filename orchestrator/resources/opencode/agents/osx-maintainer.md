@@ -1,5 +1,9 @@
 ---
-description: Documentation and archival agent for OpenSpec completion phases
+name: osx-maintainer
+description: PHASE3 / PHASE4 / PHASE6 maintainer; updates docs, syncs specs, archives changes
+license: MIT
+compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
 hidden: true
 mode: subagent
 temperature: 0.3
@@ -19,6 +23,9 @@ permission:
   lsp: allow
   external_directory:
     "/tmp/*": allow
+metadata:
+  audience: PHASE3 / PHASE4 / PHASE6 dispatcher (osx-maintainer)
+  workflow: post-implementation — docs, sync, archive
 ---
 
 # OpenSpec Maintainer

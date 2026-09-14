@@ -1,125 +1,93 @@
 ---
-description: PHASE6 - Archive Change
+name: osx-phase6
+description: PHASE6 — archive a completed change with full audit trail. Use when dispatched by the orchestrator after self-reflection, or ad-hoc via `/osc-archive-change` once verification is clean.
+license: MIT
+compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
 agent: osx-maintainer
+metadata:
+  audience: PHASE6 archive (dispatched by orchestrator)
+  workflow: post-implementation — archive completed change
 ---
 
 # PHASE6: Archive Change
 
 Change: $1
 
-## Project Operation Guidance (advisory)
+> **Protocol spine** — see `references/phase-protocol-common.md`. **Blocker semantics** — `references/blocker-semantics.md`. **Decision-log schema** — `references/osx-decision-logging.md`. **Shell-arg safety** — `references/shell-argument-safety.md`. **Tools** — `osx-workflow` §1. **Store selection** — `references/store-selection.md`.
 
-If `openspec-extended` injects guidance at the top of this prompt (via
-`RunRequest.extra_prompt`, surfaced from `operations.archive.guidance` in
-`openspec/config.yaml`), treat it as authoritative project context. Read,
-internalize, and let it shape archive choices that align with the project's
-conventions.
+**Input**: The orchestrator dispatches `<change-name>` as `$1` (e.g., `/osx-phase6 add-auth`). For ad-hoc invocations: if omitted, check if it can be inferred from conversation context; auto-select if only one active change exists; otherwise run `openspec list --json` (filtered to active, non-archived changes) and prompt via `{{ASK_TOOL}}`. PHASE6 also reads `.openspec.yaml` (for `retire_capabilities`), `state.json`, and `complete.json`; optional advisory guidance from `operations.archive.guidance` in `openspec/config.yaml` is injected via `RunRequest.extra_prompt`.
 
-**Do not** copy the guidance verbatim into artifacts or implementation
-files. It is meta-context about how to work, not content to ship.
-
-> **Tools** — see `osx-workflow` §1.
-
-## ATOMIC EXECUTION REQUIREMENT
-
-⚠️ **CRITICAL**: All steps in this phase MUST complete in a SINGLE agent invocation.
-
-- Do NOT stop after archiving files.
-- Do NOT stop after committing changes.
-- Do NOT stop until Step 4 (commit archive) is finished.
-- Partial completion triggers unnecessary re-execution of this phase.
-
-## MANDATORY START
-
-See `references/phase-protocol-common.md#mandatory-start`. **PHASE6 exception**: this phase does NOT call `osx state complete`. The orchestrator detects completion by archive directory existence.
-
-## PURPOSE
-
-Archive the completed change for historical reference.
-
-## REQUIRED SEQUENCE (ALL STEPS)
-
-Complete ALL of these steps in order, without stopping. Transient state files (`state.json`, `complete.json`, `.openspec-baseline.json`, `.osx-orchestrate-<change>.log`) are removed by the orchestrator on success — do NOT delete them from this phase (the orchestrator needs the auto-log to move it into the archive after the archive commit).
-
-### Step 0: Precondition check
-
-- If `openspec-extended osx state get "$1"` shows `retire_capabilities: true`,
-  confirm `openspec show "$1" --json` reports at least one REMOVED delta
-  (otherwise core will abort with "Spec must have at least one requirement"
-  — no orchestrator-side path preflight is required).
-- **OpenSpec v1.13.0+** relaxes the precondition: specs whose scenario
-  bullets wrap onto a second line, and specs whose scenarios use
-  `+`-marker bullets, are now tolerated by core's retirement merge. The
-  v1.8.0–v1.12.x strict capability-path preflight has been removed; if the
-  core archive aborts with "Spec must have at least one requirement" or
-  any other unaccounted-content message, the orchestrator surfaces the
-  failure through the normal PHASE6 archive-validation path.
-- Surface the retirement intent in the decision log entry: include
-  `retirement_intent: true` in the `--extra` JSON.
-- Core v1.8.0+ honors the `retire_capabilities: true` marker in `.openspec.yaml`
-  automatically — no CLI flag to pass.
-
-### Step 1: Execute Archive
-
-1. Load skill: `osc-archive-change` (originally `openspec-archive-change`).
-2. Verify completion status: `tasks.md` all checked, delta spec sync state correct.
-3. Verify files to archive: `iterations.json`, `decision-log.json`, `verification-report.md`, `reflections.md`, `test-compliance-report.md`, `suggestions.md`.
-4. Perform archive: skill moves change to `openspec/changes/archive/YYYY-MM-DD-$1/`.
-
-### Step 2: Update Decision Log
+## Mandatory start
 
 ```bash
-# When state.retire_capabilities is true, include retirement_intent in --extra
+# Pre-validation
+openspec validate --change "$1" --type all --strict --json
+# Context load
+openspec-extended osx ctx get "$1"
+```
+
+## Mandatory end (no `osx state complete`)
+
+```bash
+# Decision log
 openspec-extended osx log append "$1" --phase ARCHIVE --iteration N \
-  --summary "Change successfully archived" --next-steps "Archive complete. Workflow finished." \
-  --extra '{"archive_path":"openspec/changes/archive/YYYY-MM-DD-$1/","retirement_intent":true}'
-```
-
-Commit hash captured in git history, not duplicated in logs.
-
-### Step 3: Update Iterations Log
-
-```bash
+  --summary "..." --commit-hash "<hash or null>" --next-steps "..." \
+  --extra '{"archived_path":"openspec/changes/archive/<dir>/","retire_capabilities":false}'
 openspec-extended osx iterations append "$1" --phase ARCHIVE --iteration N \
-  --notes "Change archived and committed successfully" \
-  --extra '{"archive_path":"openspec/changes/archive/YYYY-MM-DD-$1/"}'
+  --commit-hash "<hash or null>" --notes "..."
+# Archive command
+openspec archive "$1" --yes
+# Orchestrator detects completion by archive directory existing.
 ```
 
-### Step 4: Commit Archive
+## Steps
 
-Invoke `osx-commit` skill. Commit all archived files and log updates:
+1. **Select the change**
 
-```bash
-git add openspec/changes/archive/
-git commit -m "Archive change $1"
-```
+   If a name is provided (the orchestrator dispatches `<change-name>` as `$1`), use it. Otherwise:
+   - Infer from conversation context if the user mentioned a change
+   - Auto-select if only one active change exists
+   - If ambiguous, run `openspec list --json` (filtered to active, non-archived changes) and ask the user to select one
 
-After archiving, the change directory moves to `archive/`. The `osc-*` functions automatically detect this.
+   Always announce: "Using change: <change-name>" and how to override (e.g., `/osx-phase6 <other>`).
 
-## VERIFICATION CHECKLIST
+2. **ATOMIC EXECUTION REQUIREMENT.** All archive steps must run in a single uninterrupted sequence. The orchestrator detects completion by the archive directory existing; do not split into separate transactions.
 
-Before finishing this invocation, verify ALL items are complete:
+3. Load context per protocol spine.
 
-- [ ] Archive directory created at `openspec/changes/archive/YYYY-MM-DD-$1/`
-- [ ] Decision log entry appended with archive path
-- [ ] Iterations log entry appended with archive path
-- [ ] Git commit created (includes all log updates in archive)
-- [ ] Transient files NOT deleted by this phase (orchestrator handles cleanup)
+4. **Step 0 — Precondition.** Confirm `openspec validate --change "$1" --type all --strict --json` exits 0. If non-zero, halt and signal `BLOCKED` with `validation_failed` (do not archive an invalid change).
 
-**If ANY step is missing, the phase is incomplete and must be finished before stopping.**
+5. **Step 1 — Archive.** Load skill:
 
-## COMPLETION
+   ```bash
+   # Single change
+   openspec archive "$1" --yes
+   ```
 
-After PHASE6 archive: the change is in `openspec/changes/archive/YYYY-MM-DD-$1/`. Historical files are preserved. The orchestrator detects completion by archive directory existence, moves `.osx-orchestrate-<change>.log` into the archive and amends the archive commit on success. Transient state files are removed by the orchestrator's success path.
+   For multi-change contexts, `osc-bulk-archive-change` runs the per-change archive inline (do not delegate to a background task — the sync would race the archive).
 
-## BLOCKER HANDLING
+6. **Step 2 — Decision log.** Append a final `decision_log` entry summarising what was archived. Reference `.openspec-baseline.json` if `retire_capabilities: true` was set.
 
-See `references/blocker-semantics.md` for the canonical signal. Phase-specific reasons:
+7. **Step 3 — Iterations log.** Append the final `iterations.json` entry marking archive complete.
 
-- Archive operation fails and cannot be retried
-- File permissions prevent moving change to archive
-- Critical files missing from change directory
+8. **Step 4 — Commit.** Commit via `osx-commit`. Capture the commit hash in `state.json.last_archive_commit`.
 
-## SHELL ARGUMENT SAFETY
+9. **Step 5 — Detect completion.** The orchestrator checks for the archive directory at `openspec/changes/archive/`. PHASE6 **does not call `osx state complete`** — completion is inferred.
 
-See `references/shell-argument-safety.md`.
+## Output
+
+`openspec/changes/archive/YYYY-MM-DD-<name>/` populated with `proposal.md`, `design.md` (if present), `tasks.md`, and `specs/<cap>/spec.md` (if delta specs exist). `decision-log.json` and `iterations.json` updated. Commit hash recorded in `state.json.last_archive_commit`.
+
+## Guardrails
+
+- **Agent**: `osx-maintainer` (`edit: allow`).
+- **Atomic** — all steps run in one uninterrupted sequence. Never split across separate transactions.
+- **Never call `osx state complete`** — the orchestrator detects completion by archive directory existence.
+- **Pre-validation required** — `openspec validate --strict` must exit 0 before archive. A non-strict-valid change must not be archived.
+- **`retire_capabilities: true`** — check `.openspec.yaml`; if set, baseline specs at `.openspec-baseline.json` before archive.
+- **Max 10 iterations** per phase. If exceeded, signal `BLOCKED` with `iteration_budget_exceeded`.
+- **Failure modes**:
+  - Pre-validation fails → halt, signal `BLOCKED`.
+  - Archive command errors → halt, signal `BLOCKED`; do not retry blindly.
+  - `--store <id>` was used and the store is unreachable → halt, signal `BLOCKED` with `store_unreachable`.

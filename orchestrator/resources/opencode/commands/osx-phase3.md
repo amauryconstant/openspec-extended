@@ -1,91 +1,67 @@
 ---
-description: PHASE3 - Maintain Documentation
+name: osx-phase3
+description: PHASE3 — sync project docs (`AGENTS.md` / `CLAUDE.md`) with what implementation changed. Use when dispatched by the orchestrator after verification, or ad-hoc via `/osx-maintain-docs`.
+license: MIT
+compatibility: Requires openspec CLI.
+allowed-tools: Bash(openspec:*)
 agent: osx-maintainer
+metadata:
+  audience: PHASE3 documentation maintenance (dispatched by orchestrator)
+  workflow: post-implementation — docs sync
 ---
 
 # PHASE3: Maintain Documentation
 
 Change: $1
 
-> **Tools** — see `osx-workflow` §1.
+> **Protocol spine** — see `references/phase-protocol-common.md`. **Blocker semantics** — `references/blocker-semantics.md`. **Decision-log schema** — `references/osx-decision-logging.md`. **Shell-arg safety** — `references/shell-argument-safety.md`. **Tools** — `osx-workflow` §1. **Store selection** — `references/store-selection.md`.
 
-## MANDATORY START
+**Input**: The orchestrator dispatches `<change-name>` as `$1` (e.g., `/osx-phase3 add-auth`). For ad-hoc invocations: if omitted, check if it can be inferred from conversation context; auto-select if only one active change exists; otherwise run `openspec list --json` and prompt via `{{ASK_TOOL}}`. PHASE3 also reads `tasks.md` for any `{{DOCS_FILE}}` task items the implementer deferred from PHASE1.
 
-See `references/phase-protocol-common.md#mandatory-start`.
-
-## PURPOSE
-
-Update `AGENTS.md` and `CLAUDE.md` files to reflect ALL changes made during implementation. If a skill exists for this process, load it first.
-
-**Scope — what to update:**
-
-- Root `AGENTS.md` with new commands, patterns, or conventions
-- Package-level `AGENTS.md` files (e.g., `internal/library/AGENTS.md`)
-- `CLAUDE.md` if project supports both platforms
-- Any other AI context documentation
-
-**What to include:** new packages and purpose, new CLI commands and usage, new architectural patterns, updated command references, new capabilities.
-
-**NOT in scope:** inline code comments (PHASE1), README files (PHASE1), test files (PHASE1).
-
-## PROCESS
-
-1. Load and use `osx-maintain-ai-docs` skill.
-2. Read change artifacts: `proposal.md`, `specs/`, `design.md`, `tasks.md`.
-3. Read recent git changes: `git log --oneline -10`.
-4. Update project documentation: root `AGENTS.md`, package-level `AGENTS.md`, `CLAUDE.md`, other docs as needed.
-5. Apply best practices: tables over prose, concrete commands, progressive disclosure, target <300 lines per file.
-
-## AGENTS.md TASKS FROM TASKS.MD
-
-If `tasks.md` contains AGENTS.md documentation tasks (e.g., "12.1 Update cmd/AGENTS.md"):
-
-1. These were intentionally deferred from PHASE1.
-2. Complete them now as part of this phase.
-3. Mark them complete in `tasks.md` after updating.
-4. Include in the single PHASE3 commit.
-
-This consolidation ensures a single documentation commit for review, accurate representation of final codebase state, no duplicate documentation work.
-
-## MANDATORY END
-
-If documentation was updated during this phase: invoke `osx-commit` skill, commit changes, record commit hash in decision log and `iterations.json`.
-
-See `references/phase-protocol-common.md#mandatory-end` for the standard end sequence.
-
-## STATE FILE UPDATES
+## Mandatory start / end
 
 ```bash
+# Start
+openspec-extended osx ctx get "$1"
+# End
+openspec-extended osx log append "$1" --phase MAINTAIN_DOCS --iteration N \
+  --summary "..." --commit-hash "<hash or null>" --next-steps "..." \
+  --extra '{"docs_file":"...","lines_added":N,"commit_style":"..."}'
+openspec-extended osx iterations append "$1" --phase MAINTAIN_DOCS --iteration N \
+  --commit-hash "<hash or null>" --notes "..."
+# Phase end
 openspec-extended osx state complete "$1"
 ```
 
-## LOGGING
+## Steps
 
-```bash
-# decision log
-openspec-extended osx log append "$1" --phase MAINTAIN_DOCS --iteration N \
-  --summary "..." --commit-hash "<hash or null>" --next-steps "Proceeding to PHASE4 (SYNC)" \
-  --extra '{"docs_updated":["AGENTS.md","CLAUDE.md"],"changes_made":["..."]}'
+1. **Select the change**
 
-# iterations log
-openspec-extended osx iterations append "$1" --phase MAINTAIN_DOCS --iteration N \
-  --commit-hash "<hash or null>" --notes "..." \
-  --extra '{"docs_updated":["AGENTS.md","CLAUDE.md"]}'
-```
+   If a name is provided (the orchestrator dispatches `<change-name>` as `$1`), use it. Otherwise:
+   - Infer from conversation context if the user mentioned a change
+   - Auto-select if only one active change exists
+   - If ambiguous, run `openspec list --json` and ask the user to select one
 
-Full schema in `references/osx-decision-logging.md`.
+   Always announce: "Using change: <change-name>" and how to override (e.g., `/osx-phase3 <other>`).
 
-## BLOCKER HANDLING
+2. Load context per protocol spine.
+3. Load and use `osx-maintain-docs` skill. Follow the doc-update rules in `references/update-rules.md` and worked diffs in `references/update-examples.md`. Edit `{{DOCS_FILE}}` (project-specific docs file) only — never inline comments.
+4. **Structure guide** — see `references/doc-structures.md` for AGENTS.md / CLAUDE.md parsing/writing strategies and validation rules.
+5. **Mode** — `OSX_AUTONOMOUS=1` is set by the orchestrator. Interactive confirmation steps use their documented autonomous defaults (see `references/osx-mode-conventions.md`).
+6. Commit via `osx-commit`. Capture the commit hash in the decision-log entry.
+7. **Mandatory end** — append `osx log` and `osx iterations` per protocol spine, then `osx state complete "$1"`.
 
-See `references/blocker-semantics.md` for the canonical signal. Phase-specific reasons:
+## Output
 
-- Documentation conflicts that cannot be resolved
-- `AGENTS.md` / `CLAUDE.md` structure fundamentally incompatible with changes
+`{{DOCS_FILE}}` updated to reflect what the implementation actually changed (not what was planned). No section reordering; no inline-comment substitution; no doc cruft. Commit hash recorded in `decision-log.json` and `iterations.json`.
 
-## TRANSITION
+## Guardrails
 
-Log: "Documentation updated, proceeding to SYNC". Mark phase complete via `osx state`. Script advances to PHASE4.
-
-## SHELL ARGUMENT SAFETY
-
-See `references/shell-argument-safety.md`.
+- **Agent**: `osx-maintainer` (`edit: allow`).
+- **Document only what AI cannot infer from code** — code is the source of truth for behaviour; docs describe intent, trade-offs, and operational guidance.
+- **Never bypass** `osx-commit`'s detection heuristic; commit style must match the project standard.
+- **Warn if** `{{DOCS_FILE}}` > 300 lines. **Error if** > 500 lines (split required before adding content).
+- **Max 10 iterations** per phase. If exceeded, signal `BLOCKED` with `iteration_budget_exceeded`.
+- **Failure modes**:
+  - Doc structure invalid → fix and re-iterate.
+  - Commit style ambiguous → `osx-commit` falls back to Conventional Commits; record the chosen style in the log.

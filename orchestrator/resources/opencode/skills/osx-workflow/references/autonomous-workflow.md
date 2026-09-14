@@ -132,8 +132,8 @@ Phase commands instruct agents to "load and use" skills:
 
 | Prefix | Meaning | Source | Example |
 |--------|----------|---------|---------|
-| `osc-*` (renamed from `openspec-*`) | OpenSpec Core | Upstream npm package, renamed by installer | `osc-new-change` (was `openspec-new-change`), `osc-apply-change` (was `openspec-apply-change`), `osc-update-change` (was `openspec-update-change`) |
-| `osx-*` | OpenSpec eXtended | Local extensions | `osx-review-artifacts` (audit), `osx-modify-artifacts` (surgical edit) |
+| `osc-*` | OpenSpec Core | Upstream npm package, installed by `openspec init` | `osc-new-change`, `osc-apply-change`, `osc-update-change` |
+| `osx-*` | OpenSpec eXtended | Local extensions | `osx-review-artifacts` (audit), `osx-maintain-docs`, `osx-changelog`, `osx-commit` |
 | `openspec` | Core CLI | npm installed tool | `openspec status`, `openspec new change`, `openspec instructions` |
 
 ### 3.2 When to Use Which Tool
@@ -144,8 +144,7 @@ Phase commands instruct agents to "load and use" skills:
 | Create all artifacts | `osc-ff-change` skill | `openspec ff "$NAME"` |
 | Implement tasks | `osc-apply-change` skill | Read skill file, follow instructions |
 | Audit artifacts (schema-driven, read-only) | `osx-review-artifacts` skill | Read skill file, follow instructions |
-| Surgical single-artifact edit | `osx-modify-artifacts` skill | Read skill file, follow instructions |
-| Multi-artifact reconciliation (post-impl Case A) | `osc-update-change` skill | `openspec update "$NAME"` or `/opsx:update` |
+| Single- or multi-artifact reconciliation | `osc-update-change` skill | `openspec update "$NAME"` or `/osc-update-change` |
 | Check status | `openspec` CLI | `openspec status --change "$1" --json` |
 | Orchestration state | `osx` lib tool | `openspec-extended osx <domain> <action>` |
 
@@ -233,7 +232,7 @@ graph TD
     B -->|No| C[Phase complete → PHASE3]
     B -->|Yes| D{What's the root cause?}
 
-    D -->|Artifacts wrong (typical)| E[Use /opsx:update to reconcile; isolated single-art defect → {{SKILL_PREFIX}}osx-modify]
+    D -->|Artifacts wrong (typical)| E[Use /osc-update-change to reconcile single- and multi-artifact defects]
     E --> F[Commit fixes]
     F --> G[Transition to PHASE1]
 
@@ -248,8 +247,8 @@ graph TD
 
 | Situation | Command | Reason Parameter |
 |-----------|----------|-----------------|
-| Artifacts are wrong (typically multi-artifact) | `osx state transition "$1" --target PHASE1 --reason artifacts_modified` | "Reconciled specs + design + tasks via /opsx:update" |
-| Artifacts are wrong (isolated single-artifact defect) | `osx state transition "$1" --target PHASE1 --reason artifacts_modified` | "Surgical fix via {{SKILL_PREFIX}}osx-modify" |
+| Artifacts are wrong (typically multi-artifact) | `osx state transition "$1" --target PHASE1 --reason artifacts_modified` | "Reconciled specs + design + tasks via /osc-update-change" |
+| Artifacts are wrong (isolated single-artifact defect) | `osx state transition "$1" --target PHASE1 --reason artifacts_modified` | "Surgical fix via /osc-update-change" |
 | Implementation is wrong | `osx state transition "$1" --target PHASE1 --reason implementation_incorrect` | "Missing validation in API handler" |
 | Same phase retry | `osx state transition "$1" --target PHASE2 --reason retry_requested` | "Alternative verification strategy" |
 
@@ -303,14 +302,14 @@ graph TD
 1. Load context: `osx ctx get "$1"`
 2. Run review using `osx-review-artifacts` skill (schema-driven audit).
 3. If findings exist, classify by breadth and emit a routing report:
-   - all findings on a single artifact + no coherence-level finding → `{{SKILL_PREFIX}}osx-modify <name> <id>`
-   - multi-artifact drift or any coherence-level finding → `/opsx:update <name>`
-   - missing artifacts → `/opsx:continue <name>`
+   - all findings on a single artifact + no coherence-level finding → `/osc-update-change <name> <id>`
+   - multi-artifact drift or any coherence-level finding → `/osc-update-change <name>`
+   - missing artifacts → `/osc-continue-change <name>`
 4. **Do not fix inside PHASE0.** The user invokes the routed command externally.
 5. If clean: Log and complete.
 
 **Note**: PHASE0 used to fix artifacts in the same invocation. With the
-read-only `osx-analyzer`, fixes are routed to `{{SKILL_PREFIX}}osx-modify` or `/opsx:update`,
+read-only `osx-analyzer`, fixes are routed to `/osc-update-change`,
 which the user (or a follow-up slash command) performs.
 
 **State update**:
@@ -343,7 +342,7 @@ openspec-extended osx state complete "$1"
 
 ### 5.3 PHASE2: Review
 
-**Agent**: `osx-analyzer` (read-only: `edit: deny`)
+**Agent**: `osx-reviewer` (`edit: allow`)
 **Tool**: `osc-verify-change` skill
 
 **Purpose**: Verify implementation matches artifacts. Writes `verification-report.md` with embedded requirement-level diff (v1.11.0+ via `openspec show --diff --json`). The report has three new sections when the diff envelope is non-empty: `## Delta inventory`, `## Requirement diff`, `## Verification warnings`.
@@ -353,9 +352,9 @@ openspec-extended osx state complete "$1"
 2. Run `osc-verify-change` skill
 3. Analyze verification report
 4. **Critical decision tree** (see Section 4.2):
-   - **Case A — artifacts wrong**: route to `/opsx:update <name>` for the
+   - **Case A — artifacts wrong**: route to `/osc-update-change <name>` for the
      typical multi-artifact drift (specs + design + tasks move together).
-     Isolated single-artifact defects may use `{{SKILL_PREFIX}}osx-modify <name> <id>`.
+     Isolated single-artifact defects may use `/osc-update-change <name> <id>`.
    - **Case B — implementation wrong**: do not modify artifacts.
    - **Case C — same phase retry**: try a different approach.
 
@@ -365,10 +364,10 @@ openspec-extended osx state complete "$1"
 openspec-extended osx state complete "$1"
 
 # Case A: artifacts wrong (default → update)
-openspec-extended osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "Reconciled via /opsx:update"
+openspec-extended osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "Reconciled via /osc-update-change"
 
 # Case A (isolated): single-artifact defect via modify
-openspec-extended osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "Surgical fix via {{SKILL_PREFIX}}osx-modify"
+openspec-extended osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "Surgical fix via /osc-update-change"
 
 # Case B: implementation wrong
 openspec-extended osx state transition "$1" --target PHASE1 --reason implementation_incorrect --details "Missing validation"
@@ -380,7 +379,7 @@ openspec-extended osx state transition "$1" --target PHASE2 --reason retry_reque
 ### 5.4 PHASE3: Maintain Documentation
 
 **Agent**: `osx-maintainer`
-**Tool**: `osx-maintain-ai-docs` skill
+**Tool**: `osx-maintain-docs` skill
 
 **Purpose**: Update AGENTS.md and CLAUDE.md after implementation
 
@@ -388,7 +387,7 @@ openspec-extended osx state transition "$1" --target PHASE2 --reason retry_reque
 1. Load context
 2. Read change artifacts
 3. Read recent git history
-4. Use `osx-maintain-ai-docs` skill
+4. Use `osx-maintain-docs` skill
 5. Update documentation following best practices
 6. Commit changes
 
@@ -418,7 +417,7 @@ openspec-extended osx state transition "$1" --target PHASE2 --reason retry_reque
 
 ### 5.6 PHASE5: Self-Reflection
 
-**Agent**: `osx-analyzer`
+**Agent**: `osx-reviewer`
 **Tool**: No specific skill (autonomous reasoning)
 
 **Purpose**: Review workflow execution, identify improvements
@@ -670,8 +669,8 @@ openspec instructions apply --change "$CHANGE_ID" --json
 |--------|---------|-------------|---------------------|
 | PHASE0 | osx-analyzer | review-artifacts, modify-artifacts | Fix CRITICAL issues immediately |
 | PHASE1 | osx-builder | apply-change, review-test-compliance | Milestone commits (1-5 per iteration) |
-| PHASE2 | osx-analyzer | verify-change | Correct transition logic; embeds openspec show --diff appendix (v1.11.0+) |
+| PHASE2 | osx-reviewer | verify-change | Correct transition logic; embeds openspec show --diff appendix (v1.11.0+) |
 | PHASE3 | osx-maintainer | maintain-ai-docs | Update AGENTS.md (not inline comments) |
 | PHASE4 | osx-maintainer | sync-specs | Merge deltas into main specs |
-| PHASE5 | osx-analyzer | None | Analyze workflow history |
+| PHASE5 | osx-reviewer | None | Analyze workflow history |
 | PHASE6 | osx-maintainer | archive-change, bulk-archive | **ATOMIC EXECUTION** - all steps in one call |

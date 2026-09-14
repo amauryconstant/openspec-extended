@@ -504,9 +504,14 @@ class TestSchemaAgnosticContract:
     )
     def test_skill_disallows_code_edits(self, skill: Path):
         text = _read(skill)
-        assert "/opsx:apply" in text, (
+        # Routes code-change implications to the apply command. Allow
+        # either the canonical slash form (`/opsx:apply`) or the
+        # installed full skill-name form (`/osc-apply-change`); the
+        # deploy layer rewrites the former to the latter on Claude and
+        # to the hyphenated form on OpenCode.
+        assert ("/opsx:apply" in text) or ("/osc-apply-change" in text), (
             f"{skill.relative_to(REPO_ROOT)} must route code-change "
-            f"implications to `/opsx:apply`"
+            f"implications to `/opsx:apply` (or `/osc-apply-change`)"
         )
 
     @pytest.mark.parametrize(

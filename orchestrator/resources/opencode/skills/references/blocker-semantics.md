@@ -15,7 +15,7 @@ The orchestrator detects `complete.json` and halts. The user investigates.
 A blocker is **not**:
 
 - Failing tests → fix in PHASE1, commit, re-iterate.
-- Unclear specs → route via `osx-review-artifacts` (PHASE0), fix via `{{SKILL_PREFIX}}osx-modify` or `/opsx:update`; the user applies the fix outside the dispatched phase.
+- Unclear specs → route via `osx-review-artifacts` (PHASE0), fix via `/osc-update-change`; the user applies the fix outside the dispatched phase.
 - Missing dependency → add it.
 - Implementation bug → transition to PHASE1 with `--reason implementation_incorrect`.
 - Pre-commit hook failure → fix and re-stage.

@@ -318,7 +318,7 @@ Before generating changelog, user may want to explore context:
 osc-explore "What were the main changes in Q1 2026?"
 
 # Then generate changelog
-osx-generate-changelog --since 2026-01-01 --until 2026-03-31
+osx-changelog --since 2026-01-01 --until 2026-03-31
 ```
 
 ### Using osc-verify-change
@@ -330,7 +330,7 @@ Verify changes are complete before changelog:
 osc-verify-change <change-name>
 
 # Then generate changelog for verified changes
-osx-generate-changelog --changes <verified-changes>
+osx-changelog --changes <verified-changes>
 ```
 
 ## Error Handling

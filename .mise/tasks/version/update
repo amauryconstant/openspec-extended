@@ -23,22 +23,23 @@ DRY_RUN="false"
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN="true"
 
 bump_resource_version() {
-    local platform="$1"
-    local resource_type="$2"
-    local resource_name="$3"
-    local bump_type="$4"
+    local side="$1"
+    local platform="$2"
+    local resource_type="$3"
+    local resource_name="$4"
+    local bump_type="$5"
 
     local manifest
-    manifest=$(manifest_path_for_platform "$platform")
+    manifest=$(manifest_path_for_platform "$side" "$platform")
     if [[ ! -f "$manifest" ]]; then
-        printf 'Error: Manifest not found for platform "%s"\n' "$platform" >&2
+        printf 'Error: Manifest not found for side "%s" platform "%s"\n' "$side" "$platform" >&2
         return 1
     fi
 
     local current_version
     current_version=$(get_resource_version "$manifest" "$resource_type" "$resource_name" || true)
     if [[ -z "$current_version" ]]; then
-        printf 'Error: Resource "%s" not found in %s manifest\n' "$resource_name" "$platform" >&2
+        printf 'Error: Resource "%s" not found in %s/%s manifest\n' "$resource_name" "$side" "$platform" >&2
         return 1
     fi
 
@@ -48,7 +49,7 @@ bump_resource_version() {
 
     local new_version
     new_version=$(bump_semver "$current_version" "$bump_type")
-    printf '  [%s] %s: %s -> %s\n' "$platform" "$resource_name" "$current_version" "$new_version"
+    printf '  [%s/%s] %s: %s -> %s\n' "$side" "$platform" "$resource_name" "$current_version" "$new_version"
 
     if [[ "$DRY_RUN" == "true" ]]; then
         printf '    [DRY-RUN] %s/%s\n' "$resource_type" "$resource_name"
@@ -59,13 +60,13 @@ bump_resource_version() {
     printf '    OK %s/%s\n' "$resource_type" "$resource_name"
 }
 
-# Group resource entries by platform+type+name. Echoes "plat:type:name=bump" lines.
+# Group resource entries by side+platform+type+name. Echoes "side:plat:type:name=bump" lines.
 # Excludes script-bump entries (platform == "root") which are handled by
 # group_script_bumps.
 group_resource_bumps() {
     jq -r '.[] | select(.status | startswith("needs_")) |
         select(.platform != "root") |
-        "\(.platform):\(.resource_type):\(.resource_name)=\(.status | sub("needs_"; ""))"' \
+        "\(.side):\(.platform):\(.resource_type):\(.resource_name)=\(.status | sub("needs_"; ""))"' \
         <<< "$1"
 }
 
@@ -151,13 +152,13 @@ main() {
 
     if [[ -n "$resource_bumps" ]]; then
         printf 'Executing version bumps in manifests:\n\n'
-        local line key btype plat rtype rname
+        local line key btype sside pplat rtype rname
         while IFS= read -r line; do
             [[ -z "$line" ]] && continue
             key="${line%%=*}"
             btype="${line#*=}"
-            IFS=':' read -r plat rtype rname <<< "$key"
-            bump_resource_version "$plat" "$rtype" "$rname" "$btype"
+            IFS=':' read -r sside pplat rtype rname <<< "$key"
+            bump_resource_version "$sside" "$pplat" "$rtype" "$rname" "$btype"
         done <<< "$resource_bumps"
         printf '\n'
     fi
