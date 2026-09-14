@@ -374,6 +374,109 @@ class TestValidateDeploymentRoutesByHasAgentsDir:
 
 
 # ---------------------------------------------------------------------------
+# Phase 2 L3.2: shared-skills-root informational note
+# ---------------------------------------------------------------------------
+
+
+class TestValidateDeploymentSharedSkillsRootNote:
+    """``validate_deployment`` emits an informational note when the active
+    adapter's ``skills_dir`` is shared by multiple shipped registry
+    entries. Today this branch never fires for opencode or claude (their
+    ``skills_dir`` is unique to the adapter), so byte-equality holds for
+    the shipped set. Hypothetical ``.agents``-using adapters (Codex, Zed,
+    Antigravity, …) would trigger it."""
+
+    @pytest.mark.parametrize("tool_id", ["opencode", "claude"])
+    def test_no_shared_root_note_for_shipped_adapters(
+        self, tmp_path, capsys, tool_id
+    ):
+        adapter = REGISTRY[tool_id]
+        target = tmp_path / adapter.skills_dir
+        target.mkdir(parents=True)
+
+        result = validate_deployment(target, {"resources": {}})
+
+        captured = capsys.readouterr()
+        assert "shared skills root" not in captured.out, (
+            f"{tool_id}: byte-equality broken — shared-skills-root note "
+            f"printed but no shipped adapter should ever fire it"
+        )
+        assert result["notes"] == [], (
+            f"{tool_id}: notes list should be empty for shipped adapters; "
+            f"got {result['notes']!r}"
+        )
+        assert result["valid"] is True
+        assert result["warnings"] == 0
+
+    def test_shared_root_note_fires_for_hypothetical_agents_adapter(
+        self, tmp_path, capsys
+    ):
+        """A synthetic ``.agents``-shaped adapter (Codex/Zed/Antigravity
+        style) triggers the informational note when another shipped
+        adapter also uses ``.agents``. The note does NOT set
+        ``valid=False``."""
+        from source.tools import ToolAdapter
+
+        adapter_a = ToolAdapter(
+            tool_id="codex",
+            skills_dir=".agents",
+            commands_dir="commands",
+            commands_style="skills-only",
+            commands_ext="md",
+            slash_prefix="/",
+            skill_prefix="$",
+            runner_binary="codex",
+            runner_kind="generic_print",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            inject_name_in_skill_mirror=False,
+            cmd_filename_strip_prefix=None,
+            docs_file="AGENTS.md",
+            tool_name="Codex",
+            detect_paths=(".agents",),
+        )
+        adapter_b = ToolAdapter(
+            tool_id="zed",
+            skills_dir=".agents",
+            commands_dir="commands",
+            commands_style="skills-only",
+            commands_ext="md",
+            slash_prefix="/",
+            skill_prefix="$",
+            runner_binary="zed",
+            runner_kind="generic_print",
+            has_agents_dir=False,
+            agent_field_transform=None,
+            inject_name_in_skill_mirror=False,
+            cmd_filename_strip_prefix=None,
+            docs_file="AGENTS.md",
+            tool_name="Zed",
+            detect_paths=(".agents",),
+        )
+        target = tmp_path / adapter_a.skills_dir
+        target.mkdir(parents=True)
+
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setitem(REGISTRY, "codex", adapter_a)
+            mp.setitem(REGISTRY, "zed", adapter_b)
+            result = validate_deployment(target, {"resources": {}})
+
+        captured = capsys.readouterr()
+        assert "shared skills root '.agents'" in captured.out
+        assert "zed" in captured.out
+        assert result["notes"] == [
+            {
+                "check": "shared-skills-root",
+                "tool": "codex",
+                "shared_with": ["zed"],
+            }
+        ]
+        assert result["valid"] is True, (
+            "shared-skills-root note is informational — must NOT set valid=False"
+        )
+
+
+# ---------------------------------------------------------------------------
 # End-to-end smoke: deploy *every* shipped adapter, confirm byte-identical
 # tree to the pre-1B shape (except no leftover {{TOKEN}} strings).
 # ---------------------------------------------------------------------------

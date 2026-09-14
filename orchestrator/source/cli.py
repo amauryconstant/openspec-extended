@@ -846,11 +846,32 @@ def purge_managed_resources(
                     continue
                 if safe_remove(entry):
                     removed += 1
-        elif adapter.commands_style in ("skills-only", "namespaced"):
-            # skills-only: tool doesn't load command files at all
-            # (Codex, Kimi, Zed, ForgeCode). No commands/ subdir to walk.
-            # namespaced: declared in the type system for future use; no
-            # shipped adapter exercises it. Both are no-ops here.
+        elif adapter.commands_style == "skills-only":
+            # skills-only adapters (Codex, Kimi, Zed, ForgeCode) don't
+            # load command files — no commands/ subdir to walk. Skills DO
+            # land under <target>/<skills_dir>/skills/ (the same path the
+            # universal skills block at the top of this function already
+            # walks). Re-walk here so the per-style contract is explicit:
+            # only directories are removed (skill names should always be
+            # directories); non-directory entries (files / symlinks) are
+            # skipped — symlinks could be left by a user pointing at a
+            # sibling tree and we don't want to follow them.
+            skills_only_dir = target_dir / "skills"
+            if skills_only_dir.is_dir():
+                for entry in skills_only_dir.iterdir():
+                    if not entry.is_dir():
+                        continue
+                    if starts_with_managed(entry.name) is None:
+                        continue
+                    if should_keep(entry.name):
+                        continue
+                    if safe_remove(entry):
+                        removed += 1
+        elif adapter.commands_style == "namespaced":
+            # namespaced: declared in the type system for future use;
+            # no shipped adapter exercises it. No commands/ subdir to
+            # walk; skills are reconciled by the universal skills block
+            # at the top of this function.
             pass
         else:
             raise NotImplementedError(
@@ -1247,10 +1268,11 @@ def deploy_core(
         log_info(f"Core v{core_version} tracked in manifest")
 
 
-def validate_deployment(target_dir: Path, manifest: dict, *, label: str = "") -> None:
+def validate_deployment(target_dir: Path, manifest: dict, *, label: str = "") -> dict:
     warnings = 0
+    notes: list[dict] = []
     if not target_dir.is_dir():
-        return
+        return {"valid": True, "warnings": 0, "notes": []}
 
     # Tools that don't expose an ``agents/`` directory (e.g. Claude Code,
     # which uses an agent-per-conversation model rather than on-disk agent
@@ -1262,6 +1284,34 @@ def validate_deployment(target_dir: Path, manifest: dict, *, label: str = "") ->
         None,
     )
     skip_agents = target_adapter is not None and not target_adapter.has_agents_dir
+
+    # Informational note (Phase 2 L3.2): when the active adapter's
+    # ``skills_dir`` is shared by multiple shipped registry entries
+    # (currently only hypothetical ``.agents``-using adapters like
+    # Codex/Zed/Antigravity), flag it so the user knows a sibling tool
+    # install can reuse the existing skill tree. For the two shipped
+    # adapters (opencode, claude) this branch never fires today — their
+    # ``skills_dir`` is unique to the adapter — so byte-equality for the
+    # shipped set is preserved.
+    if target_adapter is not None:
+        shared_root_owners = [
+            tid
+            for tid, other in REGISTRY.items()
+            if tid != target_adapter.tool_id
+            and other.skills_dir == target_adapter.skills_dir
+        ]
+        if shared_root_owners:
+            note = {
+                "check": "shared-skills-root",
+                "tool": target_adapter.tool_id,
+                "shared_with": shared_root_owners,
+            }
+            notes.append(note)
+            console.print(
+                f"  [blue]→[/blue] shared skills root "
+                f"'{target_adapter.skills_dir}' is also used by: "
+                f"{', '.join(shared_root_owners)}"
+            )
 
     for resource_type, resources in manifest.get("resources", {}).items():
         if skip_agents and resource_type == "agents":
@@ -1310,6 +1360,8 @@ def validate_deployment(target_dir: Path, manifest: dict, *, label: str = "") ->
     if warnings > 0:
         scope = f" ({label})" if label else ""
         console.print(f"  Validation{scope}: {warnings} warning(s)")
+
+    return {"valid": warnings == 0, "warnings": warnings, "notes": notes}
 
 
 def _validate_target_after_deploy(target_dir: Path) -> None:
