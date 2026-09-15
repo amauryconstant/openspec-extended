@@ -10,7 +10,7 @@ Locks in:
 - ``osx-commit`` is included (it is referenced by every phase command's
   MANDATORY END).
 - ``osx-workflow`` is intentionally excluded because it is gated by
-  ``--with-autonomous`` install.
+  ``--with-orchestration`` install.
 - ``osx-changelog`` and ``osx-maintain-docs`` are intentionally excluded
   because they are slash commands with self-contained bodies, not skills.
 - Manifest parity between the OpenCode and Claude trees.

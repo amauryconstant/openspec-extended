@@ -207,12 +207,21 @@ def validate_skills(state: OrchestratorState) -> None:
     log(state, "Validating required skills...")
 
     project_root = _project_root(state)
-    data = osx_lib.validate_skills(project_root=project_root)
+    data = osx_lib.validate_skills(
+        project_root=project_root, require_orchestration=True
+    )
     if not data.get("valid", False):
         log_error(state, "Required skills validation failed")
         print_validation_errors(state, data)
         platform = osx_lib.detect_platform(project_root or Path.cwd())
-        log_error(state, REGISTRY[platform].install_hint)
+        log_error(
+            state,
+            osx_lib.recovery_hint(
+                platform,
+                missing_skills=data.get("missing_skills", []),
+                on_disk_undeclared=data.get("on_disk_undeclared", []),
+            ),
+        )
         raise SystemExit(1)
 
     log_verbose(state, "All required skills found")
@@ -227,7 +236,14 @@ def validate_commands(state: OrchestratorState) -> None:
         log_error(state, "Required commands validation failed")
         print_validation_errors(state, data)
         platform = osx_lib.detect_platform(project_root or Path.cwd())
-        log_error(state, REGISTRY[platform].install_hint)
+        log_error(
+            state,
+            osx_lib.recovery_hint(
+                platform,
+                missing_commands=data.get("missing_commands", []),
+                missing_agents=data.get("missing_agents", []),
+            ),
+        )
         raise SystemExit(1)
 
     log_verbose(state, "All required commands found")

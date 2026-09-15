@@ -255,7 +255,7 @@ class TestSkillTaxonomy:
     def test_required_skills_includes_three_default_skills(self):
         """The 3 default-required skills exist on disk (some on skills side, some on orchestrator side) and in the manifest.
 
-        osx-workflow is gated by --with-autonomous. osx-changelog and
+        osx-workflow is gated by --with-orchestration. osx-changelog and
         osx-maintain-docs are slash commands, not skills.
         osx-modify-artifacts was dropped in favour of /opsx:update.
         osx-concepts was dropped; framework content moved to .opencode/rules/openspec-contract.md and orchestrator/source/AGENTS.md.
@@ -314,18 +314,18 @@ class TestSkillTaxonomy:
         ``tests/integration/test_install_flow.py::TestInstallClaudeDualEmit``."""
 
     def test_required_skills_for_default_install_excludes_workflow(self):
-        """osx-workflow is gated by --with-autonomous; absent from REQUIRED_SKILLS."""
+        """osx-workflow is gated by --with-orchestration; absent from REQUIRED_SKILLS."""
         from source.lib import osx
 
         assert "osx-workflow" not in osx.REQUIRED_SKILLS, (
-            "osx-workflow is gated by --with-autonomous install "
+            "osx-workflow is gated by --with-orchestration install "
             "(see AUTONOMOUS_RESOURCE_NAMES). It must not be in REQUIRED_SKILLS "
             "because that would force --no-with-autonomous installs to deploy it."
         )
 
         assert "osx-workflow" in osx.AUTONOMOUS_RESOURCE_NAMES, (
             "osx-workflow must remain in AUTONOMOUS_RESOURCE_NAMES so that "
-            "deploy_all_resources skips it without --with-autonomous"
+            "deploy_all_resources skips it without --with-orchestration"
         )
 
     def test_reference_pool_carries_merged_changelog_and_maintain_docs_refs(self):

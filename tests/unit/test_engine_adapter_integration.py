@@ -95,7 +95,7 @@ class TestValidateSkillsInstallHint:
         monkeypatch.setattr(
             eng.osx_lib,
             "validate_skills",
-            lambda project_root=None: {
+            lambda project_root=None, *, require_orchestration=False: {
                 "valid": False,
                 "errors": [],
                 "missing_skills": ["x"],
@@ -131,7 +131,7 @@ class TestValidateSkillsInstallHint:
         monkeypatch.setattr(
             eng.osx_lib,
             "validate_skills",
-            lambda project_root=None: {
+            lambda project_root=None, *, require_orchestration=False: {
                 "valid": False,
                 "errors": [],
                 "missing_skills": ["x"],
@@ -172,7 +172,7 @@ class TestValidateCommandsInstallHint:
         monkeypatch.setattr(
             eng.osx_lib,
             "validate_commands",
-            lambda project_root=None: {"valid": False, "errors": []},
+            lambda project_root=None, *, require_orchestration=False: {"valid": False, "errors": []},
         )
 
         captured = []
@@ -336,7 +336,7 @@ class TestLibRegistryDrivenPreflightHint:
         monkeypatch.setattr(
             osx_lib,
             "validate_skills",
-            lambda project_root=None: {
+            lambda project_root=None, *, require_orchestration=False: {
                 "valid": False,
                 "errors": [],
                 "missing_skills": ["x"],

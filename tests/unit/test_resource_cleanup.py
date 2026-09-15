@@ -356,16 +356,16 @@ class TestSymlinkSafety:
 
 class TestExpectedExtensionNames:
     def test_returns_all_resources_when_autonomous_enabled(self):
-        names = _expected_extension_names("opencode", with_autonomous=True)
+        names = _expected_extension_names("opencode", with_orchestration=True)
         assert "osx-workflow" in names
         assert "osx-phase0" in names
         assert "osx-analyzer" in names
 
     def test_excludes_autonomous_resources_when_disabled(self):
-        names = _expected_extension_names("opencode", with_autonomous=False)
-        # osx-workflow is gated by --with-autonomous, so it's excluded
+        names = _expected_extension_names("opencode", with_orchestration=False)
+        # osx-workflow is gated by --with-orchestration, so it's excluded
         assert "osx-workflow" not in names
-        # Phase commands are gated by --with-autonomous
+        # Phase commands are gated by --with-orchestration
         assert "osx-phase0" not in names
         assert "osx-analyzer" not in names
 

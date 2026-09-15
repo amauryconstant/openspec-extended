@@ -74,7 +74,7 @@ teardown() {
 @test "mechanism: install opencode deploys bundled resources" {
     cd "$BATS_TEST_TMPDIR" || exit 1
 
-    run "$OPENSPEC_BIN" install opencode --with-autonomous
+    run "$OPENSPEC_BIN" install opencode --with-orchestration
     echo "STATUS=$status"
     echo "OUTPUT=$output"
     [ "$status" -eq 0 ]
@@ -102,7 +102,7 @@ teardown() {
 @test "mechanism: install claude deploys bundled resources" {
     cd "$BATS_TEST_TMPDIR" || exit 1
 
-    run "$OPENSPEC_BIN" install claude --with-autonomous
+    run "$OPENSPEC_BIN" install claude --with-orchestration
     echo "STATUS=$status"
     echo "OUTPUT=$output"
     [ "$status" -eq 0 ]
@@ -171,7 +171,7 @@ teardown() {
 @test "mechanism: install opencode substitutes {{TOKEN}} placeholders" {
     cd "$BATS_TEST_TMPDIR" || exit 1
 
-    run "$OPENSPEC_BIN" install opencode --with-autonomous
+    run "$OPENSPEC_BIN" install opencode --with-orchestration
     echo "STATUS=$status"
     echo "OUTPUT=$output"
     [ "$status" -eq 0 ]
@@ -203,7 +203,7 @@ teardown() {
 @test "mechanism: install claude substitutes {{TOKEN}} placeholders" {
     cd "$BATS_TEST_TMPDIR" || exit 1
 
-    run "$OPENSPEC_BIN" install claude --with-autonomous
+    run "$OPENSPEC_BIN" install claude --with-orchestration
     echo "STATUS=$status"
     echo "OUTPUT=$output"
     [ "$status" -eq 0 ]

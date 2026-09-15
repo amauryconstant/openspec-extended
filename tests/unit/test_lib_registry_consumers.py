@@ -356,7 +356,7 @@ class TestInstallHint:
     shape.
 
     L1.3 moved the hint off a hand-rolled ``f"Re-run: openspec-extended
-    install {platform} --with-autonomous"`` template and onto the
+    install {platform} --with-orchestration"`` template and onto the
     adapter's ``install_hint`` field. Unknown platforms still hit a
     KeyError at REGISTRY lookup — the helper is no longer tolerant
     of an unregistered id, which the engine's callers already guard

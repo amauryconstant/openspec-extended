@@ -330,67 +330,48 @@ class TestGetTargetPath:
 
 @pytest.mark.unit
 class TestDetectExistingCoreDeployment:
-    """Trim: ``_detect_existing_core_deployment`` should only check the
-    ``items`` key (the only one ``openspec list --json`` actually returns).
-    Iterating over dead keys like ``skills``/``specs``/``changes`` was a
-    no-op."""
+    """``_detect_existing_core_deployment`` is per-tool: it checks the
+    on-disk post-rename marker (a canonical ``osc-*`` skill dir from
+    ``REQUIRED_CORE_SKILLS``) and the ``[core].installed`` manifest flag.
+    The earlier global ``openspec list --json`` branch was removed because
+    it returned True on cross-tool installs (the project state is global,
+    not per-tool). User-authored ``osc-foo/`` skills do not trigger the
+    gate because the marker check is scoped to canonical names."""
 
-    def test_returns_true_when_items_present(self, tmp_path, monkeypatch):
+    def test_returns_true_when_canonical_skill_present(self, tmp_path, monkeypatch):
         from source.cli import _detect_existing_core_deployment
+        from source.lib.osx import REQUIRED_CORE_SKILLS
 
-        def fake_run(cmd, **kwargs):
-            from unittest.mock import MagicMock
-
-            return MagicMock(
-                returncode=0,
-                stdout=json.dumps({"items": [{"id": "x", "type": "change"}]}),
-                stderr="",
-            )
-
-        monkeypatch.setattr("subprocess.run", fake_run)
-        (tmp_path / ".opencode" / "skills").mkdir(parents=True)
+        skills_dir = tmp_path / ".opencode" / "skills"
+        skills_dir.mkdir(parents=True)
+        (skills_dir / REQUIRED_CORE_SKILLS[0]).mkdir()
         monkeypatch.chdir(tmp_path)
         assert _detect_existing_core_deployment("opencode") is True
 
-    def test_returns_false_when_only_dead_keys_present(self, tmp_path, monkeypatch):
-        """Payload with ``skills``/``specs``/``changes`` set but no
-        ``items`` must return False (the previous loop would have returned
-        True on the first dead key)."""
+    def test_returns_false_when_user_osc_skill_present(self, tmp_path, monkeypatch):
+        """User-authored ``osc-foo/`` (not in REQUIRED_CORE_SKILLS) must
+        not trigger the gate."""
         from source.cli import _detect_existing_core_deployment
 
-        def fake_run(cmd, **kwargs):
-            from unittest.mock import MagicMock
-
-            return MagicMock(
-                returncode=0,
-                stdout=json.dumps(
-                    {
-                        "skills": [{"id": "x"}],
-                        "specs": [{"id": "y"}],
-                        "changes": [{"id": "z"}],
-                    }
-                ),
-                stderr="",
-            )
-
-        monkeypatch.setattr("subprocess.run", fake_run)
-        (tmp_path / ".opencode" / "skills").mkdir(parents=True)
+        skills_dir = tmp_path / ".opencode" / "skills"
+        skills_dir.mkdir(parents=True)
+        (skills_dir / "osc-internal").mkdir()
         monkeypatch.chdir(tmp_path)
         assert _detect_existing_core_deployment("opencode") is False
 
-    def test_returns_false_when_items_empty(self, tmp_path, monkeypatch):
+    def test_returns_true_when_core_installed_in_manifest(self, tmp_path, monkeypatch):
         from source.cli import _detect_existing_core_deployment
 
-        def fake_run(cmd, **kwargs):
-            from unittest.mock import MagicMock
+        target = tmp_path / ".opencode"
+        target.mkdir()
+        (target / "manifest.toml").write_text(
+            'version = "1.10.4"\n[core]\ninstalled = true\n'
+        )
+        monkeypatch.chdir(tmp_path)
+        assert _detect_existing_core_deployment("opencode") is True
 
-            return MagicMock(
-                returncode=0,
-                stdout=json.dumps({"items": []}),
-                stderr="",
-            )
+    def test_returns_false_when_no_target_dir(self, tmp_path, monkeypatch):
+        from source.cli import _detect_existing_core_deployment
 
-        monkeypatch.setattr("subprocess.run", fake_run)
-        (tmp_path / ".opencode" / "skills").mkdir(parents=True)
         monkeypatch.chdir(tmp_path)
         assert _detect_existing_core_deployment("opencode") is False

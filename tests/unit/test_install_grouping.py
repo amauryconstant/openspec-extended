@@ -73,7 +73,7 @@ class TestAutonomousResourceSet:
         ]
         for skill in utility_skills:
             assert skill not in osx.AUTONOMOUS_RESOURCE_NAMES, (
-                f"Utility skill {skill} must not be gated by --with-autonomous"
+                f"Utility skill {skill} must not be gated by --with-orchestration"
             )
 
     def test_excludes_utility_commands(self):
@@ -85,7 +85,7 @@ class TestAutonomousResourceSet:
         ]
         for cmd in utility_commands:
             assert cmd not in osx.AUTONOMOUS_RESOURCE_NAMES, (
-                f"Utility command {cmd} must not be gated by --with-autonomous"
+                f"Utility command {cmd} must not be gated by --with-orchestration"
             )
 
     def test_size_is_12(self):

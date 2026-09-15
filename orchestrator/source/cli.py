@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from datetime import UTC
 from pathlib import Path
 
@@ -18,7 +19,11 @@ import typer
 from rich.console import Console
 
 from source import __version__
-from source.lib.osx import AUTONOMOUS_RESOURCE_NAMES, REQUIRED_CORE_SKILLS
+from source.lib.osx import (
+    CORE_BASELINE_FILENAME,
+    ORCHESTRATION_RESOURCE_NAMES,
+    REQUIRED_CORE_SKILLS,
+)
 from source.orchestrator.engine import OrchestratorState, run_orchestrator
 from source.osx_cli import osx_app
 from source.tools import (
@@ -644,7 +649,7 @@ def deploy_type(
     source_manifest: dict,
     force: bool,
     tool: str,
-    with_autonomous: bool,
+    with_orchestration: bool,
 ) -> tuple[int, int]:
     source_type_dir = get_source_type_dir(source_dir, resource_type)
     if not source_type_dir.is_dir():
@@ -663,7 +668,7 @@ def deploy_type(
         if not source_version:
             continue
 
-        if name in AUTONOMOUS_RESOURCE_NAMES and not with_autonomous:
+        if name in ORCHESTRATION_RESOURCE_NAMES and not with_orchestration:
             gated += 1
             continue
 
@@ -720,16 +725,16 @@ def deploy_type(
 
     if gated > 0:
         console.print(
-            f"  Skipped {gated} autonomous {resource_type} (use --with-autonomous)"
+            f"  Skipped {gated} orchestration {resource_type} (use --with-orchestration)"
         )
 
     return (count, skipped)
 
 
-def _filter_autonomous(manifest: dict) -> dict:
-    """Return ``manifest`` with autonomous resources removed from each kind.
+def _filter_orchestration(manifest: dict) -> dict:
+    """Return ``manifest`` with orchestration resources removed from each kind.
 
-    Used to keep the on-disk target manifest consistent with ``--with-autonomous``
+    Used to keep the on-disk target manifest consistent with ``--with-orchestration``
     without forcing the deploy loop to skip everything per-side. Preserves
     top-level keys (e.g. ``version``) so callers don't lose them.
     """
@@ -743,9 +748,60 @@ def _filter_autonomous(manifest: dict) -> dict:
         filtered["resources"][resource_type] = {
             name: info
             for name, info in entries.items()
-            if name not in AUTONOMOUS_RESOURCE_NAMES
+            if name not in ORCHESTRATION_RESOURCE_NAMES
         }
     return filtered
+
+
+def _preserve_core_tracking(side_manifest: dict, target_manifest: Path) -> dict:
+    """Carry forward ``[core]`` and any ``osc-*`` skill entries from the
+    previously written ``target_manifest`` into ``side_manifest``.
+
+    ``deploy_all_resources`` rewrites the orchestrator-side manifest on
+    every install. When a previous ``--with-core`` install wrote the
+    ``[core]`` block and ``[resources.skills.osc-*]`` entries, a
+    subsequent ``--with-orchestration`` (or default) install would
+    silently clobber them — leaving on-disk ``osc-*`` skills untracked
+    and the validator's cross-check failing.
+
+    Returns ``side_manifest`` (mutated in-place is fine; we return it for
+    call-site clarity). When the file is missing or unparseable, returns
+    the input untouched.
+    """
+    if not target_manifest.is_file():
+        return side_manifest
+    try:
+        existing = toml.loads(target_manifest.read_text())
+    except (OSError, toml.TomlDecodeError):
+        return side_manifest
+    if not isinstance(existing, dict):
+        return side_manifest
+
+    if "core" in existing and isinstance(existing["core"], dict):
+        side_manifest["core"] = existing["core"]
+
+    existing_skills = (
+        existing.get("resources", {}).get("skills", {})
+        if isinstance(existing.get("resources"), dict)
+        else {}
+    )
+    if isinstance(existing_skills, dict):
+        osc_entries = {
+            name: info
+            for name, info in existing_skills.items()
+            if name.startswith("osc-") and isinstance(info, dict)
+        }
+        if osc_entries:
+            side_resources = side_manifest.setdefault("resources", {})
+            if not isinstance(side_resources, dict):
+                side_resources = {}
+                side_manifest["resources"] = side_resources
+            side_skills = side_resources.setdefault("skills", {})
+            if not isinstance(side_skills, dict):
+                side_skills = {}
+                side_resources["skills"] = side_skills
+            side_skills.update(osc_entries)
+    return side_manifest
 
 
 def _resolve_side_manifest(source_dir: Path) -> tuple[Path | None, dict]:
@@ -761,7 +817,7 @@ def _resolve_side_manifest(source_dir: Path) -> tuple[Path | None, dict]:
     return manifest_path, toml.loads(manifest_path.read_text())
 
 
-def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
+def deploy_all_resources(tool: str, force: bool, with_orchestration: bool) -> None:
     """Deploy every resource across the orchestrator and skills trees.
 
     Phase 5 split the on-disk manifests: each side writes its own manifest
@@ -814,15 +870,17 @@ def deploy_all_resources(tool: str, force: bool, with_autonomous: bool) -> None:
                 source_manifest,
                 force,
                 tool,
-                with_autonomous,
+                with_orchestration,
             )
             total_count += cnt
             total_skipped += skp
 
         side_manifest = dict(source_manifest)
         side_manifest["version"] = source_version
-        if not with_autonomous:
-            side_manifest = _filter_autonomous(side_manifest)
+        if not with_orchestration:
+            side_manifest = _filter_orchestration(side_manifest)
+        if side_label == "orchestrator":
+            side_manifest = _preserve_core_tracking(side_manifest, target_manifest)
         target_manifest.write_text(toml.dumps(side_manifest))
         log_success(f"{side_label.title()} manifest updated to v{source_version}")
         console.print(f"  Target: {target_manifest}")
@@ -1051,6 +1109,69 @@ def update_gitignore() -> None:
     log_success("Added OpenSpec state files to .gitignore")
 
 
+def _backup_existing(target: Path) -> Path | None:
+    """Snapshot ``target`` to ``<target>.user-backup-<ts>`` if it exists.
+
+    Used by the core renamer to preserve user-authored content before
+    POSIX ``rename`` would silently overwrite it. Returns the backup path
+    if a backup was made, otherwise ``None``.
+    """
+    if not target.exists():
+        return None
+    ts = int(time.time())
+    backup = target.with_name(f"{target.name}.user-backup-{ts}")
+    counter = 1
+    while backup.exists():
+        backup = target.with_name(f"{target.name}.user-backup-{ts}-{counter}")
+        counter += 1
+    if target.is_dir():
+        shutil.copytree(target, backup)
+    else:
+        shutil.copy2(target, backup)
+    return backup
+
+
+_FRONTMATTER_FENCE = re.compile(r"^---\s*$", re.MULTILINE)
+_FENCE_OPEN = re.compile(r"(?m)^[ \t]*(```|~~~)")
+
+
+def _rewrite_renamed_references(content: str) -> str:
+    """Rewrite ``/opsx-*``, ``/opsx:`` and ``OPSX: `` tokens to ``osc-*``.
+
+    Scoped to the YAML frontmatter (between the first two ``---``
+    fences) for the ``OPSX:`` rewrite — frontmatter ``label:`` fields
+    are the only legitimate ``OPSX:`` tokens upstream emits. Slash-
+    command references (``/opsx-*``, ``/opsx:``) are rewritten on any
+    line that starts with ``/opsx`` (regardless of fence) since the
+    upstream body never emits them inside code blocks. Body paragraphs
+    and inline prose that happen to mention the old prefix are left
+    untouched so user-authored URLs and prose are preserved verbatim.
+    """
+    front_match = _FRONTMATTER_FENCE.search(content)
+    if front_match is None:
+        head_end = 0
+        front_end = -1
+    else:
+        head_end = front_match.start()
+        second = _FRONTMATTER_FENCE.search(content, front_match.end())
+        front_end = second.end() if second is not None else -1
+
+    head = content[:head_end]
+    if front_end > 0:
+        front = content[head_end:front_end]
+        tail = content[front_end:]
+        front = re.sub(r"^OPSX:\s", "OSC: ", front, flags=re.MULTILINE)
+    else:
+        front = ""
+        tail = content[head_end:]
+        front = ""
+
+    tail = re.sub(r"^/opsx-", "/osc-", tail, flags=re.MULTILINE)
+    tail = re.sub(r"^/opsx:", "/osc:", tail, flags=re.MULTILINE)
+
+    return head + front + tail
+
+
 def rename_core_resources(tool: str) -> None:
     target_dir = Path.cwd() / get_tool_dir(tool)
     log_info("Renaming core resources (opsx-* → osc-*, openspec-* → osc-*)...")
@@ -1067,7 +1188,12 @@ def rename_core_resources(tool: str) -> None:
             basename = cmd_file.name
             if re.match(r"^opsx-(.+)\.md$", basename):
                 new_name = re.sub(r"^opsx-(.+)\.md$", r"osc-\1.md", basename)
-                cmd_file.rename(cmd_dir / new_name)
+                dest = cmd_dir / new_name
+                if dest.exists() and dest != cmd_file:
+                    backup = _backup_existing(dest)
+                    if backup is not None:
+                        log_warn(f"Preserved user file at {backup}")
+                cmd_file.rename(dest)
                 renamed += 1
             elif cmd_dir == target_dir / "command" and re.match(
                 r"^osc-(.+)\.md$", basename
@@ -1082,7 +1208,12 @@ def rename_core_resources(tool: str) -> None:
                     subdir.rename(osc_dir)
                 else:
                     for f in subdir.glob("*.md"):
-                        f.rename(osc_dir / f.name)
+                        dest = osc_dir / f.name
+                        if dest.exists() and dest != f:
+                            backup = _backup_existing(dest)
+                            if backup is not None:
+                                log_warn(f"Preserved user file at {backup}")
+                        f.rename(dest)
                     subdir.rmdir()
                 renamed += 1
 
@@ -1095,9 +1226,7 @@ def rename_core_resources(tool: str) -> None:
 
     for cmd_file in commands_dir.rglob("*.md"):
         content = cmd_file.read_text()
-        content = content.replace("/opsx-", "/osc-")
-        content = content.replace("/opsx:", "/osc:")
-        content = content.replace("OPSX: ", "OSC: ")
+        content = _rewrite_renamed_references(content)
         cmd_file.write_text(content)
 
     skills_dir = target_dir / "skills"
@@ -1108,7 +1237,12 @@ def rename_core_resources(tool: str) -> None:
                 dest_dir = skills_dir / new_name
                 if dest_dir.exists():
                     for f in skill_dir.glob("*"):
-                        f.rename(dest_dir / f.name)
+                        dest = dest_dir / f.name
+                        if dest.exists() and dest != f:
+                            backup = _backup_existing(dest)
+                            if backup is not None:
+                                log_warn(f"Preserved user file at {backup}")
+                        f.rename(dest)
                     skill_dir.rmdir()
                 else:
                     skill_dir.rename(dest_dir)
@@ -1119,59 +1253,40 @@ def rename_core_resources(tool: str) -> None:
             content = re.sub(
                 r"^name: openspec-", "name: osc-", content, flags=re.MULTILINE
             )
-            content = content.replace("/opsx-", "/osc-")
-            content = content.replace("/opsx:", "/osc:")
-            content = content.replace("OPSX: ", "OSC: ")
+            content = _rewrite_renamed_references(content)
             skill_file.write_text(content)
 
     if renamed > 0:
         log_success(f"Renamed {renamed} core resource(s)")
 
 
-CORE_BASELINE_FILENAME = ".openspec-extended-baseline.json"
-
-
 def _detect_existing_core_deployment(tool: str) -> bool:
     """Return True if a previous core deployment is detectable.
 
     Detection sources (any one is enough):
-    - ``openspec list --json`` returns any resources.
-    - ``<target_dir>/skills/osc-*.md`` exists (post-rename marker).
+
+    - ``<target_dir>/skills/<name>`` matches one of the canonical core
+      names from ``REQUIRED_CORE_SKILLS`` (post-rename marker). Tightened
+      from a prefix match: a user-authored ``osc-internal/`` skill no
+      longer triggers the gate.
     - ``<target_dir>/manifest.toml`` declares ``[core].installed = true``.
+
+    The earlier global ``openspec list --json`` branch was removed:
+    ``openspec list`` returns the user's project state (changes + specs),
+    not per-tool state, so once any core install exists, every
+    subsequent cross-tool install would refuse without ``--force``.
+    Per-tool scoping is restored by relying on the on-disk marker and the
+    manifest declaration only.
     """
     target_dir = Path.cwd() / get_tool_dir(tool)
 
-    # (a) upstream CLI introspection
-    try:
-        result = subprocess.run(
-            ["openspec", "list", "--json"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=10,
-        )
-        payload = json.loads(result.stdout or "{}")
-        # `openspec list --json` returns a top-level `items` array; `skills`,
-        # `specs`, and `changes` are nested under each item. Iterating over
-        # the latter at the top level yields dead branches.
-        if payload.get("items"):
-            return True
-    except (
-        subprocess.CalledProcessError,
-        FileNotFoundError,
-        subprocess.TimeoutExpired,
-        ValueError,
-    ):
-        pass
-
-    # (b) post-rename marker
     skills_dir = target_dir / "skills"
     if skills_dir.is_dir():
-        for p in skills_dir.iterdir():
-            if p.is_dir() and p.name.startswith("osc-"):
+        canonical = set(REQUIRED_CORE_SKILLS)
+        for entry in skills_dir.iterdir():
+            if entry.is_dir() and entry.name in canonical:
                 return True
 
-    # (c) manifest declaration
     manifest_path = target_dir / "manifest.toml"
     if manifest_path.is_file():
         try:
@@ -1556,14 +1671,14 @@ def _install_one_tool(
     tool: str,
     *,
     with_core: bool,
-    with_autonomous: bool,
+    with_orchestration: bool,
     force: bool,
     language: str | None,
     strict_archived: bool,
 ) -> None:
     """Per-tool install body. Raises whatever ``deploy_all_resources`` or
     ``deploy_core`` raise; the caller in ``install`` catches and records."""
-    deploy_all_resources(tool, force=False, with_autonomous=with_autonomous)
+    deploy_all_resources(tool, force=False, with_orchestration=with_orchestration)
 
     if with_core:
         effective_language = _resolve_language(language)
@@ -1618,7 +1733,7 @@ def _update_one_tool(
     tool: str,
     *,
     with_core: bool,
-    with_autonomous: bool,
+    with_orchestration: bool,
     force: bool,
     language: str | None,
     strict_archived: bool,
@@ -1629,16 +1744,16 @@ def _update_one_tool(
 
     # 1. Purge stale extended ``osx-*`` resources before the forced redeploy
     #    so the resulting tree exactly matches the current source manifest.
-    osx_keep = _expected_extension_names(tool, with_autonomous)
+    osx_keep = _expected_extension_names(tool, with_orchestration)
     removed = purge_managed_resources(
         target_dir, tool, keep_names=osx_keep, prefixes=("osx-",)
     )
     if removed:
         log_info(f"Purged {removed} stale osx-* resource(s)")
 
-    deploy_all_resources(tool, force=True, with_autonomous=with_autonomous)
+    deploy_all_resources(tool, force=True, with_orchestration=with_orchestration)
 
-    if with_autonomous:
+    if with_orchestration:
         update_gitignore()
 
     if with_core:
@@ -1663,6 +1778,12 @@ def _update_one_tool(
         if removed:
             log_info(f"Purged {removed} stale osc-* resource(s)")
 
+        # 2b. Sweep nested ``openspec-*`` / ``opsx-*`` orphans left over from
+        #     prior collision merges (renamer's merge branch does not recurse).
+        nested_removed = _purge_nested_core_orphans(target_dir)
+        if nested_removed:
+            log_info(f"Purged {nested_removed} nested core orphan(s)")
+
     _validate_target_after_deploy(target_dir)
 
 
@@ -1679,15 +1800,16 @@ def install(
         ),
     ),
     with_core: bool = typer.Option(
-        False, "--with-core", help="Also deploy core OpenSpec skills"
+        False, "-c", "--with-core", help="Also deploy core OpenSpec skills"
     ),
-    with_autonomous: bool = typer.Option(
+    with_orchestration: bool = typer.Option(
         False,
-        "--with-autonomous/--no-with-autonomous",
+        "-o",
+        "--with-orchestration/--no-with-orchestration",
         help=(
-            "Also deploy the 7-phase autonomous workflow resources "
+            "Also deploy the 7-phase orchestration workflow resources "
             "(phase commands, agents, workflow skill). Defaults to off; "
-            "pass --with-autonomous to enable the orchestrator."
+            "pass --with-orchestration (or -o) to enable the orchestrator."
         ),
     ),
     force: bool = typer.Option(
@@ -1719,7 +1841,7 @@ def install(
             _install_one_tool(
                 target,
                 with_core=with_core,
-                with_autonomous=with_autonomous,
+                with_orchestration=with_orchestration,
                 force=force,
                 language=language,
                 strict_archived=strict_archived,
@@ -1734,7 +1856,7 @@ def install(
             log_error(f"install {target} failed: {e}")
 
     # Global post-deploy hooks (idempotent — see update_gitignore)
-    if with_autonomous and successes:
+    if with_orchestration and successes:
         update_gitignore()
 
     # Per-tool validation (only for tools that succeeded; failed tools
@@ -1746,12 +1868,12 @@ def install(
     _summarise("install", successes, failures)
 
 
-def _expected_extension_names(tool: str, with_autonomous: bool) -> set[str]:
+def _expected_extension_names(tool: str, with_orchestration: bool) -> set[str]:
     """Return the set of extended ``osx-*`` resource names that the current
     source manifest will deploy for ``tool``.
 
     The set mirrors ``deploy_all_resources`` filtering: autonomous names are
-    included only when ``with_autonomous`` is set. Reads both the orchestrator
+    included only when ``with_orchestration`` is set. Reads both the orchestrator
     and skills side manifests (Phase 5 split) from the single canonical
     source tree and returns their union.
     """
@@ -1768,7 +1890,7 @@ def _expected_extension_names(tool: str, with_autonomous: bool) -> set[str]:
             if not isinstance(entries, dict):
                 continue
             for name in entries:
-                if not with_autonomous and name in AUTONOMOUS_RESOURCE_NAMES:
+                if not with_orchestration and name in ORCHESTRATION_RESOURCE_NAMES:
                     continue
                 expected.add(name)
     return expected
@@ -1858,6 +1980,69 @@ def _core_keep_set(target_dir: Path) -> set[str]:
     return keep
 
 
+_CORE_ORPHAN_PREFIXES = ("openspec-", "opsx-")
+
+
+def _purge_nested_core_orphans(target_dir: Path) -> int:
+    """Remove ``openspec-*`` / ``opsx-*`` dirs nested inside ``osc-*`` dirs.
+
+    When ``openspec init`` runs against a tree that already contains a
+    renamed ``osc-X/`` skill, the upstream CLI may emit
+    ``osc-X/openspec-X/SKILL.md`` instead of overwriting at the flat
+    level. The renamer's merge branch (``dest_dir.exists()``) handles the
+    flat-level collision but does not recurse, so the nested ``openspec-X/``
+    dir survives every subsequent install.
+
+    This pass scans every ``osc-*`` skill dir and command subdir, then
+    removes any descendant whose name starts with ``openspec-`` or
+    ``opsx-``. User-authored nested dirs with other names are left alone.
+
+    Returns the number of orphan entries removed (dirs + files).
+    """
+    removed = 0
+
+    skills_dir = target_dir / "skills"
+    if skills_dir.is_dir():
+        for entry in skills_dir.iterdir():
+            if not (entry.is_dir() and entry.name.startswith("osc-")):
+                continue
+            for orphan in entry.rglob("*"):
+                if not orphan.name.startswith(_CORE_ORPHAN_PREFIXES):
+                    continue
+                if orphan.is_dir() and not any(orphan.iterdir()):
+                    orphan.rmdir()
+                    removed += 1
+                    log_info(f"Removed empty nested core orphan: {orphan}")
+                elif orphan.is_dir():
+                    shutil.rmtree(orphan)
+                    removed += 1
+                    log_info(f"Removed nested core orphan dir: {orphan}")
+                elif orphan.is_file() or orphan.is_symlink():
+                    orphan.unlink()
+                    removed += 1
+                    log_info(f"Removed nested core orphan file: {orphan}")
+
+    commands_dir = target_dir / "commands"
+    if commands_dir.is_dir():
+        osc_subdir = commands_dir / "osc"
+        if osc_subdir.is_dir():
+            for orphan in osc_subdir.rglob("*"):
+                if not orphan.name.startswith(_CORE_ORPHAN_PREFIXES):
+                    continue
+                if orphan.is_dir() and not any(orphan.iterdir()):
+                    orphan.rmdir()
+                    removed += 1
+                elif orphan.is_dir():
+                    shutil.rmtree(orphan)
+                    removed += 1
+                    log_info(f"Removed nested core orphan dir: {orphan}")
+                elif orphan.is_file() or orphan.is_symlink():
+                    orphan.unlink()
+                    removed += 1
+
+    return removed
+
+
 @app.command(
     "update",
     help="Force reinstall all resources (same as install but always overwrites)",
@@ -1871,14 +2056,16 @@ def update(
         ),
     ),
     with_core: bool = typer.Option(
-        False, "--with-core", help="Also deploy core OpenSpec skills"
+        False, "-c", "--with-core", help="Also deploy core OpenSpec skills"
     ),
-    with_autonomous: bool = typer.Option(
+    with_orchestration: bool = typer.Option(
         False,
-        "--with-autonomous/--no-with-autonomous",
+        "-o",
+        "--with-orchestration/--no-with-orchestration",
         help=(
-            "Refresh the 7-phase autonomous workflow resources. "
-            "Defaults to off; pass --with-autonomous to refresh them."
+            "Refresh the 7-phase orchestration workflow resources "
+            "(phase commands, agents, workflow skill). Defaults to off; "
+            "pass --with-orchestration (or -o) to refresh them."
         ),
     ),
     force: bool = typer.Option(
@@ -1910,7 +2097,7 @@ def update(
             _update_one_tool(
                 target,
                 with_core=with_core,
-                with_autonomous=with_autonomous,
+                with_orchestration=with_orchestration,
                 force=force,
                 language=language,
                 strict_archived=strict_archived,

@@ -129,7 +129,7 @@ class TestInstallCommaSeparated:
         deploy_calls: list[str] = []
         validate_calls: list[str] = []
 
-        def fake_deploy(tool, force=False, with_autonomous=False):
+        def fake_deploy(tool, force=False, with_orchestration=False):
             deploy_calls.append(tool)
 
         def fake_validate(target_dir):
@@ -151,7 +151,7 @@ class TestInstallCommaSeparated:
         deploy_calls: list[str] = []
         validate_calls: list[str] = []
 
-        def fake_deploy(tool, force=False, with_autonomous=False):
+        def fake_deploy(tool, force=False, with_orchestration=False):
             deploy_calls.append(tool)
 
         def fake_validate(target_dir):
@@ -170,7 +170,7 @@ class TestInstallCommaSeparated:
     def test_order_preserved(self, tmp_path, monkeypatch):
         deploy_calls: list[str] = []
 
-        def fake_deploy(tool, force=False, with_autonomous=False):
+        def fake_deploy(tool, force=False, with_orchestration=False):
             deploy_calls.append(tool)
 
         monkeypatch.setattr("source.cli.deploy_all_resources", fake_deploy)
@@ -187,7 +187,7 @@ class TestInstallUpdateGitignoreOnceForMultiTool:
     def test_update_gitignore_called_once_for_two_tools(self, tmp_path, monkeypatch):
         gitignore_calls: list[int] = [0]
 
-        def fake_deploy(tool, force=False, with_autonomous=False):
+        def fake_deploy(tool, force=False, with_orchestration=False):
             pass
 
         def fake_gitignore():
@@ -197,18 +197,18 @@ class TestInstallUpdateGitignoreOnceForMultiTool:
         monkeypatch.setattr("source.cli._validate_target_after_deploy", lambda d: None)
         monkeypatch.setattr("source.cli.update_gitignore", fake_gitignore)
 
-        result = runner.invoke(app, ["install", "opencode,claude", "--with-autonomous"])
+        result = runner.invoke(app, ["install", "opencode,claude", "--with-orchestration"])
 
         assert result.exit_code == 0, result.output
         assert gitignore_calls[0] == 1, (
             f"update_gitignore should be called exactly once for multi-tool "
-            f"with --with-autonomous; got {gitignore_calls[0]} calls"
+            f"with --with-orchestration; got {gitignore_calls[0]} calls"
         )
 
     def test_update_gitignore_not_called_when_all_targets_fail(self, tmp_path, monkeypatch):
         gitignore_calls: list[int] = [0]
 
-        def failing_deploy(tool, force=False, with_autonomous=False):
+        def failing_deploy(tool, force=False, with_orchestration=False):
             raise RuntimeError(f"simulated failure for {tool}")
 
         def fake_gitignore():
@@ -218,7 +218,7 @@ class TestInstallUpdateGitignoreOnceForMultiTool:
         monkeypatch.setattr("source.cli._validate_target_after_deploy", lambda d: None)
         monkeypatch.setattr("source.cli.update_gitignore", fake_gitignore)
 
-        result = runner.invoke(app, ["install", "opencode,claude", "--with-autonomous"])
+        result = runner.invoke(app, ["install", "opencode,claude", "--with-orchestration"])
 
         assert result.exit_code == 1
         assert gitignore_calls[0] == 0
@@ -233,7 +233,7 @@ class TestInstallPartialFailure:
     def test_first_tool_succeeds_second_fails(self, tmp_path, monkeypatch):
         deploy_calls: list[str] = []
 
-        def maybe_deploy(tool, force=False, with_autonomous=False):
+        def maybe_deploy(tool, force=False, with_orchestration=False):
             deploy_calls.append(tool)
             if tool == "claude":
                 raise RuntimeError("simulated claude failure")
@@ -252,7 +252,7 @@ class TestInstallPartialFailure:
         assert "claude" in result.output
 
     def test_systemexit_propagates_as_failure(self, tmp_path, monkeypatch):
-        def abort_deploy(tool, force=False, with_autonomous=False):
+        def abort_deploy(tool, force=False, with_orchestration=False):
             if tool == "claude":
                 raise SystemExit(2)
 
@@ -267,7 +267,7 @@ class TestInstallPartialFailure:
         assert "exit 2" in result.output or "exit" in result.output.lower()
 
     def test_all_targets_fail_still_exits_1(self, tmp_path, monkeypatch):
-        def always_fail(tool, force=False, with_autonomous=False):
+        def always_fail(tool, force=False, with_orchestration=False):
             raise RuntimeError(f"fail {tool}")
 
         monkeypatch.setattr("source.cli.deploy_all_resources", always_fail)
@@ -290,7 +290,7 @@ class TestUpdateCommaSeparated:
     def test_two_tools_each_update(self, tmp_path, monkeypatch):
         update_calls: list[str] = []
 
-        def fake_update(tool, *, with_core, with_autonomous, force, language, strict_archived):
+        def fake_update(tool, *, with_core, with_orchestration, force, language, strict_archived):
             update_calls.append(tool)
 
         monkeypatch.setattr("source.cli._update_one_tool", fake_update)
@@ -303,7 +303,7 @@ class TestUpdateCommaSeparated:
     def test_partial_failure_records_and_continues(self, tmp_path, monkeypatch):
         update_calls: list[str] = []
 
-        def maybe_update(tool, *, with_core, with_autonomous, force, language, strict_archived):
+        def maybe_update(tool, *, with_core, with_orchestration, force, language, strict_archived):
             update_calls.append(tool)
             if tool == "claude":
                 raise RuntimeError("simulated claude update failure")
@@ -323,7 +323,7 @@ class TestUpdateCommaSeparated:
 
 class TestSingleToolBackwardCompat:
     def test_install_single_tool_no_summary_line(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("source.cli.deploy_all_resources", lambda t, force=False, with_autonomous=False: None)
+        monkeypatch.setattr("source.cli.deploy_all_resources", lambda t, force=False, with_orchestration=False: None)
         monkeypatch.setattr("source.cli._validate_target_after_deploy", lambda d: None)
 
         result = runner.invoke(app, ["install", "opencode"])
@@ -338,7 +338,7 @@ class TestSingleToolBackwardCompat:
         assert result.exit_code == 1
 
     def test_install_unknown_tool_in_comma_list_exits_1(self, tmp_path, monkeypatch):
-        monkeypatch.setattr("source.cli.deploy_all_resources", lambda t, force=False, with_autonomous=False: None)
+        monkeypatch.setattr("source.cli.deploy_all_resources", lambda t, force=False, with_orchestration=False: None)
         monkeypatch.setattr("source.cli._validate_target_after_deploy", lambda d: None)
 
         result = runner.invoke(app, ["install", "opencode,invalid-tool"])
@@ -373,7 +373,7 @@ class TestSingleToolExitCodePreserved:
     """
 
     def test_runtime_error_yields_exit_1(self, tmp_path, monkeypatch):
-        def fail(tool, force=False, with_autonomous=False):
+        def fail(tool, force=False, with_orchestration=False):
             raise RuntimeError("boom")
 
         monkeypatch.setattr("source.cli.deploy_all_resources", fail)
@@ -388,7 +388,7 @@ class TestSingleToolExitCodePreserved:
         """``deploy_core --force`` refusal path raises ``SystemExit(2)``;
         single-tool install must propagate that code, not collapse to 1."""
 
-        def refuse(tool, force=False, with_autonomous=False):
+        def refuse(tool, force=False, with_orchestration=False):
             raise SystemExit(2)
 
         monkeypatch.setattr("source.cli.deploy_all_resources", refuse)
@@ -403,7 +403,7 @@ class TestSingleToolExitCodePreserved:
         """``raise SystemExit`` (no code) carries ``code=None``; collapse
         to exit 1 because the OS can't carry a ``None`` exit status."""
 
-        def abort(tool, force=False, with_autonomous=False):
+        def abort(tool, force=False, with_orchestration=False):
             raise SystemExit
 
         monkeypatch.setattr("source.cli.deploy_all_resources", abort)
@@ -416,7 +416,7 @@ class TestSingleToolExitCodePreserved:
         """Multi-tool calls collapse heterogeneous exit codes to ``1`` so
         a single composite status summarises many tool outcomes."""
 
-        def refuse(tool, force=False, with_autonomous=False):
+        def refuse(tool, force=False, with_orchestration=False):
             if tool == "claude":
                 raise SystemExit(2)
             return None

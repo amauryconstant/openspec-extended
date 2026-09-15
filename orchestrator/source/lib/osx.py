@@ -176,7 +176,7 @@ REQUIRED_CORE_SKILLS = [
     "osc-onboard",
 ]
 
-AUTONOMOUS_RESOURCE_NAMES = frozenset(
+ORCHESTRATION_RESOURCE_NAMES = frozenset(
     {
         "osx-analyzer",
         "osx-builder",
@@ -192,6 +192,10 @@ AUTONOMOUS_RESOURCE_NAMES = frozenset(
         "osx-workflow",
     }
 )
+
+AUTONOMOUS_RESOURCE_NAMES = ORCHESTRATION_RESOURCE_NAMES
+
+_ORCHESTRATION_SKILL_NAMES = frozenset({"osx-workflow"})
 
 # Phase 1D: ``detect_platform`` / ``skills_dir`` / ``commands_dir`` /
 # ``_load_manifest`` / ``_command_resolved_for_phase`` /
@@ -1371,24 +1375,37 @@ def _load_manifest(project_root: Path) -> dict | None:
     return merged if seen else None
 
 
-def validate_skills(project_root: Path | None = None) -> dict:
+def validate_skills(
+    project_root: Path | None = None,
+    *,
+    require_orchestration: bool = False,
+) -> dict:
     root = project_root if project_root is not None else Path.cwd()
     errors: list[dict] = []
     missing_skills: list[str] = []
+    on_disk_present: set[str] = set()
+    declared: dict = {}
 
     base = skills_dir(root)
-    for skill in REQUIRED_SKILLS + REQUIRED_CORE_SKILLS:
+
+    required = list(REQUIRED_SKILLS) + list(REQUIRED_CORE_SKILLS)
+    if require_orchestration:
+        required += sorted(_ORCHESTRATION_SKILL_NAMES)
+
+    for skill in required:
         skill_path = base / skill / "SKILL.md"
-        if not skill_path.exists():
+        if skill_path.exists():
+            on_disk_present.add(skill)
+        else:
             errors.append({"check": "skills", "message": f"Missing skill: {skill}"})
             missing_skills.append(skill)
 
-    # M23: cross-check the manifest. Each required skill should be declared
-    # in [resources.skills.<name>] in the deployed manifest.toml.
     manifest = _load_manifest(root)
     if manifest is not None:
-        declared = manifest.get("resources", {}).get("skills", {})
-        for skill in REQUIRED_SKILLS + REQUIRED_CORE_SKILLS:
+        declared = manifest.get("resources", {}).get("skills", {}) or {}
+        if not isinstance(declared, dict):
+            declared = {}
+        for skill in required:
             if skill not in declared:
                 errors.append(
                     {
@@ -1397,17 +1414,63 @@ def validate_skills(project_root: Path | None = None) -> dict:
                     }
                 )
 
-    if errors:
-        platform = detect_platform(root)
-        if missing_skills:
+    on_disk_undeclared = sorted(on_disk_present - set(declared.keys()))
+    on_disk_undeclared = [s for s in on_disk_undeclared if s in required]
+
+    for skill in sorted(on_disk_present):
+        skill_md = base / skill / "SKILL.md"
+        frontmatter_name = _frontmatter_name(skill_md)
+        if frontmatter_name and frontmatter_name != skill:
             errors.append(
                 {
-                    "check": "autonomous-install-hint",
-                    "message": _install_hint(platform),
+                    "check": "skills-frontmatter",
+                    "message": (
+                        f"Skill '{skill}' has frontmatter name='{frontmatter_name}' "
+                        f"(must match the directory name)"
+                    ),
                 }
             )
-        return {"valid": False, "errors": errors, "missing_skills": missing_skills}
+
+    if errors:
+        platform = detect_platform(root)
+        if missing_skills or on_disk_undeclared:
+            errors.append(
+                {
+                    "check": "install-hint",
+                    "message": recovery_hint(
+                        platform,
+                        missing_skills=missing_skills,
+                        on_disk_undeclared=on_disk_undeclared,
+                    ),
+                }
+            )
+        return {
+            "valid": False,
+            "errors": errors,
+            "missing_skills": missing_skills,
+            "on_disk_undeclared": on_disk_undeclared,
+        }
     return {"valid": True}
+
+
+_FRONTMATTER_NAME = re.compile(r"(?m)^name:\s*(\S+)\s*$")
+
+
+def _frontmatter_name(skill_md: Path) -> str | None:
+    """Return the ``name:`` field from a SKILL.md frontmatter, or ``None``.
+
+    Lightweight parser: scans the first 4 KB of the file for a line that
+    starts with ``name:`` inside YAML frontmatter. Avoids the cost of a
+    full YAML library for what is a single string field.
+    """
+    try:
+        head = skill_md.read_text()[:4096]
+    except OSError:
+        return None
+    match = _FRONTMATTER_NAME.search(head)
+    if match is None:
+        return None
+    return match.group(1).strip().strip("\"'")
 
 
 def _install_hint(platform: str) -> str:
@@ -1421,6 +1484,73 @@ def _install_hint(platform: str) -> str:
     reader.
     """
     return REGISTRY[platform].install_hint
+
+
+def recovery_hint(
+    platform: str,
+    *,
+    missing_skills: list[str] | None = None,
+    on_disk_undeclared: list[str] | None = None,
+    missing_commands: list[str] | None = None,
+    missing_agents: list[str] | None = None,
+) -> str:
+    """Build a context-aware recovery hint for failed preflight validation.
+
+    Three branches, in priority order:
+
+    1. **Reconcile**: skills/commands are on disk but not declared in the
+       manifest. The user previously installed ``--with-core`` and then
+       re-ran ``--with-orchestration`` (or default), which clobbered the
+       orchestrator-side manifest. Suggest ``-c -o --force`` to refresh
+       tracking; a baseline is saved automatically.
+
+    2. **Missing-on-disk**: required resources are not deployed at all.
+       Suggest the smallest flag combination that closes the gap
+       (``-c`` for ``osc-*`` skills, ``-o`` for ``osx-*`` workflow,
+       ``-c -o`` for both). The shorthand (``-c``, ``-o``) is shown by
+       default; the long form (``--with-core``, ``--with-orchestration``)
+       is equally valid.
+
+    3. **Nothing missing**: fall back to the platform's static hint.
+    """
+    cmd = f"openspec-extended install {platform}"
+    missing_skills = missing_skills or []
+    on_disk_undeclared = on_disk_undeclared or []
+    missing_commands = missing_commands or []
+    missing_agents = missing_agents or []
+
+    if on_disk_undeclared:
+        return (
+            f"Detected {len(on_disk_undeclared)} deployed resource(s) not declared "
+            f"in manifest.toml. Reconcile with: `{cmd} -c -o --force` "
+            f"(baseline saved to {CORE_BASELINE_FILENAME})."
+        )
+
+    need_core = bool({s for s in missing_skills if s in REQUIRED_CORE_SKILLS})
+    need_orchestration_skills = bool(
+        {s for s in missing_skills if s in ORCHESTRATION_RESOURCE_NAMES}
+    )
+    need_orchestration_cmds = bool(missing_commands)
+    need_orchestration_agents = bool(missing_agents)
+
+    if need_core and (
+        need_orchestration_skills
+        or need_orchestration_cmds
+        or need_orchestration_agents
+    ):
+        return f"Run `{cmd} -c -o` to install core + orchestration workflow."
+    if need_core:
+        return f"Run `{cmd} -c` to install upstream OpenSpec core skills."
+    if (
+        need_orchestration_skills
+        or need_orchestration_cmds
+        or need_orchestration_agents
+    ):
+        return f"Run `{cmd} -o` to install the orchestration workflow resources."
+    return _install_hint(platform)
+
+
+CORE_BASELINE_FILENAME = ".openspec-extended-baseline.json"
 
 
 def _command_resolved_for_phase(
@@ -1478,7 +1608,6 @@ def validate_commands(project_root: Path | None = None) -> dict:
     errors: list[dict] = []
 
     platform = detect_platform(root)
-    install_hint = _install_hint(platform)
     adapter = REGISTRY[platform]
     if adapter.commands_style == "skills-only":
         # Skills-only adapters (Codex, Kimi, Zed, ForgeCode) resolve
@@ -1519,6 +1648,7 @@ def validate_commands(project_root: Path | None = None) -> dict:
     # session. Phase 1D collapsed the opencode-only conditional ladder
     # into a registry-driven check.
     manifest = _load_manifest(root)
+    missing_phase_agents: list[str] = []
     if manifest is not None:
         declared_commands = manifest.get("resources", {}).get("commands", {})
         for phase, cmd_name in PHASE_COMMANDS.items():
@@ -1538,6 +1668,7 @@ def validate_commands(project_root: Path | None = None) -> dict:
                 if not agent_name:
                     continue
                 if not (agents_dir / f"{agent_name}.md").is_file():
+                    missing_phase_agents.append(agent_name)
                     errors.append(
                         {
                             "check": "agents",
@@ -1549,14 +1680,23 @@ def validate_commands(project_root: Path | None = None) -> dict:
                     )
 
     if errors:
-        if missing_phase_commands:
+        if missing_phase_commands or missing_phase_agents:
             errors.append(
                 {
-                    "check": "autonomous-install-hint",
-                    "message": install_hint,
+                    "check": "install-hint",
+                    "message": recovery_hint(
+                        platform,
+                        missing_commands=missing_phase_commands,
+                        missing_agents=missing_phase_agents,
+                    ),
                 }
             )
-        return {"valid": False, "errors": errors}
+        return {
+            "valid": False,
+            "errors": errors,
+            "missing_commands": missing_phase_commands,
+            "missing_agents": missing_phase_agents,
+        }
     return {"valid": True}
 
 

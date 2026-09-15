@@ -552,7 +552,7 @@ class TestEveryShippedAdapterDeploysCleanly:
             manifest,
             force=True,
             tool=tool_id,
-            with_autonomous=True,
+            with_orchestration=True,
         )
 
         for md in target.rglob("*.md"):

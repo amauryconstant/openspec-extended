@@ -36,7 +36,7 @@ setup_file() {
     git add README.md
     git commit -q -m "Initial commit"
 
-    "$OPENSPEC_BIN" install opencode --with-core --with-autonomous >/dev/null 2>&1
+    "$OPENSPEC_BIN" install opencode --with-core --with-orchestration >/dev/null 2>&1
 
     mkdir -p openspec/changes
 
@@ -51,7 +51,7 @@ teardown_file() {
 
 setup_e2e_repo() {
     # Per-test isolated copy of the pre-installed tree built in setup_file.
-    # Tests that want a clean repo (e.g. `install ... --with-autonomous`
+    # Tests that want a clean repo (e.g. `install ... --with-orchestration`
     # smoke tests) `cd "$BATS_TEST_TMPDIR"` and run their own install; this
     # helper only needs to provide an opencode-equipped cwd for the
     # `setup_minimal_change`-based tests (round-trip, state transitions).
