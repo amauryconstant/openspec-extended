@@ -13,8 +13,11 @@ from pathlib import Path
 import pytest
 
 from source.cli import (
+    _backup_existing,
     _core_keep_set,
     _expected_extension_names,
+    _purge_identical_backups,
+    _purge_nested_core_orphans,
     _rewrite_renamed_references,
     purge_managed_resources,
     rename_core_resources,
@@ -603,6 +606,155 @@ class TestRewriteRenamedReferences:
         assert "`/osc-apply`" in out
         assert "`/osc-archive`" in out
         assert "/opsx-" not in out
+
+
+# ---------------------------------------------------------------------------
+# Phase 1B: backup dedup + nested orphan purge on install
+# ---------------------------------------------------------------------------
+
+
+class TestBackupSkipOnIdenticalContent:
+    """``_backup_existing`` short-circuits when the incoming bytes match
+    the existing file's bytes — the wrapper is about to overwrite its own
+    previous output with the same content, so there is nothing user-
+    authored to preserve.
+    """
+
+    def test_returns_none_when_bytes_match(self, tmp_path: Path):
+        target = tmp_path / "file.md"
+        target.write_bytes(b"hello")
+        assert _backup_existing(target, incoming_bytes=b"hello") is None
+        # No backup file created:
+        assert list(tmp_path.iterdir()) == [target]
+
+    def test_creates_backup_when_bytes_differ(self, tmp_path: Path):
+        target = tmp_path / "file.md"
+        target.write_bytes(b"old")
+        backup = _backup_existing(target, incoming_bytes=b"new")
+        assert backup is not None
+        assert backup.read_bytes() == b"old"
+        # Backup path follows the naming convention:
+        assert backup.name.startswith("file.md.user-backup-")
+
+    def test_creates_backup_when_incoming_bytes_absent(self, tmp_path: Path):
+        # Legacy callers that don't pass content get the existing behavior
+        # (back up unconditionally when the destination exists).
+        target = tmp_path / "file.md"
+        target.write_bytes(b"x")
+        backup = _backup_existing(target)
+        assert backup is not None
+        assert backup.read_bytes() == b"x"
+
+    def test_returns_none_when_target_missing(self, tmp_path: Path):
+        # No destination file: nothing to back up, regardless of bytes.
+        target = tmp_path / "absent.md"
+        assert _backup_existing(target, incoming_bytes=b"x") is None
+
+    def test_dir_target_always_copied(self, tmp_path: Path):
+        # The byte-equality short-circuit applies to files only; directory
+        # targets always copy (rare path; commands/osc vs commands/opsx).
+        d = tmp_path / "sub"
+        d.mkdir()
+        (d / "x.md").write_bytes(b"x")
+        backup = _backup_existing(d, incoming_bytes=b"x")
+        assert backup is not None
+        assert backup.is_dir()
+        assert (backup / "x.md").read_bytes() == b"x"
+
+
+class TestPurgeIdenticalBackups:
+    """``_purge_identical_backups`` removes ``*.user-backup-*`` files
+    whose bytes match the corresponding non-backup sibling. User-
+    authored backups (mismatched bytes) survive untouched.
+    """
+
+    def _seed_skill(
+        self, root: Path, original: bytes, backup: bytes,
+        backup_name: str = "SKILL.md.user-backup-1",
+    ) -> Path:
+        skill_dir = root / "skills" / "osc-apply-change"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_bytes(original)
+        (skill_dir / backup_name).write_bytes(backup)
+        return skill_dir
+
+    def test_purges_matching_backup(self, tmp_path: Path):
+        d = self._seed_skill(tmp_path, original=b"same", backup=b"same")
+        assert _purge_identical_backups(tmp_path) == 1
+        assert not (d / "SKILL.md.user-backup-1").exists()
+        assert (d / "SKILL.md").exists()
+
+    def test_keeps_mismatched_backup(self, tmp_path: Path):
+        d = self._seed_skill(tmp_path, original=b"new", backup=b"user-edited")
+        assert _purge_identical_backups(tmp_path) == 0
+        assert (d / "SKILL.md.user-backup-1").exists()
+
+    def test_handles_commands_dir(self, tmp_path: Path):
+        cmd_dir = tmp_path / "commands"
+        cmd_dir.mkdir()
+        (cmd_dir / "osc-apply.md").write_bytes(b"x")
+        (cmd_dir / "osc-apply.md.user-backup-1").write_bytes(b"x")
+        assert _purge_identical_backups(tmp_path) == 1
+        assert not (cmd_dir / "osc-apply.md.user-backup-1").exists()
+
+    def test_idempotent_when_no_backups(self, tmp_path: Path):
+        (tmp_path / "skills").mkdir()
+        assert _purge_identical_backups(tmp_path) == 0
+        assert _purge_identical_backups(tmp_path) == 0
+
+    def test_keeps_backup_with_no_original(self, tmp_path: Path):
+        # Orphan backup (no sibling): keep it. We only purge identical
+        # backups whose original is on disk to compare against.
+        skill_dir = tmp_path / "skills" / "osc-X"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md.user-backup-orphan").write_bytes(b"x")
+        assert _purge_identical_backups(tmp_path) == 0
+        assert (skill_dir / "SKILL.md.user-backup-orphan").exists()
+
+    def test_recurses_into_nested_dirs(self, tmp_path: Path):
+        # `skills/` walk uses rglob so the cleanup reaches nested orphans
+        # too (e.g. `osc-X/openspec-X/SKILL.md.user-backup-*`).
+        nested_dir = tmp_path / "skills" / "osc-X" / "openspec-X"
+        nested_dir.mkdir(parents=True)
+        (nested_dir / "SKILL.md").write_bytes(b"x")
+        (nested_dir / "SKILL.md.user-backup-1").write_bytes(b"x")
+        assert _purge_identical_backups(tmp_path) == 1
+
+
+class TestNestedOrphanPurgeRunsOnInstall:
+    """``_purge_nested_core_orphans`` is called from ``deploy_core`` so
+    ``install --with-core`` cleans up ``osc-X/openspec-X/SKILL.md``
+    nests in the same pass that creates them. The update path inherits
+    this for free.
+    """
+
+    def test_removes_nested_orphan(self, tmp_path: Path):
+        target = tmp_path / ".opencode"
+        skill_dir = target / "skills" / "osc-apply-change"
+        orphan = skill_dir / "openspec-apply-change"
+        orphan.mkdir(parents=True)
+        (orphan / "SKILL.md").write_text("# orphan")
+        # Real sibling so the tree is otherwise well-formed:
+        (skill_dir / "SKILL.md").write_text("# real")
+
+        removed = _purge_nested_core_orphans(target)
+
+        assert not orphan.exists()
+        assert (skill_dir / "SKILL.md").exists()
+        assert removed >= 1
+
+    def test_keeps_user_authored_nested_dirs(self, tmp_path: Path):
+        # Only `openspec-*` / `opsx-*` named descendants are purged.
+        target = tmp_path / ".opencode"
+        skill_dir = target / "skills" / "osc-apply-change"
+        user_subdir = skill_dir / "references"
+        user_subdir.mkdir(parents=True)
+        (user_subdir / "extra.md").write_text("# user-authored")
+
+        _purge_nested_core_orphans(target)
+
+        assert user_subdir.exists()
+        assert (user_subdir / "extra.md").exists()
 
 
 # ---------------------------------------------------------------------------

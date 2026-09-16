@@ -1109,14 +1109,28 @@ def update_gitignore() -> None:
     log_success("Added OpenSpec state files to .gitignore")
 
 
-def _backup_existing(target: Path) -> Path | None:
+def _backup_existing(target: Path, incoming_bytes: bytes | None = None) -> Path | None:
     """Snapshot ``target`` to ``<target>.user-backup-<ts>`` if it exists.
 
     Used by the core renamer to preserve user-authored content before
     POSIX ``rename`` would silently overwrite it. Returns the backup path
     if a backup was made, otherwise ``None``.
+
+    When ``incoming_bytes`` is supplied and matches ``target``'s bytes
+    exactly, no backup is created: the caller is about to overwrite the
+    file with content byte-for-byte identical to what is already on disk,
+    so there is nothing to preserve (this is the common case when the
+    wrapper re-renders its own previous output). The byte-equality
+    short-circuit applies to files only; directory targets are always
+    copied.
     """
     if not target.exists():
+        return None
+    if (
+        incoming_bytes is not None
+        and target.is_file()
+        and target.read_bytes() == incoming_bytes
+    ):
         return None
     ts = int(time.time())
     backup = target.with_name(f"{target.name}.user-backup-{ts}")
@@ -1213,7 +1227,7 @@ def rename_core_resources(tool: str) -> None:
                 new_name = re.sub(r"^opsx-(.+)\.md$", r"osc-\1.md", basename)
                 dest = cmd_dir / new_name
                 if dest.exists() and dest != cmd_file:
-                    backup = _backup_existing(dest)
+                    backup = _backup_existing(dest, incoming_bytes=cmd_file.read_bytes())
                     if backup is not None:
                         log_warn(f"Preserved user file at {backup}")
                 cmd_file.rename(dest)
@@ -1233,7 +1247,7 @@ def rename_core_resources(tool: str) -> None:
                     for f in subdir.glob("*.md"):
                         dest = osc_dir / f.name
                         if dest.exists() and dest != f:
-                            backup = _backup_existing(dest)
+                            backup = _backup_existing(dest, incoming_bytes=f.read_bytes())
                             if backup is not None:
                                 log_warn(f"Preserved user file at {backup}")
                         f.rename(dest)
@@ -1262,7 +1276,10 @@ def rename_core_resources(tool: str) -> None:
                     for f in skill_dir.glob("*"):
                         dest = dest_dir / f.name
                         if dest.exists() and dest != f:
-                            backup = _backup_existing(dest)
+                            incoming_bytes = (
+                                f.read_bytes() if f.is_file() else None
+                            )
+                            backup = _backup_existing(dest, incoming_bytes=incoming_bytes)
                             if backup is not None:
                                 log_warn(f"Preserved user file at {backup}")
                         f.rename(dest)
@@ -1491,6 +1508,14 @@ def deploy_core(
         raise SystemExit(1)
 
     rename_core_resources(tool)
+
+    identical_backups = _purge_identical_backups(target_dir)
+    if identical_backups:
+        log_info(f"Purged {identical_backups} identical user backup(s)")
+
+    nested_removed = _purge_nested_core_orphans(target_dir)
+    if nested_removed:
+        log_info(f"Purged {nested_removed} nested core orphan(s)")
 
     try:
         result = subprocess.run(
@@ -1790,7 +1815,10 @@ def _update_one_tool(
 
         # 2. After core deployment succeeds, reconcile ``osc-*`` resources
         #    against what was just generated. Anything previously deployed
-        #    that is no longer generated upstream is removed here.
+        #    that is no longer generated upstream is removed here. The
+        #    nested-orphan sweep and identical-backup purge now live in
+        #    ``deploy_core`` itself so both ``install --with-core`` and
+        #    ``update --with-core`` paths benefit.
         core_keep = _core_keep_set(target_dir)
         removed = purge_managed_resources(
             target_dir,
@@ -1800,12 +1828,6 @@ def _update_one_tool(
         )
         if removed:
             log_info(f"Purged {removed} stale osc-* resource(s)")
-
-        # 2b. Sweep nested ``openspec-*`` / ``opsx-*`` orphans left over from
-        #     prior collision merges (renamer's merge branch does not recurse).
-        nested_removed = _purge_nested_core_orphans(target_dir)
-        if nested_removed:
-            log_info(f"Purged {nested_removed} nested core orphan(s)")
 
     _validate_target_after_deploy(target_dir)
 
@@ -2005,9 +2027,58 @@ def _core_keep_set(target_dir: Path) -> set[str]:
 
 _CORE_ORPHAN_PREFIXES = ("openspec-", "opsx-")
 
+_BACKUP_SUFFIX = ".user-backup-"
+
+
+def _purge_identical_backups(target_dir: Path) -> int:
+    """Remove ``*.user-backup-*`` files whose bytes match the
+    corresponding non-backup sibling in the same directory.
+
+    Walks ``target_dir/skills/`` (recursively, since a ``SKILL.md`` can
+    sit next to ``SKILL.md.user-backup-*``) and ``target_dir/commands/``
+    (only top-level ``*.md`` for the OpenCode adapter — command files
+    are flat there). User-authored backups (mismatched bytes) survive
+    untouched; backups that match the wrapper's current output byte-for-
+    byte are deleted as redundant.
+
+    Returns the number of backups removed. Idempotent: a no-op when no
+    backups exist or all backups are user-authored.
+    """
+    removed = 0
+
+    skills_dir = target_dir / "skills"
+    if skills_dir.is_dir():
+        for backup in skills_dir.rglob(f"*{_BACKUP_SUFFIX}*"):
+            if not backup.is_file():
+                continue
+            original = backup.with_name(backup.name.split(_BACKUP_SUFFIX, 1)[0])
+            if not original.is_file():
+                continue
+            if backup.read_bytes() == original.read_bytes():
+                backup.unlink()
+                removed += 1
+
+    commands_dir = target_dir / "commands"
+    if commands_dir.is_dir():
+        for backup in commands_dir.glob(f"*{_BACKUP_SUFFIX}*"):
+            if not backup.is_file():
+                continue
+            original = backup.with_name(backup.name.split(_BACKUP_SUFFIX, 1)[0])
+            if not original.is_file():
+                continue
+            if backup.read_bytes() == original.read_bytes():
+                backup.unlink()
+                removed += 1
+
+    return removed
+
 
 def _purge_nested_core_orphans(target_dir: Path) -> int:
     """Remove ``openspec-*`` / ``opsx-*`` dirs nested inside ``osc-*`` dirs.
+
+    Runs from ``deploy_core`` (covers both ``install --with-core`` and
+    ``update --with-core`` paths) immediately after
+    ``rename_core_resources``.
 
     When ``openspec init`` runs against a tree that already contains a
     renamed ``osc-X/`` skill, the upstream CLI may emit
