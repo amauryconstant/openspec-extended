@@ -608,6 +608,106 @@ class TestEnginePhase0RouteHalt:
 
 
 @pytest.mark.integration
+class TestPhase0SeverityThreshold:
+    """Severity-threshold contract for PHASE0 routing (Suggestion-only advances).
+
+    The `osx-phase0` command and `osx-review-artifacts` skill apply a
+    severity threshold: only Critical and Warning findings trigger a
+    `routes_pending` route; Suggestion-only findings are advisory and the
+    phase advances without routing. The engine treats an empty/absent
+    ``routes_pending`` + ``phase_complete: true`` as "phase done, proceed
+    to PHASE1". These tests pin the threshold contract end-to-end.
+    """
+
+    def _state_file(self, test_env) -> Path:
+        return test_env / "openspec" / "changes" / "test-change" / "state.json"
+
+    def _read_state(self, test_env) -> dict:
+        return json.loads(self._state_file(test_env).read_text())
+
+    def test_phase0_suggestion_only_no_routes_pending_advances(
+        self, test_env, monkeypatch
+    ):
+        """PHASE0 with only Suggestion findings sets phase_complete; no routes_pending.
+
+        Mirrors the agent's behavior when only Suggestion findings are
+        classified: call ``osx state complete`` and do not call
+        ``osx state set-routes``. The engine returns True (advance).
+        """
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,'
+            '"issues_found":{"critical":0,"warning":0,"suggestion":2}}',
+        )
+        monkeypatch.chdir(test_env)
+
+        def _run_agent_marks_complete_only(state, phase):
+            invoke(["state", "complete", "test-change"])
+            return True
+
+        monkeypatch.setattr(eng, "run_agent", _run_agent_marks_complete_only)
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=3,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is True
+        state = self._read_state(test_env)
+        assert state["phase_complete"] is False
+        assert "routes_pending" not in state
+
+    def test_phase0_mixed_finding_sets_routes_pending(self, test_env, monkeypatch):
+        """PHASE0 with Warning + Suggestion still routes (regression guard).
+
+        Mixed finding sets contain at least one Critical/Warning and must
+        still trigger the existing routing halt. Suggestion-only is the
+        new exception; the mixed case is unchanged.
+        """
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,'
+            '"issues_found":{"critical":0,"warning":1,"suggestion":2},'
+            '"routes_pending":["/osc-update-change"]}',
+        )
+        monkeypatch.setattr(eng, "run_agent", lambda s, p: True)
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=3,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is False
+        state = self._read_state(test_env)
+        assert state["routes_pending"] == ["/osc-update-change"]
+
+    def test_phase0_critical_only_sets_routes_pending(self, test_env, monkeypatch):
+        """PHASE0 with Critical findings still routes (existing contract)."""
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,'
+            '"issues_found":{"critical":1,"warning":0,"suggestion":0},'
+            '"routes_pending":["/osc-update-change"]}',
+        )
+        monkeypatch.setattr(eng, "run_agent", lambda s, p: True)
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=3,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is False
+        state = self._read_state(test_env)
+        assert state["routes_pending"] == ["/osc-update-change"]
+
+
+@pytest.mark.integration
 class TestPhase6ArchiveCleanup:
     """C4 fix: cleanup() re-resolves the path so transients are removed from the archive.
 

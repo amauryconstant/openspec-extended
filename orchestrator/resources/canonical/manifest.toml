@@ -1,5 +1,5 @@
 [resources.skills.osx-workflow]
-version = "0.5.1"
+version = "0.5.2"
 
 [resources.agents.osx-analyzer]
 version = "0.2.4"
@@ -20,7 +20,7 @@ version = "0.2.1"
 version = "0.3.1"
 
 [resources.commands.osx-phase0]
-version = "0.4.1"
+version = "0.4.2"
 
 [resources.commands.osx-phase1]
 version = "0.3.8"

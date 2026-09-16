@@ -26,7 +26,8 @@ PHASE6 is the exception: it does not call `osx state complete`. The orchestrator
 | Transition | Command |
 |---|---|
 | Phase complete, advance | `openspec-extended osx state complete "$1"` |
-| Phase complete with routes pending (PHASE0 only) | `openspec-extended osx state set-routes "$1" --routes "/osc-update-change"` |
+| Phase complete with routes pending (PHASE0 only, when Critical/Warning findings exist) | `openspec-extended osx state set-routes "$1" --routes "/osc-update-change"` |
+| Suggestion-only findings (PHASE0 only, advisory; phase advances) | no `set-routes` call; Suggestions are logged in `decision-log.json` / `iterations.json` and surfaced in the routing report |
 | Blocker (unrecoverable) | `openspec-extended osx complete set "$1" BLOCKED --blocker-reason "..."` |
 | Explicit transition (PHASE2) | `openspec-extended osx state transition "$1" --target <PHASEN> --reason <reason> --details "..."` |
 

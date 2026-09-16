@@ -161,7 +161,7 @@ All live in `openspec/changes/<change>/` (or `openspec/changes/archive/YYYY-MM-D
 | `set-phase` | `<change> <PHASEN> [--iteration N]` | Force-set phase (use `orchestrate --from-phase` instead when possible) |
 | `transition` | `<change> --target <PHASEN> --reason <reason> [--details "..."]` | Set a pending transition; orchestrator routes to `<target>` next |
 | `clear-transition` | `<change>` | Clear a pending transition |
-| `set-routes` | `<change> --routes "<comma-separated slash commands>"` | PHASE0 only: queue slash commands the user should run |
+| `set-routes` | `<change> --routes "<comma-separated slash commands>"` | PHASE0 only: queue slash commands the user should run (call only when Critical or Warning findings exist; Suggestion-only findings advance without routing) |
 | `clear-routes` | `<change>` | Clear pending routes |
 
 **Transition reasons** (canonical): `implementation_incorrect` (code wrong, don't modify artifacts), `artifacts_modified` (specs/design updated via `/osc-update-change`, fallback `/osc-update-change` for isolated defects, go to PHASE1), `retry_requested` (same phase, different approach).

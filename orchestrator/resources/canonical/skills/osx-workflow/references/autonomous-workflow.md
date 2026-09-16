@@ -301,12 +301,12 @@ graph TD
 **Process**:
 1. Load context: `osx ctx get "$1"`
 2. Run review using `osx-review-artifacts` skill (schema-driven audit).
-3. If findings exist, classify by breadth and emit a routing report:
+3. Apply the **severity threshold**: only Critical and Warning findings trigger a route. Suggestion findings are advisory and do not block. When findings exist (Critical or Warning), classify by breadth and emit a routing report:
    - all findings on a single artifact + no coherence-level finding → `/osc-update-change <name> <id>`
    - multi-artifact drift or any coherence-level finding → `/osc-update-change <name>`
    - missing artifacts → `/osc-continue-change <name>`
 4. **Do not fix inside PHASE0.** The user invokes the routed command externally.
-5. If clean: Log and complete.
+5. If clean **or Suggestion-only findings**: Log the Suggestions in `decision-log.json` / `iterations.json` and complete the phase (orchestrator advances to PHASE1). Suggestions surface in the routing report but do not block.
 
 **Note**: PHASE0 used to fix artifacts in the same invocation. With the
 read-only `osx-analyzer`, fixes are routed to `/osc-update-change`,
