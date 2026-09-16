@@ -140,11 +140,19 @@ Phase commands instruct agents to "load and use" skills:
 
 | Situation | Tool | Skill / Command |
 |-----------|-------|----------------|
-| Start a change | `osc-new-change` skill | `openspec new change "$NAME"` |
-| Create all artifacts | `osc-ff-change` skill | `openspec ff "$NAME"` |
+| Start a change (step-by-step) | `osc-new-change` skill | `openspec new change "$NAME"` |
+| Start a change (one-shot, full proposal) | `osc-propose` skill | `/openspec-propose <description>` |
+| Start a change (fast-forward, all artifacts at once) | `osc-ff-change` skill | `openspec ff "$NAME"` |
+| Start a change (first-time user tutorial) | `osc-onboard` skill | `/openspec-onboard` |
+| Thinking partner (no artifacts yet) | `osc-explore` skill | `/openspec-explore` |
 | Implement tasks | `osc-apply-change` skill | Read skill file, follow instructions |
-| Audit artifacts (schema-driven, read-only) | `osx-review-artifacts` skill | Read skill file, follow instructions |
+| Audit artifacts (schema-driven, read-only) | `osx-review-artifacts` skill | Read skill file, follow instructions; slash command: `/osx-review <change>` |
 | Single- or multi-artifact reconciliation | `osc-update-change` skill | `openspec update "$NAME"` or `/osc-update-change` |
+| Continue creating missing artifacts | `osc-continue-change` skill | `openspec continue "$NAME"` or `/osc-continue-change` |
+| Spec-to-test alignment | `osx-review-test-compliance` skill | Read skill file; slash command: `/osx-verify-tests <change>` |
+| Maintain project docs | `osx-maintain-docs` command | `/osx-maintain-docs <change>` |
+| Generate release changelog | `osx-changelog` command | `/osx-changelog [--since YYYY-MM-DD | <change>...]` |
+| Detect project commit style | `osx-commit` skill | `/osx-commit` after each phase write |
 | Check status | `openspec` CLI | `openspec status --change "$1" --json` |
 | Orchestration state | `osx` lib tool | `openspec-extended osx <domain> <action>` |
 
@@ -305,6 +313,8 @@ graph TD
    - all findings on a single artifact + no coherence-level finding → `/osc-update-change <name> <id>`
    - multi-artifact drift or any coherence-level finding → `/osc-update-change <name>`
    - missing artifacts → `/osc-continue-change <name>`
+   - all clean (no findings, ad-hoc invocation) → `/osc-apply-change <name>` — the orchestrated loop advances via `state complete`
+   - intent-level change detected (Update vs Start Fresh) → `/osc-new-change <fresh-name>`
 4. **Do not fix inside PHASE0.** The user invokes the routed command externally.
 5. If clean **or Suggestion-only findings**: Log the Suggestions in `decision-log.json` / `iterations.json` and complete the phase (orchestrator advances to PHASE1). Suggestions surface in the routing report but do not block.
 
@@ -357,6 +367,12 @@ openspec-extended osx state complete "$1"
      Isolated single-artifact defects may use `/osc-update-change <name> <id>`.
    - **Case B — implementation wrong**: do not modify artifacts.
    - **Case C — same phase retry**: try a different approach.
+   - **Missing-artifact sub-case**: if the report surfaces an artifact the
+     implementation needs but does not yet exist, route via
+     `/osc-continue-change <name>` (creation), not `/osc-update-change` (revision).
+   - **Design-ambiguity sub-case**: if the report surfaces design-level
+     ambiguity in spec intent, invoke `/openspec-explore <name>` for thinking time
+     *before* reconciling via `/osc-update-change`.
 
 **State updates**:
 ```bash
@@ -413,6 +429,8 @@ openspec-extended osx state transition "$1" --target PHASE2 --reason retry_reque
 3. Merge deltas from `changes/<name>/specs/` into `specs/`
 4. Commit sync
 
+**Malformed-delta fallback**: if a delta in `changes/<name>/specs/` is malformed (invalid section headers, missing `## REMOVED Requirements`, broken `### Requirement:` blocks), never hand-edit the delta — fix the *source* artifact via `/osc-update-change <name>` (proposal/specs/design/tasks reconciliation), then re-run sync. The delta renders from upstream artifacts.
+
 **State update**: `osx state complete "$1"`
 
 ### 5.6 PHASE5: Self-Reflection
@@ -424,9 +442,10 @@ openspec-extended osx state transition "$1" --target PHASE2 --reason retry_reque
 
 **Process**:
 1. Load full history from `iterations.json` and `decision-log.json`
-2. Analyze what went well, what didn't
-3. Create `reflections.md` with findings
-4. Log insights for future improvements
+2. *Optional pre-step*: if history is dense (3+ reroutes, recurring Critical findings), invoke `/openspec-explore <name>` for a guided reasoning pass before writing reflections — surfaces structural improvements the autonomous pass might miss.
+3. Analyze what went well, what didn't
+4. Create `reflections.md` with findings
+5. Log insights for future improvements
 
 **State update**: `osx state complete "$1"`
 
@@ -449,6 +468,8 @@ openspec-extended osx state transition "$1" --target PHASE2 --reason retry_reque
 7. **Mark phase complete**: `osx state complete "$1"`
 
 **Why atomic**: Partial execution triggers unnecessary re-execution. Archive is idempotent but expensive to re-run.
+
+**Post-archive hand-off**: After archive succeeds, the user can run `/osx-changelog` (with optional `--since YYYY-MM-DD` or `<change-name>` filters) to surface archived changes in `CHANGELOG.md` using Keep a Changelog format. This is the natural hook after a release cutoff or version-header update.
 
 **State update**: `osx state complete "$1"`
 
@@ -663,14 +684,29 @@ openspec status --change "$CHANGE_ID" --json
 openspec instructions apply --change "$CHANGE_ID" --json
 ```
 
+### Entry points (how to start a change)
+
+| Want | Slash command |
+|---|---|
+| Guided tutorial (first time) | `/openspec-onboard` |
+| One-shot proposal (everything in one go) | `/openspec-propose <description>` |
+| Step-by-step (one artifact at a time) | `/openspec-new-change <name>` |
+| Fast-forward (all artifacts at once) | `/openspec-ff-change <name>` |
+| Thinking partner (no artifacts yet) | `/openspec-explore` |
+| Review existing artifacts (read-only audit) | `/osx-review <change>` |
+| Verify implementation (post-apply) | `/osc-verify-change <change>` |
+| Test-compliance check (post-apply) | `/osx-verify-tests <change>` |
+| Update docs | `/osx-maintain-docs <change>` |
+| Generate CHANGELOG from archived changes | `/osx-changelog [--since YYYY-MM-DD | <change>...]` |
+
 ### Phase Summary
 
-| Phase | Agent | Key Skills | Critical Requirement |
-|--------|---------|-------------|---------------------|
-| PHASE0 | osx-analyzer | review-artifacts, modify-artifacts | Fix CRITICAL issues immediately |
-| PHASE1 | osx-builder | apply-change, review-test-compliance | Milestone commits (1-5 per iteration) |
-| PHASE2 | osx-reviewer | verify-change | Correct transition logic; embeds openspec show --diff appendix (v1.11.0+) |
-| PHASE3 | osx-maintainer | maintain-ai-docs | Update AGENTS.md (not inline comments) |
-| PHASE4 | osx-maintainer | sync-specs | Merge deltas into main specs |
-| PHASE5 | osx-reviewer | None | Analyze workflow history |
-| PHASE6 | osx-maintainer | archive-change, bulk-archive | **ATOMIC EXECUTION** - all steps in one call |
+| Phase | Agent | Key Skills | Optional Companions | Critical Requirement |
+|--------|---------|-------------|---------------------|---------------------|
+| PHASE0 | osx-analyzer | osx-review-artifacts | `/osc-explore`, `/osc-update-change`, `/osc-continue-change`, `/osc-new-change`, `/osc-archive-change` (routes only) | Read-only — emit routing report, never fix |
+| PHASE1 | osx-builder | osc-apply-change, osx-review-test-compliance | `/osc-explore`, `/osc-update-change` (pause-and-route), `osx-commit` (milestones) | Milestone commits (1-5 per iteration); pause-and-route on drift |
+| PHASE2 | osx-reviewer | osc-verify-change | `/osc-explore`, `/osc-update-change` (Case A), `/osc-continue-change` (missing artifact) | Correct transition logic; embeds openspec show --diff appendix (v1.11.0+) |
+| PHASE3 | osx-maintainer | osx-maintain-docs | (none — self-contained) | Update AGENTS.md (not inline comments) |
+| PHASE4 | osx-maintainer | osc-sync-specs | `/osc-update-change` (malformed-delta fix upstream), `osc-bulk-archive-change` (conflict) | Merge deltas into main specs; never hand-edit delta |
+| PHASE5 | osx-reviewer | (autonomous reasoning) | `/osc-explore` (optional pre-step), `osx-commit` | Analyze workflow history |
+| PHASE6 | osx-maintainer | osc-archive-change, osc-bulk-archive-change | `/osx-changelog` (post-archive), `osx-commit` | **ATOMIC EXECUTION** - all steps in one call |

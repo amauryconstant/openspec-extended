@@ -33,6 +33,22 @@ PHASE0 is read-only — it dispatches `osx-analyzer` (`edit: deny`) and emits a 
 
 ---
 
+## Before you orchestrate
+
+Five paths into OpenSpec work. Pick the closest match; the 7-phase loop in §2 assumes an **active change** already exists.
+
+| Entry point | When to use | Slash command |
+|---|---|---|
+| **Onboarding tutorial** | First time using OpenSpec in this repo, want a guided walk-through with real codebase work | `/openspec-onboard` |
+| **Thinking partner** | Investigate before/while planning; surface unknowns, no code or artifact edits | `/openspec-explore` |
+| **One-shot change** | Want a fully specified proposal + design + specs + tasks in one invocation | `/openspec-propose <name-or-description>` |
+| **Step-by-step change** | Want to draft each artifact interactively, one at a time | `/openspec-new-change <name>` |
+| **Fast-forward** | Proposal is fully specified; create all artifacts in one go | `/openspec-ff-change <name>` |
+
+After an active change exists with all planning artifacts (`openspec status --change <name> --json` reports `isPlanningComplete: true`), point the orchestrator at it: `openspec-extended orchestrate <name>`. Pre-implementation review (`/osx-review <name>` or PHASE0) and test-compliance (`/osx-verify-tests <name>` or PHASE1 end-of-iteration) are the gap-filling entry points between dispatched iterations.
+
+---
+
 ## §1 Tool layers
 
 ### §1.1 The 4 layers
@@ -95,6 +111,20 @@ For the full action set of layer 3, see §4.
       is complete, PHASE0 short-circuits to PHASE6 via the routing report
       (`/osc-archive-change <name>`). See `osx-phase0` and `osx-phase6` for the
       full protocol.
+
+### Optional companion skills per phase
+
+The "Key skills" column above lists the *canonical* skill each phase loads. Each phase may also consider the following companions based on the change's state. These are *not* auto-loaded — the phase command must invoke them by name when appropriate.
+
+| Phase | Optional companion | When to invoke |
+|---|---|---|
+| PHASE0 | `/osc-explore`, `/osc-continue-change`, `/osc-new-change` | Ambiguous findings needing thinking time; missing artifacts; intent-level change (Update vs Start Fresh heuristic) |
+| PHASE1 | `/osc-explore`, `/osc-update-change` | Design ambiguity surfaces mid-implementation; spec/design drift (pause-and-route) |
+| PHASE2 | `/osc-explore`, `/osc-update-change`, `/osc-continue-change` | Design-level ambiguity after the report; reconcile existing artifacts; create missing artifacts |
+| PHASE3 | (none) | Self-contained — wraps `osx-maintain-docs` only |
+| PHASE4 | `/osc-update-change` | Delta spec is malformed — fix the *source* artifact upstream, then re-sync |
+| PHASE5 | `/osc-explore` | Dense iteration history (3+ reroutes, recurring Critical findings) — deep think before writing reflections |
+| PHASE6 | `/osx-changelog` | After archive — generate `CHANGELOG.md` entries for release cutoffs |
 
 > **Name disambiguation**: engine canonical is `REVIEW`; skill is `osc-verify-change`. Both refer to PHASE2.
 
@@ -325,8 +355,10 @@ Before any phase action, verify:
 
 ## §10 Workflow patterns
 
-- **Quick feature (single-session)**: `/osc-new-change` → `/osc-ff-change` → `/osc-apply-change` → `/osc-verify-change` → `/osc-archive-change`
-- **Exploratory**: `/osc-explore` → [investigation] → `/osc-new-change` → `/osc-continue-change` → ... → `/osc-apply-change`
+- **Quick feature (single-session)**: `/osc-new-change` → `/osc-ff-change` → `/osc-apply-change` → `/osc-verify-change` → `/osc-archive-change` → `/osx-changelog`
+- **One-shot**: `/openspec-propose <description>` → `/osc-apply-change` → `/osc-verify-change` → `/osc-archive-change` → `/osx-changelog`
+- **Exploratory**: `/openspec-explore` → [investigation] → `/osc-new-change` → `/osc-continue-change` → ... → `/osc-apply-change`
+- **First-time user**: `/openspec-onboard` (guided tutorial with real codebase work) → fall through to the `Exploratory` or `Quick feature` patterns once comfortable
 - **Parallel changes (no orchestrator)**: switch between changes with explicit names; archive one before resuming the paused one.
 - **Enhanced manual**: `/osc-new-change` → `/osc-ff-change` → `/osx-review <name>` → `/osc-update-change` → `/osc-apply-change` → `/osx-verify-tests` → `/osx-maintain-docs` → `/osc-archive-change` → `/osx-changelog`
 - **Autonomous (full 7-phase loop)**: `openspec-extended orchestrate <change>`. PHASE0 is read-only — emits routing report; user invokes the routed slash command externally.
@@ -400,6 +432,20 @@ When in doubt, prefer continue: fast-forward is a UI shortcut, not a
 correctness primitive — if the proposal is ambiguous, fast-forward will
 either silently make a choice or refuse to proceed, and either outcome
 is worse than being asked.
+
+### Entry points — how to start a change
+
+The OpenSpec Core ships five entry-point skills that *create* a change. Pick based on how much scaffolding you want:
+
+| Want | Skill | Notes |
+|---|---|---|
+| Guided walk-through | `/openspec-onboard` | Reads your codebase, picks a starter task, narrates the full cycle |
+| One-shot proposal (everything in one go) | `/openspec-propose` | Creates the change dir and all artifacts in a single invocation |
+| Step-by-step (one artifact at a time) | `/openspec-new-change` | Scaffolds the change, then prompts for each artifact |
+| Fast-forward (all artifacts at once, fewer prompts) | `/openspec-ff-change` | Creates everything in one go; less narration than `new-change` |
+| Thinking partner (no artifacts yet) | `/openspec-explore` | Discusses the problem; you create artifacts when ready |
+
+Once an active change with planning artifacts exists, the orchestrator's `openspec-extended orchestrate <change>` takes over the 7-phase loop. PHASE0 (`/osx-phase0 <change>` or `/osx-review <change>`), PHASE1 (`osx-apply-change`), and the gap-filling skills (`osx-review-artifacts`, `osx-review-test-compliance`, `osx-commit`, `osx-maintain-docs`, `osx-changelog`) live alongside.
 
 ---
 

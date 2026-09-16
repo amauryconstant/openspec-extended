@@ -33,10 +33,11 @@ Change: $1
 
 2. Load context per protocol spine.
 3. **Pull history** via `openspec-extended osx ctx get "$1"` — extract `history.iterations_recorded`, `decision_log`, and the latest `verification_report` and `test_compliance_report`.
-4. **Reflect autonomously** — review workflow execution, identify recurring patterns (blockers, reroutes, milestone-commit cadence), and surface improvements as concrete suggestions.
-5. Write `reflections.md` with: phase-by-phase iteration counts, dominant blocker categories, recurring routing decisions, and 1–5 actionable improvement suggestions for the orchestrator's future runs.
-6. Commit `reflections.md` via `osx-commit`. Capture the commit hash in the decision-log entry.
-7. **Mandatory end** — append `osx log` and `osx iterations` per protocol spine, then `osx state complete "$1"`. Script advances to PHASE6.
+4. **Optional pre-step — deep think.** If the iteration history is dense (3+ reroutes, multiple `implementation_incorrect` transitions, or recurring Critical findings across phases), invoke `/openspec-explore <name>` first to surface structural improvements through guided reasoning. Skip this step when history is short and the suggestions are obvious — the autonomous pass below covers the typical case.
+5. **Reflect autonomously** — review workflow execution, identify recurring patterns (blockers, reroutes, milestone-commit cadence), and surface improvements as concrete suggestions.
+6. Write `reflections.md` with: phase-by-phase iteration counts, dominant blocker categories, recurring routing decisions, and 1–5 actionable improvement suggestions for the orchestrator's future runs.
+7. Commit `reflections.md` via `osx-commit`. Capture the commit hash in the decision-log entry.
+8. **Mandatory end** — append `osx log` and `osx iterations` per protocol spine, then `osx state complete "$1"`. Script advances to PHASE6.
 
 ## Output
 

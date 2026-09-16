@@ -44,6 +44,22 @@ A blocker is **unrecoverable** within the current phase. Fixable failures stay i
 
 `--max-phase-iterations` defaults to **10**. `-1` = unlimited. The orchestrator halts when the per-phase limit is reached and logs to `decision-log.json`; the user investigates.
 
+## Phase skill catalogue
+
+Each phase has a canonical skill it loads (see the table below) plus optional companions it may invoke by name. The phase command instructs the dispatched agent on both.
+
+| Phase | Canonical skill | Optional companions |
+|---|---|---|
+| PHASE0 (ARTIFACT_REVIEW) | `osx-review-artifacts` | `/osc-update-change`, `/osc-continue-change`, `/osc-new-change`, `/osc-archive-change` (routing only); `/osc-explore` (ambiguous findings); ad-hoc users: `/osx-review <change>` |
+| PHASE1 (IMPLEMENTATION) | `osc-apply-change` | `osx-review-test-compliance` (end-of-iteration), `osx-commit` (milestone commits); `/osc-explore` (design ambiguity); `/osc-update-change` (pause-and-route on drift); ad-hoc users: `/osx-verify-tests <change>` |
+| PHASE2 (REVIEW) | `osc-verify-change` | `/osc-explore` (design ambiguity), `/osc-update-change` (Case A default), `/osc-continue-change` (missing-artifact sub-case), `osx-commit` (post-report) |
+| PHASE3 (MAINTAIN_DOCS) | `osx-maintain-docs` | `osx-commit` (post-edit); cross-ref `references/doc-structures.md` |
+| PHASE4 (SYNC) | `osc-sync-specs` | `/osc-update-change` (malformed delta fix upstream); `osc-bulk-archive-change` (multi-change conflict resolution); `osx-commit` |
+| PHASE5 (SELF_REFLECTION) | (autonomous reasoning) | `/osc-explore` (optional pre-step for dense iteration history); `osx-commit` |
+| PHASE6 (ARCHIVE) | `osc-archive-change` (single); `osc-bulk-archive-change` (multi) | `/osx-changelog` (post-archive hand-off); `osx-commit` |
+
+The "optional companions" column names skills a phase *may* invoke when the dispatched agent's reasoning surfaces a relevant situation. None of them are mandatory per iteration; the agent reaches for them only when the phase's logic warrants it.
+
 ## See also
 
 - `references/osx-decision-logging.md` — the `osx log` / `osx iterations` schemas.

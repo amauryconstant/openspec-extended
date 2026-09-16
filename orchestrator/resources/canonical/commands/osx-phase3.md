@@ -45,7 +45,7 @@ openspec-extended osx state complete "$1"
    Always announce: "Using change: <change-name>" and how to override (e.g., `/osx-phase3 <other>`).
 
 2. Load context per protocol spine.
-3. Load and use `osx-maintain-docs` skill. Follow the doc-update rules in `references/update-rules.md` and worked diffs in `references/update-examples.md`. Edit `{{DOCS_FILE}}` (project-specific docs file) only — never inline comments.
+3. Load and use `osx-maintain-docs` skill. Follow the doc-update rules in `references/update-rules.md` and worked diffs in `references/update-examples.md`. Edit `{{DOCS_FILE}}` (project-specific docs file) only — never inline comments. Cross-reference `references/doc-structures.md` for AGENTS.md/CLAUDE.md parse/write rules and the `osx-maintain-docs` command body for the canonical protocol; `references/osx-mode-conventions.md` clarifies how `OSX_AUTONOMOUS=1` resolves interactive confirmation steps.
 4. **Structure guide** — see `references/doc-structures.md` for AGENTS.md / CLAUDE.md parsing/writing strategies and validation rules.
 5. **Mode** — `OSX_AUTONOMOUS=1` is set by the orchestrator. Interactive confirmation steps use their documented autonomous defaults (see `references/osx-mode-conventions.md`).
 6. Commit via `osx-commit`. Capture the commit hash in the decision-log entry.

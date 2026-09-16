@@ -47,6 +47,7 @@ openspec-extended osx state complete "$1"
 2. Load context per protocol spine.
 3. Load and use `osc-sync-specs` skill for change `<change-name>`. Execute the skill's sync instructions.
 4. **Conflict resolution** — if two changes touch the same spec, resolve via `osc-bulk-archive-change` first (archive the older change to free its delta specs) then re-run sync.
+5. **Malformed delta specs** — if the delta in `openspec/changes/<name>/specs/` is malformed (invalid section headers, missing `## REMOVED Requirements` shape, broken `### Requirement:` blocks), never hand-edit the delta. Fix the *source* artifact that produced it via `/osc-update-change <name>` (reconciling proposal/specs/design/tasks against the dependency graph), then re-run sync. The delta is a render of upstream artifacts; the fix belongs upstream.
 5. Log sync operations (delta specs merged, conflicts resolved) via `osx log` and `osx iterations`. Include `delta_specs_found` and `sync_operations` in `--extra`.
 6. Commit via `osx-commit`. Capture the commit hash in the decision-log entry.
 7. **Mandatory end** — append `osx log` and `osx iterations` per protocol spine, then `osx state complete "$1"`. Script advances to PHASE5.

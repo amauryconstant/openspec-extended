@@ -79,6 +79,13 @@ openspec archive "$1" --yes
 
 `openspec/changes/archive/YYYY-MM-DD-<name>/` populated with `proposal.md`, `design.md` (if present), `tasks.md`, and `specs/<cap>/spec.md` (if delta specs exist). `decision-log.json` and `iterations.json` updated. Commit hash recorded in `state.json.last_archive_commit`.
 
+## Post-archive hand-off
+
+After archive succeeds, consider generating a release note:
+
+- **`/osx-changelog`** — process the just-archived changes (or all archived changes since `--since YYYY-MM-DD`) into `CHANGELOG.md` using Keep a Changelog format. Run after a release cutoff or when updating version headers. See `references/changelog-format.md` and `references/proposal-parsing-guide.md` for the contract.
+- **`/osx-changelog <change-name>`** — single-change preview before adding to the next release section.
+
 ## Guardrails
 
 - **Agent**: `osx-maintainer` (`edit: allow`).

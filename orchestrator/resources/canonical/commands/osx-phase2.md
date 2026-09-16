@@ -73,6 +73,10 @@ openspec-extended osx state complete "$1"
    ```bash
    openspec-extended osx state transition "$1" --target PHASE2 --reason retry_requested --details "Brief description of alternative approach"
    ```
+
+   **Missing-artifact sub-case.** If verification surfaces a *missing* artifact (a task or spec the implementation needs but does not yet exist), do **not** route via `/osc-update-change` — that command revises existing artifacts; creating new artifacts is `/osc-continue-change`'s job. Use `/osc-continue-change <name>` to create the missing artifact, then re-run verify. The Case A update path only applies when the missing piece is a defect in something that already exists.
+
+   **Design-ambiguity sub-case.** If the report surfaces design-level ambiguities (e.g. the spec is internally consistent but its intent is unclear in context), consider `/openspec-explore <name>` for explicit thinking time *before* reconciling via `/osc-update-change <name>`. Avoid using `/osc-update-change` to "decide by editing" — capture the intent in conversation first, then reconcile the artifacts.
 7. Append `verification_report` field via `osx log`. Track suggestions in `suggestions.md` and reference them at PHASE5.
 8. **Mandatory end** — append `osx log` and `osx iterations` per protocol spine, then `osx state complete "$1"` (Case B / C) or `osx state transition "$1" --target PHASE1 --reason artifacts_modified --details "..."` (Case A).
 

@@ -53,7 +53,7 @@ openspec-extended osx state complete "$1"
 4. Load and use `osc-apply-change` skill for change `<change-name>`. Follow its task execution pattern.
 5. Implement tasks in order. Dispatched via `osx-builder` (`edit: allow`).
 6. **Milestone commits** — 1–5 commits per iteration, invoked via `osx-commit`. Each commit advances `state.json.current_commit` and is logged in `decision-log.json` and `iterations.json`. Cap at the iteration budget.
-7. **End-of-iteration coverage check** — invoke `osx-review-test-compliance` skill. If a `Critical` or unresolved `Warning` finding appears, fix it (re-iterate) or transition (`implementation_incorrect` → PHASE1 with new details).
+7. **End-of-iteration coverage check** — invoke `osx-review-test-compliance` skill. If a `Critical` or unresolved `Warning` finding appears, fix it (re-iterate) or transition (`implementation_incorrect` → PHASE1 with new details). Slash-command equivalent for ad-hoc runs: `/osx-verify-tests <change-name>` — same skill body.
 8. **Validation** — `openspec validate --change "$1" --type all --strict --json`. If invalid, fix and re-iterate.
 9. **Mandatory end** — append `osx log` and `osx iterations` per protocol spine, then `osx state complete "$1"`.
 
@@ -64,6 +64,7 @@ Completed implementation with `openspec validate --strict` passing, end-of-itera
 ## Guardrails
 
 - **Agent**: `osx-builder` (`edit: allow`).
+- **Pause-and-route on scope/design drift** — if implementation reveals the spec or design is wrong (not just the code), stop work in PHASE1, route via `/osc-update-change <name>`, then resume. If the intent changed entirely, follow the `Update vs Start Fresh` heuristic (`osc-update-change` §Guardrails) and route to `/osc-new-change <fresh-name>` instead of retrofitting the current change.
 - **Never edits OpenSpec planning artifacts** in PHASE1 (`openspec/changes/<name>/{proposal,design,specs,tasks}.md`); those belong to `/osc-update-change` (called by the user outside the dispatched phase).
 - **Never invokes `osx log` or `osx iterations` with backticks in arg values** — shell interprets backticks as command substitution. See `references/shell-argument-safety.md`.
 - **Max 10 iterations** per phase; if exceeded, signal `BLOCKED` with `iteration_budget_exceeded` and let the user investigate.

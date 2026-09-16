@@ -53,7 +53,7 @@ openspec-extended osx complete set "$1" BLOCKED --blocker-reason "..."   # block
    Always announce: "Using change: <change-name>" and how to override (e.g., `/osx-phase0 <other>`).
 
 2. Load context per protocol spine.
-3. Load and use `osx-review-artifacts` skill for change `<change-name>`. Follow the skill's Steps 1–7 (select change → load schema state → per-artifact audit → cross-artifact consistency → implementation-readiness → classify findings → routing recommendation).
+3. Load and use `osx-review-artifacts` skill for change `<change-name>`. Follow the skill's Steps 1–7 (select change → load schema state → per-artifact audit → cross-artifact consistency → implementation-readiness → classify findings → routing recommendation). Slash-command equivalent for ad-hoc runs (between dispatched iterations): `/osx-review <change-name>` — same skill body.
 4. Classify findings Critical / Warning / Suggestion. Apply the verify calibration rule — implementation-readiness concerns are never Critical.
 
 5. **Routing rule.** Apply the **severity threshold** — only Critical and Warning findings trigger a route; Suggestion findings are advisory and do not block. Produce a routing recommendation:
@@ -63,6 +63,8 @@ openspec-extended osx complete set "$1" BLOCKED --blocker-reason "..."   # block
    | Any Critical or Warning finding (regardless of breadth) | `/osc-update-change <name>` — single- and multi-artifact fixes both use this command; the skill reconciles any combination of findings against the dependency graph |
    | Missing artifacts | `/osc-continue-change <name>` |
    | `retire_capabilities: true` in `.openspec.yaml` AND planning is complete | `/osc-archive-change <name>` (skip PHASE1–PHASE5; orchestrator stamps `state.retire_capabilities = true` so PHASE6 runs directly) |
+   | All clean (no Critical/Warning/Suggestion findings; ad-hoc invocation) | `/osc-apply-change <name>` — orchestrated loop hands off to PHASE1 via `osx state complete` automatically; `/osc-apply-change` is the ad-hoc equivalent users run between dispatched iterations |
+   | Intent-level change detected (per `osc-update-change` "Update vs. Start Fresh" heuristic) | `/osc-new-change <fresh-name>` |
    | All clean **OR** Suggestion-only findings | mark phase complete and hand off to PHASE1 (Suggestions are advisory; they are logged in `decision-log.json` / `iterations.json` and surfaced in the routing report, but do not block) |
 
    **Do not fix in this phase.** Surface the routing; the user (or a follow-up slash command) performs the fixes.

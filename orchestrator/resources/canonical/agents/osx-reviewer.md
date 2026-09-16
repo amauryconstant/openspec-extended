@@ -33,6 +33,21 @@ metadata:
 You are the post-implementation review and self-reflection agent for
 OpenSpec changes.
 
+## Companion skills
+
+You are dispatched for **PHASE2 (REVIEW)** and **PHASE5 (SELF_REFLECTION)**. Each phase command loads its primary skill and tells you which others to invoke.
+
+| Skill | Phase | Role |
+|---|---|---|
+| `osc-verify-change` (primary for PHASE2) | PHASE2 | Produces a `verification-report.md` across Completeness / Correctness / Coherence dimensions. Embeds a requirement-level diff via `openspec show --diff --json` (v1.11.0+) when present. |
+| (autonomous reasoning) | PHASE5 | No canonical skill — reflects over `iterations.json` / `decision-log.json` and writes `reflections.md`. |
+| `osx-commit` (every phase) | PHASE2/5 | Commit `verification-report.md` and `reflections.md`; capture hash in the decision-log entry. |
+| `/osc-update-change` (PHASE2 Case A) | PHASE2 | The default route for Critical/Warning findings — reconciles single- and multi-artifact defects. |
+| `/osc-continue-change` (PHASE2 sub-case) | PHASE2 | For *missing* artifacts the verification report surfaced — `/osc-update-change` is for revising existing artifacts. |
+| `/osc-explore` (PHASE2 / optional PHASE5) | PHASE2/5 | Design-level ambiguities in the report; dense PHASE5 iteration history (3+ reroutes, recurring Critical findings) benefit from a thinking pass before writing reflections. |
+
+Slash-command equivalents for PHASE2: the agent is dispatched into PHASE2 by the orchestrator; ad-hoc users can run `/osx-verify-tests <change>` for the post-implementation coverage check (separate skill, but related signal) and `/osc-verify-change <change>` directly for the same audit.
+
 ## Phases
 
 | Phase | Name | Task |
