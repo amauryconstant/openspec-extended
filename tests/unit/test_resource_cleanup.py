@@ -15,6 +15,7 @@ import pytest
 from source.cli import (
     _core_keep_set,
     _expected_extension_names,
+    _rewrite_renamed_references,
     purge_managed_resources,
     rename_core_resources,
 )
@@ -471,6 +472,137 @@ class TestRenameCoreResources:
 
         assert (target / "skills" / "osc-apply-change").is_dir()
         assert not (target / "skills" / "openspec-apply-change").exists()
+
+
+# ---------------------------------------------------------------------------
+# Body rewriter: /opsx-* and /opsx: → /osc-* / /osc:  (with fence guard)
+# ---------------------------------------------------------------------------
+
+
+class TestRewriteRenamedReferences:
+    """``_rewrite_renamed_references`` rewrites the upstream
+    ``openspec init --profile custom`` slash-command vocabulary so the
+    installed tree consistently advertises the same ``/osc-*`` /
+    ``/osc:*`` commands that the filename rename produces.
+
+    Locks the contract:
+      - inline prose, list items, table cells: rewrite
+      - fenced code blocks: also rewrite (upstream places assistant
+        output templates inside fences; leaving them intact propagates
+        the stale upstream vocabulary into the installed tree)
+      - line-start slash commands: still rewrite (regression guard)
+      - frontmatter ``OPSX:`` labels: rewrite
+      - rewriting an already-rewritten file: idempotent no-op
+    """
+
+    def test_inline_prose_rewrite(self):
+        text = (
+            "- Prompt: \"The artifacts are ready for review. "
+            "When you are ready, run `/opsx-apply` or ask me to apply.\"\n"
+        )
+        out = _rewrite_renamed_references(text)
+        assert "`/osc-apply`" in out
+        assert "/opsx-apply" not in out
+
+    def test_colon_form_rewrite(self):
+        text = (
+            "Use `/opsx:continue <name>` to resume artifact creation, "
+            "or `/opsx:archive` when done.\n"
+        )
+        out = _rewrite_renamed_references(text)
+        assert "`/osc:continue <name>`" in out
+        assert "`/osc:archive`" in out
+        assert "/opsx:" not in out
+
+    def test_list_item_and_table_cell_rewrite(self):
+        text = (
+            "| `/opsx-propose` | Create a change and generate all artifacts |\n"
+            "| `/opsx-explore` | Think through problems before/during work  |\n"
+            "- `/opsx-verify` to wrap up\n"
+        )
+        out = _rewrite_renamed_references(text)
+        assert "| `/osc-propose` |" in out
+        assert "| `/osc-explore` |" in out
+        assert "- `/osc-verify` to wrap up" in out
+        assert "/opsx-" not in out
+
+    def test_fenced_code_block_also_rewritten(self):
+        text = (
+            "Run `/opsx-archive` to finish.\n"
+            "\n"
+            "```bash\n"
+            "/opsx-apply add-auth\n"
+            "```\n"
+            "\n"
+            "Also see `/opsx-update`.\n"
+        )
+        out = _rewrite_renamed_references(text)
+        assert "`/osc-archive`" in out
+        assert "`/osc-update`" in out
+        # Code-block contents are also rewritten — the upstream
+        # ``/opsx-*`` vocabulary is stale the moment the wrapper
+        # renames the files, regardless of where the reference lives:
+        assert "/osc-apply add-auth" in out
+        assert "/opsx-" not in out
+
+    def test_tilde_fence_also_rewritten(self):
+        text = (
+            "Inline `/opsx-apply` should rewrite.\n"
+            "\n"
+            "~~~yaml\n"
+            "/opsx-archive: keep-me\n"
+            "~~~\n"
+        )
+        out = _rewrite_renamed_references(text)
+        assert "`/osc-apply`" in out
+        assert "/osc-archive: keep-me" in out
+        assert "/opsx-" not in out
+
+    def test_line_start_rewrite_still_works(self):
+        text = "- /opsx-archive <name>\n- /opsx-verify <name>\n"
+        out = _rewrite_renamed_references(text)
+        assert "- /osc-archive <name>" in out
+        assert "- /osc-verify <name>" in out
+        assert "/opsx-" not in out
+
+    def test_frontmatter_opsx_label_rewritten(self):
+        text = (
+            "---\n"
+            "name: osc-propose\n"
+            "OPSX: Propose a new change\n"
+            "---\n"
+            "Body with `/opsx-apply`.\n"
+        )
+        out = _rewrite_renamed_references(text)
+        assert "OSC: Propose a new change" in out
+        assert "OPSX:" not in out
+        assert "`/osc-apply`" in out
+        assert "/opsx-" not in out
+
+    def test_roundtrip_against_previous_install_backup(self):
+        """Previous-install backups (pre-v1.10.5) contain ``/osc-apply``
+        already; running the rewriter must be idempotent — no further
+        rewrites, no spurious replacement of the canonical form.
+        """
+        text = (
+            "**Input**: Optionally specify a change name "
+            "(e.g., `/osc-apply add-auth`).\n"
+            "Always announce how to override (e.g., `/osc-archive <other>`).\n"
+        )
+        out = _rewrite_renamed_references(text)
+        assert "`/osc-apply add-auth`" in out
+        assert "`/osc-archive <other>`" in out
+        assert "/opsx-" not in out
+
+    def test_no_frontmatter_rewrite_still_works(self):
+        text = (
+            "Run `/opsx-apply` after the artifacts are ready.\n"
+            "Then `/opsx-archive` to finish.\n"
+        )
+        out = _rewrite_renamed_references(text)
+        assert "`/osc-apply`" in out
+        assert "`/osc-archive`" in out
+        assert "/opsx-" not in out
 
 
 # ---------------------------------------------------------------------------

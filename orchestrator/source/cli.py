@@ -1136,16 +1136,40 @@ _FENCE_OPEN = re.compile(r"(?m)^[ \t]*(```|~~~)")
 
 
 def _rewrite_renamed_references(content: str) -> str:
-    """Rewrite ``/opsx-*``, ``/opsx:`` and ``OPSX: `` tokens to ``osc-*``.
+    """Rewrite ``/opsx-*``, ``/opsx:`` and ``OPSX:`` tokens to ``osc-*``.
 
-    Scoped to the YAML frontmatter (between the first two ``---``
-    fences) for the ``OPSX:`` rewrite — frontmatter ``label:`` fields
-    are the only legitimate ``OPSX:`` tokens upstream emits. Slash-
-    command references (``/opsx-*``, ``/opsx:``) are rewritten on any
-    line that starts with ``/opsx`` (regardless of fence) since the
-    upstream body never emits them inside code blocks. Body paragraphs
-    and inline prose that happen to mention the old prefix are left
-    untouched so user-authored URLs and prose are preserved verbatim.
+    - ``OPSX:`` is rewritten inside the YAML frontmatter only (line-
+      anchored) — that is the only legitimate ``OPSX:`` token upstream
+      emits, and the line anchor avoids clobbering user prose that
+      happens to mention the string.
+    - ``/opsx-*`` and ``/opsx:`` are rewritten **everywhere** in the
+      body — inline prose, list items, table cells, AND inside fenced
+      code blocks. The v1.10.5 narrowing (``^/opsx-`` line-start only)
+      let upstream-generated inline references slip through into
+      deployed skill bodies; that was the user-facing regression this
+      function reverses.
+
+      Why rewrite inside fences too: upstream places assistant-output
+      templates inside ```` ``` ```` blocks (e.g. ``osc-onboard/SKILL.md``
+      line 158), and those templates include ``/opsx-*`` slash-command
+      references that the wrapper's filename rename has invalidated
+      (the file is now ``osc-explore.md`` → ``/osc-explore``). Leaving
+      the fences intact propagates the upstream vocabulary into the
+      installed tree, which is exactly the inconsistency the user wants
+      to eliminate. The rewrite is also intentionally applied to
+      ``commands/*.md`` files (where fenced samples can carry the same
+      stale references), so a single canonical rule covers all surfaces.
+
+    Character classes are tight: ``[a-z][a-z0-9-]+`` (hyphen form) and
+    ``[a-z][a-z-]+`` (colon form) match the upstream canonical slash-
+    command vocabulary exactly (``apply``, ``archive``, ``bulk-archive``,
+    ``continue``, ``explore``, ``ff``, ``new``, ``onboard``, ``propose``,
+    ``sync``, ``update``, ``verify``) and nothing else in practice. Real
+    user code samples that mention ``/opsx-*`` slash commands are
+    vanishingly rare; if one exists, rewriting it matches the user's
+    installed convention anyway. Rewriting an already-rewritten file is
+    a no-op (``/osc-*`` is not matched by ``/opsx-*``), so the function
+    is idempotent.
     """
     front_match = _FRONTMATTER_FENCE.search(content)
     if front_match is None:
@@ -1164,10 +1188,9 @@ def _rewrite_renamed_references(content: str) -> str:
     else:
         front = ""
         tail = content[head_end:]
-        front = ""
 
-    tail = re.sub(r"^/opsx-", "/osc-", tail, flags=re.MULTILINE)
-    tail = re.sub(r"^/opsx:", "/osc:", tail, flags=re.MULTILINE)
+    tail = re.sub(r"/opsx-([a-z][a-z0-9-]+)", r"/osc-\1", tail)
+    tail = re.sub(r"/opsx:([a-z][a-z-]+)", r"/osc:\1", tail)
 
     return head + front + tail
 
