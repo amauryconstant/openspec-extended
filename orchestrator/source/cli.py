@@ -1227,7 +1227,9 @@ def rename_core_resources(tool: str) -> None:
                 new_name = re.sub(r"^opsx-(.+)\.md$", r"osc-\1.md", basename)
                 dest = cmd_dir / new_name
                 if dest.exists() and dest != cmd_file:
-                    backup = _backup_existing(dest, incoming_bytes=cmd_file.read_bytes())
+                    backup = _backup_existing(
+                        dest, incoming_bytes=cmd_file.read_bytes()
+                    )
                     if backup is not None:
                         log_warn(f"Preserved user file at {backup}")
                 cmd_file.rename(dest)
@@ -1247,7 +1249,9 @@ def rename_core_resources(tool: str) -> None:
                     for f in subdir.glob("*.md"):
                         dest = osc_dir / f.name
                         if dest.exists() and dest != f:
-                            backup = _backup_existing(dest, incoming_bytes=f.read_bytes())
+                            backup = _backup_existing(
+                                dest, incoming_bytes=f.read_bytes()
+                            )
                             if backup is not None:
                                 log_warn(f"Preserved user file at {backup}")
                         f.rename(dest)
@@ -1276,10 +1280,10 @@ def rename_core_resources(tool: str) -> None:
                     for f in skill_dir.glob("*"):
                         dest = dest_dir / f.name
                         if dest.exists() and dest != f:
-                            incoming_bytes = (
-                                f.read_bytes() if f.is_file() else None
+                            incoming_bytes = f.read_bytes() if f.is_file() else None
+                            backup = _backup_existing(
+                                dest, incoming_bytes=incoming_bytes
                             )
-                            backup = _backup_existing(dest, incoming_bytes=incoming_bytes)
                             if backup is not None:
                                 log_warn(f"Preserved user file at {backup}")
                         f.rename(dest)
