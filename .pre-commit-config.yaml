@@ -22,6 +22,13 @@ repos:
         files: ^orchestrator/source/(cli\.py|orchestrator/.*\.py|lib/.*\.py)$
         pass_filenames: false
 
+      - id: check-e2e-shared-setup
+        name: Verify E2E bats files chain setup_shared_e2e_dir / teardown_shared_e2e_dir
+        entry: bash .opencode/scripts/check-e2e-shared-setup.sh
+        language: system
+        files: ^tests/e2e/.*\.bats$
+        pass_filenames: false
+
       - id: test
         name: Verify source code and tests
         entry: mise run verify

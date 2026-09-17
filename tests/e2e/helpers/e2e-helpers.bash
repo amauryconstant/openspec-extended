@@ -21,10 +21,13 @@ require_e2e_confirm() {
     fi
 }
 
-setup_file() {
+setup_shared_e2e_dir() {
     # Build the pre-installed opencode tree once per bats file (instead of
     # once per test). Each per-test setup() then copies this tree into a
     # fresh tmpdir, which is ~10x faster than re-running the install.
+    # Split out of setup_file() so test files that need to override
+    # setup_file() (e.g. full-workflow.bats) can call this directly and
+    # still share the pre-installed tree across their tests.
     SHARED_E2E_DIR=$(mktemp -d /tmp/openspec-shared-XXXXXX)
     cd "$SHARED_E2E_DIR" || exit 1
 
@@ -43,10 +46,18 @@ setup_file() {
     export SHARED_E2E_DIR
 }
 
-teardown_file() {
+teardown_shared_e2e_dir() {
     if [[ -n "${SHARED_E2E_DIR:-}" ]] && [[ -d "$SHARED_E2E_DIR" ]]; then
         rm -rf "$SHARED_E2E_DIR"
     fi
+}
+
+setup_file() {
+    setup_shared_e2e_dir
+}
+
+teardown_file() {
+    teardown_shared_e2e_dir
 }
 
 setup_e2e_repo() {

@@ -14,6 +14,7 @@ SHARED_WORKFLOW_RAN=false
 
 setup_file() {
     require_e2e_confirm
+    setup_shared_e2e_dir
 
     if [[ "${E2E_SKIP_ORCHESTRATOR:-}" == "1" ]]; then
         E2E_DIR="${E2E_DIR:?must set E2E_DIR when E2E_SKIP_ORCHESTRATOR=1}"
@@ -78,6 +79,7 @@ teardown_file() {
 
     # Cleanup once after all tests
     teardown_e2e_repo
+    teardown_shared_e2e_dir
 }
 
 # ============================================
