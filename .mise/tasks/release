@@ -5,12 +5,14 @@
 #USAGE }
 #USAGE flag "--dry-run" help="Show what would change without modifying"
 #USAGE flag "--no-commit" help="Update README but don't commit or tag"
+#USAGE flag "--skip-changelog-check" help="Bypass the CHANGELOG.md entry gate (hotfix only)"
 
 set -euo pipefail
 
 BUMP_TYPE="${usage_bump?}"
 DRY_RUN="${usage_dry_run:-false}"
 NO_COMMIT="${usage_no_commit:-false}"
+SKIP_CHANGELOG_CHECK="${usage_skip_changelog_check:-false}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=version/lib/bump.sh
@@ -62,12 +64,22 @@ if git tag -l "$NEW_TAG" | grep -q "$NEW_TAG"; then
   exit 1
 fi
 
+# CHANGELOG.md gate. Runs before any file mutations so a failing gate
+# leaves the working tree clean. Skipped under --dry-run (the dry-run
+# banner names it) and --skip-changelog-check (hotfix escape hatch).
+if [[ "$SKIP_CHANGELOG_CHECK" != "true" && "$DRY_RUN" != "true" ]]; then
+    echo "Checking CHANGELOG.md for v$NEW_VERSION entry:"
+    check_changelog_for_release "$NEW_VERSION"
+    echo ""
+fi
+
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "[DRY-RUN] Would update version to $NEW_VERSION in:"
   echo "  - README.md (badge + examples)"
   echo "  - pyproject.toml"
   echo "  - orchestrator/source/__init__.py (__version__)"
   echo "  - uv.lock (sync)"
+  echo "  - CHANGELOG.md (verified entry exists)"
   echo ""
   echo "[DRY-RUN] Would commit with message: Release version $NEW_VERSION"
   echo "[DRY-RUN] Would create and push tag: $NEW_TAG"

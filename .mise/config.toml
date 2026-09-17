@@ -48,8 +48,8 @@ description = "Run mechanism tests against source (parallel)"
 run = "uv run pytest -m mechanism -q -n auto -p no:cacheprovider"
 
 [tasks."test:unit:bats"]
-description = "Run bats unit tests for install.sh"
-run = "bats tests/unit/install.bats"
+description = "Run bats unit tests for install.sh and misc shell helpers"
+run = "bats tests/unit/install.bats tests/unit/test_changelog_gate.bats"
 
 [tasks."test:mechanism:bats"]
 description = "Run bats mechanism tests against built binary (no AI calls)"

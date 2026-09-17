@@ -21,6 +21,7 @@ per side).
 
 - **NEVER** edit files in `orchestrator/core/` directly — use `mise run sync-core`.
 - **NEVER** bump versions by hand — use `mise run release` (project) or `mise run version:update` (per-resource).
+- **`mise run release` requires a populated `CHANGELOG.md` entry** for the upcoming version (either `## [Unreleased]` or `## [<X.Y.Z>]`). The gate runs before any file mutations; bypass with `--skip-changelog-check` for hotfixes. See `.opencode/rules/version-management.md`.
 - Pre-commit hook `check-platform-hardcodes` fails the commit if any per-tool hardcode slips into `cli.py` / `runner.py` / `lib/osx.py`.
 - **Naming** (`osx-`/`osc-` prefixes, regex, manifest ownership): `.opencode/rules/naming-conventions.md`
 - **Versioning** (project release vs per-resource bumps): `.opencode/rules/version-management.md`

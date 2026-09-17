@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12+-blue.svg?style=flat-square)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-v1.10.7-orange.svg?style=flat-square)](https://github.com/amauryconstant/openspec-extended)
+[![Version](https://img.shields.io/badge/version-v1.10.7-orange.svg?style=flat-square)](CHANGELOG.md)
 
 An **extension pack** for [OpenSpec](https://github.com/Fission-AI/OpenSpec) that adds autonomous implementation capabilities and utility skills for AI coding assistants.
 
@@ -274,8 +274,9 @@ tests without network access.
 1. Fork the repository
 2. Create a feature branch
 3. Make changes (follow code style in `AGENTS.md`)
-4. Run `mise run verify` before submitting
-5. Open a pull request
+4. Update `CHANGELOG.md` under `## [Unreleased]` for the upcoming release
+5. Run `mise run verify` before submitting
+6. Open a pull request
 
 ## License
 
