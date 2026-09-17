@@ -62,7 +62,7 @@ mise run sync-core
 The `source/` subtree tracks upstream directly. This will:
 
 1. Discover the latest stable release tag (e.g., `v1.13.0`) via `git ls-remote --tags`
-2. `git subtree pull` from that tag into `source/` (squashed)
+2. Force-replace `orchestrator/core/source/` with upstream's tree at that tag (bypasses `git subtree pull`'s 3-way merge — see `.opencode/rules/vendored-subtree.md` for rationale)
 3. Build the CLI in-place from `source/`
 4. Configure custom profile with all 12 workflows
 5. Generate `.claude` and `.opencode` files via `openspec init --tools claude,opencode --profile custom`

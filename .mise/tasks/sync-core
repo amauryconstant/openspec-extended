@@ -129,11 +129,44 @@ git-subtree-split: $last_sub_sha") || {
 sync_subtree() {
     local upstream_ref="$1"
     if subtree_is_registered; then
-        log_info "Pulling OpenSpec subtree from $UPSTREAM_REPO@$upstream_ref..."
-        git -C "$PROJECT_ROOT" subtree pull \
-            --prefix="$SUBTREE_PREFIX" \
-            "$UPSTREAM_REPO" "$upstream_ref" --squash \
-            -m "Sync OpenSpec subtree from $UPSTREAM_REPO@$upstream_ref"
+        # Force-replace: bypass git subtree pull's 3-way merge entirely. The
+        # squash annotation's git-subtree-split SHA is locked at the time of
+        # `subtree add` and cannot be retroactively corrected, so the bookkeeping
+        # always drifts relative to upstream and produces spurious merge conflicts
+        # on every pull. `orchestrator/core/source/` is a read-only mirror — we
+        # never make local edits — so the only correct semantics is "write
+        # upstream's tree verbatim to the prefix path". The new commit registers
+        # the correct upstream SHA in git-subtree-split so future force-updates
+        # don't accumulate the same drift.
+        log_info "Force-updating OpenSpec subtree at $SUBTREE_PREFIX from $UPSTREAM_REPO@${upstream_ref}..."
+        git -C "$PROJECT_ROOT" fetch --no-tags "$UPSTREAM_REPO" \
+            "refs/tags/${upstream_ref}:refs/tags/upstream-${upstream_ref}" \
+            2>/dev/null || {
+            echo "Error: failed to fetch $UPSTREAM_REPO tag ${upstream_ref}" >&2
+            exit 1
+        }
+        local upstream_sha
+        upstream_sha=$(git -C "$PROJECT_ROOT" rev-parse --verify \
+            "refs/tags/upstream-${upstream_ref}^{commit}") || {
+            echo "Error: cannot resolve $UPSTREAM_REPO@${upstream_ref} to a commit" >&2
+            exit 1
+        }
+        git -C "$PROJECT_ROOT" rm -rf "$SUBTREE_PREFIX" || {
+            echo "Error: failed to clear $SUBTREE_PREFIX before force-update" >&2
+            exit 1
+        }
+        git -C "$PROJECT_ROOT" read-tree --prefix="$SUBTREE_PREFIX" -u \
+            "${upstream_sha}^{tree}" || {
+            echo "Error: failed to write upstream tree into $SUBTREE_PREFIX" >&2
+            exit 1
+        }
+        git -C "$PROJECT_ROOT" commit -m "Sync OpenSpec subtree at $SUBTREE_PREFIX from $UPSTREAM_REPO@${upstream_ref}
+
+git-subtree-dir: $SUBTREE_PREFIX
+git-subtree-split: ${upstream_sha}" || {
+            echo "Error: failed to commit force-updated subtree" >&2
+            exit 1
+        }
     elif old_prefix_is_registered; then
         # Migrate: the old prefix has squash history (sourced from
         # upstream before the rename); the new prefix has the relocated
