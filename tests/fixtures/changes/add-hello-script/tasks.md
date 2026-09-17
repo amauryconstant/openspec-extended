@@ -34,3 +34,4 @@
 - [ ] 6.3 Test: `./scripts/hello.sh --help` shows usage and exits 0
 - [ ] 6.4 Test: Script is executable without explicit `bash` command
 - [ ] 6.5 Test: Script exits with code 0 on success
+- [ ] 6.6 Test: `./scripts/hello.sh --invalid-flag` exits with code 1

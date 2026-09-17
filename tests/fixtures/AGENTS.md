@@ -36,6 +36,17 @@ Each change directory is a self-contained OpenSpec change:
 | `tasks.md` | Numbered checklist of work items |
 | `specs/<capability>/spec.md` | Delta specs (added/modified/removed requirements) |
 
+## Audit-pass invariant
+
+Fixtures consumed by `full-workflow.bats` (gated on `E2E_CONFIRM=1`)
+must satisfy the orchestrator's PHASE0 audit — the suite exercises the
+full PHASE0-PHASE6 flow end-to-end. Today that means new-capability
+specs declare a `## Purpose` section (≥50 characters) before
+`## ADDED Requirements`. When the audit rules tighten upstream,
+update the fixture to satisfy them; the bats failure log now
+distinguishes "halted with routes_pending" (printable route list)
+from a true workflow crash.
+
 ## Conventions
 
 - Fixtures are loaded by path — pass the fixture directory to the function under test.

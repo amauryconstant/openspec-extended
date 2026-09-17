@@ -1,5 +1,13 @@
 # Spec: hello-script
 
+## Purpose
+
+A minimal greeting utility for repository smoke-tests. Renders a default
+`Hello, World!` to stdout, honors a `--name NAME` flag for personalization,
+prints usage on `--help`, and exits with code 1 on any unknown flag. Used as
+the canonical "smallest end-to-end orchestrator fixture" — must pass PHASE0
+audit and produce an artifact that exercises both default and custom paths.
+
 ## ADDED Requirements
 
 ### Requirement: Default Greeting
@@ -53,21 +61,3 @@ The script SHALL be compatible with Bash 4.0 or later.
 #### Scenario: Runs under Bash 4.0+
 - **WHEN** the script is invoked with `bash` 4.0 or later
 - **THEN** it SHALL execute without syntax errors
-
-### Requirement: Bash Strict Mode
-The script SHALL use `#!/usr/bin/env bash` as its shebang and SHALL enable `set -euo pipefail` strict mode.
-
-#### Scenario: Shebang and strict mode present
-- **WHEN** the script file is read
-- **THEN** the first line SHALL be `#!/usr/bin/env bash`
-- **AND** the script SHALL contain `set -euo pipefail`
-
-### Requirement: Code Quality
-The script SHALL use `readonly` for module-level constants and `local` for function-scoped variables, and SHALL define separate `usage()` and `main()` functions invoked via `main "$@"`.
-
-#### Scenario: Code quality markers present
-- **WHEN** the script is read
-- **THEN** it SHALL contain at least one `readonly` declaration
-- **AND** it SHALL contain at least one `local` declaration
-- **AND** it SHALL define `usage()` and `main()` functions
-- **AND** it SHALL invoke `main "$@"` at the end
