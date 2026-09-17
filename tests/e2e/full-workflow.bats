@@ -54,9 +54,27 @@ setup_file() {
         # Archive exists - workflow succeeded regardless of exit status
         workflow_ran=true
     elif [[ "$status" -ne 0 ]]; then
-        # No archive and non-zero exit status - workflow actually failed
-        echo "Workflow failed with status $status" >&2
-        echo "Archive directory not found" >&2
+        # No archive and non-zero exit status. Distinguish the orchestrator's
+        # designed halt-with-routes_pending from an actual workflow failure:
+        # PHASE0 halts on a Critical finding and emits
+        # `Halted for routed commands` plus the route list. Surface the
+        # routes so the next audit-strictness change is debuggable from
+        # the bats output alone instead of having to fish the log out of
+        # the test tmpdir.
+        local log_file
+        log_file=$(ls -t .osx-orchestrate-*.log 2>/dev/null | head -1)
+        if [[ -n "$log_file" ]] && grep -q "Halted for routed commands" "$log_file"; then
+            echo "PHASE0 halted with routes_pending (status=$status):" >&2
+            grep -E '^\[[A-Z]+\][[:space:]]+-[[:space:]]+/' "$log_file" |
+                sed 's/^/  /' >&2 || true
+            echo "Fixture needs audit fixes; run the routed command(s) above," >&2
+            echo "then re-run this bats file (or invoke the routed command directly)." >&2
+        else
+            echo "Workflow did not produce an archive (status=$status)." >&2
+            if [[ -n "$log_file" ]]; then
+                echo "See $log_file for the orchestrator's log." >&2
+            fi
+        fi
         exit 1
     else
         # Unexpected state - no archive but exit status is 0
