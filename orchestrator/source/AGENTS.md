@@ -15,9 +15,11 @@ Python source for the `openspec-extended` binary. Lives under `orchestrator/sour
 | `__main__.py` | Entry: `python -m source` (still works from the new path) |
 | `cli.py` | Typer CLI (install/update/orchestrate + mounts `osx` subcommand) |
 | `lib/osx.py` | Change-management library (11 domains). Pure functions, no CLI. |
+| `lib/state_io.py` | Low-level state.json read/write helpers used by `lib/osx.py` |
 | `osx_cli.py` | Typer app for the `openspec-extended osx` subcommand |
 | `tools.py` | Per-tool adapter registry (`ToolAdapter` + `REGISTRY`) |
 | `orchestrator/engine.py` | 7-phase autonomous workflow engine |
+| `orchestrator/runner.py` | Per-tool CLI runner dispatch (OpenCode, Claude, generic print) |
 
 ## Module Roles
 

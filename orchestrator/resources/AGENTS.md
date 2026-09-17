@@ -96,7 +96,7 @@ A skill declares which shared references it consumes via the manifest's `referen
 
 ```toml
 [resources.skills.osx-review-artifacts]
-version = "0.3.3"
+version = "0.4.0"
 references = ["schema-agnostic-contract.md", "store-selection.md"]
 ```
 
