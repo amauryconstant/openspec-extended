@@ -585,9 +585,24 @@ class TestCleanupReResolution:
         assert (archive / "decision-log.json").exists()
         assert (archive / "verification-report.md").exists()
 
-    def test_cleanup_skips_when_path_disappears(self, temp_change_dir, monkeypatch):
-        """Both active and archive paths gone: cleanup does not crash."""
-        monkeypatch.chdir(temp_change_dir)
+    def test_cleanup_skips_when_path_disappears(self, tmp_path, monkeypatch):
+        """Both active and archive paths gone: cleanup does not crash.
+
+        Resolves to an empty cwd (no ``openspec/changes/<id>`` and no
+        archive sibling) and stubs the resolver to return ``None`` so
+        the test's contract holds regardless of execution order. The
+        previous version relied on stale ``_PATHS_CACHE`` entries from
+        earlier tests in the class to mask the resolution; that
+        pollution is missing under ``pytest-xdist`` and isolated runs,
+        which made the test flaky.
+        """
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        monkeypatch.chdir(empty)
+        monkeypatch.setattr(
+            "source.orchestrator.engine._resolve_post_phase6_path",
+            lambda state: None,
+        )
 
         st = OrchestratorState(change_dir=None, change_id="test-change")
         st.log_file = None
