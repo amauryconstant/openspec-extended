@@ -536,16 +536,199 @@ class TestPhase0RoutesPending:
 class TestEnginePhase0RouteHalt:
     """Engine-level tests for the soft-halt behavior in `run_phase`."""
 
-    def test_run_phase_returns_false_when_routes_pending(self, test_env, monkeypatch):
-        """PHASE0 with routes_pending non-empty + phase_complete=False → False (halt)."""
+    def _state_file(self, test_env) -> Path:
+        return test_env / "openspec" / "changes" / "test-change" / "state.json"
+
+    def _read_state(self, test_env) -> dict:
+        return json.loads(self._state_file(test_env).read_text())
+
+    def test_run_phase_halts_when_non_autofixable_route_pending(
+        self, test_env, monkeypatch
+    ):
+        """PHASE0 with non-auto-fixable routes_pending + phase_complete=False → False (halt).
+
+        Sentinel for the user-judgment-required routes — the engine keeps the
+        halt-and-surface behavior for these because they require human input
+        (intent change, missing artifacts, archive decision, ambiguous
+        findings). The auto-fix dispatch only applies to routes in
+        ``AUTO_FIXABLE_ROUTES``.
+        """
         from source.orchestrator import engine as eng
 
         setup_change(
             test_env,
             "test-change",
-            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":["/opsx:update"]}',
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":["/osc-continue-change"]}',
         )
         monkeypatch.setattr(eng, "run_agent", lambda s, p: True)
+        # If the engine accidentally tries to auto-fix, fail loudly.
+        monkeypatch.setattr(
+            eng, "_run_auto_fix", lambda s, r: (_ for _ in ()).throw(AssertionError("auto-fix invoked on non-auto-fixable route"))
+        )
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=3,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is False
+
+    def test_run_phase_autofixes_when_only_osc_update_change_pending(
+        self, test_env, monkeypatch
+    ):
+        """PHASE0 with only ``/osc-update-change`` in routes_pending → auto-fix + advance.
+
+        The engine clears routes_pending, spawns the registered agent, and
+        re-enters PHASE0. When the next iteration finds phase_complete=True
+        (the auto-fix made the change coherent), ``run_phase`` returns True.
+        """
+        from source.orchestrator import engine as eng
+
+        autofix_invocations: list[str] = []
+        agent_call_count = {"n": 0}
+
+        monkeypatch.chdir(test_env)
+
+        def _run_agent(state, phase):
+            agent_call_count["n"] += 1
+            if agent_call_count["n"] == 1:
+                invoke(
+                    [
+                        "state",
+                        "set-routes",
+                        "test-change",
+                        "--routes",
+                        "/osc-update-change",
+                    ]
+                )
+            else:
+                invoke(["state", "complete", "test-change"])
+            return True
+
+        def _autofix_capture(state, route):
+            autofix_invocations.append(route)
+            invoke(["state", "clear-routes", "test-change"])
+            return True
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false}',
+        )
+        monkeypatch.setattr(eng, "run_agent", _run_agent)
+        monkeypatch.setattr(eng, "_run_auto_fix", _autofix_capture)
+
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=5,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is True
+        assert autofix_invocations == ["/osc-update-change"]
+        state = self._read_state(test_env)
+        assert "routes_pending" not in state
+        # Engine clears phase_complete before returning so the next
+        # invocation starts fresh. The advance was successful because
+        # run_phase returned True above.
+
+    def test_run_phase_returns_false_when_autofix_runner_fails(
+        self, test_env, monkeypatch
+    ):
+        """PHASE0 with auto-fixable route + failing auto-fix → halt.
+
+        When the auto-fix dispatch itself fails (runner timeout / non-zero
+        exit), the engine halts rather than looping forever. This surfaces
+        the failure to the user instead of silently retrying.
+        """
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false}',
+        )
+
+        def _run_agent_writes_routes(state, phase):
+            invoke(
+                [
+                    "state",
+                    "set-routes",
+                    "test-change",
+                    "--routes",
+                    "/osc-update-change",
+                ]
+            )
+            return True
+
+        monkeypatch.setattr(eng, "run_agent", _run_agent_writes_routes)
+        monkeypatch.setattr(eng, "_run_auto_fix", lambda s, r: False)
+
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=5,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is False
+
+    def test_run_phase_halts_when_routes_mix_autofix_and_user_judgment(
+        self, test_env, monkeypatch
+    ):
+        """Mixed routes_pending (auto-fix + user-judgment) → halt, no auto-fix.
+
+        A mixed set is unsafe to auto-fix: if the engine silently cleared
+        the auto-fixable one and surfaced only the user-judgment one, the
+        user might assume the auto-fixable one was handled. Keeping the
+        halt for the whole set means the user sees both routes together.
+        """
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false,"routes_pending":["/osc-update-change","/osc-new-change"]}',
+        )
+        monkeypatch.setattr(eng, "run_agent", lambda s, p: True)
+        monkeypatch.setattr(
+            eng,
+            "_run_auto_fix",
+            lambda s, r: (_ for _ in ()).throw(
+                AssertionError("auto-fix invoked on mixed routes_pending")
+            ),
+        )
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=3,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is False
+
+    def test_run_phase_max_iterations_with_persistent_route(
+        self, test_env, monkeypatch
+    ):
+        """PHASE0 loops auto-fix → re-review → auto-fix → ... until max_iterations."""
+        from source.orchestrator import engine as eng
+
+        # Always write routes_pending (auto-fixable), never complete. Loop
+        # should exhaust max_phase_iterations and return False.
+        def _run_agent_persistent(state, phase):
+            invoke(
+                [
+                    "state",
+                    "set-routes",
+                    "test-change",
+                    "--routes",
+                    "/osc-update-change",
+                ]
+            )
+            return True
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false}',
+        )
+        monkeypatch.setattr(eng, "run_agent", _run_agent_persistent)
+        monkeypatch.setattr(eng, "_run_auto_fix", lambda s, r: True)
+
         orch_state = eng.OrchestratorState(
             change_id="test-change",
             change_dir=test_env / "openspec" / "changes" / "test-change",
@@ -659,12 +842,13 @@ class TestPhase0SeverityThreshold:
         assert state["phase_complete"] is False
         assert "routes_pending" not in state
 
-    def test_phase0_mixed_finding_sets_routes_pending(self, test_env, monkeypatch):
-        """PHASE0 with Warning + Suggestion still routes (regression guard).
+    def test_phase0_mixed_finding_self_heals(self, test_env, monkeypatch):
+        """PHASE0 with Warning + Suggestion on existing artifacts → engine auto-fixes.
 
-        Mixed finding sets contain at least one Critical/Warning and must
-        still trigger the existing routing halt. Suggestion-only is the
-        new exception; the mixed case is unchanged.
+        Auto-fixable routes (``/osc-update-change``) no longer halt PHASE0.
+        Mixed finding sets containing at least one Critical/Warning now
+        trigger the engine's self-healing loop. Suggestion-only still
+        advances without routing (the existing exception is preserved).
         """
         from source.orchestrator import engine as eng
 
@@ -675,18 +859,31 @@ class TestPhase0SeverityThreshold:
             '"issues_found":{"critical":0,"warning":1,"suggestion":2},'
             '"routes_pending":["/osc-update-change"]}',
         )
-        monkeypatch.setattr(eng, "run_agent", lambda s, p: True)
+        monkeypatch.chdir(test_env)
+        # First iteration: auto-fix dispatch clears routes + marks complete.
+        def _run_agent_then_complete(state, phase):
+            invoke(["state", "complete", "test-change"])
+            return True
+
+        monkeypatch.setattr(eng, "run_agent", _run_agent_then_complete)
+        monkeypatch.setattr(eng, "_run_auto_fix", lambda s, r: True)
         orch_state = eng.OrchestratorState(
             change_id="test-change",
             change_dir=test_env / "openspec" / "changes" / "test-change",
             max_phase_iterations=3,
         )
-        assert eng.run_phase(orch_state, "PHASE0") is False
+        assert eng.run_phase(orch_state, "PHASE0") is True
         state = self._read_state(test_env)
-        assert state["routes_pending"] == ["/osc-update-change"]
+        assert "routes_pending" not in state
 
-    def test_phase0_critical_only_sets_routes_pending(self, test_env, monkeypatch):
-        """PHASE0 with Critical findings still routes (existing contract)."""
+    def test_phase0_critical_only_self_heals(self, test_env, monkeypatch):
+        """PHASE0 with Critical findings on existing artifacts → engine auto-fixes.
+
+        Same self-healing contract as ``test_phase0_mixed_finding_self_heals``
+        but with the severity-threshold's highest bucket. Engine clears the
+        route, dispatches the fix, re-enters review; advance when the
+        re-review finds the change coherent.
+        """
         from source.orchestrator import engine as eng
 
         setup_change(
@@ -696,15 +893,22 @@ class TestPhase0SeverityThreshold:
             '"issues_found":{"critical":1,"warning":0,"suggestion":0},'
             '"routes_pending":["/osc-update-change"]}',
         )
-        monkeypatch.setattr(eng, "run_agent", lambda s, p: True)
+        monkeypatch.chdir(test_env)
+
+        def _run_agent_then_complete(state, phase):
+            invoke(["state", "complete", "test-change"])
+            return True
+
+        monkeypatch.setattr(eng, "run_agent", _run_agent_then_complete)
+        monkeypatch.setattr(eng, "_run_auto_fix", lambda s, r: True)
         orch_state = eng.OrchestratorState(
             change_id="test-change",
             change_dir=test_env / "openspec" / "changes" / "test-change",
             max_phase_iterations=3,
         )
-        assert eng.run_phase(orch_state, "PHASE0") is False
+        assert eng.run_phase(orch_state, "PHASE0") is True
         state = self._read_state(test_env)
-        assert state["routes_pending"] == ["/osc-update-change"]
+        assert "routes_pending" not in state
 
 
 @pytest.mark.integration

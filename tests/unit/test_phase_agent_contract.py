@@ -240,6 +240,7 @@ class TestOrchestratorAgentsAreHiddenFromPicker:
     ORCHESTRATOR_AGENTS = [
         "osx-analyzer.md",
         "osx-builder.md",
+        "osx-editor.md",
         "osx-reviewer.md",
         "osx-maintainer.md",
     ]

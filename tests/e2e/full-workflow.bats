@@ -54,21 +54,48 @@ setup_file() {
         # Archive exists - workflow succeeded regardless of exit status
         workflow_ran=true
     elif [[ "$status" -ne 0 ]]; then
-        # No archive and non-zero exit status. Distinguish the orchestrator's
-        # designed halt-with-routes_pending from an actual workflow failure:
-        # PHASE0 halts on a Critical finding and emits
-        # `Halted for routed commands` plus the route list. Surface the
-        # routes so the next audit-strictness change is debuggable from
-        # the bats output alone instead of having to fish the log out of
-        # the test tmpdir.
+        # No archive and non-zero exit status. Diagnose the failure:
+        # if the log shows `Halted for routed commands`, classify each
+        # route — auto-fixable routes (`/osc-update-change`) are
+        # regression signals (the engine should have self-dispatched);
+        # non-auto-fixable routes (`/osc-continue-change`,
+        # `/osc-new-change`, `/osc-archive-change`, `/osc-explore`) are
+        # expected halt-and-surface behavior the user must resolve.
         local log_file
         log_file=$(ls -t .osx-orchestrate-*.log 2>/dev/null | head -1)
         if [[ -n "$log_file" ]] && grep -q "Halted for routed commands" "$log_file"; then
-            echo "PHASE0 halted with routes_pending (status=$status):" >&2
-            grep -E '^\[[A-Z]+\][[:space:]]+-[[:space:]]+/' "$log_file" |
-                sed 's/^/  /' >&2 || true
-            echo "Fixture needs audit fixes; run the routed command(s) above," >&2
-            echo "then re-run this bats file (or invoke the routed command directly)." >&2
+            # Extract the route list from the orchestrator's log.
+            local routes
+            routes=$(grep -E '^\[[A-Z]+\][[:space:]]+-[[:space:]]+/' "$log_file" || true)
+
+            # Auto-fixable routes — engine should have self-dispatched.
+            local autofixable_routes=("osc-update-change")
+            local has_autofixable_regression=false
+            for route in "${autofixable_routes[@]}"; do
+                if grep -qE "\b${route}\b" <<<"$routes"; then
+                    has_autofixable_regression=true
+                    break
+                fi
+            done
+
+            if [[ "$has_autofixable_regression" == "true" ]]; then
+                echo "REGRESSION: PHASE0 halted on auto-fixable route" >&2
+                echo "  The orchestrator should have self-dispatched the fix." >&2
+                echo "  Routes that triggered the halt:" >&2
+                echo "$routes" | sed 's/^/    /' >&2 || true
+                echo "" >&2
+                echo "  See engine.AUTO_FIXABLE_ROUTES and engine._run_auto_fix" >&2
+                echo "  in orchestrator/source/orchestrator/engine.py." >&2
+            else
+                # Non-auto-fixable routes — expected halt-and-surface.
+                # The user must run the routed command(s) themselves.
+                echo "PHASE0 halted with routes_pending (status=$status):" >&2
+                echo "$routes" | sed 's/^/  /' >&2 || true
+                echo "Fixture needs audit fixes for the user-judgment routes" >&2
+                echo "above (missing artifacts, intent changes, archive decisions," >&2
+                echo "ambiguous findings); run the routed command(s), then re-run" >&2
+                echo "this bats file (or invoke the routed command directly)." >&2
+            fi
         else
             echo "Workflow did not produce an archive (status=$status)." >&2
             if [[ -n "$log_file" ]]; then

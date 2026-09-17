@@ -17,8 +17,13 @@ tests/fixtures/
 │   │   ├── design.md
 │   │   ├── tasks.md
 │   │   └── specs/
-│   └── add-hello-script/          # Concrete code-producing change
-│       └── specs/
+│   ├── add-hello-script/          # Audit-clean code-producing change
+│   │   └── specs/
+│   └── add-self-heal-script/      # Audit-dirty code-producing change
+│       └── specs/                 #   ships with PHASE0 findings on
+│                                  #   existing artifacts; the engine's
+│                                  #   auto-fix dispatch must reconcile
+│                                  #   them before the workflow advances
 └── install/                       # Install-flow fixtures
     └── releases/
         └── download/
@@ -44,8 +49,36 @@ full PHASE0-PHASE6 flow end-to-end. Today that means new-capability
 specs declare a `## Purpose` section (≥50 characters) before
 `## ADDED Requirements`. When the audit rules tighten upstream,
 update the fixture to satisfy them; the bats failure log now
-distinguishes "halted with routes_pending" (printable route list)
-from a true workflow crash.
+distinguishes "halted with routes_pending" (printable route list,
+classified by auto-fixable vs halt-and-surface) from a true workflow
+crash.
+
+## `add-self-heal-script` (auto-fix regression sentinel)
+
+This fixture deliberately ships with PHASE0 findings on **existing**
+artifacts so the orchestrator's auto-fix dispatch (`osc-update-change`)
+is exercised end-to-end. It is consumed by
+`tests/e2e/self-heal-workflow.bats` (gated on `E2E_CONFIRM=1`). The
+fixture seeds:
+
+- **Cross-artifact contradiction**: `proposal.md` says the script
+  "exits with code 0 on invalid flags" while `design.md` and `spec.md`
+  say "code 1". The audit's cross-artifact consistency check flags
+  this as Critical; the auto-fix reconciles by editing `proposal.md`
+  to say "code 1", matching the other two.
+
+The auto-fix must successfully reconcile this contradiction; the
+archived `proposal.md` is asserted to say "code 1 on invalid flags"
+(`auto-fix: proposal.md exit-code mismatch was corrected`). If the
+engine reverts to halting on `/osc-update-change`, the bats file's
+`phase0: no halt-for-routed-commands for autofixable route` sentinel
+fails with a clear regression message.
+
+When the audit rules tighten upstream such that this fixture's
+findings resolve as Suggestion-only, escalate the contradiction
+(e.g. move the wrong exit-code statement to a more prominent
+location, or add a second contradiction) so the route remains
+Critical/Warning on existing artifacts.
 
 ## Conventions
 

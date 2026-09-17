@@ -52,6 +52,7 @@ class TestAutonomousResourceSet:
     def test_contains_expected_agents(self):
         assert "osx-analyzer" in osx.AUTONOMOUS_RESOURCE_NAMES
         assert "osx-builder" in osx.AUTONOMOUS_RESOURCE_NAMES
+        assert "osx-editor" in osx.AUTONOMOUS_RESOURCE_NAMES
         assert "osx-maintainer" in osx.AUTONOMOUS_RESOURCE_NAMES
         assert "osx-reviewer" in osx.AUTONOMOUS_RESOURCE_NAMES
 
@@ -88,9 +89,9 @@ class TestAutonomousResourceSet:
                 f"Utility command {cmd} must not be gated by --with-orchestration"
             )
 
-    def test_size_is_12(self):
-        assert len(osx.AUTONOMOUS_RESOURCE_NAMES) == 12, (
-            f"Autonomous set should be 12 entries (4 agents + 7 phase commands "
+    def test_size_is_13(self):
+        assert len(osx.AUTONOMOUS_RESOURCE_NAMES) == 13, (
+            f"Autonomous set should be 13 entries (5 agents + 7 phase commands "
             f"+ 1 workflow skill); got {len(osx.AUTONOMOUS_RESOURCE_NAMES)}"
         )
 

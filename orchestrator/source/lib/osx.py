@@ -180,6 +180,7 @@ ORCHESTRATION_RESOURCE_NAMES = frozenset(
     {
         "osx-analyzer",
         "osx-builder",
+        "osx-editor",
         "osx-maintainer",
         "osx-reviewer",
         "osx-phase0",

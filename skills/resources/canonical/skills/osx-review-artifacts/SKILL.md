@@ -128,18 +128,19 @@ Sits in the pre-implementation workflow between artifact creation (`/osc-continu
    - `Critical` / `Warning` → blocked; routing required before apply.
    - `Suggestion` → optional; user may proceed.
 
-7. **Smart routing recommendation** — Produce one routing line per finding category. Pick the single best editor for the aggregate finding set:
+7. **Smart routing recommendation** — Produce one routing line per finding category. Pick the single best editor for the aggregate finding set. The route shape depends on whether the audit was dispatched by the orchestrator (`OSX_AUTONOMOUS=1` — the engine handles `/osc-update-change` itself and re-enters PHASE0 to verify) or invoked ad-hoc by a user (`OSX_AUTONOMOUS` unset — the user must run the slash command themselves):
 
-   | Finding pattern | Recommended route |
-   |---|---|
-   | Findings on existing artifacts (single- or multi-artifact) | `/osc-update-change <name>` — `osc-update-change` reconciles any combination |
-   | Missing artifact (referenced but not created) | `/osc-continue-change <name>` |
-   | All clean, pre-impl (PHASE0) | `/osc-apply-change <name>` |
-   | Intent-level change detected | `/osc-new-change <name>` (per "Update vs. Start Fresh" heuristic) |
+   | Finding pattern | In-orchestration route | Ad-hoc route |
+   |---|---|---|
+   | Findings on existing artifacts (single- or multi-artifact) | `auto-fix:osc-update-change` (engine handles) | `/osc-update-change <name>` (user runs) |
+   | Missing artifact (referenced but not created) | `/osc-continue-change <name>` (halt + surface) | `/osc-continue-change <name>` |
+   | All clean, pre-impl (PHASE0) | `advance-to PHASE1` (no slash needed) | `/osc-apply-change <name>` |
+   | Intent-level change detected | `/osc-new-change <name>` (halt + surface) | `/osc-new-change <name>` (per "Update vs. Start Fresh" heuristic) |
+   | Ambiguous finding needing thinking time | `/osc-explore <name>` (halt + surface) | `/osc-explore <name>` |
 
    Exactly one routing line, matching this matrix.
 
-   The review skill never invokes the routed command itself. It only emits the route so the user or the next orchestrator step can act.
+   The review skill never invokes the routed command itself. It only emits the route so the engine (in `OSX_AUTONOMOUS=1` context) or the user (ad-hoc) can act.
 
 ---
 
@@ -156,14 +157,14 @@ Sits in the pre-implementation workflow between artifact creation (`/osc-continu
 ### <Severity> findings
 - **<artifact-id>:<file:line>**: <issue>
   - Fix: <concrete fix>
-  - Route: </osc-update-change|/osc-continue-change|/osc-apply-change|/osc-new-change> <name>
+  - Route: <auto-fix:osc-update-change | /osc-update-change|/osc-continue-change|/osc-apply-change|/osc-new-change|/osc-explore> <name>
 
 ### Routing recommendation
-<single sentence picking ONE of the routes from §Step 7>
+<single sentence picking ONE of the routes from §Step 7; "auto-fix:..." prefix marks in-orchestration routes the engine handles itself>
 
 ### Next steps
-- Address findings via the routed command above.
-- Re-run review after fixes: `/osx-review <name>`
+- In `OSX_AUTONOMOUS=1` (PHASE0 dispatched): the engine clears routes_pending, invokes the routed slash command, then re-enters PHASE0. No user action.
+- Otherwise (ad-hoc `/osx-review <change>`): address findings via the routed command above, then re-run `/osx-review <name>`.
 ```
 
 **All checks passed**:
@@ -178,7 +179,8 @@ Sits in the pre-implementation workflow between artifact creation (`/osc-continu
 **Implementation readiness**: <brief judgment>
 
 ### Next steps
-- Start (or resume) implementation: `/osc-apply-change <name>`
+- In `OSX_AUTONOMOUS=1` (PHASE0 dispatched): engine advances to PHASE1.
+- Otherwise (ad-hoc `/osx-review <change>`): start (or resume) implementation with `/osc-apply-change <name>`.
 ```
 
 ---
@@ -189,6 +191,7 @@ Sits in the pre-implementation workflow between artifact creation (`/osc-continu
 - **No code edits.** Surface issues, route the user to `/osc-apply-change`.
 - **No new artifacts.** Missing artifacts are reported; their creation is `/osc-continue-change`'s job.
 - **No hardcoded artifact names.** Schema is the source of truth.
+- **Mode detection via `OSX_AUTONOMOUS` env var.** When set (orchestrator-dispatched PHASE0), the routing table's "in-orchestration" column applies — `auto-fix:osc-update-change` is emitted and the engine reconciles. When unset (ad-hoc `/osx-review <change>`), the "ad-hoc" column applies — slash-command forms are emitted for the user.
 
 ---
 

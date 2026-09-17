@@ -238,6 +238,14 @@ ALLOWED_ABBREVIATED_FORMS: dict[str, set[str]] = {
     "skills/resources/claude/skills/osx-review-test-compliance/SKILL.md": {
         "/osc-verify"
     },
+    # /osc-explore is the full canonical form (no -change suffix); the
+    # other osc-* workflows are abbreviated forms of /osc-<verb>-change.
+    "skills/resources/canonical/skills/osx-review-artifacts/SKILL.md": {
+        "/osc-explore"
+    },
+    "skills/resources/claude/skills/osx-review-artifacts/SKILL.md": {
+        "/osc-explore"
+    },
 }
 
 # Substring patterns of abbreviated slash commands we forbid elsewhere.

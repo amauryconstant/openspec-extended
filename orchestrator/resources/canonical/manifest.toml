@@ -7,6 +7,9 @@ version = "0.2.5"
 [resources.agents.osx-builder]
 version = "0.2.5"
 
+[resources.agents.osx-editor]
+version = "0.1.0"
+
 [resources.agents.osx-maintainer]
 version = "0.2.5"
 

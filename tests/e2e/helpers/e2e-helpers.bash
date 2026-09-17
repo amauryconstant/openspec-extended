@@ -269,13 +269,31 @@ save_e2e_state() {
     echo "$state_json" > .e2e-state.json
 }
 
+# Save shared state for PHASE0-only runs (no archive yet — the change is
+# still active under openspec/changes/<name>/).
+save_e2e_state_phase0() {
+    local change_dir="${1:-}"
+    local change_name="${2:-}"
+    local workflow_ran="${3:-false}"
+
+    local state_json
+    state_json=$(jq -n \
+        --arg change_dir "$change_dir" \
+        --arg change_name "$change_name" \
+        --arg workflow_ran "$workflow_ran" \
+        '{change_dir: $change_dir, change_name: $change_name, workflow_ran: $workflow_ran}')
+
+    echo "$state_json" > .e2e-state.json
+}
+
 # Load shared state from JSON file
 load_e2e_state() {
     if [[ -f ".e2e-state.json" ]]; then
         SHARED_ARCHIVE_DIR=$(jq -r '.archive_dir // empty' .e2e-state.json)
+        SHARED_CHANGE_DIR=$(jq -r '.change_dir // empty' .e2e-state.json)
         SHARED_CHANGE_NAME=$(jq -r '.change_name // empty' .e2e-state.json)
         SHARED_WORKFLOW_RAN=$(jq -r '.workflow_ran // "false"' .e2e-state.json)
-        export SHARED_ARCHIVE_DIR SHARED_CHANGE_NAME SHARED_WORKFLOW_RAN
+        export SHARED_ARCHIVE_DIR SHARED_CHANGE_DIR SHARED_CHANGE_NAME SHARED_WORKFLOW_RAN
     fi
 }
 

@@ -2243,6 +2243,11 @@ def orchestrate(
     from_phase: str = typer.Option(
         "", "--from-phase", help="Resume from specific phase"
     ),
+    to_phase: str = typer.Option(
+        "",
+        "--to-phase",
+        help="Stop after this phase (one of PHASE0..PHASE6). Useful for phase-only e2e/debug runs.",
+    ),
     schema: str | None = typer.Option(
         None, "--schema", help="Override schema resolution"
     ),
@@ -2269,6 +2274,7 @@ def orchestrate(
     state.force = force
     state.clean = clean
     state.from_phase = from_phase
+    state.to_phase = to_phase
     state.no_color = no_color
     state.model = model
     state.list_changes = list_changes

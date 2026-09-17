@@ -39,6 +39,36 @@ PHASE_AGENTS = {
     "PHASE6": "osx-maintainer",
 }
 
+# Routes the engine can satisfy without user judgment: a read-only PHASE0 audit
+# emitted one of these and the orchestrator knows exactly which slash command
+# + agent to dispatch to reconcile the artifacts. The engine then re-enters the
+# phase to verify. Routes requiring user judgment (intent change, missing
+# artifacts, archive decision, ambiguous findings) are NOT in this set — they
+# keep the halt-and-surface behavior so the user stays in the loop.
+AUTO_FIXABLE_ROUTES = frozenset({"osc-update-change"})
+
+# Slash command name → agent to dispatch when the engine auto-fixes the route.
+# Separate from PHASE_AGENTS because routes are slash commands, not phases;
+# the agent registered here is dedicated to in-orchestration reconciliation.
+AUTO_FIX_AGENTS = {
+    "osc-update-change": "osx-editor",
+}
+
+
+def _is_auto_fixable_route(route: str) -> bool:
+    """True when the engine can self-serve this route without user judgment.
+
+    Accepts both ``/osc-update-change`` and ``osc-update-change`` forms so the
+    state.json writer and the engine agree on membership.
+    """
+    return route.lstrip("/") in AUTO_FIXABLE_ROUTES
+
+
+def _auto_fix_agent_for(route: str) -> str:
+    """Return the agent name registered for an auto-fixable route."""
+    return AUTO_FIX_AGENTS.get(route.lstrip("/"), "")
+
+
 DEFAULT_TIMEOUT = 1800
 DEFAULT_MAX_PHASE_ITERATIONS = 10
 
@@ -76,6 +106,7 @@ class OrchestratorState:
     force: bool = False
     clean: bool = False
     from_phase: str = ""
+    to_phase: str = ""
     no_color: bool = False
     log_file: Path | None = None
     log_user_specified: bool = False
@@ -757,6 +788,134 @@ def run_agent(state: OrchestratorState, phase: str) -> bool:
     return True
 
 
+def _run_auto_fix(state: OrchestratorState, route: str) -> bool:
+    """Spawn the agent registered for an auto-fixable route and return success.
+
+    Mirrors ``run_agent`` but targets a slash command (not a phase). Used by
+    ``run_phase`` when PHASE0 emits a route the engine can self-serve — the
+    engine clears ``routes_pending``, runs this, then re-enters PHASE0 to
+    verify. Errors raised by the runner (``runner_not_found``, ``unknown_runner_kind``)
+    propagate as ``OSXError`` like ``run_agent`` does.
+
+    Dry-run returns True without spawning a subprocess so callers iterating
+    plans don't accidentally invoke the AI.
+    """
+    from source.orchestrator.runner import RunRequest
+
+    route_name = route.lstrip("/")
+    agent_name = _auto_fix_agent_for(route_name)
+    if not agent_name:
+        log_error(state, f"No auto-fix agent registered for route /{route_name}")
+        return False
+
+    if state.dry_run:
+        log(state, f"[DRY RUN] Would auto-fix /{route_name} via {agent_name}")
+        return True
+
+    log(state, f"Auto-fix invocation #{state.total_invocations} for /{route_name}")
+
+    if state.change_dir is not None:
+        project_root = state.change_dir.parent.parent.parent
+    else:
+        project_root = Path.cwd()
+
+    # Pre-check: verify the slash command file exists at the expected path
+    # before spawning a subprocess. Without this, a slash-command name
+    # mismatch (e.g. deployed `osc-update.md` but route resolves to
+    # `osc-update-change`) surfaces only as a generic "command not found"
+    # from opencode — which is what blocked `library-state-status` in
+    # production. We resolve the on-disk path the same way the deploy /
+    # validate pipeline does and surface a clear diagnostic that names
+    # the missing file and the auto-fix contract. Runs BEFORE the
+    # runner probe so a missing slash command short-circuits without
+    # requiring the binary on PATH.
+    try:
+        platform = osx_lib.detect_platform(project_root)
+        cmd_path = osx_lib._command_resolved_for_phase(
+            project_root, platform, route_name
+        )
+    except OSXError as e:
+        log_error(state, e.message)
+        return False
+    if cmd_path is None:
+        log_error(
+            state,
+            f"Auto-fix /{route_name} failed: slash command file not found. "
+            f"Expected at `{project_root}/.opencode/commands/{route_name}.md` "
+            f"(or the per-adapter equivalent). Re-run "
+            f"`openspec-extended install opencode` to deploy the canonical "
+            f"slash commands, or rename your deployed slash command to "
+            f"match the route name in `engine.AUTO_FIXABLE_ROUTES`.",
+        )
+        return False
+    log_verbose(state, f"Slash command resolved to {cmd_path}")
+
+    try:
+        runner = detect_runner(project_root)
+    except OSXError as e:
+        log_error(state, e.message)
+        return False
+
+    log_verbose(state, f"Using runner: {runner.name}")
+
+    def _capture_pid(pid: int) -> None:
+        state.child_pid = pid
+
+    request = RunRequest(
+        command=route_name,
+        agent=agent_name,
+        change_id=state.change_id,
+        title=f"OpenSpec: {state.change_id} - auto-fix /{route_name}",
+        model=state.model,
+        cwd=Path.cwd(),
+        timeout=state.timeout,
+        on_pid=_capture_pid,
+        env={"OSX_AUTONOMOUS": "1"},
+        store=state.store,
+        schema_name=state.schema_name,
+        extra_prompt="",
+    )
+
+    try:
+        try:
+            result = runner.run(request, verbose=state.verbose)
+        finally:
+            state.child_pid = None
+    except OSXError as e:
+        log_error(state, e.message)
+        return False
+
+    if state.child_pid is None:
+        state.child_pid = result.pid
+    state.child_pid = None
+
+    if state.log_file and result.log_path and result.log_path.exists():
+        with open(state.log_file, "a") as log_f:
+            log_f.write(f"> {agent_name} (auto-fix /{route_name})\n")
+            with open(result.log_path) as agent_f:
+                log_f.write(agent_f.read())
+        result.log_path.unlink(missing_ok=True)
+
+    if state.interrupted:
+        log_warning(state, "Execution interrupted by user")
+        raise SystemExit(130)
+
+    if result.timed_out:
+        log_error(
+            state,
+            f"Auto-fix /{route_name} timed out after {state.timeout // 60} minutes",
+        )
+        return False
+    if result.exit_code != 0:
+        log_error(
+            state,
+            f"Auto-fix /{route_name} failed with exit code {result.exit_code}",
+        )
+        return False
+
+    return True
+
+
 def run_phase(state: OrchestratorState, phase: str) -> bool:
     log(state, PHASE_NAMES.get(phase, phase))
     iteration = get_next_phase_iteration(state, phase)
@@ -795,6 +954,28 @@ def run_phase(state: OrchestratorState, phase: str) -> bool:
 
         routes = check_routes_pending(state)
         if routes:
+            auto_fixable = [r for r in routes if _is_auto_fixable_route(r)]
+            if auto_fixable and len(auto_fixable) == len(routes):
+                # Self-healing: engine runs the routed slash command itself,
+                # clears routes_pending, then the outer loop re-runs the
+                # phase to verify. Only entered when *every* pending route
+                # is auto-fixable — a mixed set (one auto-fix + one that
+                # needs user judgment) keeps the halt behavior so the user
+                # sees the human-judgment-required case and the auto-fix
+                # case together instead of having the engine silently
+                # swallow the part it can't decide on.
+                osx_lib.state_clear_routes(state.change_id)
+                for route in auto_fixable:
+                    label = f"/{route.lstrip('/')}"
+                    log(state, f"Auto-fixing route {label} (orchestrator-internal)")
+                    if not _run_auto_fix(state, route):
+                        log_error(
+                            state,
+                            f"Auto-fix failed for route {label}; halting phase",
+                        )
+                        return False
+                iteration += 1
+                continue
             log_warning(
                 state,
                 f"{phase} halted: routes_pending={routes}. Run the routed command(s) and re-run.",
@@ -1242,6 +1423,15 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
         log(state, "================================")
         log(state, "")
 
+        if state.to_phase and state.to_phase not in PHASES:
+            log_error(
+                state,
+                f"Unknown --to-phase: {state.to_phase!r}. Must be one of {PHASES}.",
+            )
+            raise SystemExit(2)
+
+        if state.to_phase:
+            log(state, f"Stop after phase: {state.to_phase}")
         # Preflight is split into two groups:
         #  * Always-run checks (skills, commands, git, change_dir, schema):
         #    a phase that starts with missing skills / commands / a broken
@@ -1397,6 +1587,17 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
                             raise SystemExit(0)
                         log_error(state, f"{current_phase} failed")
                         raise SystemExit(1)
+
+                    if state.to_phase and state.to_phase == current_phase:
+                        log(state, "")
+                        log(state, "================================")
+                        log_success(
+                            state,
+                            f"{current_phase} completed (to-phase reached)",
+                        )
+                        log(state, "================================")
+                        show_progress(state)
+                        raise SystemExit(0)
 
                     if current_phase != "PHASE6":
                         show_progress(state)

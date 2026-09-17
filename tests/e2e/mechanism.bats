@@ -30,6 +30,7 @@ teardown() {
     [[ "$output" == *"--force"* ]]
     [[ "$output" == *"--clean"* ]]
     [[ "$output" == *"--from-phase"* ]]
+    [[ "$output" == *"--to-phase"* ]]
     [[ "$output" == *"--list"* ]]
 }
 
@@ -60,6 +61,13 @@ teardown() {
     run_osx_orchestrate --invalid-option
     [ "$status" -ne 0 ]
     [[ "$output" == *"Unknown option"* ]] || [[ "$output" == *"invalid"* ]]
+}
+
+@test "mechanism: orchestrate --to-phase=BOGUS rejects unknown phase" {
+    setup_minimal_change "test-change"
+    run_osx_orchestrate "test-change" --to-phase=BOGUS --force
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Unknown"* ]] || [[ "$output" == *"PHASE0"* ]]
 }
 
 # ========== Bundled resource deployment ==========

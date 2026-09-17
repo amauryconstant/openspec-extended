@@ -1,0 +1,65 @@
+# Spec: self-heal-script
+
+## Purpose
+
+The smallest end-to-end orchestrator fixture that exercises PHASE0's
+self-healing loop. Used by `tests/e2e/self-heal-workflow.bats` to
+verify the engine auto-dispatches the `osc-update-change` route,
+re-runs PHASE0 to verify, and continues through PHASE1-PHASE6 without
+halting on `routes_pending`. Renders a default `Hello, World!` to
+stdout, honors a `--name NAME` flag for personalization, prints usage
+on `--help`, and exits with code 1 on invalid flags.
+
+## ADDED Requirements
+
+### Requirement: Default Greeting
+The system SHALL output `Hello, World!` to stdout when executed without any arguments.
+
+#### Scenario: No arguments
+- **WHEN** the script is run with no arguments
+- **THEN** it SHALL print `Hello, World!` to stdout
+- **AND** it SHALL exit with code 0
+
+### Requirement: Custom Name
+The system SHALL accept a `--name NAME` flag and output `Hello, {NAME}!`.
+
+#### Scenario: --name Alice
+- **WHEN** run with `--name Alice`
+- **THEN** it SHALL print `Hello, Alice!` to stdout
+- **AND** it SHALL exit with code 0
+
+### Requirement: Help
+The system SHALL accept a `--help` flag and print usage information to stdout.
+
+#### Scenario: --help
+- **WHEN** run with `--help`
+- **THEN** it SHALL print usage information to stdout
+- **AND** it SHALL exit with code 0
+
+### Requirement: Exit Codes
+The system SHALL exit with code 0 on success and code 1 on invalid arguments.
+
+#### Scenario: Invalid flag
+- **WHEN** run with an unknown or malformed flag
+- **THEN** it SHALL exit with code 1
+
+### Requirement: Script Location
+The script SHALL be located at `scripts/self-heal.sh` in the project root.
+
+#### Scenario: File exists
+- **WHEN** the project tree is inspected
+- **THEN** the file `scripts/self-heal.sh` SHALL exist
+
+### Requirement: Executable
+The script file SHALL have the executable bit set.
+
+#### Scenario: Executable bit set
+- **WHEN** `ls -l scripts/self-heal.sh` is run
+- **THEN** the permission bits SHALL include execute for the owner
+
+### Requirement: Bash Compatibility
+The script SHALL be compatible with Bash 4.0 or later.
+
+#### Scenario: Runs under Bash 4.0+
+- **WHEN** the script is invoked with `bash` 4.0 or later
+- **THEN** it SHALL execute without syntax errors

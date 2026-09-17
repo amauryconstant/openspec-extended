@@ -21,7 +21,7 @@ Operational reference for the 7-phase loop driven by `openspec-extended orchestr
 **Steps** — the 7-phase autonomous loop, in order:
 
 ```
-PHASE0 ARTIFACT_REVIEW → osx-analyzer   → osx-review-artifacts (audit + routing); /osc-update-change for fixes (single- or multi-artifact)
+PHASE0 ARTIFACT_REVIEW → osx-analyzer   → osx-review-artifacts (audit + routing); engine auto-dispatches osc-update-change (via osx-editor) for fixes; halts only on non-auto-fixable routes
 PHASE1 IMPLEMENTATION  → osx-builder    → osc-apply-change, osx-review-test-compliance
 PHASE2 REVIEW          → osx-reviewer   → osc-verify-change (writes verification-report.md, commits)
 PHASE3 MAINTAIN_DOCS   → osx-maintainer → osx-maintain-docs
@@ -30,7 +30,7 @@ PHASE5 SELF_REFLECTION → osx-reviewer   → (writes reflections.md, commits)
 PHASE6 ARCHIVE         → osx-maintainer → osc-archive-change / osc-bulk-archive-change
 ```
 
-PHASE0 is read-only — it dispatches `osx-analyzer` (`edit: deny`) and emits a routing report. PHASE2 and PHASE5 dispatch `osx-reviewer` (`edit: allow`, `hidden: true`) and write `verification-report.md` / `reflections.md` plus a commit.
+PHASE0 dispatches `osx-analyzer` (`edit: deny`) for the read-only audit; when the audit emits an auto-fixable route (`/osc-update-change`), the engine spawns `osx-editor` (`edit: allow`) which applies the fix, then the engine re-enters PHASE0 to verify. Non-auto-fixable routes (`/osc-continue-change`, `/osc-new-change`, `/osc-archive-change`, `/osc-explore`) still halt and surface to the user. PHASE2 and PHASE5 dispatch `osx-reviewer` (`edit: allow`, `hidden: true`) and write `verification-report.md` / `reflections.md` plus a commit.
 
 **Tool**: every state mutation goes through `openspec-extended osx <domain> <action>`. Library lives at `source/lib/osx.py`.
 
@@ -102,7 +102,7 @@ For the full action set of layer 3, see §4.
 
 | Phase | Name in `state.json` | Agent | Key skills | Purpose |
 |-------|----------------------|-------|------------|---------|
-| PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts` + `/osc-update-change` (single- or multi-artifact) | Schema-driven audit; routing report (read-only)[^a3] |
+| PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts` (audit) + `osc-update-change` (engine auto-fixes in-orchestration via the `osx-editor` agent; ad-hoc `/osc-update-change` otherwise) | Schema-driven audit; **self-healing** for `osc-update-change` routes, halt-and-surface for intent-level or missing-artifact routes[^a3] |
 | PHASE1 | `IMPLEMENTATION` | `osx-builder` | `osc-apply-change`, `osx-review-test-compliance` | Implement `tasks.md`; milestone commits |
 | PHASE2 | `REVIEW` | `osx-reviewer` | `osc-verify-change`; Case A → `/osc-update-change` (default; covers single- and multi-artifact defects) | Verify implementation; writes `verification-report.md` |
 | PHASE3 | `MAINTAIN_DOCS` | `osx-maintainer` | `osx-maintain-docs` | Update `AGENTS.md` and `CLAUDE.md` |
@@ -194,10 +194,10 @@ All live in `openspec/changes/<change>/` (or `openspec/changes/archive/YYYY-MM-D
 | `set-phase` | `<change> <PHASEN> [--iteration N]` | Force-set phase (use `orchestrate --from-phase` instead when possible) |
 | `transition` | `<change> --target <PHASEN> --reason <reason> [--details "..."]` | Set a pending transition; orchestrator routes to `<target>` next |
 | `clear-transition` | `<change>` | Clear a pending transition |
-| `set-routes` | `<change> --routes "<comma-separated slash commands>"` | PHASE0 only: queue slash commands the user should run (call only when Critical or Warning findings exist; Suggestion-only findings advance without routing) |
+| `set-routes` | `<change> --routes "<comma-separated slash commands>"` | PHASE0 only: queue slash commands the user should run. **Only call for non-auto-fixable routes** (`/osc-continue-change`, `/osc-new-change`, `/osc-archive-change`, `/osc-explore`). Auto-fixable routes (`/osc-update-change`) are handled by the engine itself — do not queue them. Suggestion-only findings advance without routing. |
 | `clear-routes` | `<change>` | Clear pending routes |
 
-**Transition reasons** (canonical): `implementation_incorrect` (code wrong, don't modify artifacts), `artifacts_modified` (specs/design updated via `/osc-update-change`, fallback `/osc-update-change` for isolated defects, go to PHASE1), `retry_requested` (same phase, different approach).
+**Transition reasons** (canonical): `implementation_incorrect` (code wrong, don't modify artifacts), `artifacts_modified` (specs/design updated — via the engine's auto-fix dispatch in PHASE0, or via the user running `/osc-update-change` in PHASE1/2 — go to PHASE1), `retry_requested` (same phase, different approach).
 
 ### `phase` — phase sequence
 

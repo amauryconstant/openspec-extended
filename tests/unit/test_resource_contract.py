@@ -91,6 +91,7 @@ EXPECTED_OPENCODE_RESOURCE_IDS: dict[str, list[str]] = {
     "agents": [
         "osx-analyzer",
         "osx-builder",
+        "osx-editor",
         "osx-maintainer",
         "osx-reviewer",
     ],

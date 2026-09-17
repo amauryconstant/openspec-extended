@@ -38,11 +38,11 @@ You are dispatched for **PHASE0 (ARTIFACT_REVIEW)**. The phase command (`osx-pha
 | Skill | Role |
 |---|---|
 | `osx-review-artifacts` (primary) | Schema-driven audit: per-artifact compliance, cross-artifact consistency, implementation-readiness. Emits a routing report — never edits. |
-| `/osc-update-change` (route only) | Reconciles single- and multi-artifact defects against the dependency graph. PHASE0 never invokes it; it routes the user. |
-| `/osc-continue-change` (route only) | Creates missing artifacts the change references but doesn't yet contain. |
-| `/osc-archive-change` (route only) | Used when `.openspec.yaml` declares `retire_capabilities: true` and planning is complete — short-circuits the workflow. |
-| `/osc-new-change` (route only) | Used when the audit detects an intent-level change (per `osc-update-change`'s "Update vs Start Fresh" heuristic). |
-| `/osc-explore` (optional thinking partner) | For ambiguous findings whose interpretation requires reasoning across the codebase before a route decision. |
+| `/osc-update-change` (auto-fix in PHASE0 context; halt-and-route otherwise) | Reconciles single- and multi-artifact defects against the dependency graph. The engine spawns `osx-editor` to dispatch this route inside the orchestrated loop and re-enters PHASE0 to verify; for ad-hoc `/osx-review <change>` invocations, it surfaces to the user. |
+| `/osc-continue-change` (route only) | Creates missing artifacts the change references but doesn't yet contain. Halt-and-surface in both modes. |
+| `/osc-archive-change` (route only) | Used when `.openspec.yaml` declares `retire_capabilities: true` and planning is complete — short-circuits the workflow. Halt-and-surface in both modes. |
+| `/osc-new-change` (route only) | Used when the audit detects an intent-level change (per `osc-update-change`'s "Update vs Start Fresh" heuristic). Halt-and-surface in both modes. |
+| `/osc-explore` (optional thinking partner) | For ambiguous findings whose interpretation requires reasoning across the codebase before a route decision. Halt-and-surface in both modes. |
 
 Slash-command equivalents: `/osx-review <change>` (ad-hoc audit) wraps the same primary skill body.
 

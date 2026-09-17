@@ -51,6 +51,14 @@ PHASE0 → PHASE1 → PHASE2 → PHASE3 → PHASE4 → PHASE5 → PHASE6
                 ↖ (any phase can loop back on transition reason)
 ```
 
+The CLI exposes `--from-phase` (start at a specific phase) and
+`--to-phase` (stop after a specific phase). `--to-phase=PHASE0` is
+used by the PHASE0-only e2e sentinel (`self-heal-workflow.bats`) to
+exercise the auto-fix dispatch loop without paying the full 7-phase
+runtime. Unknown `--to-phase` values are rejected at startup with
+exit code 2 and a message naming the valid phases (`PHASE0..PHASE6`).
+```
+
 Each phase may iterate up to `DEFAULT_MAX_PHASE_ITERATIONS` times before the orchestrator halts and surfaces the failure.
 
 ## Conventions

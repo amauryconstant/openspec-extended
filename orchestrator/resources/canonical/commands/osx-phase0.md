@@ -33,7 +33,11 @@ openspec-extended osx iterations append "$1" --phase ARTIFACT_REVIEW --iteration
   --extra '{"artifacts_audited":["<id>"],"issues_found":{},"routed_to":"..."}'
 # Phase end
 openspec-extended osx state complete "$1"   # clean review OR Suggestion-only (advisory, see §5 routing rule)
-openspec-extended osx state set-routes "$1" --routes "/osc-update-change"   # routes pending (Critical/Warning findings only)
+# Routes that the engine auto-handles (auto-fixable: e.g. /osc-update-change) are
+# NOT written to routes_pending — the engine clears and self-dispatches them.
+# Routes needing user judgment (/osc-continue-change, /osc-new-change,
+# /osc-archive-change, /osc-explore) keep the set-routes halt behavior:
+openspec-extended osx state set-routes "$1" --routes "/osc-continue-change,/osc-new-change"   # halt-and-surface only
 openspec-extended osx complete set "$1" BLOCKED --blocker-reason "..."   # blocker
 ```
 
@@ -58,14 +62,14 @@ openspec-extended osx complete set "$1" BLOCKED --blocker-reason "..."   # block
 
 5. **Routing rule.** Apply the **severity threshold** — only Critical and Warning findings trigger a route; Suggestion findings are advisory and do not block. Produce a routing recommendation:
 
-   | Finding pattern | Recommended route |
-   |---|---|
-   | Any Critical or Warning finding (regardless of breadth) | `/osc-update-change <name>` — single- and multi-artifact fixes both use this command; the skill reconciles any combination of findings against the dependency graph |
-   | Missing artifacts | `/osc-continue-change <name>` |
-   | `retire_capabilities: true` in `.openspec.yaml` AND planning is complete | `/osc-archive-change <name>` (skip PHASE1–PHASE5; orchestrator stamps `state.retire_capabilities = true` so PHASE6 runs directly) |
-   | All clean (no Critical/Warning/Suggestion findings; ad-hoc invocation) | `/osc-apply-change <name>` — orchestrated loop hands off to PHASE1 via `osx state complete` automatically; `/osc-apply-change` is the ad-hoc equivalent users run between dispatched iterations |
-   | Intent-level change detected (per `osc-update-change` "Update vs. Start Fresh" heuristic) | `/osc-new-change <fresh-name>` |
-   | All clean **OR** Suggestion-only findings | mark phase complete and hand off to PHASE1 (Suggestions are advisory; they are logged in `decision-log.json` / `iterations.json` and surfaced in the routing report, but do not block) |
+   | Finding pattern | Recommended route (in-orchestration) | Halt-and-surface (any mode) |
+   |---|---|---|
+   | Any Critical or Warning finding on existing artifacts (regardless of breadth) | **auto-fix** — engine clears routes_pending, invokes `osc-update-change` itself, re-enters PHASE0 to verify | `/osc-update-change <name>` (ad-hoc only) |
+   | Missing artifacts | `/osc-continue-change <name>` | `/osc-continue-change <name>` |
+   | `retire_capabilities: true` in `.openspec.yaml` AND planning is complete | `/osc-archive-change <name>` (orchestrator stamps `state.retire_capabilities = true` so PHASE6 runs directly) | `/osc-archive-change <name>` |
+   | All clean (no Critical/Warning/Suggestion findings; ad-hoc invocation) | advance to PHASE1 automatically via `osx state complete` | `/osc-apply-change <name>` |
+   | Intent-level change detected (per `osc-update-change` "Update vs. Start Fresh" heuristic) | `/osc-new-change <fresh-name>` | `/osc-new-change <fresh-name>` |
+   | All clean **OR** Suggestion-only findings | mark phase complete and hand off to PHASE1 (Suggestions are advisory; they are logged in `decision-log.json` / `iterations.json` and surfaced in the routing report, but do not block) | — |
 
    **Do not fix in this phase.** Surface the routing; the user (or a follow-up slash command) performs the fixes.
 
@@ -81,10 +85,10 @@ Routing report with the single best editor for the aggregate finding set, plus t
 
 ## Guardrails
 
-- **Read-only.** Editor actions belong to `/osc-update-change` (covers single- and multi-artifact fixes; PHASE0 routes all corrective edits through this command). Dispatched via `osx-analyzer` (`edit: deny`).
+- **Read-only within PHASE0 itself.** The dispatched `osx-analyzer` agent stays `edit: deny`. Editor actions for in-orchestration routes are auto-handled by the engine (spawns the `osx-editor` agent + the `osc-update-change` slash command); out-of-orchestration routes still surface to the user.
 - **Max 10 review iterations** (`--max-phase-iterations`).
 - **Single source of artifact names**: `openspec status --change <name> --json` and `openspec instructions <id> --change <name> --json`. No hardcoded `proposal.md` / `specs/` / `design.md` / `tasks.md`.
 - **Carry `--store <id>`** when the change is store-backed.
 - **Early exit** if the first review returns clean.
-- **State updates**: `osx state complete "$1"` on clean review **or Suggestion-only findings** (advisory; phase proceeds to PHASE1); `osx state set-routes "$1" --routes "/osc-update-change"` when at least one Critical or Warning finding is present; `osx complete set "$1" BLOCKED --blocker-reason "..."` on Critical blockers. The engine reads `routes_pending` from `state.json` after the phase ends — if non-empty (and `phase_complete` is false), the orchestrator exits 0 with "Halted for routed commands". After the user runs the routed commands, the next `orchestrate` run re-enters PHASE0 to verify the fix.
-- **Never commits** (this phase never edits); the user invokes `osx-commit` after running the routed editor. Capture the commit hash in the decision-log entry when `artifacts_modified` is later recorded.
+- **State updates**: `osx state complete "$1"` on clean review **or Suggestion-only findings** (advisory; phase proceeds to PHASE1); `osx state set-routes "$1" --routes "<non-auto-fixable routes>"` when only non-auto-fixable routes are pending (e.g. `/osc-continue-change`, `/osc-new-change`); `osx complete set "$1" BLOCKED --blocker-reason "..."` on Critical blockers. The engine reads `routes_pending` from `state.json` after the phase ends — if non-empty AND auto-fixable, the engine clears routes_pending and dispatches the fix itself, looping until clean or max-iterations; otherwise the orchestrator exits 0 with "Halted for routed commands". After the user runs the routed commands (ad-hoc path), the next `orchestrate` run re-enters PHASE0 to verify the fix.
+- **Never commits** (this phase never edits directly); the auto-fix dispatch is owned by the engine, which spawns the `osx-editor` agent that invokes `osx-commit` after applying fixes. Capture the commit hash in the decision-log entry when `artifacts_modified` is later recorded.
