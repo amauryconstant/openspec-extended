@@ -33,7 +33,7 @@ openspec-extended osx ctx get "$1"
 # Decision log
 openspec-extended osx log append "$1" --phase ARCHIVE --iteration N \
   --summary "..." --commit-hash "<hash or null>" --next-steps "..." \
-  --extra '{"archived_path":"openspec/changes/archive/<dir>/","retire_capabilities":false}'
+  --extra '{"archive_path":"openspec/changes/archive/<dir>/","retire_capabilities":false}'
 openspec-extended osx iterations append "$1" --phase ARCHIVE --iteration N \
   --commit-hash "<hash or null>" --notes "..."
 # Archive command

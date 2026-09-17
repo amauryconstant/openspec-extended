@@ -69,6 +69,12 @@ Each phase uses `--extra` to record phase-specific metadata. Common keys:
 | PHASE5 | `reflections_path`, `total_phases`, `total_iterations` |
 | PHASE6 | `archive_path` |
 
+> **Key naming is authoritative**: the phase-command bodies
+> (`commands/osx-phaseN.md`), this table, and `tests/e2e/full-workflow.bats`
+> read the same key. If you rename a key here, update the matching
+> `osx-phaseN.md` body in the same commit, or the AI will populate the
+> old key and the E2E suite will fail to read it back.
+
 ## See also
 
 - `references/shell-argument-safety.md` — backticks in `--summary`/`--next-steps` corrupt the log.

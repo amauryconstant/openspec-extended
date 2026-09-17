@@ -181,6 +181,48 @@ class TestPhaseBodyWrites:
             f"but engine.PHASE_AGENTS[{phase}] = {expected!r}"
         )
 
+
+@pytest.mark.unit
+class TestPhase6DecisionLogKeys:
+    """PHASE6's ``--extra`` keys must match the decision-log schema.
+
+    The reference doc
+    (``orchestrator/resources/canonical/skills/references/osx-decision-logging.md``)
+    and the E2E suite (``tests/e2e/full-workflow.bats``) both read
+    ``archive_path`` (not ``archived_path``). The AI follows the
+    ``osx-phase6.md`` body verbatim, so drift between the body and the
+    reference silently strands data on the wrong key. Locked here.
+    """
+
+    PHASE6_BODY = OPENCODE_COMMANDS / "osx-phase6.md"
+    DECISION_LOG_DOC = (
+        OPENCODE_COMMANDS.parent / "skills" / "references" / "osx-decision-logging.md"
+    )
+
+    def test_phase6_extra_uses_archive_path(self) -> None:
+        text = _read(self.PHASE6_BODY)
+        assert '"archive_path"' in text, (
+            "osx-phase6.md must populate the `archive_path` key in its "
+            "--extra JSON; the decision-log reference and the E2E "
+            "suite both read this key."
+        )
+
+    def test_phase6_does_not_use_archived_path(self) -> None:
+        text = _read(self.PHASE6_BODY)
+        assert '"archived_path"' not in text, (
+            "osx-phase6.md must not populate the legacy `archived_path` "
+            "key; rename to `archive_path` to match the decision-log "
+            "reference and the E2E suite."
+        )
+
+    def test_decision_log_doc_documents_archive_path(self) -> None:
+        text = _read(self.DECISION_LOG_DOC)
+        assert "archive_path" in text, (
+            "osx-decision-logging.md must list `archive_path` as a "
+            "PHASE6 extra key."
+        )
+
+
 @pytest.mark.unit
 class TestOrchestratorAgentsAreHiddenFromPicker:
     """Orchestrator-dispatched agents must be invisible to the user-driven picker.
