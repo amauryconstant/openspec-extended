@@ -25,8 +25,8 @@ detect_bump_type() {
     fi
 
     local added removed
-    added=$(grep -cE '^\+(?!\+\+)' <<< "$diff_text" || true)
-    removed=$(grep -cE '^-(?!--)' <<< "$diff_text" || true)
+    added=$(grep -cE '^\+[^+]' <<< "$diff_text" || true)
+    removed=$(grep -cE '^-[^-]' <<< "$diff_text" || true)
 
     if (( removed > added * 2 )); then
         printf 'major\n'; return 0
