@@ -5,6 +5,7 @@ license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
 metadata:
+  author: openspec-extended
   audience: orchestrator-dispatched agents (PHASE0..PHASE6) and ad-hoc troubleshooters
   workflow: orchestration — wraps the openspec-extended autonomous loop
 ---
@@ -16,6 +17,8 @@ Operational reference for the 7-phase loop driven by `openspec-extended orchestr
 ---
 
 ## TL;DR
+
+**Steps** — the 7-phase autonomous loop, in order:
 
 ```
 PHASE0 ARTIFACT_REVIEW → osx-analyzer   → osx-review-artifacts (audit + routing); /osc-update-change for fixes (single- or multi-artifact)
