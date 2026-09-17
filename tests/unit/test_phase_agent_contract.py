@@ -181,14 +181,18 @@ class TestPhaseBodyWrites:
             f"but engine.PHASE_AGENTS[{phase}] = {expected!r}"
         )
 
-
 @pytest.mark.unit
-class TestAgentsAreSubagent:
-    """Orchestrator-dispatched agents must declare ``mode: subagent``.
+class TestOrchestratorAgentsAreHiddenFromPicker:
+    """Orchestrator-dispatched agents must be invisible to the user-driven picker.
 
-    ``mode: all`` exposes them in the user-driven picker; orchestrator
-    dispatch picks them by name so they should be invisible to users.
-    See ``orchestrator/orchestrator/resources/canonical/agents/AGENTS.md`` §Conventions.
+    The runtime honors ``hidden: true`` as the picker-exclusion field.
+    Earlier versions declared ``mode: subagent`` for the same intent, but
+    newer runtimes refuse subagent dispatch via ``opencode run --agent``
+    and silently fall back to the default primary agent — which breaks
+    the per-phase ``permission:`` block (e.g. PHASE0's read-only
+    ``edit: deny``). The agents must remain reachable via ``--agent``,
+    so the picker-hiding invariant is now carried by ``hidden: true``
+    alone. See ``orchestrator/resources/canonical/agents/AGENTS.md``.
     """
 
     ORCHESTRATOR_AGENTS = [
@@ -199,15 +203,36 @@ class TestAgentsAreSubagent:
     ]
 
     @pytest.mark.parametrize("filename", ORCHESTRATOR_AGENTS)
-    def test_mode_is_subagent(self, filename: str):
+    def test_hidden_from_picker(self, filename: str):
         fm = _parse_frontmatter(OPENCODE_AGENTS / filename)
-        assert fm.get("mode") == "subagent", (
-            f"{filename} must declare `mode: subagent` (orchestrator-dispatched); "
-            f"got {fm.get('mode')!r}"
+        assert fm.get("hidden") == "true", (
+            f"{filename} must declare `hidden: true` (orchestrator-dispatched; "
+            f"invisible to the user-driven picker); got "
+            f"`hidden: {fm.get('hidden')!r}`"
+        )
+
+    @pytest.mark.parametrize("filename", ORCHESTRATOR_AGENTS)
+    def test_mode_not_subagent(self, filename: str):
+        """Forward-looking lock: orchestrator agents must NOT declare ``mode: subagent``.
+
+        ``mode: subagent`` makes the agent unreachable via the
+        orchestrator's ``--agent`` dispatch flag (the runtime falls back
+        to the default agent, dropping the per-phase permission block).
+        Re-add only if/when the dispatch path is rewritten to go
+        through a primary agent's Task tool.
+        """
+        fm = _parse_frontmatter(OPENCODE_AGENTS / filename)
+        assert fm.get("mode") != "subagent", (
+            f"{filename} must not declare `mode: subagent`; it is "
+            f"dispatched via `opencode run --agent` and subagents are "
+            f"not reachable through that flag (runtime falls back to "
+            f"the default agent, dropping the per-phase permission "
+            f"block). Use `hidden: true` for picker invisibility."
         )
 
     def test_orchestrator_agents_md_documents_convention(self):
         text = _read(OPENCODE_AGENTS / "AGENTS.md")
-        assert "subagent" in text.lower(), (
-            "agents/AGENTS.md must document the `mode: subagent` convention"
+        assert "hidden: true" in text, (
+            "agents/AGENTS.md must document `hidden: true` as the "
+            "picker-hiding mechanism"
         )

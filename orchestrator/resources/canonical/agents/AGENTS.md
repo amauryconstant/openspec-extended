@@ -11,14 +11,20 @@ project repo).
 
 ## Conventions
 
-- **`mode: subagent`** — every agent file carries this frontmatter
-  field. The orchestrator dispatches these by name (e.g.
-  `osx-analyzer`, `osx-builder`); the `subagent` mode hides them
-  from the user-driven picker so the only way the user invokes them
-  is through the orchestrator's `RunRequest` flow.
-- **`hidden: true`** — paired with `mode: subagent`, keeps the agent
-  off the discovery surface entirely. Sub-agents also omit a
-  `description` lede that would otherwise invite manual invocation.
+- **`hidden: true`** — every agent file carries this frontmatter
+  field. It keeps the agent off the user-driven picker so the only
+  way the agent is invoked is through the orchestrator's
+  `RunRequest` flow. Sub-agents also omit a `description` lede that
+  would otherwise invite manual invocation.
+- **`mode:` left unset** — orchestrator-dispatched agents must NOT
+  declare `mode: subagent`. The orchestrator invokes them through
+  `opencode run --agent <name>` (see
+  `orchestrator/source/orchestrator/runner.py`); the runtime rejects
+  subagent dispatch via that flag and silently falls back to the
+  default primary agent, which drops the per-phase `permission:`
+  block (PHASE0's read-only `edit: deny` would be lost). `mode:`
+  matters only when a primary agent wants to spawn the target via
+  the Task tool, which the orchestrator does not do today.
 - Permissions follow a per-agent allowlist:
   - `osx-analyzer`: read-only across the board (`edit: deny`);
     never edits files; emits routing reports.

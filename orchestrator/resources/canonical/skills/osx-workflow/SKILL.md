@@ -30,7 +30,7 @@ PHASE5 SELF_REFLECTION → osx-reviewer   → (writes reflections.md, commits)
 PHASE6 ARCHIVE         → osx-maintainer → osc-archive-change / osc-bulk-archive-change
 ```
 
-PHASE0 is read-only — it dispatches `osx-analyzer` (`edit: deny`) and emits a routing report. PHASE2 and PHASE5 dispatch `osx-reviewer` (`mode: subagent`, `edit: allow`) and write `verification-report.md` / `reflections.md` plus a commit.
+PHASE0 is read-only — it dispatches `osx-analyzer` (`edit: deny`) and emits a routing report. PHASE2 and PHASE5 dispatch `osx-reviewer` (`edit: allow`, `hidden: true`) and write `verification-report.md` / `reflections.md` plus a commit.
 
 **Tool**: every state mutation goes through `openspec-extended osx <domain> <action>`. Library lives at `source/lib/osx.py`.
 

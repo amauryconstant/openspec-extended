@@ -60,8 +60,7 @@ other adapters — they are an explicit, documented divergence:
 | Field | Where | Why we have it |
 | --- | --- | --- |
 | `agent:` | phase commands | OpenCode dispatches each phase command into a specific subagent (e.g. `osx-builder` for PHASE1). Upstream has no agents; humans pick skills by hand. |
-| `mode: subagent` | agents | Hides the agent from the user-driven picker; only the orchestrator's `RunRequest` flow invokes it. |
-| `hidden: true` | agents | Pairs with `mode: subagent`; keeps the agent off the discovery surface. |
+| `hidden: true` | agents | Keeps the agent off the user-driven picker so the only invocation path is the orchestrator's `RunRequest` flow. The orchestrator dispatches via `opencode run --agent <name>`, which newer runtimes refuse to honor for `mode: subagent` (they silently fall back to the default primary agent, dropping the per-phase `permission:` block). Orchestrator-dispatched agents must therefore declare `hidden: true` and **not** declare `mode: subagent`. |
 | `temperature:` | agents | Low (0.1–0.4) for deterministic audit behaviour. |
 | `permission:` | agents | Per-agent tool allowlist (read-only for `osx-analyzer`; full for `osx-builder`/`osx-maintainer`/`osx-reviewer`). |
 | `disable-model-invocation: true` | `osx-changelog`, `osx-maintain-docs` | These are user-invoked slash commands; we don't want the orchestrator picking them up. OpenCode-specific gate. |

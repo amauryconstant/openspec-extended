@@ -5,7 +5,6 @@ license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
 hidden: true
-mode: subagent
 temperature: 0.4
 permission:
   read: allow
