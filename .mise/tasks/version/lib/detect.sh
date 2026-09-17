@@ -12,7 +12,9 @@ detect_bump_type() {
         return 0
     fi
 
-    local lower="${diff_text,,}"
+    local added_lines
+    added_lines=$(grep -E '^\+[^+]' <<< "$diff_text" || true)
+    local lower="${added_lines,,}"
 
     if [[ "$lower" == *"break:"* || "$lower" == *"breaking"* || "$lower" == *"major:"* ]]; then
         printf 'major\n'; return 0
