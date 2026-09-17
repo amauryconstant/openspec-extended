@@ -2,15 +2,15 @@
 version = "0.2.2"
 
 [resources.skills.osx-review-artifacts]
-version = "0.3.5"
+version = "0.4.0"
 references = ["schema-agnostic-contract.md", "store-selection.md"]
 
 [resources.skills.osx-review-test-compliance]
-version = "0.2.7"
+version = "0.3.0"
 references = ["scoring-rubric.md"]
 
 [resources.commands.osx-review]
-version = "0.2.3"
+version = "0.3.0"
 
 [resources.commands.osx-verify-tests]
-version = "0.1.5"
+version = "0.2.0"

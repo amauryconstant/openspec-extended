@@ -5,9 +5,12 @@ license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
 metadata:
+  author: openspec-extended
   audience: ad-hoc pre-implementation /osx-review invocation
   workflow: pre-implementation — between artifact creation and apply
 ---
+
+# osx-review
 
 Schema-driven, **read-only** audit of planning artifacts in a change. Emits a routing report; never edits files. Editors (`osc-update-change` or `/osc-update-change`) are invoked separately, typically by the user.
 
@@ -15,31 +18,39 @@ Schema-driven, **read-only** audit of planning artifacts in a change. Emits a ro
 
 **Input**: Optionally specify `[<change-name>]` after `/osx-review` (e.g., `/osx-review add-auth`, `/osx-review`). `$1` is the change name. If the change name is omitted, check if it can be inferred from conversation context; auto-select if only one active change exists; otherwise run `openspec list --json` and prompt via `{{ASK_TOOL}}`. When the change is store-backed, carry `--store <id>` on every `openspec …` command.
 
+**Invocation matrix**:
+
 | Invocation | Effect |
 | --- | --- |
 | `/osx-review <change-name>` | Audit the entire change |
 | `/osx-review` | Infer from context or prompt |
 
-## Steps
+---
 
-1. **Select the change**
+**Steps**
 
-   If a name is provided (as `$1`), use it. Otherwise:
+1. **Select the change** — If a name is provided (as `$1`), use it. Otherwise:
    - Infer from conversation context if the user mentioned a change
    - Auto-select if only one active change exists
    - If ambiguous, run `openspec list --json` and ask the user to select one
 
    Always announce: "Using change: <change-name>" and how to override (e.g., `/osx-review <other>`).
 
-2. **Load the skill body** — read `{{PLATFORM_DIR}}/skills/osx-review-artifacts/SKILL.md` and follow `## Workflow`. This command wraps that skill; do not duplicate rules here.
+2. **Load the skill body** — read `{{PLATFORM_DIR}}/skills/osx-review-artifacts/SKILL.md` and follow `**Steps**`. This command wraps that skill; do not duplicate rules here.
+
 3. **Load change context** when needed via `openspec-extended osx ctx get <change>` (per the skill's protocol).
+
 4. **Persist the routing report** once the skill completes its work.
 
-## Guardrails
+---
+
+**Guardrails**
 
 - **Read-only.** Never edit planning artifacts. The routed editor does the writing.
 - **No code edits.** Findings that imply code changes route to `/osc-apply-change`.
 - **No hardcoded artifact names.** Read ids and paths from `openspec status` and `openspec instructions` JSON.
+
+---
 
 ## Tips
 
