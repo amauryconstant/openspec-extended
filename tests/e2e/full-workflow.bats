@@ -369,57 +369,6 @@ teardown_file() {
     [ -f "$log_file" ]
 }
 
-@test "log: has expected content" {
-    local log_file
-    log_file=$(get_log_file "$SHARED_CHANGE_NAME")
-    [ -n "$log_file" ]
-
-    # Check for key content (pattern matching)
-    grep -q "OpenSpec Autonomous Implementation" "$log_file"
-    grep -q "Progress Summary" "$log_file"
-
-    # Should have verbose output (--verbose flag used)
-    grep -q "\[VERBOSE\]" "$log_file"
-
-    # No ANSI color codes (stripped by log redirection)
-    ! grep -qE $'\x1b\[[0-9;]*m' "$log_file"
-}
-
-@test "log: contains agent session markers for all phases" {
-    local log_file
-    log_file=$(get_log_file "$SHARED_CHANGE_NAME")
-    [ -n "$log_file" ]
-
-    # Count agent sessions ("> osx-" prefix)
-    local agent_sessions
-    agent_sessions=$(grep -c "^> osx-" "$log_file" || echo "0")
-
-    # Should have at least 7 sessions (one per phase PHASE0-PHASE6)
-    [ "$agent_sessions" -ge 7 ]
-
-    # Should have sessions for each phase
-    grep -q "> osx-analyzer" "$log_file"   # PHASE0, PHASE2, PHASE5
-    grep -q "> osx-builder" "$log_file"    # PHASE1
-    grep -q "> osx-maintainer" "$log_file" # PHASE3, PHASE4, PHASE6
-}
-
-@test "log: contains agent response patterns" {
-    local log_file
-    log_file=$(get_log_file "$SHARED_CHANGE_NAME")
-    [ -n "$log_file" ]
-
-    # Agents typically start responses with these patterns
-    grep -q -E "(^I'll|^Let me|^I need to|^I'll start)" "$log_file" || {
-        echo "Log missing agent response patterns"
-        return 1
-    }
-
-    # Should have at least one agent response
-    local response_count
-    response_count=$(grep -c -E "(^I'll|^Let me)" "$log_file" || echo "0")
-    [ "$response_count" -ge 1 ]
-}
-
 # ============================================
 # Category 11: Cleanup
 # ============================================

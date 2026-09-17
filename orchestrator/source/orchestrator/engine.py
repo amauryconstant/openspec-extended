@@ -136,9 +136,28 @@ def parse_change_spec(spec: str) -> tuple:
     return None, spec
 
 
+def _append_log_to_file(state: OrchestratorState, output: str) -> None:
+    """Mirror ``log*`` output into ``state.log_file``, ANSI-stripped.
+
+    Matches the runner's ANSI-strip behaviour at ``runner.py:454-456`` so
+    the on-disk log stays plain-text greppable. Best-effort: a failed
+    write emits a single ``log_warning`` and never raises — the
+    orchestrator must keep running even if its own log file is wedged.
+    """
+    if not state.log_file:
+        return
+    try:
+        with open(state.log_file, "a", encoding="utf-8") as log_f:
+            log_f.write(re.sub(r"\x1b\[[0-9;]*m", "", output) + "\n")
+    except OSError as exc:
+        # Avoid recursion: print directly to stderr with no file mirror.
+        print(f"[WARN] Failed to append to log file: {exc}", file=sys.stderr)
+
+
 def log(state: OrchestratorState, msg: str) -> None:
     timestamp = get_timestamp()
     output = f"{timestamp} [INFO] {msg}"
+    _append_log_to_file(state, output)
     if state.no_color:
         print(output)
     else:
@@ -148,6 +167,7 @@ def log(state: OrchestratorState, msg: str) -> None:
 def log_success(state: OrchestratorState, msg: str) -> None:
     timestamp = get_timestamp()
     output = f"{timestamp} [OK] {msg}"
+    _append_log_to_file(state, output)
     if state.no_color:
         print(output)
     else:
@@ -157,6 +177,7 @@ def log_success(state: OrchestratorState, msg: str) -> None:
 def log_warning(state: OrchestratorState, msg: str) -> None:
     timestamp = get_timestamp()
     output = f"{timestamp} [WARN] {msg}"
+    _append_log_to_file(state, output)
     if state.no_color:
         print(output, file=sys.stderr)
     else:
@@ -166,6 +187,7 @@ def log_warning(state: OrchestratorState, msg: str) -> None:
 def log_error(state: OrchestratorState, msg: str) -> None:
     timestamp = get_timestamp()
     output = f"{timestamp} [ERROR] {msg}"
+    _append_log_to_file(state, output)
     if state.no_color:
         print(output, file=sys.stderr)
     else:
@@ -788,52 +810,53 @@ def run_phase(state: OrchestratorState, phase: str) -> bool:
 
 
 def show_progress(state: OrchestratorState) -> None:
-    print("================================")
-    print("Progress Summary")
-    print("================================")
-    print(f"Change ID: {state.change_id}")
+    log(state, "================================")
+    log(state, "Progress Summary")
+    log(state, "================================")
+    log(state, f"Change ID: {state.change_id}")
 
     if state.change_dir:
-        print(f"Change directory: {state.change_dir}")
+        log(state, f"Change directory: {state.change_dir}")
 
     current_phase = get_current_phase(state)
     if current_phase:
-        print(
-            f"Current phase: {current_phase} - {PHASE_NAMES.get(current_phase, 'UNKNOWN')}"
+        log(
+            state,
+            f"Current phase: {current_phase} - {PHASE_NAMES.get(current_phase, 'UNKNOWN')}",
         )
         iteration = get_phase_iteration(state)
-        print(f"Phase iteration: {iteration}")
+        log(state, f"Phase iteration: {iteration}")
     else:
-        print("Current phase: Not started")
+        log(state, "Current phase: Not started")
 
-    print()
-    print(f"Total invocations: {state.total_invocations}")
+    log(state, "")
+    log(state, f"Total invocations: {state.total_invocations}")
 
     elapsed = 0
     if state.start_time > 0:
         elapsed = int(datetime.now(UTC).timestamp()) - state.start_time
     minutes = elapsed // 60
     seconds = elapsed % 60
-    print(f"Elapsed time: {minutes}m {seconds}s")
+    log(state, f"Elapsed time: {minutes}m {seconds}s")
 
     if state.log_file:
-        print(f"Log file: {state.log_file}")
+        log(state, f"Log file: {state.log_file}")
 
     if state.change_dir:
         state_file = state.change_dir / "state.json"
         if state_file.exists():
-            print()
-            print("Iterations by phase:")
+            log(state, "")
+            log(state, "Iterations by phase:")
             try:
                 data = json.loads(state_file.read_text())
                 phase_iterations = data.get("phase_iterations", {})
                 for p in PHASES:
                     count = phase_iterations.get(p, 0)
-                    print(f"  {p} ({PHASE_NAMES[p]}): {count}")
+                    log(state, f"  {p} ({PHASE_NAMES[p]}): {count}")
             except json.JSONDecodeError:
                 pass
 
-    print("================================")
+    log(state, "================================")
 
 
 def archive_log_file(state: OrchestratorState) -> bool:
@@ -1173,22 +1196,12 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
 
         state.start_time = int(datetime.now(UTC).timestamp())
 
-        log(state, "")
-        log(state, "================================")
-        log(state, "OpenSpec Autonomous Implementation")
-        log(state, "================================")
-        log(state, f"Version: {get_version()}")
-        log(state, f"Change ID: {state.change_id}")
-        log(state, f"Change directory: {state.change_dir}")
-        if state.model:
-            log(state, f"Model: {state.model}")
-        log(state, f"Max phase iterations: {state.max_phase_iterations}")
-        log(state, f"Timeout: {state.timeout} seconds")
-        if state.log_file:
-            log(state, f"Log file: {state.log_file}")
-        log(state, "================================")
-        log(state, "")
-
+        # Fresh-start cleanup runs BEFORE the banner so the banner lands
+        # in a clean file when --clean is passed. Previously the clean
+        # block ran after the banner had been written, and its log-file
+        # unlink wiped the same .osx-orchestrate-{id}.log the banner had
+        # just been appended to; the orchestrator's own banner was then
+        # missing from the archived osx-orchestrate.log.
         if state.clean:
             log_verbose(state, "Cleaning up state files for fresh start...")
             if state.change_dir:
@@ -1212,6 +1225,22 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
                 except OSError as e:
                     log_warning(state, f"Failed to remove {log_file_unset}: {e}")
             log_verbose(state, "State files cleaned, starting fresh")
+
+        log(state, "")
+        log(state, "================================")
+        log(state, "OpenSpec Autonomous Implementation")
+        log(state, "================================")
+        log(state, f"Version: {get_version()}")
+        log(state, f"Change ID: {state.change_id}")
+        log(state, f"Change directory: {state.change_dir}")
+        if state.model:
+            log(state, f"Model: {state.model}")
+        log(state, f"Max phase iterations: {state.max_phase_iterations}")
+        log(state, f"Timeout: {state.timeout} seconds")
+        if state.log_file:
+            log(state, f"Log file: {state.log_file}")
+        log(state, "================================")
+        log(state, "")
 
         # Preflight is split into two groups:
         #  * Always-run checks (skills, commands, git, change_dir, schema):
@@ -1369,7 +1398,8 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
                         log_error(state, f"{current_phase} failed")
                         raise SystemExit(1)
 
-                    show_progress(state)
+                    if current_phase != "PHASE6":
+                        show_progress(state)
 
                     if (
                         current_phase == "PHASE6"
