@@ -33,12 +33,18 @@ openspec-extended osx iterations append "$1" --phase ARTIFACT_REVIEW --iteration
   --extra '{"artifacts_audited":["<id>"],"issues_found":{},"routed_to":"..."}'
 # Phase end
 openspec-extended osx state complete "$1"   # clean review OR Suggestion-only (advisory, see §5 routing rule)
-# Routes that the engine auto-handles (auto-fixable: e.g. /osc-update-change) are
-# NOT written to routes_pending — the engine clears and self-dispatches them.
-# Routes needing user judgment (/osc-continue-change, /osc-new-change,
-# /osc-archive-change, /osc-explore) keep the set-routes halt behavior:
-openspec-extended osx state set-routes "$1" --routes "/osc-continue-change,/osc-new-change"   # halt-and-surface only
-openspec-extended osx complete set "$1" BLOCKED --blocker-reason "..."   # blocker
+# Routes — ALWAYS queue via set-routes for any Critical/Warning finding,
+# regardless of whether the route is auto-fixable. The engine reads
+# routes_pending from state.json, dispatches auto-fixable routes itself
+# (/osc-update-change → spawns osx-editor + invokes the slash command,
+# re-enters PHASE0 to verify), and halts for non-auto-fixable or mixed
+# routes (/osc-continue-change, /osc-new-change, /osc-archive-change,
+# /osc-explore). The agent must NEVER silently swallow auto-fixable
+# routes — the engine is the only one that knows whether a given route
+# is auto-fixable.
+openspec-extended osx state set-routes "$1" --routes "/osc-update-change"                   # auto-fix (engine dispatches)
+openspec-extended osx state set-routes "$1" --routes "/osc-continue-change,/osc-new-change" # halt-and-surface
+openspec-extended osx complete set "$1" BLOCKED --blocker-reason "..."                     # blocker
 ```
 
 ## Input
@@ -90,5 +96,5 @@ Routing report with the single best editor for the aggregate finding set, plus t
 - **Single source of artifact names**: `openspec status --change <name> --json` and `openspec instructions <id> --change <name> --json`. No hardcoded `proposal.md` / `specs/` / `design.md` / `tasks.md`.
 - **Carry `--store <id>`** when the change is store-backed.
 - **Early exit** if the first review returns clean.
-- **State updates**: `osx state complete "$1"` on clean review **or Suggestion-only findings** (advisory; phase proceeds to PHASE1); `osx state set-routes "$1" --routes "<non-auto-fixable routes>"` when only non-auto-fixable routes are pending (e.g. `/osc-continue-change`, `/osc-new-change`); `osx complete set "$1" BLOCKED --blocker-reason "..."` on Critical blockers. The engine reads `routes_pending` from `state.json` after the phase ends — if non-empty AND auto-fixable, the engine clears routes_pending and dispatches the fix itself, looping until clean or max-iterations; otherwise the orchestrator exits 0 with "Halted for routed commands". After the user runs the routed commands (ad-hoc path), the next `orchestrate` run re-enters PHASE0 to verify the fix.
+- **State updates**: `osx state complete "$1"` on clean review **or Suggestion-only findings** (advisory; phase proceeds to PHASE1); `osx state set-routes "$1" --routes "<routed slash commands>"` on **any** Critical or Warning finding — the routed slash commands may be auto-fixable (`/osc-update-change`) or halt-and-surface (`/osc-continue-change`, `/osc-new-change`, `/osc-archive-change`, `/osc-explore`). The agent does NOT decide auto-fix vs halt — the engine does, by reading `routes_pending` from `state.json`: if every pending route is auto-fixable, the engine clears routes_pending, dispatches the fix itself (spawning the `osx-editor` agent + the relevant slash command), and re-enters PHASE0 to verify; if any route is non-auto-fixable or the set is mixed, the engine exits 0 with "Halted for routed commands" so the user can run the routed command(s) themselves. After the user runs the routed commands (ad-hoc path), the next `orchestrate` run re-enters PHASE0 to verify the fix. As a fallback for agents that emit `routed_to` in `decision-log.json` but forget `set-routes`, the engine also reads the latest `routed_to` from `decision-log.json` and dispatches auto-fix from there — see `engine._latest_routed_to`.
 - **Never commits** (this phase never edits directly); the auto-fix dispatch is owned by the engine, which spawns the `osx-editor` agent that invokes `osx-commit` after applying fixes. Capture the commit hash in the decision-log entry when `artifacts_modified` is later recorded.

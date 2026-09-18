@@ -791,6 +791,291 @@ class TestEnginePhase0RouteHalt:
 
 
 @pytest.mark.integration
+class TestPhase0RouteHaltFallback:
+    """Fix B: engine falls back to decision-log when routes_pending is empty.
+
+    The agent's primary contract is to write routed slash commands via
+    ``osx state set-routes`` (see TestEnginePhase0RouteHalt). Fix B is a
+    safety net for agents that emit ``routed_to`` in decision-log but
+    forget ``set-routes`` — exactly the failure mode that produced the
+    original ``library-state-status`` regression. The fallback only
+    applies when ``routes_pending`` is empty (no conflict).
+    """
+
+    def _state_file(self, test_env) -> Path:
+        return test_env / "openspec" / "changes" / "test-change" / "state.json"
+
+    def _decision_log(self, test_env) -> Path:
+        return test_env / "openspec" / "changes" / "test-change" / "decision-log.json"
+
+    def _read_state(self, test_env) -> dict:
+        return json.loads(self._state_file(test_env).read_text())
+
+    def _read_decision_log(self, test_env) -> list[dict]:
+        path = self._decision_log(test_env)
+        if not path.exists():
+            return []
+        return json.loads(path.read_text())
+
+    def test_run_phase_autofixes_from_decision_log_when_routes_empty(
+        self, test_env, monkeypatch
+    ):
+        """routes_pending empty + decision-log routed_to=osc-update-change → auto-fix.
+
+        Sentinel for the `library-state-status` regression. The agent
+        correctly emits `routed_to` in decision-log but (mistakenly) did
+        not call `osx state set-routes`. The engine must dispatch the
+        auto-fix anyway.
+        """
+        from source.lib import osx as osx_lib
+        from source.orchestrator import engine as eng
+
+        autofix_invocations: list[str] = []
+        agent_call_count = {"n": 0}
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false}',
+        )
+        monkeypatch.chdir(test_env)
+
+        def _run_agent(state, phase):
+            agent_call_count["n"] += 1
+            if agent_call_count["n"] == 1:
+                # Misbehaving agent: appends to decision-log with routed_to,
+                # but does NOT call `osx state set-routes`.
+                osx_lib.log_append(
+                    "test-change",
+                    phase="ARTIFACT_REVIEW",
+                    iteration=1,
+                    summary="PHASE0 audit emitted auto-fix route",
+                    next_steps="Engine handles via decision-log fallback",
+                    extra='{"routed_to":"/osc-update-change","issues_found":{"critical":1,"warning":1,"suggestion":0}}',
+                )
+            else:
+                # Re-audit after auto-fix: clean review.
+                invoke(["state", "complete", "test-change"])
+            return True
+
+        def _autofix_capture(state, route):
+            autofix_invocations.append(route)
+            return True
+
+        monkeypatch.setattr(eng, "run_agent", _run_agent)
+        monkeypatch.setattr(eng, "_run_auto_fix", _autofix_capture)
+
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=5,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is True
+        assert autofix_invocations == ["/osc-update-change"], (
+            f"Fallback did not dispatch auto-fix; got {autofix_invocations}. "
+            f"Decision log: {self._read_decision_log(test_env)}"
+        )
+
+    def test_run_phase_halts_when_decision_log_routes_non_autofixable(
+        self, test_env, monkeypatch
+    ):
+        """routes_pending empty + decision-log routed_to=osc-continue-change → halt.
+
+        Non-auto-fixable routes in decision-log must NOT trigger engine
+        auto-dispatch. The engine halts so the user sees the route via
+        decision-log and can run the slash command themselves.
+        """
+        from source.lib import osx as osx_lib
+        from source.orchestrator import engine as eng
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false}',
+        )
+        monkeypatch.chdir(test_env)
+
+        def _run_agent(state, phase):
+            osx_lib.log_append(
+                "test-change",
+                phase="ARTIFACT_REVIEW",
+                iteration=1,
+                summary="PHASE0 audit — missing artifacts",
+                next_steps="Run /osc-continue-change to create them",
+                extra='{"routed_to":"/osc-continue-change","issues_found":{"critical":0,"warning":1,"suggestion":0}}',
+            )
+            return True
+
+        # If the engine tries to auto-fix a non-auto-fixable route, fail loudly.
+        monkeypatch.setattr(eng, "run_agent", _run_agent)
+        monkeypatch.setattr(
+            eng,
+            "_run_auto_fix",
+            lambda s, r: (_ for _ in ()).throw(
+                AssertionError(f"auto-fix invoked on non-auto-fixable route {r}")
+            ),
+        )
+
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=3,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is False, (
+            "Engine must halt when decision-log's routed_to is non-auto-fixable; "
+            "the user needs to run the slash command themselves."
+        )
+
+    def test_routes_pending_takes_precedence_over_decision_log(
+        self, test_env, monkeypatch
+    ):
+        """routes_pending is the source of truth — even if decision-log disagrees.
+
+        When ``routes_pending`` and the latest decision-log entry have
+        DIFFERENT routes, ``routes_pending`` wins. The agent may have
+        appended a fresh decision-log entry during the same iteration
+        that wrote routes_pending — the engine must dispatch from
+        routes_pending and ignore the decision-log entry's routed_to.
+        """
+        from source.lib import osx as osx_lib
+        from source.orchestrator import engine as eng
+
+        autofix_invocations: list[str] = []
+
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false}',
+        )
+        monkeypatch.chdir(test_env)
+
+        def _run_agent(state, phase):
+            # Agent writes decision-log with routed_to=/osc-continue-change
+            # AND set-routes with /osc-update-change. routes_pending must win.
+            osx_lib.log_append(
+                "test-change",
+                phase="ARTIFACT_REVIEW",
+                iteration=1,
+                summary="PHASE0 mixed signals",
+                next_steps="Engine should prefer routes_pending",
+                extra='{"routed_to":"/osc-continue-change","issues_found":{}}',
+            )
+            invoke(
+                [
+                    "state",
+                    "set-routes",
+                    "test-change",
+                    "--routes",
+                    "/osc-update-change",
+                ]
+            )
+            return True
+
+        def _autofix_capture(state, route):
+            autofix_invocations.append(route)
+            return True
+
+        # Second iteration: clean.
+        call_count = {"n": 0}
+        original_run_agent = _run_agent
+
+        def _run_agent_with_complete(state, phase):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                original_run_agent(state, phase)
+            else:
+                invoke(["state", "complete", "test-change"])
+            return True
+
+        monkeypatch.setattr(eng, "run_agent", _run_agent_with_complete)
+        monkeypatch.setattr(eng, "_run_auto_fix", _autofix_capture)
+
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=5,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is True
+        assert autofix_invocations == ["/osc-update-change"], (
+            f"routes_pending should win; got autofix {autofix_invocations}. "
+            f"decision-log routed_to was /osc-continue-change but routes_pending "
+            f"was /osc-update-change — engine must dispatch the latter."
+        )
+
+    def test_latest_routed_to_ignores_older_entries(self, test_env, monkeypatch):
+        """The fallback uses the LATEST decision-log entry, not stale ones.
+
+        After auto-fix + re-review, the new decision-log entry may not
+        carry `routed_to` (clean review). The engine should not pick up
+        a stale `routed_to` from a previous iteration.
+        """
+        from source.lib import osx as osx_lib
+        from source.orchestrator import engine as eng
+
+        # Pre-seed the change with two decision-log entries: the older one
+        # has a routed_to (auto-fixable), the newer one is clean.
+        setup_change(
+            test_env,
+            "test-change",
+            '{"phase":"PHASE0","iteration":1,"phase_complete":false}',
+        )
+        decision_log = self._decision_log(test_env)
+        decision_log.write_text(
+            json.dumps(
+                [
+                    {
+                        "phase": "ARTIFACT_REVIEW",
+                        "iteration": 1,
+                        "summary": "stale entry — should be ignored",
+                        "next_steps": "old",
+                        "routed_to": "/osc-update-change",
+                        "entry": 1,
+                    },
+                    {
+                        "phase": "ARTIFACT_REVIEW",
+                        "iteration": 2,
+                        "summary": "clean re-review",
+                        "next_steps": "advance",
+                        # no routed_to — clean review
+                        "entry": 2,
+                    },
+                ]
+            )
+        )
+        monkeypatch.chdir(test_env)
+
+        def _run_agent_clean(state, phase):
+            # Iteration 3: agent emits a clean decision-log entry without
+            # routed_to AND calls state complete. Engine should advance.
+            osx_lib.log_append(
+                "test-change",
+                phase="ARTIFACT_REVIEW",
+                iteration=3,
+                summary="clean review",
+                next_steps="advance",
+            )
+            invoke(["state", "complete", "test-change"])
+            return True
+
+        monkeypatch.setattr(eng, "run_agent", _run_agent_clean)
+        # If the engine tries to auto-fix a stale route, fail loudly.
+        monkeypatch.setattr(
+            eng,
+            "_run_auto_fix",
+            lambda s, r: (_ for _ in ()).throw(
+                AssertionError(f"auto-fix invoked on stale decision-log route {r}")
+            ),
+        )
+
+        orch_state = eng.OrchestratorState(
+            change_id="test-change",
+            change_dir=test_env / "openspec" / "changes" / "test-change",
+            max_phase_iterations=5,
+        )
+        assert eng.run_phase(orch_state, "PHASE0") is True
+
+
+@pytest.mark.integration
 class TestPhase0SeverityThreshold:
     """Severity-threshold contract for PHASE0 routing (Suggestion-only advances).
 

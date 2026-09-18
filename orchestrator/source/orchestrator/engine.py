@@ -14,7 +14,6 @@ import shutil
 import signal
 import subprocess
 import sys
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -561,6 +560,84 @@ def check_routes_pending(state: OrchestratorState) -> list[str]:
     return [r for r in routes if isinstance(r, str) and r]
 
 
+def _latest_routed_to(state: OrchestratorState) -> str | None:
+    """Fallback route source: read the most recent ``routed_to`` from decision-log.
+
+    The agent's primary contract is to write routed slash commands via
+    ``osx state set-routes`` (Fix A); ``check_routes_pending`` reads that.
+    This helper is the Fix B fallback for agents that emitted ``routed_to``
+    in their decision-log entry but did not call ``set-routes`` — exactly
+    the failure mode that produced the original ``library-state-status``
+    halt. Returns the slash command (e.g. ``"osc-update-change"``) or
+    ``None`` when no usable entry is present.
+
+    The value may appear as ``"/osc-update-change"``, ``"osc-update-change"``,
+    or ``"/osc-update-change <change-name>"`` — the slash and any trailing
+    change name are stripped so callers receive a bare command name.
+    """
+    if state.change_dir is None:
+        return None
+    decision_log = state.change_dir / "decision-log.json"
+    if not decision_log.exists():
+        return None
+    try:
+        entries = json.loads(decision_log.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(entries, list) or not entries:
+        return None
+
+    # Walk backwards — the engine wants the freshest ``routed_to`` from
+    # the most recent iteration that emitted one. Tolerate mixed-shape
+    # entries (older decisions may not carry the field).
+    for entry in reversed(entries):
+        if not isinstance(entry, dict):
+            continue
+        routed_to = entry.get("routed_to")
+        if not isinstance(routed_to, str) or not routed_to.strip():
+            continue
+
+        # Strip a leading slash and any trailing change-name argument.
+        # E.g. "/osc-update-change library-state-status" → "osc-update-change"
+        candidate = routed_to.strip().lstrip("/")
+        candidate = candidate.split()[0] if candidate else ""
+        if candidate:
+            return candidate
+
+    return None
+
+
+def _run_auto_fix_from_decision_log(state: OrchestratorState) -> bool:
+    """Fix B: dispatch auto-fix when routes_pending is empty but the latest
+    decision-log entry has an auto-fixable routed_to.
+
+    Returns True when a route was dispatched (whether or not the dispatch
+    succeeded — the caller checks ``_run_auto_fix``'s return via state).
+    Returns False when no auto-fixable route was found in decision-log.
+    """
+    routed_to = _latest_routed_to(state)
+    if not routed_to or not _is_auto_fixable_route(routed_to):
+        return False
+
+    # Match the routes_pending branch's contract: pass the route with
+    # the leading slash so ``_run_auto_fix`` and downstream logs see
+    # ``/osc-update-change`` rather than ``osc-update-change``.
+    route = f"/{routed_to.lstrip('/')}"
+    log(
+        state,
+        f"Auto-fixing route {route} from decision-log fallback "
+        f"(routes_pending empty; engine inferred from decision-log)",
+    )
+    osx_lib.state_clear_routes(state.change_id)
+    if not _run_auto_fix(state, route):
+        log_error(
+            state,
+            f"Auto-fix failed for route {route} (decision-log fallback); halting phase",
+        )
+        return True  # route was dispatched; caller will see False from run_phase
+    return True
+
+
 def check_transition(state: OrchestratorState) -> tuple[bool, str]:
     data = read_state(state)
     if data and "transition" in data:
@@ -642,26 +719,13 @@ def read_completion(state: OrchestratorState) -> str | None:
     return data.get("status")
 
 
-def advance_phase(current: str) -> str:
-    order = {
-        "PHASE0": "PHASE1",
-        "PHASE1": "PHASE2",
-        "PHASE2": "PHASE3",
-        "PHASE3": "PHASE4",
-        "PHASE4": "PHASE5",
-        "PHASE5": "PHASE6",
-        "PHASE6": "COMPLETE",
-        "COMPLETE": "COMPLETE",
-    }
-    return order.get(current, "COMPLETE")
+# Single source of truth for the phase order, mirroring the identity
+# contract that ``tests/unit/test_phase_constants_identity.py`` enforces
+# for PHASES / PHASE_NAMES / PHASE_COMMANDS.
+advance_phase = osx_lib.get_next_phase
 
 
-def build_run_request(
-    state: OrchestratorState,
-    phase: str,
-    *,
-    on_pid: Callable[[int], None] | None = None,
-) -> Any:
+def build_run_request(state: OrchestratorState, phase: str) -> Any:
     """Construct the RunRequest that ``run_agent`` would dispatch.
 
     Factored out so tests can assert the dispatched ``extra_prompt``
@@ -702,12 +766,79 @@ def build_run_request(
         model=state.model,
         cwd=Path.cwd(),
         timeout=state.timeout,
-        on_pid=on_pid,
         env={"OSX_AUTONOMOUS": "1"},
         store=state.store,
         schema_name=state.schema_name,
         extra_prompt=extra_prompt,
     )
+
+
+def _dispatch(
+    state: OrchestratorState,
+    request: Any,
+    *,
+    splice_label: str,
+    timeout_msg: str,
+    failure_msg: str,
+) -> bool:
+    """Run ``request`` on the detected runner and report success.
+
+    Shared tail of ``run_agent`` and ``_run_auto_fix``. Both build their own
+    ``RunRequest`` and supply their own user-facing strings; everything from
+    runner detection onwards is identical and lives here so a fix lands on
+    both paths at once.
+
+    ``request.on_pid`` is set here: the child PID must reach ``state`` before
+    ``runner.run`` enters ``wait()`` so ``handle_interrupt`` can cancel a live
+    subprocess. It is cleared in the ``finally`` — once ``run`` returns the
+    child has exited and the PID is stale.
+
+    ``failure_msg`` is a format string interpolated with ``exit_code``.
+
+    Raises ``SystemExit(130)`` when the run was interrupted by the user.
+    """
+    project_root = _project_root(state) or Path.cwd()
+    try:
+        runner = detect_runner(project_root)
+    except OSXError as e:
+        log_error(state, e.message)
+        return False
+
+    log_verbose(state, f"Using runner: {runner.name}")
+
+    def _capture_pid(pid: int) -> None:
+        state.child_pid = pid
+
+    request.on_pid = _capture_pid
+
+    try:
+        try:
+            result = runner.run(request, verbose=state.verbose)
+        finally:
+            state.child_pid = None
+    except OSXError as e:
+        log_error(state, e.message)
+        return False
+
+    if state.log_file and result.log_path and result.log_path.exists():
+        with open(state.log_file, "a") as log_f:
+            log_f.write(f"{splice_label}\n")
+            with open(result.log_path) as agent_f:
+                log_f.write(agent_f.read())
+        result.log_path.unlink(missing_ok=True)
+
+    if state.interrupted:
+        log_warning(state, "Execution interrupted by user")
+        raise SystemExit(130)
+
+    if result.timed_out:
+        log_error(state, timeout_msg)
+        return False
+    if result.exit_code != 0:
+        log_error(state, failure_msg.format(exit_code=result.exit_code))
+        return False
+
+    return True
 
 
 def run_agent(state: OrchestratorState, phase: str) -> bool:
@@ -725,67 +856,13 @@ def run_agent(state: OrchestratorState, phase: str) -> bool:
     log_verbose(state, f"Using agent: {agent_name}")
     log_verbose(state, f"Session title: {title}")
 
-    try:
-        project_root = (
-            state.change_dir.parent.parent.parent if state.change_dir else Path.cwd()
-        )
-        runner = detect_runner(project_root)
-    except OSXError as e:
-        log_error(state, e.message)
-        return False
-
-    log_verbose(state, f"Using runner: {runner.name}")
-
-    # Child PID is captured *via callback* inside runner.run() before
-    # the subprocess enters wait(). This keeps the SIGINT/SIGTERM handler
-    # in handle_interrupt() able to cancel a live AI subprocess.
-    def _capture_pid(pid: int) -> None:
-        state.child_pid = pid
-
-    request = build_run_request(state, phase, on_pid=_capture_pid)
-
-    try:
-        try:
-            result = runner.run(request, verbose=state.verbose)
-        finally:
-            # Clear before the post-run block: the defensive fallback below
-            # would otherwise re-set a stale PID after the finally cleared it.
-            state.child_pid = None
-    except OSXError as e:
-        log_error(state, e.message)
-        return False
-
-    # Defensive: if the runner didn't fire the callback for any reason,
-    # still capture the post-hoc pid as a fallback.
-    if state.child_pid is None:
-        state.child_pid = result.pid
-
-    # Clear the PID after we've captured the fallback value. The PID is
-    # only meaningful while the subprocess is live; once ``runner.run``
-    # returns, the child has exited and the PID is stale.
-    state.child_pid = None
-
-    if state.log_file and result.log_path and result.log_path.exists():
-        with open(state.log_file, "a") as log_f:
-            log_f.write(f"> {agent_name}\n")
-            with open(result.log_path) as agent_f:
-                log_f.write(agent_f.read())
-        result.log_path.unlink(missing_ok=True)
-
-    if state.interrupted:
-        log_warning(state, "Execution interrupted by user")
-        raise SystemExit(130)
-
-    if result.timed_out:
-        log_error(
-            state, f"Agent iteration timed out after {state.timeout // 60} minutes"
-        )
-        return False
-    elif result.exit_code != 0:
-        log_error(state, f"Agent execution failed with exit code {result.exit_code}")
-        return False
-
-    return True
+    return _dispatch(
+        state,
+        build_run_request(state, phase),
+        splice_label=f"> {agent_name}",
+        timeout_msg=f"Agent iteration timed out after {state.timeout // 60} minutes",
+        failure_msg="Agent execution failed with exit code {exit_code}",
+    )
 
 
 def _run_auto_fix(state: OrchestratorState, route: str) -> bool:
@@ -850,17 +927,6 @@ def _run_auto_fix(state: OrchestratorState, route: str) -> bool:
         return False
     log_verbose(state, f"Slash command resolved to {cmd_path}")
 
-    try:
-        runner = detect_runner(project_root)
-    except OSXError as e:
-        log_error(state, e.message)
-        return False
-
-    log_verbose(state, f"Using runner: {runner.name}")
-
-    def _capture_pid(pid: int) -> None:
-        state.child_pid = pid
-
     request = RunRequest(
         command=route_name,
         agent=agent_name,
@@ -869,51 +935,21 @@ def _run_auto_fix(state: OrchestratorState, route: str) -> bool:
         model=state.model,
         cwd=Path.cwd(),
         timeout=state.timeout,
-        on_pid=_capture_pid,
         env={"OSX_AUTONOMOUS": "1"},
         store=state.store,
         schema_name=state.schema_name,
         extra_prompt="",
     )
 
-    try:
-        try:
-            result = runner.run(request, verbose=state.verbose)
-        finally:
-            state.child_pid = None
-    except OSXError as e:
-        log_error(state, e.message)
-        return False
-
-    if state.child_pid is None:
-        state.child_pid = result.pid
-    state.child_pid = None
-
-    if state.log_file and result.log_path and result.log_path.exists():
-        with open(state.log_file, "a") as log_f:
-            log_f.write(f"> {agent_name} (auto-fix /{route_name})\n")
-            with open(result.log_path) as agent_f:
-                log_f.write(agent_f.read())
-        result.log_path.unlink(missing_ok=True)
-
-    if state.interrupted:
-        log_warning(state, "Execution interrupted by user")
-        raise SystemExit(130)
-
-    if result.timed_out:
-        log_error(
-            state,
-            f"Auto-fix /{route_name} timed out after {state.timeout // 60} minutes",
-        )
-        return False
-    if result.exit_code != 0:
-        log_error(
-            state,
-            f"Auto-fix /{route_name} failed with exit code {result.exit_code}",
-        )
-        return False
-
-    return True
+    return _dispatch(
+        state,
+        request,
+        splice_label=f"> {agent_name} (auto-fix /{route_name})",
+        timeout_msg=(
+            f"Auto-fix /{route_name} timed out after {state.timeout // 60} minutes"
+        ),
+        failure_msg=f"Auto-fix /{route_name} failed with exit code {{exit_code}}",
+    )
 
 
 def run_phase(state: OrchestratorState, phase: str) -> bool:
@@ -981,6 +1017,27 @@ def run_phase(state: OrchestratorState, phase: str) -> bool:
                 f"{phase} halted: routes_pending={routes}. Run the routed command(s) and re-run.",
             )
             return False
+
+        # Fix B fallback: routes_pending is empty, but the agent may have
+        # emitted `routed_to` in decision-log.json without calling
+        # `set-routes`. If the most recent decision-log entry carries an
+        # auto-fixable route, dispatch via the same _run_auto_fix path.
+        # For non-auto-fixable decision-log routes, halt and surface so the
+        # user sees the route — they can run the slash command themselves
+        # rather than waiting for max-iterations to fire.
+        decision_log_route = _latest_routed_to(state)
+        if decision_log_route and not _is_auto_fixable_route(decision_log_route):
+            label = f"/{decision_log_route.lstrip('/')}"
+            log_warning(
+                state,
+                f"{phase} halted: decision-log routed_to={label} is non-auto-fixable "
+                f"and routes_pending is empty. Run the routed command(s) and re-run.",
+            )
+            return False
+
+        if _run_auto_fix_from_decision_log(state):
+            iteration += 1
+            continue
 
         iteration += 1
 

@@ -352,6 +352,99 @@ class TestChildPidClearedAfterRunAgent:
 
 
 @pytest.mark.unit
+class TestDispatchSharedTail:
+    """``_dispatch`` holds the post-``runner.run()`` logic that ``run_agent``
+    and ``_run_auto_fix`` both route through. None of it was covered before
+    the two copies were collapsed, so pin it here."""
+
+    @staticmethod
+    def _state(tmp_path):
+        from source.orchestrator import engine as eng
+
+        st = eng.OrchestratorState(change_dir=tmp_path, change_id="c")
+        st.log_file = tmp_path / "orchestrate.log"
+        st.log_file.touch()
+        return st
+
+    @staticmethod
+    def _request():
+        from source.orchestrator.runner import RunRequest
+
+        return RunRequest(command="osx-phase0", agent="osx-analyzer", change_id="c")
+
+    def _dispatch_with(self, tmp_path, monkeypatch, result, *, state=None):
+        from source.orchestrator import engine as eng
+
+        class _FakeRunner:
+            name = "fake"
+
+            def run(self, request, verbose=False):  # noqa: ARG002
+                if request.on_pid is not None:
+                    request.on_pid(4242)
+                return result
+
+        monkeypatch.setattr(eng, "detect_runner", lambda _root: _FakeRunner())
+        st = state if state is not None else self._state(tmp_path)
+        ok = eng._dispatch(
+            st,
+            self._request(),
+            splice_label="> osx-analyzer (auto-fix /osc-update-change)",
+            timeout_msg="timed out msg",
+            failure_msg="failed msg",
+        )
+        return st, ok
+
+    def test_splices_agent_log_and_removes_it(self, tmp_path, monkeypatch):
+        from source.orchestrator.runner import RunResult
+
+        agent_log = tmp_path / "agent.log"
+        agent_log.write_text("agent output line\n")
+        result = RunResult(exit_code=0, log_path=agent_log, pid=4242)
+
+        st, ok = self._dispatch_with(tmp_path, monkeypatch, result)
+
+        assert ok is True
+        text = st.log_file.read_text()
+        assert "> osx-analyzer (auto-fix /osc-update-change)" in text
+        assert "agent output line" in text
+        assert not agent_log.exists(), "spliced agent log should be unlinked"
+        assert st.child_pid is None
+
+    def test_non_zero_exit_returns_false(self, tmp_path, monkeypatch):
+        from source.orchestrator.runner import RunResult
+
+        st, ok = self._dispatch_with(
+            tmp_path, monkeypatch, RunResult(exit_code=3, pid=4242)
+        )
+
+        assert ok is False
+        assert "failed msg" in st.log_file.read_text()
+
+    def test_timeout_returns_false(self, tmp_path, monkeypatch):
+        from source.orchestrator.runner import RunResult
+
+        st, ok = self._dispatch_with(
+            tmp_path, monkeypatch, RunResult(exit_code=124, timed_out=True, pid=4242)
+        )
+
+        assert ok is False
+        assert "timed out msg" in st.log_file.read_text()
+
+    def test_interrupt_raises_systemexit_130(self, tmp_path, monkeypatch):
+        from source.orchestrator.runner import RunResult
+
+        st = self._state(tmp_path)
+        st.interrupted = True
+
+        with pytest.raises(SystemExit) as excinfo:
+            self._dispatch_with(
+                tmp_path, monkeypatch, RunResult(exit_code=0, pid=4242), state=st
+            )
+
+        assert excinfo.value.code == 130
+
+
+@pytest.mark.unit
 class TestWindowsSignalSelection:
     """M21c: on Windows, the timeout / interrupt path must select
     ``signal.CTRL_BREAK_EVENT`` when available. The signal is only defined

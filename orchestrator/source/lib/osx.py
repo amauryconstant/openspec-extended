@@ -196,8 +196,6 @@ ORCHESTRATION_RESOURCE_NAMES = frozenset(
 
 AUTONOMOUS_RESOURCE_NAMES = ORCHESTRATION_RESOURCE_NAMES
 
-_ORCHESTRATION_SKILL_NAMES = frozenset({"osx-workflow"})
-
 # Phase 1D: ``detect_platform`` / ``skills_dir`` / ``commands_dir`` /
 # ``_load_manifest`` / ``_command_resolved_for_phase`` /
 # ``validate_commands`` are registry-driven. ``REGISTRY`` is imported
@@ -1391,7 +1389,7 @@ def validate_skills(
 
     required = list(REQUIRED_SKILLS) + list(REQUIRED_CORE_SKILLS)
     if require_orchestration:
-        required += sorted(_ORCHESTRATION_SKILL_NAMES)
+        required += ["osx-workflow"]
 
     for skill in required:
         skill_path = base / skill / "SKILL.md"

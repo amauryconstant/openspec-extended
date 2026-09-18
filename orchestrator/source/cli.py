@@ -632,15 +632,6 @@ def deploy_agents(source_base: Path, target_dir: Path, name: str, tool: str) -> 
     _substitute_tokens_in_file(target_agent_path, tool)
 
 
-def get_source_type_dir(source_dir: Path, resource_type: str) -> Path:
-    type_map = {
-        "skills": "skills",
-        "commands": "commands",
-        "agents": "agents",
-    }
-    return source_dir / type_map.get(resource_type, resource_type)
-
-
 def deploy_type(
     resource_type: str,
     source_dir: Path,
@@ -651,7 +642,7 @@ def deploy_type(
     tool: str,
     with_orchestration: bool,
 ) -> tuple[int, int]:
-    source_type_dir = get_source_type_dir(source_dir, resource_type)
+    source_type_dir = source_dir / resource_type
     if not source_type_dir.is_dir():
         return (0, 0)
 
@@ -1146,7 +1137,6 @@ def _backup_existing(target: Path, incoming_bytes: bytes | None = None) -> Path 
 
 
 _FRONTMATTER_FENCE = re.compile(r"^---\s*$", re.MULTILINE)
-_FENCE_OPEN = re.compile(r"(?m)^[ \t]*(```|~~~)")
 
 
 def _rewrite_renamed_references(content: str) -> str:
