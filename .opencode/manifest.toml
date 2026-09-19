@@ -1,0 +1,50 @@
+version = "1.11.1"
+
+[core]
+version = "1.13.1"
+installed = true
+baseline = ".openspec-extended-baseline.json"
+
+[resources.agents]
+
+[resources.skills.osc-explore]
+version = "1.13.1"
+
+[resources.skills.osc-new-change]
+version = "1.13.1"
+
+[resources.skills.osc-continue-change]
+version = "1.13.1"
+
+[resources.skills.osc-apply-change]
+version = "1.13.1"
+
+[resources.skills.osc-update-change]
+version = "1.13.1"
+
+[resources.skills.osc-ff-change]
+version = "1.13.1"
+
+[resources.skills.osc-sync-specs]
+version = "1.13.1"
+
+[resources.skills.osc-archive-change]
+version = "1.13.1"
+
+[resources.skills.osc-bulk-archive-change]
+version = "1.13.1"
+
+[resources.skills.osc-verify-change]
+version = "1.13.1"
+
+[resources.skills.osc-onboard]
+version = "1.13.1"
+
+[resources.skills.osc-propose]
+version = "1.13.1"
+
+[resources.commands.osx-changelog]
+version = "0.2.1"
+
+[resources.commands.osx-maintain-docs]
+version = "0.3.1"
