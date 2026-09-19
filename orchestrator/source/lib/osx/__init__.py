@@ -139,7 +139,7 @@ _LOG_FINGERPRINTS = (
 # at module top-level so consumers (``engine.py``, ``runner.py``,
 # ``cli.py``) read the same source of truth; ``source.tools`` is a leaf
 # module with only stdlib imports, so there's no cycle.
-from source.tools import REGISTRY
+from source.tools import REGISTRY, Side
 
 
 def detect_platform(project_root: Path) -> str:
@@ -1332,7 +1332,7 @@ def _load_per_side_manifests(
         adapter = REGISTRY[detect_platform(project_root)]
     except KeyError:
         return {}, {}
-    out: dict[str, dict] = {"orchestrator": {}, "skills": {}}
+    out: dict[Side, dict] = {"orchestrator": {}, "skills": {}}
     for side_label, name in (
         ("orchestrator", "manifest.toml"),
         ("skills", "skills-manifest.toml"),

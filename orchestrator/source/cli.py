@@ -30,6 +30,7 @@ from source.tools import (
     PLATFORM_TOKENS,
     REGISTRY,
     TOOL_DIRS,
+    Side,
     ToolAdapter,
     _adapter_tokens,
     strip_agent_line,
@@ -1008,7 +1009,7 @@ def deploy_skills_side(
 
 
 def _deploy_one_side(
-    side_label: str,
+    side_label: Side,
     target_dir: Path,
     source_dir: Path,
     source_manifest: dict,
@@ -1843,7 +1844,7 @@ def _validate_target_after_deploy(target_dir: Path) -> None:
     """
     if not target_dir.is_dir():
         return
-    manifest_files = (
+    manifest_files: tuple[tuple[Side, Path], ...] = (
         ("orchestrator", target_dir / "manifest.toml"),
         ("skills", target_dir / "skills-manifest.toml"),
     )

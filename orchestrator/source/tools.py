@@ -84,6 +84,16 @@ RunnerKind = Literal[
     "generic_print",
 ]
 
+# Resource-side identifier. Used by ``cli.py:deploy_orchestrator_side`` /
+# ``deploy_skills_side`` and the validator's per-side reader
+# (``lib/osx/_load_per_side_manifests``) so a string literal at a call
+# site is a static type error rather than a silent bug. The string value
+# matches the on-disk ``meta.side`` tag (set by ``_deploy_one_side``) and
+# the per-side target-manifest filename (``manifest.toml`` vs
+# ``skills-manifest.toml``). One symbol, three meanings — but all
+# string-coherent so the deployed artifacts stay human-readable.
+Side = Literal["orchestrator", "skills"]
+
 
 @dataclass(frozen=True)
 class ToolAdapter:
@@ -378,6 +388,7 @@ __all__ = [
     "TOOL_DIRS",
     "CommandsStyle",
     "RunnerKind",
+    "Side",
     "ToolAdapter",
     "_adapter_tokens",
     "strip_agent_line",
