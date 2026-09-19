@@ -50,28 +50,15 @@ import toml
 import yaml
 
 from source.lib import state_io
-
-PHASES = ["PHASE0", "PHASE1", "PHASE2", "PHASE3", "PHASE4", "PHASE5", "PHASE6"]
-
-PHASE_NAMES: dict[str, str] = {
-    "PHASE0": "ARTIFACT REVIEW",
-    "PHASE1": "IMPLEMENTATION",
-    "PHASE2": "REVIEW",
-    "PHASE3": "MAINTAIN DOCS",
-    "PHASE4": "SYNC",
-    "PHASE5": "SELF-REFLECTION",
-    "PHASE6": "ARCHIVE",
-}
-
-PHASE_COMMANDS = {
-    "PHASE0": "osx-phase0",
-    "PHASE1": "osx-phase1",
-    "PHASE2": "osx-phase2",
-    "PHASE3": "osx-phase3",
-    "PHASE4": "osx-phase4",
-    "PHASE5": "osx-phase5",
-    "PHASE6": "osx-phase6",
-}
+from source.lib.osx.sides import (  # noqa: F401 — re-exported for backward compat
+    AUTONOMOUS_RESOURCE_NAMES,
+    ORCHESTRATION_RESOURCE_NAMES,
+    PHASE_COMMANDS,
+    PHASE_NAMES,
+    PHASES,
+    REQUIRED_CORE_SKILLS,
+    REQUIRED_SKILLS,
+)
 
 VALID_TRANSITION_REASONS = [
     "implementation_incorrect",
@@ -145,56 +132,6 @@ _LOG_FINGERPRINTS = (
     "array readonly",
     "tied zsh_eval_context",
 )
-
-REQUIRED_SKILLS = [
-    "osx-review-artifacts",
-    "osx-review-test-compliance",
-    "osx-commit",
-]
-# `osx-changelog` and `osx-maintain-docs` are intentionally absent from
-# REQUIRED_SKILLS: they are slash commands (with self-contained bodies), not
-# skills. They do not appear under `skills/<name>/SKILL.md` on either platform,
-# so the pre-flight skill gate is the wrong surface. The slash-command body is
-# validated separately by `validate_commands` if needed. See `osx-concepts`
-# §2.5 for the full taxonomy.
-#
-# `osx-workflow` is also absent: it is gated by `--with-autonomous` install and
-# added to the required set only when the autonomous workflow is enabled.
-
-REQUIRED_CORE_SKILLS = [
-    "osc-propose",
-    "osc-explore",
-    "osc-new-change",
-    "osc-continue-change",
-    "osc-apply-change",
-    "osc-update-change",
-    "osc-ff-change",
-    "osc-verify-change",
-    "osc-sync-specs",
-    "osc-archive-change",
-    "osc-bulk-archive-change",
-    "osc-onboard",
-]
-
-ORCHESTRATION_RESOURCE_NAMES = frozenset(
-    {
-        "osx-analyzer",
-        "osx-builder",
-        "osx-editor",
-        "osx-maintainer",
-        "osx-reviewer",
-        "osx-phase0",
-        "osx-phase1",
-        "osx-phase2",
-        "osx-phase3",
-        "osx-phase4",
-        "osx-phase5",
-        "osx-phase6",
-        "osx-workflow",
-    }
-)
-
-AUTONOMOUS_RESOURCE_NAMES = ORCHESTRATION_RESOURCE_NAMES
 
 # Phase 1D: ``detect_platform`` / ``skills_dir`` / ``commands_dir`` /
 # ``_load_manifest`` / ``_command_resolved_for_phase`` /

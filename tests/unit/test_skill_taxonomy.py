@@ -33,7 +33,8 @@ CLAUDE_SKILLS_AGENTS = CLAUDE_SKILLS / "AGENTS.md"
 OSX_CHANGELOG_CMD = OPENCODE_COMMANDS / "osx-changelog.md"
 OSX_MAINTAIN_DOCS_CMD = OPENCODE_COMMANDS / "osx-maintain-docs.md"
 
-OSX_PY = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx.py"
+OSX_PY = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx" / "__init__.py"
+OSX_SKILLS_PY = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx" / "sides" / "skills.py"
 
 CANONICAL_SKILL_NAMES = frozenset(
     {
@@ -243,9 +244,13 @@ class TestSkillTaxonomy:
                 "must not appear in REQUIRED_SKILLS (which validates skill dirs)."
             )
 
-        osx_text = _read(OSX_PY)
+        osx_text = _read(OSX_SKILLS_PY)
         required_block_idx = osx_text.find("REQUIRED_SKILLS = [")
-        assert required_block_idx != -1
+        assert required_block_idx != -1, (
+            f"{OSX_SKILLS_PY.relative_to(REPO_ROOT)} must define "
+            "`REQUIRED_SKILLS = [...]` so the post-block justification "
+            "stays adjacent to the constant"
+        )
         post_block = osx_text[required_block_idx:]
         assert "/osx-changelog" in post_block or "slash command" in post_block, (
             "comment block after REQUIRED_SKILLS must justify why "

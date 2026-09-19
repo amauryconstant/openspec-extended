@@ -614,7 +614,7 @@ class TestOrchestratorContracts:
     cover the round-trip behaviour."""
 
     ENGINE_PY = REPO_ROOT / "orchestrator" / "source" / "orchestrator" / "engine.py"
-    LIB_OSX_PY = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx.py"
+    LIB_OSX_PY = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx" / "__init__.py"
     CLI_PY = REPO_ROOT / "orchestrator" / "source" / "cli.py"
     PHASE1_OPENCODE = ORCH_OPENCODE / "commands" / "osx-phase1.md"
     PHASE2_OPENCODE = ORCH_OPENCODE / "commands" / "osx-phase2.md"

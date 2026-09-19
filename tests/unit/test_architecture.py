@@ -26,7 +26,7 @@ import toml
 from source.lib import osx as osx_lib
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-LIB_OSX = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx.py"
+LIB_OSX = REPO_ROOT / "orchestrator" / "source" / "lib" / "osx" / "__init__.py"
 ENGINE = REPO_ROOT / "orchestrator" / "source" / "orchestrator" / "engine.py"
 OSX_CLI = REPO_ROOT / "orchestrator" / "source" / "osx_cli.py"
 MANIFEST = REPO_ROOT / "orchestrator" / "resources" / "canonical" / "manifest.toml"
