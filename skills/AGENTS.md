@@ -71,3 +71,7 @@ Skills in this tree may consume shared references from `orchestrator/resources/c
 - Edit `skills/resources/canonical/` only; per-adapter rendering is driven
   by `ToolAdapter` fields at deploy time.
 - The two side manifests are disjoint — never register a skills-side resource in `orchestrator/resources/canonical/manifest.toml`.
+
+## See also
+
+- [`.opencode/rules/resource-separation.md`](../../.opencode/rules/resource-separation.md) — Phase 5 disjoint-manifest invariant + shared-references pool ownership.

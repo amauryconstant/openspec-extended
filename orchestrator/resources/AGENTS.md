@@ -121,3 +121,7 @@ Phase commands are the **only** entry points the orchestrator uses; do not renam
 - Edit resources under `orchestrator/resources/canonical/` only; per-adapter
   rendering is driven by `ToolAdapter` fields at deploy time.
 - Files under `orchestrator/core/` are not in this manifest — that tree is synced from upstream.
+
+## See also
+
+- [`.opencode/rules/resource-separation.md`](../../.opencode/rules/resource-separation.md) — Phase 5 disjoint-manifest invariant + shared-references pool ownership.

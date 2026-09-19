@@ -795,6 +795,76 @@ def _preserve_core_tracking(side_manifest: dict, target_manifest: Path) -> dict:
     return side_manifest
 
 
+def _assert_manifests_disjoint_and_prefixed(
+    orchestrator_manifest: dict,
+    skills_manifest: dict | None,
+) -> None:
+    """Enforce the Phase 5 ownership invariant before any deploy starts.
+
+    Two rules:
+
+    1. Each side's source manifest declares only ``osx-*`` resources.
+       ``osc-*`` (core) entries belong on the orchestrator side's
+       TARGET manifest only — they are absorbed post-deploy by
+       :func:`_preserve_core_tracking` and must never appear in a
+       source manifest.
+    2. The two side manifests are disjoint: no resource name appears
+       on both sides.
+
+    The skills-side manifest may be missing (``None`` from
+    :func:`_resolve_side_manifest`) and is treated as empty for the
+    overlap check. Raises ``SystemExit(1)`` with a precise message on
+    violation.
+    """
+    skills = skills_manifest or {}
+    bad: dict[str, list[str]] = {}
+    for side_label, manifest in (
+        ("orchestrator", orchestrator_manifest),
+        ("skills", skills),
+    ):
+        resources = manifest.get("resources") if isinstance(manifest, dict) else None
+        if not isinstance(resources, dict):
+            continue
+        for kind in ("skills", "commands", "agents"):
+            entries = resources.get(kind)
+            if not isinstance(entries, dict):
+                continue
+            for name in entries:
+                if not name.startswith("osx-"):
+                    bad.setdefault(side_label, []).append(f"{kind}.{name}")
+
+    overlap: list[str] = []
+    orc_resources = (
+        orchestrator_manifest.get("resources")
+        if isinstance(orchestrator_manifest, dict)
+        else None
+    )
+    skl_resources = skills.get("resources") if isinstance(skills, dict) else None
+    if isinstance(orc_resources, dict) and isinstance(skl_resources, dict):
+        for kind in ("skills", "commands", "agents"):
+            mine = orc_resources.get(kind)
+            theirs = skl_resources.get(kind)
+            if isinstance(mine, dict) and isinstance(theirs, dict):
+                shared = sorted(mine.keys() & theirs.keys())
+                overlap.extend(f"{kind}.{name}" for name in shared)
+
+    if not bad and not overlap:
+        return
+
+    parts: list[str] = []
+    for side_label in ("orchestrator", "skills"):
+        entries = bad.get(side_label)
+        if entries:
+            parts.append(
+                f"{side_label} manifest declares names outside the "
+                f"`osx-` namespace: {entries}"
+            )
+    if overlap:
+        parts.append(f"both side manifests declare the same keys: {overlap}")
+    log_error("Manifest ownership violation — " + "; ".join(parts) + ".")
+    raise SystemExit(1)
+
+
 def _resolve_side_manifest(source_dir: Path) -> tuple[Path | None, dict]:
     """Read the source-side manifest at ``source_dir/manifest.toml``.
 
@@ -811,19 +881,16 @@ def _resolve_side_manifest(source_dir: Path) -> tuple[Path | None, dict]:
 def deploy_all_resources(tool: str, force: bool, with_orchestration: bool) -> None:
     """Deploy every resource across the orchestrator and skills trees.
 
-    Phase 5 split the on-disk manifests: each side writes its own manifest
-    at the target. Orchestrator-side resources land at ``<target>/manifest.toml``
-    (legacy position); skills-side resources land at ``<target>/skills-manifest.toml``.
+    Thin caller that invokes :func:`deploy_orchestrator_side` then
+    :func:`deploy_skills_side`. The two sides share no state at
+    deploy time: each reads its own source manifest, writes its own
+    target manifest, and runs its own pre-write transforms.
 
-    Phase 2A: the canonical on-disk source is ``canonical/`` (a single,
-    tool-neutral tree); the ``ToolAdapter`` drives per-tool rendering
-    (commands_dir layout, cmd_filename_strip_prefix,
-    inject_name_in_skill_mirror, frontmatter_extras,
-    agent_field_transform, token substitution). The per-tool source
-    trees were deleted in lockstep — there is no ``<tool>/`` source
-    to read from anymore.
+    The orchestrator side absorbs the core ``[core]`` block and
+    ``osc-*`` entries from any previously written target manifest via
+    :func:`_preserve_core_tracking`; the skills side has no such
+    absorption (core does not live on the skills side).
     """
-    source_version = __version__
     target_dir = Path.cwd() / TOOL_DIRS[tool]
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -836,50 +903,149 @@ def deploy_all_resources(tool: str, force: bool, with_orchestration: bool) -> No
     skills_source_dir = get_skills_resources_dir() / "canonical"
     _, skills_manifest = _resolve_side_manifest(skills_source_dir)
 
-    total_count = 0
-    total_skipped = 0
+    _assert_manifests_disjoint_and_prefixed(orchestrator_manifest, skills_manifest)
 
-    sides = (
-        ("orchestrator", orchestrator_source_dir, orchestrator_manifest),
-        ("skills", skills_source_dir, skills_manifest),
+    orch_count, orch_skipped = deploy_orchestrator_side(
+        tool,
+        force,
+        with_orchestration,
+        target_dir,
+        orchestrator_source_dir,
+        orchestrator_manifest,
+    )
+    skl_count, skl_skipped = deploy_skills_side(
+        tool,
+        force,
+        target_dir,
+        skills_source_dir,
+        skills_manifest,
     )
 
-    for side_label, source_dir, source_manifest in sides:
-        if not source_manifest:
-            continue
-        target_manifest = (
-            target_dir / "manifest.toml"
-            if side_label == "orchestrator"
-            else target_dir / "skills-manifest.toml"
-        )
-        for resource_type in ("skills", "commands", "agents"):
-            cnt, skp = deploy_type(
-                resource_type,
-                source_dir,
-                target_dir,
-                target_manifest,
-                source_manifest,
-                force,
-                tool,
-                with_orchestration,
-            )
-            total_count += cnt
-            total_skipped += skp
-
-        side_manifest = dict(source_manifest)
-        side_manifest["version"] = source_version
-        if not with_orchestration:
-            side_manifest = _filter_orchestration(side_manifest)
-        if side_label == "orchestrator":
-            side_manifest = _preserve_core_tracking(side_manifest, target_manifest)
-        target_manifest.write_text(toml.dumps(side_manifest))
-        log_success(f"{side_label.title()} manifest updated to v{source_version}")
-        console.print(f"  Target: {target_manifest}")
-
+    total_count = orch_count + skl_count
+    total_skipped = orch_skipped + skl_skipped
     if total_count == 0 and total_skipped == 0:
         console.print("No resources to deploy")
     elif total_count == 0 and total_skipped > 0:
         console.print(f"All {total_skipped} resources are current")
+
+
+def deploy_orchestrator_side(
+    tool: str,
+    force: bool,
+    with_orchestration: bool,
+    target_dir: Path,
+    source_dir: Path,
+    source_manifest: dict,
+) -> tuple[int, int]:
+    """Deploy the orchestrator-side resources (workflow skill, agents,
+    phase commands, user-invoked slash commands).
+
+    The orchestrator side absorbs the ``[core]`` block and ``osc-*``
+    skill entries from the previously written target manifest via
+    :func:`_preserve_core_tracking`, so a prior ``--with-core`` install
+    is not silently clobbered by a subsequent non-``--with-core``
+    install. When ``with_orchestration`` is ``False``, orchestration
+    resources are stripped from the deployed manifest via
+    :func:`_filter_orchestration`.
+
+    Returns ``(deployed_count, skipped_count)``. No-op when the source
+    manifest is empty.
+    """
+    return _deploy_one_side(
+        "orchestrator",
+        target_dir,
+        source_dir,
+        source_manifest,
+        tool=tool,
+        force=force,
+        with_orchestration=with_orchestration,
+        preserve_core=True,
+    )
+
+
+def deploy_skills_side(
+    tool: str,
+    force: bool,
+    target_dir: Path,
+    source_dir: Path,
+    source_manifest: dict,
+) -> tuple[int, int]:
+    """Deploy the skills-side resources (gap-filling skills and their
+    slash commands).
+
+    No core absorption, no orchestration gating. No-op when the source
+    manifest is empty.
+
+    Returns ``(deployed_count, skipped_count)``.
+    """
+    return _deploy_one_side(
+        "skills",
+        target_dir,
+        source_dir,
+        source_manifest,
+        tool=tool,
+        force=force,
+        with_orchestration=False,
+        preserve_core=False,
+    )
+
+
+def _deploy_one_side(
+    side_label: str,
+    target_dir: Path,
+    source_dir: Path,
+    source_manifest: dict,
+    *,
+    tool: str,
+    force: bool,
+    with_orchestration: bool,
+    preserve_core: bool,
+) -> tuple[int, int]:
+    """Per-side deploy body shared by the orchestrator and skills sides.
+
+    Writes a self-describing manifest with ``meta.side = side_label`` so
+    downstream readers (validators, third-party tools) can tell which
+    side a deployed manifest came from without consulting the file
+    path.
+    """
+    if not source_manifest:
+        return 0, 0
+
+    target_manifest = (
+        target_dir / "manifest.toml"
+        if side_label == "orchestrator"
+        else target_dir / "skills-manifest.toml"
+    )
+
+    count = 0
+    skipped = 0
+    for resource_type in ("skills", "commands", "agents"):
+        cnt, skp = deploy_type(
+            resource_type,
+            source_dir,
+            target_dir,
+            target_manifest,
+            source_manifest,
+            force,
+            tool,
+            with_orchestration,
+        )
+        count += cnt
+        skipped += skp
+
+    side_manifest = dict(source_manifest)
+    side_manifest["version"] = __version__
+    if not with_orchestration:
+        side_manifest = _filter_orchestration(side_manifest)
+    if preserve_core:
+        side_manifest = _preserve_core_tracking(side_manifest, target_manifest)
+    side_manifest.setdefault("meta", {})
+    if isinstance(side_manifest["meta"], dict):
+        side_manifest["meta"]["side"] = side_label
+    target_manifest.write_text(toml.dumps(side_manifest))
+    log_success(f"{side_label.title()} manifest updated to v{__version__}")
+    console.print(f"  Target: {target_manifest}")
+    return count, skipped
 
 
 def purge_managed_resources(

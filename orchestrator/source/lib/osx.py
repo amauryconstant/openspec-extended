@@ -1374,6 +1374,42 @@ def _load_manifest(project_root: Path) -> dict | None:
     return merged if seen else None
 
 
+def _load_per_side_manifests(
+    project_root: Path,
+) -> tuple[dict, dict]:
+    """Load the orchestrator-side and skills-side deployed manifests
+    separately so the caller can iterate per-side resources.
+
+    Returns ``(orchestrator_manifest, skills_manifest)``. Either side
+    may be an empty dict when the corresponding file is missing or
+    unparseable. Reads from the active adapter's ``skills_dir`` using
+    the same paths as :func:`_load_manifest`.
+
+    Phase 5 split: this is the side-aware reader. Use it when the
+    caller needs to know which side a resource came from (e.g. to
+    distinguish orchestrator-side phase commands from skills-side
+    slash commands). Use :func:`_load_manifest` for union reads where
+    side attribution is irrelevant.
+    """
+    try:
+        adapter = REGISTRY[detect_platform(project_root)]
+    except KeyError:
+        return {}, {}
+    out: dict[str, dict] = {"orchestrator": {}, "skills": {}}
+    for side_label, name in (
+        ("orchestrator", "manifest.toml"),
+        ("skills", "skills-manifest.toml"),
+    ):
+        path = project_root / adapter.skills_dir / name
+        if not path.is_file():
+            continue
+        try:
+            out[side_label] = toml.loads(path.read_text())
+        except (OSError, toml.TomlDecodeError):
+            continue
+    return out["orchestrator"], out["skills"]
+
+
 def validate_skills(
     project_root: Path | None = None,
     *,
@@ -1638,6 +1674,41 @@ def validate_commands(project_root: Path | None = None) -> dict:
                 }
             )
 
+    # Skills-side command cross-check (Phase 5 split). Each command
+    # declared in the skills-side manifest must resolve to a deployed
+    # file via the same per-adapter resolver the phase loop uses, so
+    # namespaced + flat layouts work uniformly. The skills-side
+    # command set is small and stable today (``osx-review``,
+    # ``osx-verify-tests``); the cross-check is symmetric so future
+    # skills-side commands get the same guarantee for free.
+    _, skills_manifest = _load_per_side_manifests(root)
+    missing_skills_commands: list[str] = []
+    if skills_manifest:
+        declared_skills_commands = skills_manifest.get("resources", {}).get(
+            "commands", {}
+        )
+        if isinstance(declared_skills_commands, dict):
+            for cmd_name in declared_skills_commands:
+                if not cmd_name:
+                    continue
+                if adapter.cmd_filename_strip_prefix and cmd_name.startswith(
+                    adapter.cmd_filename_strip_prefix
+                ):
+                    deployed_name = cmd_name[len(adapter.cmd_filename_strip_prefix) :]
+                else:
+                    deployed_name = cmd_name
+                resolved = _command_resolved_for_phase(root, platform, cmd_name)
+                if resolved is None:
+                    missing_skills_commands.append(deployed_name)
+                    errors.append(
+                        {
+                            "check": "commands-skills",
+                            "message": (
+                                f"Missing skills-side command: {deployed_name}"
+                            ),
+                        }
+                    )
+
     # M23: cross-check the manifest. Each phase command should be declared
     # in [resources.commands.<name>] in the deployed manifest.toml, and
     # each PHASE_AGENTS[phase] should exist as an agent file. The
@@ -1679,13 +1750,14 @@ def validate_commands(project_root: Path | None = None) -> dict:
                     )
 
     if errors:
-        if missing_phase_commands or missing_phase_agents:
+        if missing_phase_commands or missing_phase_agents or missing_skills_commands:
             errors.append(
                 {
                     "check": "install-hint",
                     "message": recovery_hint(
                         platform,
-                        missing_commands=missing_phase_commands,
+                        missing_commands=missing_phase_commands
+                        + missing_skills_commands,
                         missing_agents=missing_phase_agents,
                     ),
                 }
@@ -1693,7 +1765,7 @@ def validate_commands(project_root: Path | None = None) -> dict:
         return {
             "valid": False,
             "errors": errors,
-            "missing_commands": missing_phase_commands,
+            "missing_commands": missing_phase_commands + missing_skills_commands,
             "missing_agents": missing_phase_agents,
         }
     return {"valid": True}
