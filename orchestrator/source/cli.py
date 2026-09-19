@@ -370,8 +370,7 @@ def deploy_skills(
         # on disk and is not generated — see
         # `orchestrator/resources/AGENTS.md` and
         # `tests/unit/test_resource_contract.py::TestSharedReferencesPackaging`.
-        orchestrator_resources = get_resources_dir()
-        shared_refs_dir = orchestrator_resources / "canonical" / "skills" / "references"
+        shared_refs_dir = _shared_refs_dir()
         for ref_name in shared_refs:
             src = shared_refs_dir / ref_name
             dst = target_refs / ref_name
@@ -380,6 +379,24 @@ def deploy_skills(
                 _substitute_tokens_in_file(dst, tool)
             else:
                 log_warn(f"Shared reference not found: {src}")
+
+
+def _shared_refs_dir() -> Path:
+    """Return the canonical shared-references pool directory.
+
+    Always resolves to the orchestrator-side canonical tree:
+    ``<orchestrator-root>/resources/canonical/skills/references/``.
+
+    Single source of truth for cross-cutting reference material.
+    Both orchestrator-side and skills-side skills consume from it;
+    the deploy copies each named reference into the consuming skill's
+    own ``references/`` subdir so the deployed skill is self-sufficient.
+    Resolving from a single root (rather than the caller's
+    ``source_base.parent``) avoids a latent bug where a skills-side
+    caller would resolve to a non-existent path and silently skip
+    every ref copy — see F's commit message.
+    """
+    return get_resources_dir() / "canonical" / "skills" / "references"
 
 
 def _substitute_tokens_in_file(path: Path, tool: str) -> None:
@@ -542,7 +559,7 @@ def _deploy_skill_mirror(
     # after the rewrite keeps the helper consistent.
     ref_names = _referenced_skill_refs(body)
     if ref_names:
-        source_refs_dir = source_base.parent / "skills" / "references"
+        source_refs_dir = _shared_refs_dir()
         target_refs_dir = skill_dir / "references"
         target_refs_dir.mkdir(parents=True, exist_ok=True)
         for ref_name in ref_names:

@@ -960,3 +960,105 @@ class TestDeployRoutesViaRegistry:
             assert "{{" not in md.read_text(), (
                 f"{md.relative_to(target)} still contains a token placeholder"
             )
+
+
+# ---------------------------------------------------------------------------
+# Shared-references pool resolves to a single canonical root
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestSharedRefsSingleRoot:
+    """Item F unifies shared-references resolution. Both ``deploy_skills``
+    and ``_deploy_skill_mirror`` go through ``_shared_refs_dir`` which
+    always returns the orchestrator-side canonical pool, regardless of
+    which side the caller is deploying. This pins the unified rule and
+    the latent-bug fix where a skills-side caller would silently miss
+    every ref copy under the old caller-relative path.
+    """
+
+    def test_shared_refs_dir_returns_orchestrator_canonical_root(self):
+        from source.cli import _shared_refs_dir
+
+        expected = (
+            ORCH_OPENCODE.parent.parent / "resources" / "canonical" / "skills" / "references"
+        )
+        # ``_shared_refs_dir`` resolves through ``get_resources_dir``
+        # which is package-internal; assert it lands on the orchestrator
+        # canonical tree rather than re-deriving the path.
+        actual = _shared_refs_dir()
+        assert actual == expected, (
+            f"_shared_refs_dir must point at the orchestrator canonical "
+            f"pool; got {actual!r}, expected {expected!r}"
+        )
+
+    def test_skill_mirror_copies_refs_for_skills_side_caller(self, tmp_path):
+        """A skill mirror built from a skills-side ``source_base`` must
+        still copy shared references. Pre-F, ``_deploy_skill_mirror``
+        resolved refs via ``source_base.parent / skills / references``
+        which on the skills side lands at a non-existent path and
+        silently dropped every ref.
+        """
+        from source.cli import _deploy_skill_mirror
+        from source.tools import ToolAdapter
+
+        adapter = ToolAdapter(
+            tool_id="opencode",
+            skills_dir=".opencode",
+            commands_dir="commands",
+            commands_style="namespaced-with-skill-mirror",
+            commands_ext="md",
+            slash_prefix="osx-",
+            skill_prefix="/",
+            runner_binary="opencode",
+            runner_kind="opencode_run",
+            has_agents_dir=True,
+            agent_field_transform=None,
+            inject_name_in_skill_mirror=False,
+            cmd_filename_strip_prefix=None,
+            docs_file="AGENTS.md",
+            tool_name="OpenCode",
+            detect_paths=(".opencode",),
+        )
+
+        # Build a synthetic skills-side command source. The body links
+        # to ``references/store-selection.md`` so the ref-copy path
+        # runs. The shared refs pool is the real on-disk pool, so we
+        # only need to drop a stub ``commands`` source — the helper
+        # will copy the real ref file from the orchestrator canonical
+        # tree into the deployed skill.
+        commands_dir = SK_OPENCODE / "commands"
+        candidate_src = None
+        linked_ref = "references/store-selection.md"
+        for cmd in sorted(commands_dir.glob("osx-*.md")):
+            text = cmd.read_text()
+            if linked_ref in text:
+                candidate_src = cmd
+                break
+        assert candidate_src is not None, (
+            f"no skills-side command source links {linked_ref}; "
+            "cannot drive the ref-copy path"
+        )
+
+        target_dir = tmp_path / ".opencode"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        _deploy_skill_mirror(
+            source_path=candidate_src,
+            source_base=commands_dir,
+            target_dir=target_dir,
+            name=candidate_src.stem,
+            tool="opencode",
+            adapter=adapter,
+        )
+
+        # The deployed skill mirror must contain the linked ref. Pre-F
+        # this assertion failed when ``source_base`` was on the skills
+        # side because the helper resolved refs against a non-existent
+        # skills-side path.
+        copied_ref = (
+            target_dir / "skills" / candidate_src.stem / "references" / "store-selection.md"
+        )
+        assert copied_ref.is_file(), (
+            f"skills-side skill mirror lost its shared reference; "
+            f"expected {copied_ref}"
+        )
