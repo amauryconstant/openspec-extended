@@ -14,6 +14,17 @@ _.python.venv = { path = ".venv" }
 [hooks]
 postinstall = ["mise run sync-core", "uv sync --all-extras"]
 
+[tasks."build:local"]
+description = "Build the binary and install it into the XDG bin dir (default ~/.local/bin)"
+depends = "build --log-level FATAL"
+env = { DEST = "${XDG_BIN_HOME:-$HOME/.local/bin}" }
+run = [
+    'mkdir -p "$DEST"',
+    'install -m 0755 dist/openspec-extended "$DEST/openspec-extended"',
+    'echo "==> installed $DEST/openspec-extended"',
+    'case ":$PATH:" in *":$DEST:"*) ;; *) echo "==> warning: $DEST is not in PATH" ;; esac',
+]
+
 [tasks.verify]
 description = "Ensure the quality of the project"
 depends = ["build --log-level FATAL"]

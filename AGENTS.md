@@ -53,6 +53,7 @@ per side).
 ```bash
 # Build / Test
 mise run build                       # Build binary at dist/openspec-extended
+mise run build:local                 # Build + install into ~/.local/bin (or $XDG_BIN_HOME)
 mise run test                        # Default tests (unit + integration + mechanism + bats)
 mise run verify                      # All checks
 pytest -m unit|integration|mechanism

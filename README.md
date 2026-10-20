@@ -259,6 +259,9 @@ bats tests/unit/install.bats
 # Build the binary
 mise run build
 
+# Build + install locally into ~/.local/bin (or $XDG_BIN_HOME)
+mise run build:local
+
 # Cut a release (from main, no API tokens needed locally)
 mise run release patch
 # → bumps versions, commits, tags, pushes the tag

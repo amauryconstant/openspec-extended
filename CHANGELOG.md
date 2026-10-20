@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add a `build:local` mise task that builds the PyInstaller one-file binary and installs it into the local bin dir, so a contributor can exercise the frozen CLI straight from `PATH` without cutting a release tarball or running `install.sh`. The task depends on the existing `build` task, so its source-staleness check still skips PyInstaller when nothing under `orchestrator/source`, `orchestrator/resources`, or `skills/resources` has changed — the copy and chmod re-run every time, which makes it a cheap reinstall loop. The destination resolves to `$XDG_BIN_HOME`, defaulting to `~/.local/bin` to match `install.sh`'s `PREFIX` default, and the task warns when that directory is absent from `PATH`. Declared in `.mise/config.toml` rather than as a file task because mise normalizes a colon-named file (`.mise/tasks/build:local`) to `build_local`, which would leave `mise run build:local` unresolvable — the same reason `test:unit` and `version:check` live in the config. Document the task in the README Development block and the `AGENTS.md` command table.
 - Introduce `CHANGELOG.md` in Keep a Changelog 1.1.0 + SemVer format, with one `## [X.Y.Z] - YYYY-MM-DD` section per vX.Y.Z git tag covering all 75 prior releases. Each release's commit subjects are bucketed into Added / Changed / Fixed / Removed / Breaking / Security via a keyword heuristic, the `## [Unreleased]` section is placed first, and the latest release sits immediately below it.
 
 ### Changed
