@@ -71,6 +71,18 @@ if [[ "$SKIP_CHANGELOG_CHECK" != "true" && "$DRY_RUN" != "true" ]]; then
     echo "Checking CHANGELOG.md for v$NEW_VERSION entry:"
     check_changelog_for_release "$NEW_VERSION"
     echo ""
+
+    # Stamp the upcoming release's CHANGELOG.md section. The gate
+    # above only verifies the entry is present somewhere; this rename
+    # moves a populated `## [Unreleased]` into a dated
+    # `## [<X.Y.Z>] - <date>` section so the on-disk file is in the
+    # canonical post-tag form defined in
+    # .opencode/rules/version-management.md. No-op when the file is
+    # already in canonical form (case 2 / case 3 of the helper).
+    RELEASE_DATE="$(date -u +%Y-%m-%d)"
+    echo "Stamping CHANGELOG.md with v$NEW_VERSION - $RELEASE_DATE:"
+    apply_unreleased_rename "$NEW_VERSION" "$RELEASE_DATE"
+    echo ""
 fi
 
 if [[ "$DRY_RUN" == "true" ]]; then
@@ -79,7 +91,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo "  - pyproject.toml"
   echo "  - orchestrator/source/__init__.py (__version__)"
   echo "  - uv.lock (sync)"
-  echo "  - CHANGELOG.md (verified entry exists)"
+  echo "  - CHANGELOG.md (rename [Unreleased] -> [v$NEW_VERSION] - $(date -u +%Y-%m-%d))"
   echo ""
   echo "[DRY-RUN] Would commit with message: Release version $NEW_VERSION"
   echo "[DRY-RUN] Would create and push tag: $NEW_TAG"
