@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.2] - 2026-10-20
+
+### Changed
+
+- Make `mise run release` stamp the changelog version section on tag. A new `apply_unreleased_rename` helper in `.mise/tasks/version/lib/bump.sh` runs after the changelog gate and rewrites `CHANGELOG.md` into the canonical post-tag form — an empty `## [Unreleased]` above a dated `## [<X.Y.Z>] - <date>` — from either input form. A hand-typed version section is authoritative, and the rewrite is idempotent and a no-op when the file is already canonical. Documented in `.opencode/rules/version-management.md`.
+
+### Fixed
+
+- Restore the `## [1.12.1] - 2026-10-20` header left out by `Release version 1.12.1`, which shipped that release's bullets under `[Unreleased]` with no version section of their own.
+
 ## [1.12.1] - 2026-10-20
 
 ### Added
