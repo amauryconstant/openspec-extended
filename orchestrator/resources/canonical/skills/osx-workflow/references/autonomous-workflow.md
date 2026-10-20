@@ -112,14 +112,14 @@ Phase commands instruct agents to "load and use" skills:
 ```
 
 **What this means**:
-- Read the skill file: `.opencode/skills/<skill-name>/SKILL.md`
+- Read the skill file: `<skills-dir>/<skill-name>/SKILL.md`
 - Follow the instructions in that skill
 - The skill provides procedural knowledge for the specific task
 
 **Example**:
 ```bash
 # Agent reads this:
-.opencode/skills/osx-review-artifacts/SKILL.md
+<skills-dir>/osx-review-artifacts/SKILL.md
 
 # Then follows its instructions to review artifacts
 ```
@@ -346,7 +346,7 @@ openspec-extended osx state complete "$1"
 - Review staged: `git diff --staged` before commit
 - NEVER bypass pre-commit hooks with `--no-verify`
 
-**Deferred tasks**: AGENTS.md tasks deferred to PHASE3 (not PHASE1)
+**Deferred tasks**: documentation tasks deferred to PHASE3 (not PHASE1)
 
 **State update**: `osx state complete "$1"`
 
@@ -397,7 +397,7 @@ openspec-extended osx state transition "$1" --target PHASE2 --reason retry_reque
 **Agent**: `osx-maintainer`
 **Tool**: `osx-maintain-docs` skill
 
-**Purpose**: Update AGENTS.md and CLAUDE.md after implementation
+**Purpose**: Sync the project's agent-facing docs with the implementation
 
 **Process**:
 1. Load context
@@ -408,9 +408,9 @@ openspec-extended osx state transition "$1" --target PHASE2 --reason retry_reque
 6. Commit changes
 
 **Scope**:
-- ✅ Root AGENTS.md
-- ✅ Package-level AGENTS.md files
-- ✅ CLAUDE.md (if applicable)
+- ✅ The project's root agent docs file(s)
+- ✅ Per-package agent docs file(s)
+- ✅ Any assistant-specific docs mirror present (if applicable)
 - ❌ Inline comments (done in PHASE1)
 - ❌ README files (done in PHASE1)
 
@@ -469,7 +469,7 @@ openspec-extended osx state transition "$1" --target PHASE2 --reason retry_reque
 
 **Why atomic**: Partial execution triggers unnecessary re-execution. Archive is idempotent but expensive to re-run.
 
-**Post-archive hand-off**: After archive succeeds, the user can run `/osx-changelog` (with optional `--since YYYY-MM-DD` or `<change-name>` filters) to surface archived changes in `CHANGELOG.md` using Keep a Changelog format. This is the natural hook after a release cutoff or version-header update.
+**Post-archive hand-off**: After archive succeeds, the user can run `/osx-changelog` (with optional `--since YYYY-MM-DD` or `<change-name>` filters) to surface archived changes in the project's release notes using Keep a Changelog format. This is the natural hook after a release cutoff or version-header update.
 
 **State update**: `osx state complete "$1"`
 
@@ -611,7 +611,7 @@ openspec-extended osx log append "$1" \
 **Pattern**:
 ```
 1. Load and use <skill-name> skill
-   → Read: .opencode/skills/<skill-name>/SKILL.md
+   → Read: <skills-dir>/<skill-name>/SKILL.md
    → Follow instructions in that file
 ```
 
@@ -706,7 +706,7 @@ openspec instructions apply --change "$CHANGE_ID" --json
 | PHASE0 | osx-analyzer | osx-review-artifacts | `/osc-explore`, `/osc-update-change`, `/osc-continue-change`, `/osc-new-change`, `/osc-archive-change` (routes only) | Read-only — emit routing report, never fix |
 | PHASE1 | osx-builder | osc-apply-change, osx-review-test-compliance | `/osc-explore`, `/osc-update-change` (pause-and-route), `osx-commit` (milestones) | Milestone commits (1-5 per iteration); pause-and-route on drift |
 | PHASE2 | osx-reviewer | osc-verify-change | `/osc-explore`, `/osc-update-change` (Case A), `/osc-continue-change` (missing artifact) | Correct transition logic; embeds openspec show --diff appendix (v1.11.0+) |
-| PHASE3 | osx-maintainer | osx-maintain-docs | (none — self-contained) | Update AGENTS.md (not inline comments) |
+| PHASE3 | osx-maintainer | osx-maintain-docs | (none — self-contained) | Update project docs (not inline comments) |
 | PHASE4 | osx-maintainer | osc-sync-specs | `/osc-update-change` (malformed-delta fix upstream), `osc-bulk-archive-change` (conflict) | Merge deltas into main specs; never hand-edit delta |
 | PHASE5 | osx-reviewer | (autonomous reasoning) | `/osc-explore` (optional pre-step), `osx-commit` | Analyze workflow history |
 | PHASE6 | osx-maintainer | osc-archive-change, osc-bulk-archive-change | `/osx-changelog` (post-archive), `osx-commit` | **ATOMIC EXECUTION** - all steps in one call |

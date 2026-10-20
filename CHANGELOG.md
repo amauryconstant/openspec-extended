@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep `osx-workflow` free of references outside the `orchestrator/` and `skills/` folders, and drop every `AGENTS.md` / `CLAUDE.md` mention from it. PHASE3 is now described by intent ("sync the project's agent-facing docs") rather than by filename, and the `<skills-dir>` placeholder replaces a hardcoded `.opencode/skills/` path that was wrong for every non-OpenCode adapter.
+- Remove the `.opencode/rules/openspec-contract.md` pointer from `phase-protocol-common.md` — deploy never creates a `rules/` directory, so it pointed users at a path that does not exist.
+- Drop the `tests/e2e/full-workflow.bats` cross-reference from `osx-decision-logging.md`; it named a file in this repo that no installed project has.
+- Bump `osx-workflow` to 0.7.0.
 - Repair two pre-commit `files:` filters that stopped matching after the source trees moved out of the root. `check-version-bump` globbed `resources/canonical/` (leaving per-resource version bumps unenforced) and the `test` hook globbed `source/` (leaving `mise run verify` unscheduled for every path except `pyproject.toml` and `openspec.spec`).
 - Include `skills/resources/canonical/skills/*/scripts/*` in `version:check`, so version bumps for skills-side helper scripts are no longer skipped.
 

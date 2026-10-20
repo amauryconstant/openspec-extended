@@ -105,7 +105,7 @@ For the full action set of layer 3, see §4.
 | PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts` (audit) + `osc-update-change` (engine auto-fixes in-orchestration via the `osx-editor` agent; ad-hoc `/osc-update-change` otherwise) | Schema-driven audit; **self-healing** for `osc-update-change` routes, halt-and-surface for intent-level or missing-artifact routes[^a3] |
 | PHASE1 | `IMPLEMENTATION` | `osx-builder` | `osc-apply-change`, `osx-review-test-compliance` | Implement `tasks.md`; milestone commits |
 | PHASE2 | `REVIEW` | `osx-reviewer` | `osc-verify-change`; Case A → `/osc-update-change` (default; covers single- and multi-artifact defects) | Verify implementation; writes `verification-report.md` |
-| PHASE3 | `MAINTAIN_DOCS` | `osx-maintainer` | `osx-maintain-docs` | Update `AGENTS.md` and `CLAUDE.md` |
+| PHASE3 | `MAINTAIN_DOCS` | `osx-maintainer` | `osx-maintain-docs` | Sync the project's agent-facing docs with what changed |
 | PHASE4 | `SYNC` | `osx-maintainer` | `osc-sync-specs` | Merge delta specs into main specs |
 | PHASE5 | `SELF_REFLECTION` | `osx-reviewer` | (autonomous reasoning) | Evaluate the workflow; writes `reflections.md` |
 | PHASE6 | `ARCHIVE` | `osx-maintainer` | `osc-archive-change` or `osc-bulk-archive-change` | Archive change; clean transient files |
@@ -127,7 +127,7 @@ The "Key skills" column above lists the *canonical* skill each phase loads. Each
 | PHASE3 | (none) | Self-contained — wraps `osx-maintain-docs` only |
 | PHASE4 | `/osc-update-change` | Delta spec is malformed — fix the *source* artifact upstream, then re-sync |
 | PHASE5 | `/osc-explore` | Dense iteration history (3+ reroutes, recurring Critical findings) — deep think before writing reflections |
-| PHASE6 | `/osx-changelog` | After archive — generate `CHANGELOG.md` entries for release cutoffs |
+| PHASE6 | `/osx-changelog` | After archive — surface the change in the project's release notes |
 
 > **Name disambiguation**: engine canonical is `REVIEW`; skill is `osc-verify-change`. Both refer to PHASE2.
 
@@ -372,9 +372,7 @@ Before any phase action, verify:
 
 The pre-implementation decision flow used to live in the now-removed
 `osx-concepts` skill. The same four questions still drive the routing
-call (see [`.opencode/rules/openspec-contract.md`]({{PLATFORM_DIR}}/rules/openspec-contract.md)
-for the framework contract); answer them in order before
-dispatching into a workflow above.
+call; answer them in order before dispatching into a workflow above.
 
 ### Use OpenSpec when
 

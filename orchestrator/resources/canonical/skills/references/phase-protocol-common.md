@@ -9,7 +9,7 @@ Every phase command begins with these four steps before doing anything else:
 1. Load context: `openspec-extended osx ctx get "$1"`.
 2. Confirm `phase` field matches the current dispatch.
 3. Review `history.iterations_recorded` for previous attempts.
-4. Load reference skill `osx-workflow` (do not edit; read on demand for the orchestrator contract). Framework concepts live in `.opencode/rules/openspec-contract.md`.
+4. Load reference skill `osx-workflow` (do not edit; read on demand for the orchestrator contract).
 
 ## Mandatory end
 
