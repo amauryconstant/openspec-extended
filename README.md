@@ -238,7 +238,7 @@ After `PHASE6`, files move to `openspec/changes/archive/YYYY-MM-DD-<change>/`.
 
 | Doc | Purpose |
 |-----|---------|
-| [.opencode/rules/openspec-contract.md](.opencode/rules/openspec-contract.md) | v1.8.0–v1.13.0 contract surface (loaded on `orchestrator/source/**`, `orchestrator/resources/canonical/**`, `tests/**`) |
+| [.agents/rules/openspec-contract.md](.agents/rules/openspec-contract.md) | v1.8.0–v1.13.0 contract surface (loaded on `orchestrator/source/**`, `orchestrator/resources/canonical/**`, `tests/**`) |
 | `orchestrator/source/orchestrator/AGENTS.md` | Phase model, transition reasons, retry budget, resume semantics |
 | `orchestrator/source/lib/AGENTS.md` | `osx` library domains + CLI/library contract |
 | `orchestrator/resources/AGENTS.md` | Resource types, manifest layout, per-adapter rendering |

@@ -77,7 +77,7 @@ if [[ "$SKIP_CHANGELOG_CHECK" != "true" && "$DRY_RUN" != "true" ]]; then
     # moves a populated `## [Unreleased]` into a dated
     # `## [<X.Y.Z>] - <date>` section so the on-disk file is in the
     # canonical post-tag form defined in
-    # .opencode/rules/version-management.md. No-op when the file is
+    # .agents/rules/version-management.md. No-op when the file is
     # already in canonical form (case 2 / case 3 of the helper).
     RELEASE_DATE="$(date -u +%Y-%m-%d)"
     echo "Stamping CHANGELOG.md with v$NEW_VERSION - $RELEASE_DATE:"

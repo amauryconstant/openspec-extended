@@ -222,7 +222,7 @@ EOF
 }
 
 # Idempotently rewrite the on-disk CHANGELOG.md into the canonical
-# post-tag form expected by `.opencode/rules/version-management.md`:
+# post-tag form expected by `.agents/rules/version-management.md`:
 # a fresh empty `## [Unreleased]` header followed by a
 # `## [<new_version>] - <date>` section carrying the entries that were
 # in `[Unreleased]`. The earlier `check_changelog_for_release` gate

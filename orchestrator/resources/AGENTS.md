@@ -40,7 +40,7 @@ side now owns a per-side manifest on disk and a per-side deploy loop.
 
 ## Naming, rendering, versioning
 
-Cross-cutting rules live in [`.opencode/rules/`](../../.opencode/rules/) (linked from root `AGENTS.md`).
+Cross-cutting rules live in [`.agents/rules/`](../../.agents/rules/) (linked from root `AGENTS.md`).
 
 ## Resource types
 
@@ -124,4 +124,4 @@ Phase commands are the **only** entry points the orchestrator uses; do not renam
 
 ## See also
 
-- [`.opencode/rules/resource-separation.md`](../../.opencode/rules/resource-separation.md) — Phase 5 disjoint-manifest invariant + shared-references pool ownership.
+- [`.agents/rules/resource-separation.md`](../../.agents/rules/resource-separation.md) — Phase 5 disjoint-manifest invariant + shared-references pool ownership.

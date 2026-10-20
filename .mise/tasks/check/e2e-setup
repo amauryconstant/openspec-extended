@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 #MISE description="E2E bats regression guard: any tests/e2e/*.bats that defines its own setup_file() must also invoke setup_shared_e2e_dir (defined in tests/e2e/helpers/e2e-helpers.bash). Same rule for teardown_file/teardown_shared_e2e_dir. Prevents the 'cp: cannot stat /.opencode' failure mode where the per-file setup_file shadows the helper's and SHARED_E2E_DIR is never populated."
-#USAGE flag "--check" help="Verify all E2E bats files that override setup_file/teardown_file properly chain the shared setup helpers (default; used by pre-commit)"
 
 set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 readonly E2E_DIR="$PROJECT_ROOT/tests/e2e"
 readonly HELPER="$E2E_DIR/helpers/e2e-helpers.bash"

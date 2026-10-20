@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Phase 1G regression guard: check-platform-hardcodes.sh must pass on
+"""Phase 1G regression guard: the check:hardcodes mise task must pass on
 the current tree and detect injected hardcodes.
 
-The script scans orchestrator/source/cli.py, orchestrator/source/orchestrator/,
+The task scans orchestrator/source/cli.py, orchestrator/source/orchestrator/,
 and orchestrator/source/lib/ for hardcoded "opencode"/"claude" literals
 in conditionals or direct dict access. Adding a new tool to
 source.tools.REGISTRY should not require touching those files — this
@@ -17,32 +17,32 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).parent.parent.parent
-SCRIPT = REPO_ROOT / ".opencode" / "scripts" / "check-platform-hardcodes.sh"
+TASK = REPO_ROOT / ".mise" / "tasks" / "check" / "hardcodes"
 
 
 pytestmark = pytest.mark.unit
 
 
 class TestPlatformHardcodesCheck:
-    def test_script_exists(self):
-        assert SCRIPT.is_file(), f"{SCRIPT} missing"
+    def test_task_exists(self):
+        assert TASK.is_file(), f"{TASK} missing"
 
-    def test_script_is_executable(self):
-        mode = SCRIPT.stat().st_mode
-        assert mode & stat.S_IXUSR, f"{SCRIPT} is not executable"
+    def test_task_is_executable(self):
+        mode = TASK.stat().st_mode
+        assert mode & stat.S_IXUSR, f"{TASK} is not executable"
 
-    def test_script_passes_on_current_tree(self):
+    def test_task_passes_on_current_tree(self):
         if not shutil.which("bash"):
             pytest.skip("bash not available")
         result = subprocess.run(
-            ["bash", str(SCRIPT)],
+            ["bash", str(TASK)],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
             check=False,
         )
         assert result.returncode == 0, (
-            f"check-platform-hardcodes.sh reported violations:\n"
+            f"check:hardcodes reported violations:\n"
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
 
@@ -225,7 +225,7 @@ class TestL1NewAxisHardcodes:
         assert axis in result.stdout
         assert tool_id_literal in result.stdout
 
-    def test_script_reports_failure_for_synthetic_ask_tool_hardcode(
+    def test_task_reports_failure_for_synthetic_ask_tool_hardcode(
         self, tmp_path, monkeypatch
     ):
         """End-to-end: write a synthetic file with an
@@ -237,19 +237,19 @@ class TestL1NewAxisHardcodes:
         # Synth project: replace the SCAN_DIRS with a single synthetic
         # directory. Easiest is to write the synthetic file to a temp
         # path and call grep directly with the new pattern (mirrors the
-        # unit-level tests above), and also run the full script against
-        # a synthetic tree to assert the script-level wiring fires.
+        # unit-level tests above), and also run the full task against
+        # a synthetic tree to assert the task-level wiring fires.
         synthetic_tree = tmp_path / "src"
         synthetic_tree.mkdir()
         bad = synthetic_tree / "bad.py"
         bad.write_text('if adapter.ask_tool == "opencode":\n    pass\n')
 
-        # Drive the script with the project's SCAN_DIRS overridden via
-        # the env so we exercise the full script (not just the pattern).
-        # The script reads SCAN_DIRS as a literal array, so we have to
+        # Drive the task with the project's SCAN_DIRS overridden via
+        # the env so we exercise the full task (not just the pattern).
+        # The task reads SCAN_DIRS as a literal array, so we have to
         # invoke grep with the new pattern instead — which still proves
-        # the pattern is wired into the script.
-        script = Path(__file__).parent.parent.parent / ".opencode" / "scripts" / "check-platform-hardcodes.sh"
+        # the pattern is wired into the task.
+        task = REPO_ROOT / ".mise" / "tasks" / "check" / "hardcodes"
         new_pattern = (
             r'adapter\.(ask_tool|cross_ref_prefix|runner_args|'
             r'frontmatter_extras|install_hint)[[:space:]]*==[[:space:]]*'
@@ -264,6 +264,6 @@ class TestL1NewAxisHardcodes:
         assert result.returncode == 0
         assert "ask_tool" in result.stdout
 
-        # Now also confirm the script is unchanged (still executable).
-        assert script.is_file()
-        assert script.stat().st_mode & stat.S_IXUSR
+        # Now also confirm the task is unchanged (still executable).
+        assert task.is_file()
+        assert task.stat().st_mode & stat.S_IXUSR

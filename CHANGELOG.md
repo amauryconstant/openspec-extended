@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Stop tracking the self-installed workflow resources under `.opencode/` (`commands/`, `skills/`, `manifest.toml`, `skills-manifest.toml`). This repo develops openspec-extended and does not dogfood it: those files are deploy-time renders of the two canonical trees, and the committed manifest was stale at 1.11.1.
+- Move the cross-cutting rules from `.opencode/rules/` to `.agents/rules/`, so project config no longer shares a directory with the install target.
+- Convert the two pre-commit guard scripts into mise tasks `check:hardcodes` and `check:e2e-setup`, invoked as `mise run` like the existing `version:check` hook. `mise run lint` now shellchecks both.
+- Strip the `.gitignore` entries for the dogfooded store: `/openspec/`, the baseline files, and the autonomous workflow state block.
+
 ## [1.12.2] - 2026-10-20
 
 ### Changed

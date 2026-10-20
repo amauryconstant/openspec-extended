@@ -77,7 +77,7 @@ run = "bats tests/e2e/full-workflow.bats"
 description = "Lint Python files with ruff, shellcheck on bash tasks"
 run = [
     "ruff check --fix -q orchestrator/source/",
-    "shellcheck -x .mise/tasks/build .mise/tasks/release .mise/tasks/sync-core .mise/tasks/version/check .mise/tasks/version/update .mise/tasks/version/lib/*.sh install.sh",
+    "shellcheck -x .mise/tasks/build .mise/tasks/release .mise/tasks/sync-core .mise/tasks/check/hardcodes .mise/tasks/check/e2e-setup .mise/tasks/version/check .mise/tasks/version/update .mise/tasks/version/lib/*.sh install.sh",
 ]
 
 [tasks.format]

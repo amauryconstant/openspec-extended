@@ -13,7 +13,7 @@ The constants are re-exported from ``source.lib.osx`` for backward
 compatibility so call sites like
 ``from source.lib.osx import REQUIRED_SKILLS`` continue to resolve.
 
-See ``.opencode/rules/resource-separation.md`` for the disjoint-
+See ``.agents/rules/resource-separation.md`` for the disjoint-
 manifest invariant.
 """
 

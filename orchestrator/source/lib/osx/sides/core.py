@@ -7,7 +7,7 @@ absorbed into the orchestrator-side TARGET manifest post-deploy by
 ``[resources.skills.osc-*]`` entries that ``openspec init`` produces.
 
 Source manifests must never declare these names — see the disjoint-
-manifest invariant in ``.opencode/rules/resource-separation.md``.
+manifest invariant in ``.agents/rules/resource-separation.md``.
 """
 
 from __future__ import annotations

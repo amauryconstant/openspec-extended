@@ -4,7 +4,7 @@ The skills side owns the gap-filling utility skills and their slash
 commands. The constants below mirror the entries declared in
 ``skills/resources/canonical/manifest.toml``.
 
-See ``.opencode/rules/resource-separation.md`` for the disjoint-
+See ``.agents/rules/resource-separation.md`` for the disjoint-
 manifest invariant.
 """
 

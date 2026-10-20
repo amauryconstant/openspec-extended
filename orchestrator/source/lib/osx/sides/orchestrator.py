@@ -8,7 +8,7 @@ below are the in-process mirror of the
 side-tagged here so the orchestrator side of the library surfaces its
 own resource names without leaking into the skills or core modules.
 
-See ``.opencode/rules/resource-separation.md`` for the disjoint-
+See ``.agents/rules/resource-separation.md`` for the disjoint-
 manifest invariant.
 """
 

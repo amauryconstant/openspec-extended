@@ -17,14 +17,14 @@ repos:
 
       - id: check-platform-hardcodes
         name: Verify no opencode/claude hardcodes in source code
-        entry: bash .opencode/scripts/check-platform-hardcodes.sh
+        entry: mise run check:hardcodes
         language: system
         files: ^orchestrator/source/(cli\.py|orchestrator/.*\.py|lib/.*\.py)$
         pass_filenames: false
 
       - id: check-e2e-shared-setup
         name: Verify E2E bats files chain setup_shared_e2e_dir / teardown_shared_e2e_dir
-        entry: bash .opencode/scripts/check-e2e-shared-setup.sh
+        entry: mise run check:e2e-setup
         language: system
         files: ^tests/e2e/.*\.bats$
         pass_filenames: false

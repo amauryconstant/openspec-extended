@@ -35,7 +35,7 @@ Coverage:
   - ``TestSkillDescriptionLeadingWord`` — locks in the model-invocation
     trigger word for every canonical skill.
      - ``TestOrchestratorContracts`` — mirrors the still-load-bearing
-       v1.8.0–v1.13.0 contracts from ``.opencode/rules/openspec-contract.md``
+       v1.8.0–v1.13.0 contracts from ``.agents/rules/openspec-contract.md``
        (``isPlanningComplete``, ``retire_capabilities``, ``operationGuidance``,
        ``show --diff``, ``validate --archived``, ``missingPrerequisites``,
        ``list --specs`` + ``--type spec --json --no-scenarios``).
@@ -609,7 +609,7 @@ class TestSkillDescriptionLeadingWord:
 @pytest.mark.unit
 class TestOrchestratorContracts:
     """Mirror the still-load-bearing v1.8.0–v1.13.0 contracts from
-    ``.opencode/rules/openspec-contract.md``. Each test pins the
+    ``.agents/rules/openspec-contract.md``. Each test pins the
     engine/library symbol that consumes the contract; integration tests
     cover the round-trip behaviour."""
 

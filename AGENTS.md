@@ -21,12 +21,13 @@ per side).
 
 - **NEVER** edit files in `orchestrator/core/` directly — use `mise run sync-core`.
 - **NEVER** bump versions by hand — use `mise run release` (project) or `mise run version:update` (per-resource).
-- **`mise run release` requires a populated `CHANGELOG.md` entry** for the upcoming version (either `## [Unreleased]` or `## [<X.Y.Z>]`). The gate runs before any file mutations; bypass with `--skip-changelog-check` for hotfixes. See `.opencode/rules/version-management.md`.
-- Pre-commit hook `check-platform-hardcodes` fails the commit if any per-tool hardcode slips into `cli.py` / `runner.py` / `lib/osx.py`.
-- **Naming** (`osx-`/`osc-` prefixes, regex, manifest ownership): `.opencode/rules/naming-conventions.md`
-- **Versioning** (project release vs per-resource bumps): `.opencode/rules/version-management.md`
-- **Per-adapter rendering** (deploy-time token substitution, skill mirror): `.opencode/rules/per-adapter-rendering.md`
-- **Vendored subtree** (`orchestrator/core/**`): `.opencode/rules/vendored-subtree.md`
+- **`mise run release` requires a populated `CHANGELOG.md` entry** for the upcoming version (either `## [Unreleased]` or `## [<X.Y.Z>]`). The gate runs before any file mutations; bypass with `--skip-changelog-check` for hotfixes. See `.agents/rules/version-management.md`.
+- Pre-commit hook `check-platform-hardcodes` (`mise run check:hardcodes`) fails the commit if any per-tool hardcode slips into `cli.py` / `runner.py` / `lib/osx.py`.
+- **Naming** (`osx-`/`osc-` prefixes, regex, manifest ownership): `.agents/rules/naming-conventions.md`
+- **Versioning** (project release vs per-resource bumps): `.agents/rules/version-management.md`
+- **Per-adapter rendering** (deploy-time token substitution, skill mirror): `.agents/rules/per-adapter-rendering.md`
+- **Vendored subtree** (`orchestrator/core/**`): `.agents/rules/vendored-subtree.md`
+- **Never dogfood the workflow here.** This repo develops openspec-extended; it does not run it on itself. Do not install the `osx-*` / `osc-*` resources into `.opencode/` (or any other adapter directory) and do not create an `openspec/` store — the canonical sources under `orchestrator/resources/canonical/` and `skills/resources/canonical/` are the only copies.
 
 ## Navigation
 
@@ -37,7 +38,7 @@ per side).
 | Adding/editing a workflow skill         | `orchestrator/resources/AGENTS.md`                                 |
 | Adding/editing a gap-filling skill      | `skills/AGENTS.md`                                                 |
 | Editing tests                           | `tests/AGENTS.md`                                                  |
-| Adding a new AI tool adapter            | `orchestrator/source/tools.py` + `.opencode/rules/naming-conventions.md` |
+| Adding a new AI tool adapter            | `orchestrator/source/tools.py` + `.agents/rules/naming-conventions.md` |
 
 ## Adding a new AI tool adapter
 
@@ -61,6 +62,10 @@ E2E_CONFIRM=1 mise run test:e2e      # Full e2e against built binary (slow)
 
 # Sync
 mise run sync-core                   # Pull latest upstream OpenSpec into orchestrator/core/
+
+# Checks (also run as pre-commit hooks)
+mise run check:hardcodes             # No opencode/claude hardcodes in orchestrator/source
+mise run check:e2e-setup             # E2E bats files chain the shared setup helpers
 
 # Version / Release
 mise run release patch|minor|major   # Project release (bumps + tag)

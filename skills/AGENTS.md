@@ -45,7 +45,7 @@ The three skills plus the two slash commands total 5 resources. The skills-side 
 
 ## Cross-cutting rules
 
-Cross-cutting rules live in [`.opencode/rules/`](../../.opencode/rules/) (linked from root `AGENTS.md`). The review contract reference pool lives at `orchestrator/resources/canonical/skills/references/`.
+Cross-cutting rules live in [`.agents/rules/`](../../.agents/rules/) (linked from root `AGENTS.md`). The review contract reference pool lives at `orchestrator/resources/canonical/skills/references/`.
 
 ## Shared references
 
@@ -74,4 +74,4 @@ Skills in this tree may consume shared references from `orchestrator/resources/c
 
 ## See also
 
-- [`.opencode/rules/resource-separation.md`](../../.opencode/rules/resource-separation.md) — Phase 5 disjoint-manifest invariant + shared-references pool ownership.
+- [`.agents/rules/resource-separation.md`](../../.agents/rules/resource-separation.md) — Phase 5 disjoint-manifest invariant + shared-references pool ownership.
