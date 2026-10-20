@@ -16,7 +16,9 @@ import {
   foldRequirementName,
   normalizeRequirementName,
   extractRequirementsSection,
-  findMissingCurrentScenarios,
+  diffScenarioNames,
+  describeScenarioBalance,
+  describeUnappliedContent,
   type RequirementBlock,
 } from '../parsers/requirement-blocks.js';
 import {
@@ -27,10 +29,13 @@ import {
 } from '../parsers/requirement-text.js';
 import { findMainSpecStructureIssues } from '../parsers/spec-structure.js';
 import { FileSystemUtils } from '../../utils/file-system.js';
+import { assertDiscoveredSpecFile } from '../../utils/spec-path-containment.js';
 import { discoverSpecFiles, findUnreadDeltaFiles, hasAnyFileUnder } from '../../utils/spec-discovery.js';
 import {
   METADATA_FILENAME,
+  formatUnknownChangeMetadataKeysMessage,
   readSkipSpecsMarker,
+  readUnknownChangeMetadataKeys,
   resolveSchemaForChange,
 } from '../../utils/change-metadata.js';
 import { resolveTaskFilesForChange } from '../../utils/task-progress.js';
@@ -254,6 +259,17 @@ export class Validator {
           });
         }
 
+        // Archive carries requirement blocks only, by design. Warn so text
+        // written elsewhere is moved rather than lost without notice.
+        for (const lost of plan.unappliedContent) {
+          issues.push({
+            level: 'WARNING',
+            path: entryPath,
+            line: lost.line,
+            message: `${describeUnappliedContent(lost, true)} is not carried into the main spec by archive. Move it into a requirement, or into proposal.md or design.md.`,
+          });
+        }
+
         const sectionNames: string[] = [];
         if (plan.sectionPresence.added) sectionNames.push('## ADDED Requirements');
         if (plan.sectionPresence.modified) sectionNames.push('## MODIFIED Requirements');
@@ -299,6 +315,17 @@ export class Validator {
                 block.name,
                 true
               ),
+            });
+          }
+          // Same limit the main spec enforces after archive (#1976), so
+          // `validate <change> --strict` catches a new overlong requirement
+          // before it lands. MODIFIED is left alone: its text is the existing
+          // requirement, which the specs instruction says to keep whole.
+          if (requirementText && requirementText.length > MAX_REQUIREMENT_TEXT_LENGTH) {
+            issues.push({
+              level: 'WARNING',
+              path: entryPath,
+              message: `ADDED "${block.name}": ${VALIDATION_MESSAGES.REQUIREMENT_TOO_LONG}`,
             });
           }
           const scenarioCount = this.countScenarios(block.raw);
@@ -350,14 +377,13 @@ export class Validator {
             ...specId.split('/'),
             'spec.md'
           );
-          FileSystemUtils.assertPathWithin(path.dirname(mainSpecFile), mainSpecFile);
           issues.push(
             ...(await this.findScenarioLossIssues(
               plan.modified,
               plan.renamed,
               mainSpecFile,
               entryPath,
-              path.dirname(mainSpecFile)
+              options.mainSpecsDir
             ))
           );
         }
@@ -488,6 +514,15 @@ export class Validator {
     const marker = readSkipSpecsMarker(changeDir);
     if (marker.invalidReason) {
       issues.push({ level: 'ERROR', path: METADATA_FILENAME, message: this.formatInvalidMarkerMessage(marker.invalidReason) });
+    }
+
+    const unknownMetadataKeys = readUnknownChangeMetadataKeys(changeDir);
+    if (unknownMetadataKeys.length > 0) {
+      issues.push({
+        level: 'WARNING',
+        path: METADATA_FILENAME,
+        message: formatUnknownChangeMetadataKeysMessage(unknownMetadataKeys),
+      });
     }
 
     // ANY file under specs/ contradicts the marker - not just parsed deltas.
@@ -675,7 +710,7 @@ export class Validator {
     mainSpecRoot: string
   ): Promise<ValidationIssue[]> {
     let mainContent: string;
-    FileSystemUtils.assertPathWithin(mainSpecRoot, mainSpecFile);
+    assertDiscoveredSpecFile(mainSpecRoot, mainSpecFile);
     try {
       mainContent = await fs.readFile(mainSpecFile, 'utf-8');
     } catch (error) {
@@ -739,15 +774,16 @@ export class Validator {
       if (renamedAway.has(key)) continue;
       const current = currentBlockFor(key);
       if (!current) continue;
-      const missing = findMissingCurrentScenarios(current, block);
-      if (missing.length === 0) continue;
+      const diff = diffScenarioNames(current, block);
+      if (diff.missing.length === 0) continue;
       issues.push({
         level: 'ERROR',
         path: entryPath,
         message:
           `MODIFIED "${block.name}" omits scenario(s) the current spec still has: ` +
-          `${missing.map(name => `"${name}"`).join(', ')}. ` +
-          'Copy them into the MODIFIED block (a MODIFIED requirement replaces the whole block, so archive refuses to drop them).',
+          `${diff.missing.map(name => `"${name}"`).join(', ')}. ` +
+          `${describeScenarioBalance(diff)} ` +
+          'Copy the omitted scenarios into the MODIFIED block (a MODIFIED requirement replaces the whole block, so archive refuses to drop them).',
       });
     }
     return issues;
@@ -807,7 +843,7 @@ export class Validator {
     spec.requirements.forEach((req, index) => {
       if (req.text.length > MAX_REQUIREMENT_TEXT_LENGTH) {
         issues.push({
-          level: 'INFO',
+          level: 'WARNING',
           path: `requirements[${index}]`,
           message: VALIDATION_MESSAGES.REQUIREMENT_TOO_LONG,
         });
