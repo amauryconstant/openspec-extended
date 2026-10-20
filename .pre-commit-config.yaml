@@ -12,7 +12,7 @@ repos:
         name: Check version bump in versioned files
         entry: mise run version:check
         language: system
-        files: ^(resources/canonical/(skills/.*/(SKILL\.md|references/.*\.md)|agents/.*\.md|commands/.*\.md)|install\.sh)$
+        files: ^((orchestrator|skills)/resources/canonical/(skills/.*/(SKILL\.md|references/.*\.md|scripts/.*)|agents/.*\.md|commands/.*\.md)|install\.sh)$
         pass_filenames: false
 
       - id: check-platform-hardcodes
@@ -33,5 +33,5 @@ repos:
         name: Verify source code and tests
         entry: mise run verify
         language: system
-        files: ^(source/|tests/|pyproject\.toml|openspec\.spec)$
+        files: ^(orchestrator/source|orchestrator/resources|skills/resources|tests)/.*$|^pyproject\.toml$|^openspec.*\.spec$
         pass_filenames: false

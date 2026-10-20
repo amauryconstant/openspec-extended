@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Convert the two pre-commit guard scripts into mise tasks `check:hardcodes` and `check:e2e-setup`, invoked as `mise run` like the existing `version:check` hook. `mise run lint` now shellchecks both.
 - Strip the `.gitignore` entries for the dogfooded store: `/openspec/`, the baseline files, and the autonomous workflow state block.
 
+### Fixed
+
+- Repair two pre-commit `files:` filters that stopped matching after the source trees moved out of the root. `check-version-bump` globbed `resources/canonical/` (leaving per-resource version bumps unenforced) and the `test` hook globbed `source/` (leaving `mise run verify` unscheduled for every path except `pyproject.toml` and `openspec.spec`).
+- Include `skills/resources/canonical/skills/*/scripts/*` in `version:check`, so version bumps for skills-side helper scripts are no longer skipped.
+
 ## [1.12.2] - 2026-10-20
 
 ### Changed

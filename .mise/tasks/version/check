@@ -34,6 +34,7 @@ get_staged_files() {
         "orchestrator/resources/canonical/commands/*/*.md" \
         "skills/resources/canonical/skills/*/SKILL.md" \
         "skills/resources/canonical/skills/*/references/*.md" \
+        "skills/resources/canonical/skills/*/scripts/*" \
         "skills/resources/canonical/agents/*.md" \
         "skills/resources/canonical/commands/*.md" 2>/dev/null \
         | grep -v "/AGENTS\.md$" || true
