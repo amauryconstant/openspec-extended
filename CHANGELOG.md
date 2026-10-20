@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-10-20
+
 ### Added
 
 - Add a `build:local` mise task that builds the PyInstaller one-file binary and installs it into the local bin dir, so a contributor can exercise the frozen CLI straight from `PATH` without cutting a release tarball or running `install.sh`. The task depends on the existing `build` task, so its source-staleness check still skips PyInstaller when nothing under `orchestrator/source`, `orchestrator/resources`, or `skills/resources` has changed — the copy and chmod re-run every time, which makes it a cheap reinstall loop. The destination resolves to `$XDG_BIN_HOME`, defaulting to `~/.local/bin` to match `install.sh`'s `PREFIX` default, and the task warns when that directory is absent from `PATH`. Declared in `.mise/config.toml` rather than as a file task because mise normalizes a colon-named file (`.mise/tasks/build:local`) to `build_local`, which would leave `mise run build:local` unresolvable — the same reason `test:unit` and `version:check` live in the config. Document the task in the README Development block and the `AGENTS.md` command table.
