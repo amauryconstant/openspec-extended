@@ -8,8 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-10-21
+
 ### Changed
 
+- Align `osx-review-artifacts` and `osx-verify-tests` with `openspec-verify-change`'s 8-step skeleton, three-dimension (Completeness / Correctness / Coherence) report, and CRITICAL / WARNING / SUGGESTION severity scale. Rename `osx-review-test-compliance/` to `osx-verify-tests/` to mirror upstream's "verify" naming; inline ~800 lines of reference content (`scoring-rubric.md`, `report-format.md`, `semantic-extraction.md`, `test-discovery-strategies.md`) into the new SKILL.md bodies; adopt "Not applicable / Not verified" semantics so a skipped check is never scored as passing; apply the calibration rule (prefer SUGGESTION over WARNING, WARNING over CRITICAL) to both bodies. Refresh cross-references in `source/lib/AGENTS.md`, the phase commands, the workflow docs, and tests. Bump `osx-verify-tests` 0.3.0→0.4.0, the matching `osx-verify-tests` command 0.2.0→0.3.0, `osx-review-artifacts` 0.4.0→0.5.0, and the `osx-review` command 0.3.0→0.4.0.
 - Bring every `AGENTS.md` in `tests/`, `skills/`, and `orchestrator/` (excluding `orchestrator/core/`) back in sync with the tree after the resource-side and library refactors. The substantive corrections:
 
   - `source/lib/osx.py` is now the package `source/lib/osx/` with a `sides/` subpackage, so every reference to the flat module — in `source/`, `.agents/rules/openspec-contract.md`, and test docstrings — is repointed, and the ~20 hand-maintained `file.py:NNN` line references those files carried are dropped in favour of stable symbol anchors.
@@ -27,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Delete `tests/fixtures/changes/add-self-heal-script/`. Its only consumer was `tests/e2e/self-heal-workflow.bats`, removed in `2222d12a` once `TestPhase0RouteHaltFallback` and `TestDispatchSharedTail` covered the same halt-vs-auto-fix contract without the ~20 min of AI subprocess time. The fixture had been orphaned since.
+
+### Fixed
+
+- Drop the stale "the `osx` library lives at `source/lib/osx.py`" pointer from `osx-workflow`. That path is from this repo's own source tree, which no install carries, and which the `sides/` split has since made wrong here too. The skill now names the `openspec-extended osx <domain> <action>` binary subcommand — the surface every mutation goes through. Bump `osx-workflow` 0.7.0→0.7.1.
 
 ## [1.12.3] - 2026-10-20
 
