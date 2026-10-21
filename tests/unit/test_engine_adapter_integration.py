@@ -279,7 +279,7 @@ class TestRegistrySupportsEngineDispatch:
 
 
 # ---------------------------------------------------------------------------
-# Phase 1D — lib/osx.py consumers are registry-driven
+# Phase 1D — lib/osx/ consumers are registry-driven
 # ---------------------------------------------------------------------------
 
 

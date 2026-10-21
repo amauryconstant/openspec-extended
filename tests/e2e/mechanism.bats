@@ -312,7 +312,7 @@ teardown() {
 # ========== v1.5+ store subapp (current v1.13.0 compatible) ==========
 #
 # The `osx store` Typer subapp (from source/osx_cli.py) is the user-facing
-# CLI surface for the store_* library functions in source/lib/osx.py.
+# CLI surface for the store_* library functions in source/lib/osx/.
 # These tests assert that:
 #   - `osx --help` exposes the --store flag (the context-setting callback)
 #   - `osx store --help` exposes the four store_* commands

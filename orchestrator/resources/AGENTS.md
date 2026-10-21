@@ -47,12 +47,13 @@ Cross-cutting rules live in [`.agents/rules/`](../../.agents/rules/) (linked fro
 | Type    | Path pattern                  | Frontmatter                                                       | Example          |
 | ------- | ----------------------------- | ----------------------------------------------------------------- | ---------------- |
 | Skill   | `skills/<name>/SKILL.md`      | `name`, `description`, `license`                                  | `osx-workflow`   |
-| Agent   | `agents/<name>.md`            | `description`, `hidden`, `mode`, `temperature`, `permission`       | `osx-analyzer`   |
+| Agent   | `agents/<name>.md`            | `name`, `description`, `license`, `compatibility`, `allowed-tools`, `hidden: true`, `temperature`, `permission`. `mode:` must stay unset. | `osx-analyzer`   |
 | Command | `commands/<name>.md` (flat)   | `description` (OpenCode) + optional `agent:` (OpenCode-only)      | `osx-phase0`     |
 
-Only skills, agents, and commands are deployed. State I/O is done by
-calling the binary's `osx` subcommand directly — no scripts or lib
-files are shipped.
+A skill directory is copied whole by `deploy_skills`, so `references/` and
+`scripts/` subdirectories ship alongside `SKILL.md`. State I/O is done by
+calling the binary's `osx` subcommand directly — no top-level `scripts/` or
+`lib/` tree is shipped (locked by `tests/unit/test_architecture.py`).
 
 ## Manifest (`manifest.toml`)
 
@@ -87,17 +88,23 @@ Cross-cutting material that lives once and is reached by multiple skills.
 | `blocker-semantics.md`                                            | osx-phase0..6 (commands)                                      |
 | `osx-decision-logging.md`                                         | osx-phase0..6 (commands)                                      |
 | `shell-argument-safety.md`                                        | osx-phase0..6 (commands)                                      |
-| `changelog-format.md`, `doc-structures.md`, `example-output.md`, `proposal-parsing-guide.md`, `update-examples.md`, `update-rules.md` | osx-review-artifacts, osx-changelog, osx-maintain-docs (consumed transitively) |
+| `osx-mode-conventions.md`                                         | osx-maintain-docs, osx-phase3; transitively via the two refs above |
+| `changelog-format.md`, `doc-structures.md`, `example-output.md`, `proposal-parsing-guide.md`, `update-examples.md`, `update-rules.md` | osx-changelog, osx-maintain-docs, osx-phase3 (consumed transitively) |
 
 The shared pool formerly included `scoring-rubric.md` (consumed by `osx-verify-tests`); the rubric content has been inlined into the skill body per the alignment with `openspec-verify-change`'s self-contained posture and the reference is removed.
 
 Shared references are excluded from `mise run version:check` (they don't map to a single manifest entry). The deploy copies each named reference into every consuming skill's own `references/` subdir at the target site, so each skill is self-sufficient.
 
-A skill declares which shared references it consumes via the manifest's `references = [...]` list:
+**Two discovery paths**, because the two resource types work differently:
+
+- **Skills** declare what they consume in the manifest's `references = [...]` list.
+- **Commands** declare nothing. `_referenced_skill_refs` (`source/cli.py`) scrapes `references/<file>.md` mentions out of the command body at deploy time, so a command "consumes" a reference simply by naming it in prose. This is why several live references (`osx-mode-conventions.md` among them) appear in no manifest.
+
+A skill entry looks like:
 
 ```toml
 [resources.skills.osx-review-artifacts]
-version = "0.4.0"
+version = "0.5.0"
 references = ["schema-agnostic-contract.md", "store-selection.md"]
 ```
 
@@ -105,15 +112,16 @@ references = ["schema-agnostic-contract.md", "store-selection.md"]
 
 `commands/osx-phase0.md` … `commands/osx-phase6.md` correspond 1:1 with the orchestrator's PHASE0–PHASE6. Each phase command inherits the **Mandatory Start**, **Mandatory End**, and **blocker semantics** from `skills/references/phase-protocol-common.md` and `blocker-semantics.md`. State the phase-specific differences inline.
 
-Phase commands are the **only** entry points the orchestrator uses; do not rename or remove them without updating `PHASE_COMMANDS` in `orchestrator/source/orchestrator/engine.py`.
+Phase commands are the **only** entry points the orchestrator uses; do not rename or remove them without updating `PHASE_COMMANDS` in `orchestrator/source/lib/osx/sides/orchestrator.py` (which `engine.py` imports).
 
 ## Adding a new slash command
 
 1. Create `orchestrator/resources/canonical/commands/osx-<name>.md` with required frontmatter (`description` + optional `agent:`).
 2. Add an entry to `orchestrator/resources/canonical/manifest.toml` under `[resources.commands]`.
 3. Bump the version: `mise run version:update`.
-4. If the command runs as part of the orchestrator workflow, add it to `PHASE_COMMANDS` in `source/orchestrator/engine.py`.
+4. If the command runs as part of the orchestrator workflow, add it to `PHASE_COMMANDS` in `source/lib/osx/sides/orchestrator.py`.
 5. Add a unit test in `tests/unit/test_command_refs.py::TestFullCommandNames::test_expected_full_forms_present` if it introduces new full-form slash-command references.
+6. If the body points at a shared reference, name it as `references/<file>.md` in prose — the deploy picks it up automatically.
 
 ## Conventions
 

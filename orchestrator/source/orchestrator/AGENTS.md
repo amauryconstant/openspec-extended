@@ -38,11 +38,28 @@ A phase advances when the AI process exits 0 and reports completion. The orchest
 
 Special-case short-circuits:
 
-| Reason | Trigger |
-|--------|---------|
-| Retirement (PHASE0 detects marker + planning complete) | Skip to PHASE6 | `retire_capabilities: true` in `.openspec.yaml` |
+| Condition | Effect |
+|-----------|--------|
+| PHASE0 emits `retire_capabilities: true` in `.openspec.yaml` and planning is complete | Skip to PHASE6 |
 
-Defined in `source/lib/osx.py:VALID_TRANSITION_REASONS`. Set on `state.json` by the AI agent and read by the orchestrator.
+Defined in `source/lib/osx/__init__.py:VALID_TRANSITION_REASONS`. Set on `state.json` by the AI agent and read by the orchestrator.
+
+## Auto-fix routing
+
+When PHASE0's read-only audit emits a route the engine can satisfy without
+user judgment, the engine dispatches the reconciling slash command itself,
+then re-enters the phase to verify.
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `AUTO_FIXABLE_ROUTES` | `frozenset({"osc-update-change"})` | Routes the engine self-serves. Membership accepts both the `/osc-update-change` and `osc-update-change` spellings. |
+| `AUTO_FIX_AGENTS` | `{"osc-update-change": "osx-editor"}` | Agent dispatched per route. Kept separate from `PHASE_AGENTS` because routes are slash commands, not phases. |
+
+Routes needing user judgment (intent change, missing artifacts, archive
+decision, ambiguous findings) are **not** in `AUTO_FIXABLE_ROUTES` and keep
+the halt-and-surface behaviour. Covered by `TestPhase0RouteHaltFallback`
+(`tests/integration/test_phase_workflow.py`) and
+`TestAutoFixAgentDispatchContract` (`tests/e2e/test_mechanism.py`).
 
 ## Loop Shape
 
@@ -51,24 +68,21 @@ PHASE0 → PHASE1 → PHASE2 → PHASE3 → PHASE4 → PHASE5 → PHASE6
                 ↖ (any phase can loop back on transition reason)
 ```
 
-The CLI exposes `--from-phase` (start at a specific phase) and
-`--to-phase` (stop after a specific phase). `--to-phase=PHASE0` is
-used by the PHASE0-only e2e sentinel (`self-heal-workflow.bats`) to
-exercise the auto-fix dispatch loop without paying the full 7-phase
-runtime. Unknown `--to-phase` values are rejected at startup with
-exit code 2 and a message naming the valid phases (`PHASE0..PHASE6`).
-```
-
 Each phase may iterate up to `DEFAULT_MAX_PHASE_ITERATIONS` times before the orchestrator halts and surfaces the failure.
+
+The CLI exposes `--from-phase` (start at a specific phase) and
+`--to-phase` (stop after a specific phase). Unknown `--to-phase` values are
+rejected at startup with exit code 2 and a message naming the valid phases
+(`PHASE0..PHASE6`).
 
 ## Conventions
 
 - The orchestrator is a **driver**, not a decision-maker. It calls the AI CLI and reads dicts back from in-process `osx` library functions (`osx.state_get`, `osx.phase_advance`, etc.).
-- State persists under the change directory (typically `openspec/changes/<id>/state.json`). Engine-specific wrappers (`read_state`, `write_state`, and related helpers at `engine.py:307+`) call `source.lib.state_io` directly rather than `osx.state_*`; all JSON writes are atomic. Read-only `json.loads` inspections in orchestration and display paths do not affect write atomicity. Cleanup deletes state files directly because file removal is atomic at the OS level.
+- State persists under the change directory (typically `openspec/changes/<id>/state.json`). Engine-specific wrappers (`read_state`, `write_state` and the helpers around them in `engine.py`) call `source.lib.state_io` directly rather than `osx.state_*`; all JSON writes are atomic. Read-only `json.loads` inspections in orchestration and display paths do not affect write atomicity. Cleanup deletes state files directly because file removal is atomic at the OS level.
 - Cancellation is via SIGINT/SIGTERM: the orchestrator kills the AI child and records the partial state.
 - After PHASE6, the orchestrator runs `archive_log_file()` to move the per-invocation log into the archive directory and amend the archive commit.
-- **`log*` write to stdout AND `state.log_file`** (ANSI-stripped in the file). Mirrors `runner.py:454-456` so `openspec-spec.log` and the archived `osx-orchestrate.log` stay plain-text greppable. The orchestrator's own banner, info/warn/error lines, and commit hashes all reach the file — not just agent subprocess output. Locked by `tests/unit/test_engine_logging.py`. `log_verbose` retains its asymmetric behavior: when `--verbose` is on it only prints to stdout; when off it only writes to the file.
-- `RunRequest.extra_prompt` (A.4) is a low-level extension point for the runner. PHASE1 and PHASE6 populate it with `operations.{apply|archive}.guidance` from `openspec/config.yaml`; other phases leave it empty. The OpenCode runner attaches it via `--file`; the Claude runner prepends it to the slash-command prompt.
+- **`log*` write to stdout AND `state.log_file`** (ANSI-stripped in the file). Mirrors the runner's agent-output streaming so `openspec-spec.log` and the archived `osx-orchestrate.log` stay plain-text greppable. The orchestrator's own banner, info/warn/error lines, and commit hashes all reach the file — not just agent subprocess output. Locked by `tests/unit/test_engine_logging.py`. `log_verbose` retains its asymmetric behavior: when `--verbose` is on it only prints to stdout; when off it only writes to the file.
+- `RunRequest.extra_prompt` is a low-level extension point for the runner. PHASE1 and PHASE6 populate it with `operations.{apply|archive}.guidance` from `openspec/config.yaml`; other phases leave it empty. The OpenCode runner attaches it via `--file`; the Claude and generic-print runners prepend it to the slash-command prompt.
 - Full per-contract operational notes for v1.8.0–v1.13.0 orchestrator consumption (`isPlanningComplete`, `retire_capabilities`, `operationGuidance`, `show --diff`, `validate --archived`, `validate --report findings`, `missingPrerequisites`, `list --specs`, fenced-code preservation, retire_capabilities relaxations) live in [`.agents/rules/openspec-contract.md`](../../../.agents/rules/openspec-contract.md).
 
 ## Entry Point
@@ -76,8 +90,8 @@ Each phase may iterate up to `DEFAULT_MAX_PHASE_ITERATIONS` times before the orc
 - `run_orchestrator(state)` — synchronous function in `engine.py`, exposed via `source.orchestrator.__init__`.
 - Mounted under the main CLI as `openspec-extended orchestrate` (defined in `source/cli.py:orchestrate`).
 
-Phase 1C wired the runner dispatch and pre-flight binary probe through
-`source.tools.REGISTRY`; adding a new adapter that uses a different
+Runner dispatch and the pre-flight binary probe both read
+`source.tools.REGISTRY`; adding an adapter that uses a different
 `runner_kind` only requires a `_runner_for` branch in
 `source/orchestrator/runner.py`.
 

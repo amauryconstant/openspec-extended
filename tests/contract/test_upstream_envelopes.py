@@ -28,7 +28,7 @@ the three previously-duplicated static methods used by the
 version-gated tests below.
 
 If upstream changes any of these shapes the contract test fails and we
-must update ``source/lib/osx.py`` to match (or wait until the orchestrator
+must update ``source/lib/osx/`` to match (or wait until the orchestrator
 is no longer expected to work against the new shape).
 """
 

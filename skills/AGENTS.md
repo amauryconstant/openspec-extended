@@ -19,12 +19,20 @@ skills/resources/
 │   ├── manifest.toml               # Skills-side manifest
 │   ├── skills/
 │   │   ├── osx-commit/             # commit message skill
+│   │   │   ├── SKILL.md
+│   │   │   ├── references/         # detection.md, standards.md (skill-local)
+│   │   │   └── scripts/            # detect-commit-style helper
 │   │   ├── osx-review-artifacts/   # pre-implementation review
 │   │   └── osx-verify-tests/       # post-implementation test compliance
 │   └── commands/
 │       ├── osx-review.md           # slash command for review
 │       └── osx-verify-tests.md     # slash command for test compliance
 ```
+
+A skill directory is copied whole by `deploy_skills` (`source/cli.py`), so
+`references/` and `scripts/` ship alongside `SKILL.md`. Skill-local
+`scripts/` entries are covered by `mise run version:check` — bump them with
+the skill.
 
 Phase 2A: only `canonical/` is on disk. The per-adapter Claude/Codex/Kimi/etc.
 layouts are rendered at deploy time by `orchestrator/source/cli.py:deploy_*`,
@@ -49,7 +57,7 @@ Cross-cutting rules live in [`.agents/rules/`](../../.agents/rules/) (linked fro
 
 ## Shared references
 
-Skills in this tree may consume shared references from `orchestrator/resources/canonical/skills/references/` (cross-cutting pool). Declare consumed files via the manifest's `references = [...]` list.
+Skills in this tree may consume shared references from `orchestrator/resources/canonical/skills/references/` (cross-cutting pool, orchestrator-owned). Declare consumed files in the resource's own entry via `references = [...]` — there is no top-level `[resources.references]` table. See `orchestrator/resources/AGENTS.md` for the pool inventory and the two discovery paths (skills declare; commands are scraped from body prose).
 
 ## Authoring workflow
 
@@ -60,10 +68,10 @@ Skills in this tree may consume shared references from `orchestrator/resources/c
 ## Adding a new gap-filling skill
 
 1. Create `skills/resources/canonical/skills/osx-<name>/SKILL.md` with required frontmatter (`name`, `description`, `license`). Directory name MUST match `name:`.
-2. Add an entry to `skills/resources/canonical/manifest.toml` under `[resources.skills]` (and `[resources.references]` if it consumes shared references).
+2. Add an entry to `skills/resources/canonical/manifest.toml` under `[resources.skills]`, adding a `references = [...]` list to that entry if the skill consumes shared references.
 3. Bump the version: `mise run version:update`.
 4. Add a unit test in `tests/unit/test_required_skills.py` if the skill should be in `REQUIRED_SKILLS`.
-5. If the skill introduces a new slash command, also create `skills/resources/canonical/commands/osx-<name>.md`.
+5. If the skill introduces a new slash command, also create `skills/resources/canonical/commands/osx-<name>.md` and a `[resources.commands]` entry for it.
 
 ## Conventions
 

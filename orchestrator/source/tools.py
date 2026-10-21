@@ -5,7 +5,7 @@ AI-assistant id it knows about (35+ tools as of OpenSpec v1.13.0;
 see ``orchestrator/core/source/docs/supported-tools.md``). The extended
 layer was, until v1.10.0, hardcoded to two of them — ``opencode`` and
 ``claude`` — with their layout, dispatch model, and slash-command
-spelling baked into ``cli.py``, ``runner.py``, and ``lib/osx.py``.
+spelling baked into ``cli.py``, ``runner.py``, and ``lib/osx/``.
 
 This module introduces the adapter abstraction that the rest of the
 extended layer will read from. A v1.11.0 release adds Cursor / Codex /

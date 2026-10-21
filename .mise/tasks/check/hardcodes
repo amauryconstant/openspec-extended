@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Fail if any cli.py / runner.py / engine.py / lib/osx.py hardcodes opencode/claude in a conditional or direct dict access."
+#MISE description="Fail if any cli.py / runner.py / engine.py / lib/osx/ hardcodes opencode/claude in a conditional or direct dict access."
 
 set -euo pipefail
 

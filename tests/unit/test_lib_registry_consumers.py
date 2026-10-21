@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Phase 1D unit tests for registry-driven ``lib/osx.py`` helpers.
+Phase 1D unit tests for registry-driven ``lib/osx/`` helpers.
 
 Phases 1A–1C landed the ``REGISTRY`` adapter abstraction and rewired
 ``cli.py``, ``runner.py``, and ``engine.py`` to read from it. Phase 1D
-generalizes the remaining consumers in ``source/lib/osx.py``:
+generalizes the remaining consumers in ``source/lib/osx/``:
 
 - ``detect_platform(project_root)``
 - ``skills_dir(project_root)``
@@ -390,7 +390,7 @@ class TestSyntheticCursorAdapterDrivesAllLibHelpers:
     adapter is cursor-shaped (flat commands, no agents) and the test
     is the proof that no helper hardcodes ``"opencode"`` or
     ``"claude"`` internally — adding a new adapter is a one-line
-    registry edit, not a lib/osx.py edit.
+    registry edit, not a lib/osx/ edit.
     """
 
     @pytest.fixture

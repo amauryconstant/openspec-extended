@@ -15,21 +15,21 @@ This file catalogues every v1.8.0–v1.13.0 contract the extended orchestrator d
 
 **Contract**: `openspec status --change <name> --json` returns `isPlanningComplete: bool` distinct from `isComplete`. `isPlanningComplete` is true when every non-skipped planning artifact exists; `isComplete` is a backward-compatibility alias that folds planning and implementation together.
 
-**Consumer**: `validate_change_dir` library helper (`source/lib/osx.py:1450`) reads the field via `_fetch_planning_status` (`source/lib/osx.py:254`); engine wrapper at `source/orchestrator/engine.py:242` logs the source (`core` or `local-heuristic`) on success. Falls back to `_validate_change_dir_local` (`source/lib/osx.py:1559`) when the CLI is missing, the call fails, the version is below v1.8.0, or `OPENSPEC_EXTENDED_NO_PLANNING_CORE=1` is set.
+**Consumer**: `validate_change_dir` library helper (`source/lib/osx/__init__.py`) reads the field via `_fetch_planning_status` (`source/lib/osx/__init__.py`); engine wrapper at `source/orchestrator/engine.py` logs the source (`core` or `local-heuristic`) on success. Falls back to `_validate_change_dir_local` (`source/lib/osx/__init__.py`) when the CLI is missing, the call fails, the version is below v1.8.0, or `OPENSPEC_EXTENDED_NO_PLANNING_CORE=1` is set.
 
 **Operational note**: When the AI sees a pre-flight failure citing specific missing artifact ids, fetch those artifacts via `/opsx:continue <name>` — the local file check is a fallback, not the source of truth. The pre-flight surface is `planning_complete` (tri-state: `True` / `False` / `None`), not the raw core boolean; treat `None` as "we couldn't reach core; local-heuristic result follows in `missing`".
 
-**Reference**: `source/lib/osx.py:1450`, `source/orchestrator/engine.py:242`. Tests: `tests/unit/test_validation_translator.py::TestValidateChangeDirPlanning`, `tests/contract/test_upstream_envelopes.py::TestStatusPlanning::test_status_includes_isPlanningComplete`. Authoritative core: `orchestrator/core/AGENTS.md` v1.8.0 highlights.
+**Reference**: `source/lib/osx/__init__.py`, `source/orchestrator/engine.py`. Tests: `tests/unit/test_validation_translator.py::TestValidateChangeDirPlanning`, `tests/contract/test_upstream_envelopes.py::TestStatusPlanning::test_status_includes_isPlanningComplete`. Authoritative core: `orchestrator/core/AGENTS.md` v1.8.0 highlights.
 
 ## 13.2 `retire_capabilities: true` (v1.8.0+)
 
 **Contract**: A change with `retire_capabilities: true` in `.openspec.yaml` (alongside the mandatory `schema:`) declares that `openspec archive` may delete the capability's main spec if its last requirement is REMOVED. Without the marker, archive aborts with "Spec must have at least one requirement". Core additionally aborts when the emptied spec also holds content the merge cannot account for — the abort names the blocking lines and reports the marker as the way out (v1.10.0).
 
-**Consumer**: `osx.read_change_metadata(change_dir)` (`source/lib/osx.py:2037`) reads `.openspec.yaml` once during pre-flight. The result is stashed on `OrchestratorState.retire_capabilities` (`source/orchestrator/engine.py:79`; set in `validate_change_dir` wrapper at `:262` and in `validate_archive` at `:324`). PHASE0's routing table (`orchestrator/resources/canonical/commands/osx-phase0.md`) routes the change to `/opsx:archive <name>` (skipping PHASE1–PHASE5) when the marker is set *and* planning is complete.
+**Consumer**: `osx.read_change_metadata(change_dir)` (`source/lib/osx/__init__.py`) reads `.openspec.yaml` once during pre-flight. The result is stashed on `OrchestratorState.retire_capabilities` (`source/orchestrator/engine.py`; set in `validate_change_dir` wrapper wrapper and in `validate_archive` wrapper). PHASE0's routing table (`orchestrator/resources/canonical/commands/osx-phase0.md`) routes the change to `/opsx:archive <name>` (skipping PHASE1–PHASE5) when the marker is set *and* planning is complete.
 
 **Operational note**: An in-flight MODIFIED change against the retired capability will keep validating clean and then refuse to archive ("target spec does not exist; only ADDED requirements are allowed for new specs"). Close or rework that change alongside the retirement. The retirement is whole-file deletion: the marker is honored only when the emptied spec has nothing left but its title, `## Purpose`, and its requirement blocks — any `## Notes` section or comment under a requirement causes the abort to name those lines.
 
-**Reference**: `source/lib/osx.py:2037`, `source/orchestrator/engine.py` (OrchestratorState.retire_capabilities), `orchestrator/resources/canonical/commands/osx-phase0.md` (routing table). Tests: `tests/unit/test_validation_translator.py::TestReadChangeMetadata`, `tests/integration/test_phase_workflow.py::test_validate_change_dir_stamps_retire_capabilities`, `tests/contract/test_upstream_envelopes.py::TestArchiveWithRetireCapabilities`.
+**Reference**: `source/lib/osx/__init__.py`, `source/orchestrator/engine.py` (OrchestratorState.retire_capabilities), `orchestrator/resources/canonical/commands/osx-phase0.md` (routing table). Tests: `tests/unit/test_validation_translator.py::TestReadChangeMetadata`, `tests/integration/test_phase_workflow.py::test_validate_change_dir_stamps_retire_capabilities`, `tests/contract/test_upstream_envelopes.py::TestArchiveWithRetireCapabilities`.
 
 ## 13.3 `operations.{apply,archive}.guidance` (v1.7.0+)
 
@@ -48,11 +48,11 @@ operations:
 
 The strings surface as `operationGuidance: string[]` in `openspec instructions apply|archive --json`. The operations supported are exactly `apply` and `archive`. Neither field is an enforceable check.
 
-**Consumer**: `osx.fetch_operation_guidance(operation, project_root, store=None)` (`source/lib/osx.py:2193`) reads `openspec/config.yaml` directly. The orchestrator's `build_run_request` (`source/orchestrator/engine.py:545`) calls this helper only for PHASE1 (`operation="apply"`) and PHASE6 (`operation="archive"`) and passes the joined strings as `RunRequest.extra_prompt` (`source/orchestrator/runner.py:47`). Other phases ignore the guidance (the field stays `""`). The OpenCode runner attaches the prompt via `--file` (`runner.py:134`); the Claude runner prepends it to the slash-command prompt (`runner.py:179`).
+**Consumer**: `osx.fetch_operation_guidance(operation, project_root, store=None)` (`source/lib/osx/__init__.py`) reads `openspec/config.yaml` directly. The orchestrator's `build_run_request` (`source/orchestrator/engine.py`) calls this helper only for PHASE1 (`operation="apply"`) and PHASE6 (`operation="archive"`) and passes the joined strings as `RunRequest.extra_prompt` (`source/orchestrator/runner.py`). Other phases ignore the guidance (the field stays `""`). The OpenCode runner attaches the prompt via `--file` (`runner.py`); the Claude runner prepends it to the slash-command prompt (`runner.py`).
 
 **Operational note**: The guidance is **advisory**, not authoritative. Treat it as project context that shapes implementation choices; do not copy it verbatim into artifact files or commit messages. Don't confuse `operationGuidance` with `rules` — they share a YAML shape but mean different things.
 
-**Reference**: `source/lib/osx.py:2193`, `source/orchestrator/runner.py:47`, `source/orchestrator/engine.py:545`. Tests: `tests/unit/test_schema_resolution.py::TestFetchOperationGuidance` (parser), `tests/integration/test_phase_workflow.py` line 1231 (orchestrator integration).
+**Reference**: `source/lib/osx/__init__.py`, `source/orchestrator/runner.py`, `source/orchestrator/engine.py`. Tests: `tests/unit/test_schema_resolution.py::TestFetchOperationGuidance` (parser), `tests/integration/test_phase_workflow.py` line 1231 (orchestrator integration).
 
 ## 13.4 `show <change> --diff` (v1.11.0+)
 
@@ -68,16 +68,16 @@ The strings surface as `operationGuidance: string[]` in `openspec instructions a
 
 **Contract**: `openspec validate --archived` is an opt-in CI/pre-commit gate that every change under `changes/archive/` has all `tasks.md` checkboxes ticked. Exits non-zero if any are unchecked. Standalone scope — does not alter any other `validate` invocation.
 
-**Consumer**: `source/cli.py._post_install_archived_sweep(strict=False, timeout=30)` (`source/cli.py:1214`) runs `openspec validate --archived --json` after `deploy_core` (`source/cli.py:1071`) and after `update-core_cmd` (`source/cli.py:1898`). Default is non-fatal: a yellow warning names the remediation. Opt-in to fail-on-warning via `--strict-archived` or `OPENSPEC_VALIDATE_ARCHIVED_STRICT=1`.
+**Consumer**: `source/cli.py._post_install_archived_sweep(strict=False, timeout=30)` (`source/cli.py`) runs `openspec validate --archived --json` after `deploy_core` (`source/cli.py`) and after `update-core_cmd` (`source/cli.py`). Default is non-fatal: a yellow warning names the remediation. Opt-in to fail-on-warning via `--strict-archived` or `OPENSPEC_VALIDATE_ARCHIVED_STRICT=1`.
 
-**Operational note**: The sweep is a CI hygiene check, not a regression test. It catches the case where someone archived a change with unfinished work. The function also bridges the broader `validate --archived` envelope into the `osx validate archived` subcommand (`source/lib/osx.py:1990`) for in-process callers.
+**Operational note**: The sweep is a CI hygiene check, not a regression test. It catches the case where someone archived a change with unfinished work. The function also bridges the broader `validate --archived` envelope into the `osx validate archived` subcommand (`source/lib/osx/__init__.py`) for in-process callers.
 
-**Reference**: `source/cli.py:1214`, `source/lib/osx.py:1990`. Tests: `tests/integration/test_install_flow.py::TestValidateArchivedSweep`, `tests/unit/test_no_double_json.py` line 172, `tests/unit/test_validate_subcommands.py:164`, `tests/e2e/mechanism.bats:501`.
+**Reference**: `source/cli.py`, `source/lib/osx/__init__.py`. Tests: `tests/integration/test_install_flow.py::TestValidateArchivedSweep`, `tests/unit/test_no_double_json.py`, `tests/unit/test_validate_subcommands.py`, `tests/e2e/mechanism.bats`.
 
 ## 13.6 Related v1.7.0+ contracts (informational)
 
 - **`requires: string[]`** on each `artifacts[]` entry — used by `osx-review-artifacts` Step 4 to build the dependency graph. See `orchestrator/resources/canonical/skills/osx-review-artifacts/SKILL.md`.
-- **`skip_specs: true`** change metadata — zero-delta changes (pure refactors). Honoured by core's validator; extended side surfaces it in `read_change_metadata` (`source/lib/osx.py:2037`).
+- **`skip_specs: true`** change metadata — zero-delta changes (pure refactors). Honoured by core's validator; extended side surfaces it in `read_change_metadata` (`source/lib/osx/__init__.py`).
 - **`defaultStore` machine-level fallback** — `openspec config set defaultStore <id>` sets a per-machine fallback. The status `root` block reports `source: "global_default"` when used. Resolution flows through `current_store.get()`.
 - **`instructions archive`** — read-only mirror of `instructions apply`. Returns `{ "changeName", "context"?, "operationGuidance"?, "root" }`.
 
@@ -97,21 +97,21 @@ The strings surface as `operationGuidance: string[]` in `openspec instructions a
 
 **Contract**: `openspec instructions apply --change <name> --json` adds a `missingPrerequisites` array naming the full build-order chain for an apply whose `applyRequires` set is not yet satisfied — not just the first hop. A change with no delta specs (and no `skip_specs: true`) is reported as a warning at apply time. PR #1783 in v1.13.0.
 
-**Consumer**: PHASE1 (IMPLEMENTATION) fetches the envelope during its MANDATORY CHECKPOINT step (`orchestrator/resources/canonical/commands/osx-phase1.md`). When the response carries a non-empty `missingPrerequisites`, each entry's name + remedy command is surfaced in the decision log via `osx log append --extra '{"missing_prerequisites": [...]}'`; PHASE1 still proceeds with the existing apply gate (logging is informational, not blocking). The in-process helper is `osx.fetch_apply_prerequisites(change_id, *, store=None)` (`source/lib/osx.py`), which returns `list[str] | None` (`None` for cores that don't surface the field).
+**Consumer**: PHASE1 (IMPLEMENTATION) fetches the envelope during its MANDATORY CHECKPOINT step (`orchestrator/resources/canonical/commands/osx-phase1.md`). When the response carries a non-empty `missingPrerequisites`, each entry's name + remedy command is surfaced in the decision log via `osx log append --extra '{"missing_prerequisites": [...]}'`; PHASE1 still proceeds with the existing apply gate (logging is informational, not blocking). The in-process helper is `osx.fetch_apply_prerequisites(change_id, *, store=None)` (`source/lib/osx/__init__.py`), which returns `list[str] | None` (`None` for cores that don't surface the field).
 
 **Operational note**: The `missingPrerequisites` array is the structured counterpart to the text remedies; consumers should prefer it over regex-parsing the text response. When the field is absent but the change has no `applyRequires` blockers, core simply reports apply-ready.
 
-**Reference**: `source/lib/osx.py` (`fetch_apply_prerequisites`); `orchestrator/resources/canonical/commands/osx-phase1.md`. Tests: `tests/unit/test_apply_prerequisites.py::TestFetchApplyPrerequisites`, `tests/unit/test_resource_contract.py::TestOrchestratorContracts::test_missing_prerequisites_helper_exists`.
+**Reference**: `source/lib/osx/__init__.py` (`fetch_apply_prerequisites`); `orchestrator/resources/canonical/commands/osx-phase1.md`. Tests: `tests/unit/test_apply_prerequisites.py::TestFetchApplyPrerequisites`, `tests/unit/test_resource_contract.py::TestOrchestratorContracts::test_missing_prerequisites_helper_exists`.
 
 ### 13.7.3 `openspec list --specs` + `show <id> --type spec --json --no-scenarios` (v1.13.0+)
 
 **Contract**: `openspec list --specs` is a first-class spec-inventory command (parallel to `openspec list` for changes); `openspec show <id> --type spec --json --no-scenarios` is the filtered read used by generated guidance. The filtered read is only an overview; agents still read relevant specs in full (with scenarios) before deciding what is already covered. PR #1700 in v1.13.0.
 
-**Consumer**: PHASE0 spec-aware review (`orchestrator/resources/canonical/skills/osx-review-artifacts/SKILL.md` Step 2) runs `openspec list --specs` and a per-spec `show --type spec --json --no-scenarios` for every spec id, building a `{spec_id → {path, purpose, requirements_count}}` map. Step 4 (Cross-artifact consistency) adds a "Capability-already-exists" check: for each delta `ADDED Requirements` capability path, if the spec inventory already has that path, emit a `Warning` finding pointing to `/opsx:update <name>`. In-process helpers: `osx.list_specs(*, store=None)` and `osx.show_spec(spec_id, *, store=None)` (`source/lib/osx.py`).
+**Consumer**: PHASE0 spec-aware review (`orchestrator/resources/canonical/skills/osx-review-artifacts/SKILL.md` Step 2) runs `openspec list --specs` and a per-spec `show --type spec --json --no-scenarios` for every spec id, building a `{spec_id → {path, purpose, requirements_count}}` map. Step 4 (Cross-artifact consistency) adds a "Capability-already-exists" check: for each delta `ADDED Requirements` capability path, if the spec inventory already has that path, emit a `Warning` finding pointing to `/opsx:update <name>`. In-process helpers: `osx.list_specs(*, store=None)` and `osx.show_spec(spec_id, *, store=None)` (`source/lib/osx/__init__.py`).
 
 **Operational note**: The new check is **additive** and never escalates above `Warning` per the calibration rule (prefer `Suggestion`). When the spec inventory can't be loaded (older core, missing `--specs` flag), the helper returns `None` and the consumer silently skips the new check — backwards-compatible with v1.11.0 cores.
 
-**Reference**: `source/lib/osx.py` (`list_specs`, `show_spec`); `orchestrator/resources/canonical/skills/osx-review-artifacts/SKILL.md`. Tests: `tests/unit/test_spec_inventory.py`, `tests/unit/test_resource_contract.py::TestOrchestratorContracts::test_spec_inventory_consumer_is_wired`.
+**Reference**: `source/lib/osx/__init__.py` (`list_specs`, `show_spec`); `orchestrator/resources/canonical/skills/osx-review-artifacts/SKILL.md`. Tests: `tests/unit/test_spec_inventory.py`, `tests/unit/test_resource_contract.py::TestOrchestratorContracts::test_spec_inventory_consumer_is_wired`.
 
 ### 13.7.4 Archive preserves fenced code blocks (v1.13.0+)
 

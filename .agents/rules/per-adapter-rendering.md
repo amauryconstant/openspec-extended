@@ -97,7 +97,7 @@ inject extra `key: value` pairs into the modern skill mirror.
 Adding a new tool = one `REGISTRY[<tool_id>] = ToolAdapter(...)` entry
 plus, where its layout diverges enough from a shipped adapter, a new
 `commands_style` / `commands_ext` literal. The deploy path reads from
-the registry only; no `cli.py` / `runner.py` / `lib/osx.py` edits
+the registry only; no `cli.py` / `runner.py` / `lib/osx/` edits
 required for a new adapter.
 
 ## Claude dual-emit (current behavior)

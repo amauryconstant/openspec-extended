@@ -183,7 +183,7 @@ class TestL1NewAxisHardcodes:
     cross_ref_prefix, runner_args). The hardcode-check pattern must
     catch per-tool comparisons on each of these — the regression guard
     for "don't add a third adapter by branching on `tool_id` in
-    cli.py / runner.py / engine.py / lib/osx.py"."""
+    cli.py / runner.py / engine.py / lib/osx/"."""
 
     def _grep_new_pattern(
         self, pattern: str, synthetic: Path

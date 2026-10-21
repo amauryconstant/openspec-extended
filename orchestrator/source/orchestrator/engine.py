@@ -1531,7 +1531,7 @@ def run_orchestrator(state: OrchestratorState | None = None) -> None:
             # (`missingPrerequisites`, `openspec list --specs`, fenced-code
             # preservation, retire_capabilities relaxations) are missing; the
             # orchestrator would silently no-op or fall through to degraded
-            # behaviour on older cores. The floor is set in source/lib/osx.py.
+            # behaviour on older cores. The floor is set in source/lib/osx/.
             core_version = osx_lib.get_core_version()
             if core_version is None or core_version < osx_lib.MIN_OPENSPEC_VERSION:
                 found = (

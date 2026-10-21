@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Bring every `AGENTS.md` in `tests/`, `skills/`, and `orchestrator/` (excluding `orchestrator/core/`) back in sync with the tree after the resource-side and library refactors. The substantive corrections:
+
+  - `source/lib/osx.py` is now the package `source/lib/osx/` with a `sides/` subpackage, so every reference to the flat module — in `source/`, `.agents/rules/openspec-contract.md`, and test docstrings — is repointed, and the ~20 hand-maintained `file.py:NNN` line references those files carried are dropped in favour of stable symbol anchors.
+  - The `osx` library exposes 12 command domains, not 11: `store` was missing from the count and from the module's own domain table.
+  - The vendored core is at v1.14.3 while the enforced floor stays `(1, 13, 0)`; the docs had conflated the two.
+  - `osx-editor` — the agent the engine dispatches for auto-fixable PHASE0 routes — is documented in the agents AGENTS.md, along with the real per-agent temperatures (0.1 auditors, 0.3 maintainer, 0.4 builder) and the fact that all agents *do* carry a `description`.
+  - `tests/AGENTS.md` now lists the `contract` and `upstream` markers, which were registered in `pyproject.toml` but undocumented, and records that no pytest test actually carries the `e2e` marker: the only live `E2E_CONFIRM` gate is `e2e-helpers.bash::require_e2e_confirm`, which makes the `conftest.py` skip hook a no-op.
+  - `orchestrator/resources/AGENTS.md` gains the missing `osx-mode-conventions.md` shared reference and documents that commands declare no references at all — they are scraped from body prose by `_referenced_skill_refs` — which is why that file appears in no manifest.
+  - `skills/AGENTS.md` documents the `osx-commit` skill-local `references/` and `scripts/` subtrees that `deploy_skills` ships, and drops a step telling authors to add entries to a `[resources.references]` table that does not exist in either manifest.
+
+- Correct the test-suite layout docs: `tests/contract/` was missing from `tests/AGENTS.md` entirely, as were `unit/test_changelog_gate.bats` and `e2e/store-and-config-passthrough.bats`; `tests/e2e/AGENTS.md` no longer claims the whole directory runs against the built binary when `test_mechanism.py` runs `python -m source`, and records the onedir-first binary resolution the bats helpers actually perform; `tests/fixtures/AGENTS.md` corrects the install fixture version (`v1.2.1`, not `v0.19.0`) and replaces its backwards "primary consumer" pointer with a table of which suite reads which tree — no test under `tests/integration/` reads `tests/fixtures/` at all.
+
+- Repair two malformed markdown blocks in `orchestrator/source/orchestrator/AGENTS.md` (a 3-column row under a 2-column header, and an orphaned code fence that was swallowing the loop-shape text), and replace its reference to the deleted self-heal e2e with the constants that actually pin auto-fix behaviour, `AUTO_FIXABLE_ROUTES` and `AUTO_FIX_AGENTS`.
+
+### Removed
+
+- Delete `tests/fixtures/changes/add-self-heal-script/`. Its only consumer was `tests/e2e/self-heal-workflow.bats`, removed in `2222d12a` once `TestPhase0RouteHaltFallback` and `TestDispatchSharedTail` covered the same halt-vs-auto-fix contract without the ~20 min of AI subprocess time. The fixture had been orphaned since.
+
 ## [1.12.3] - 2026-10-20
 
 ### Changed

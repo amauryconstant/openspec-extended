@@ -154,7 +154,7 @@ teardown() {
 #
 # `store <sub>` exposes the v1.7+ store registry lifecycle:
 # setup/register/unregister/remove/list/doctor. Mirrors the CLI
-# surface documented in source/lib/osx.py.
+# surface documented in source/lib/osx/.
 
 @test "mechanism: store --help lists subcommands" {
     run "$OPENSPEC_BIN" store --help

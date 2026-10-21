@@ -787,8 +787,7 @@ class TestAutoFixAgentDispatchContract:
 class TestToPhaseFlag:
     """The --to-phase flag stops the orchestrator after a given phase.
 
-    PHASE0-only e2e tests (self-heal-workflow.bats) rely on this flag to
-    skip PHASE1-PHASE6 and keep the regression sentinel under ~5 min.
+    PHASE0-only runs use this flag to skip PHASE1-PHASE6.
     """
 
     def test_to_phase_help_describes_purpose(self, e2e_repo):

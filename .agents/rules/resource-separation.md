@@ -73,7 +73,7 @@ The committed-manifests invariant is pinned separately by
 
 ## Validation
 
-`lib/osx.py:validate_commands` walks both side manifests at validation
+`lib/osx/__init__.py:validate_commands` walks both side manifests at validation
 time:
 
 - Orchestrator-side commands cross-checked via `PHASE_COMMANDS` against
@@ -97,7 +97,7 @@ path; the tag is for merged-manifest consumers and third-party tools.
 
 ## Out-of-scope (known follow-ups)
 
-- E: split `lib/osx.py` constants (`REQUIRED_SKILLS`, `REQUIRED_CORE_SKILLS`,
+- E: split `lib/osx/` constants (`REQUIRED_SKILLS`, `REQUIRED_CORE_SKILLS`,
   `ORCHESTRATION_RESOURCE_NAMES`) into per-side sub-modules for clarity.
 - F: unify `deploy_skills` and `_deploy_skill_mirror` refs-resolution
   conventions.

@@ -4,7 +4,7 @@ Architectural invariant tests for the CLI/library split refactor.
 
 Verifies the post-refactor boundaries:
 
-1. ``source/lib/osx.py`` is a pure library (no Typer/Click surface).
+1. ``source/lib/osx/`` is a pure library (no Typer/Click surface).
 2. ``source/osx_cli.py`` owns the Typer app.
 3. ``source/cli.py`` mounts the ``osx`` subcommand.
 4. ``resources/canonical/manifest.toml`` ships only skills, agents, and
@@ -59,10 +59,10 @@ def _top_level_imports(path: Path) -> set[str]:
 
 @pytest.mark.unit
 class TestLibraryPurity:
-    """``source/lib/osx.py`` must stay free of CLI framework imports."""
+    """``source/lib/osx/`` must stay free of CLI framework imports."""
 
     def test_lib_osx_does_not_import_cli_frameworks(self):
-        """``source/lib/osx.py`` must not import typer or click."""
+        """``source/lib/osx/`` must not import typer or click."""
         imports = _top_level_imports(LIB_OSX)
         forbidden = {"typer", "click"}
         leaked = imports & forbidden
@@ -178,9 +178,9 @@ class TestSchemaSupport:
     """Locks in the schema-aware pre-flight code shape."""
 
     def test_lib_osx_may_import_yaml(self):
-        """``source/lib/osx.py`` may import ``yaml`` (schema-resolution dep).
+        """``source/lib/osx/`` may import ``yaml`` (schema-resolution dep).
 
-        ``resolve_schema`` (``source/lib/osx.py:1490``) parses project
+        ``resolve_schema`` (``source/lib/osx/__init__.py``) parses project
         config and change metadata via PyYAML. The library is allowed to
         depend on PyYAML; only the CLI frameworks (typer/click) are banned.
         """
@@ -204,7 +204,7 @@ class TestSchemaSupport:
     def test_lib_osx_exports_schema_subprocess_wrappers(self):
         """All 5 schema subprocess wrappers are exported.
 
-        ``source/lib/osx.py:1585-1679`` defines ``resolve_schema`` plus
+        ``source/lib/osx/__init__.py`` defines ``resolve_schema`` plus
         ``schema_which``, ``schema_validate``, ``schema_fork``,
         ``schema_init``, ``schema_list``. A future refactor that silently
         drops one of these would break the ``openspec-extended osx schema``
