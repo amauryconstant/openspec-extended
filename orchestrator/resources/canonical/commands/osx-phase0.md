@@ -63,7 +63,7 @@ openspec-extended osx complete set "$1" BLOCKED --blocker-reason "..."          
    Always announce: "Using change: <change-name>" and how to override (e.g., `/osx-phase0 <other>`).
 
 2. Load context per protocol spine.
-3. Load and use `osx-review-artifacts` skill for change `<change-name>`. Follow the skill's Steps 1–7 (select change → load schema state → per-artifact audit → cross-artifact consistency → implementation-readiness → classify findings → routing recommendation). Slash-command equivalent for ad-hoc runs (between dispatched iterations): `/osx-review <change-name>` — same skill body.
+3. Load and use `osx-review-artifacts` skill for change `<change-name>`. Follow the skill's Steps 1–8 (select change → check status → planning context → init report → verify completeness → verify correctness + coherence → verify coherence (readiness) → generate audit + routing). Slash-command equivalent for ad-hoc runs (between dispatched iterations): `/osx-review <change-name>` — same skill body.
 4. Classify findings Critical / Warning / Suggestion. Apply the verify calibration rule — implementation-readiness concerns are never Critical.
 
 5. **Routing rule.** Apply the **severity threshold** — only Critical and Warning findings trigger a route; Suggestion findings are advisory and do not block. Produce a routing recommendation:

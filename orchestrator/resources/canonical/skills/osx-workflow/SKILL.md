@@ -22,7 +22,7 @@ Operational reference for the 7-phase loop driven by `openspec-extended orchestr
 
 ```
 PHASE0 ARTIFACT_REVIEW → osx-analyzer   → osx-review-artifacts (audit + routing); engine auto-dispatches osc-update-change (via osx-editor) for fixes; halts only on non-auto-fixable routes
-PHASE1 IMPLEMENTATION  → osx-builder    → osc-apply-change, osx-review-test-compliance
+PHASE1 IMPLEMENTATION  → osx-builder    → osc-apply-change, osx-verify-tests
 PHASE2 REVIEW          → osx-reviewer   → osc-verify-change (writes verification-report.md, commits)
 PHASE3 MAINTAIN_DOCS   → osx-maintainer → osx-maintain-docs
 PHASE4 SYNC            → osx-maintainer → osc-sync-specs
@@ -103,7 +103,7 @@ For the full action set of layer 3, see §4.
 | Phase | Name in `state.json` | Agent | Key skills | Purpose |
 |-------|----------------------|-------|------------|---------|
 | PHASE0 | `ARTIFACT_REVIEW` | `osx-analyzer` | `osx-review-artifacts` (audit) + `osc-update-change` (engine auto-fixes in-orchestration via the `osx-editor` agent; ad-hoc `/osc-update-change` otherwise) | Schema-driven audit; **self-healing** for `osc-update-change` routes, halt-and-surface for intent-level or missing-artifact routes[^a3] |
-| PHASE1 | `IMPLEMENTATION` | `osx-builder` | `osc-apply-change`, `osx-review-test-compliance` | Implement `tasks.md`; milestone commits |
+| PHASE1 | `IMPLEMENTATION` | `osx-builder` | `osc-apply-change`, `osx-verify-tests` | Implement `tasks.md`; milestone commits |
 | PHASE2 | `REVIEW` | `osx-reviewer` | `osc-verify-change`; Case A → `/osc-update-change` (default; covers single- and multi-artifact defects) | Verify implementation; writes `verification-report.md` |
 | PHASE3 | `MAINTAIN_DOCS` | `osx-maintainer` | `osx-maintain-docs` | Sync the project's agent-facing docs with what changed |
 | PHASE4 | `SYNC` | `osx-maintainer` | `osc-sync-specs` | Merge delta specs into main specs |
@@ -446,7 +446,7 @@ The OpenSpec Core ships five entry-point skills that *create* a change. Pick bas
 | Fast-forward (all artifacts at once, fewer prompts) | `/openspec-ff-change` | Creates everything in one go; less narration than `new-change` |
 | Thinking partner (no artifacts yet) | `/openspec-explore` | Discusses the problem; you create artifacts when ready |
 
-Once an active change with planning artifacts exists, the orchestrator's `openspec-extended orchestrate <change>` takes over the 7-phase loop. PHASE0 (`/osx-phase0 <change>` or `/osx-review <change>`), PHASE1 (`osx-apply-change`), and the gap-filling skills (`osx-review-artifacts`, `osx-review-test-compliance`, `osx-commit`, `osx-maintain-docs`, `osx-changelog`) live alongside.
+Once an active change with planning artifacts exists, the orchestrator's `openspec-extended orchestrate <change>` takes over the 7-phase loop. PHASE0 (`/osx-phase0 <change>` or `/osx-review <change>`), PHASE1 (`osx-apply-change`), and the gap-filling skills (`osx-review-artifacts`, `osx-verify-tests`, `osx-commit`, `osx-maintain-docs`, `osx-changelog`) live alongside.
 
 ---
 

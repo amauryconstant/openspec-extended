@@ -36,7 +36,7 @@ def env_opencode(tmp_path: Path) -> Path:
         "osx-concepts",
         "osx-workflow",
         "osx-review-artifacts",
-        "osx-review-test-compliance",
+        "osx-verify-tests",
         "osx-commit",
     ]:
         (env / ".opencode" / "skills" / skill).mkdir(parents=True)
@@ -66,7 +66,7 @@ def env_claude(tmp_path: Path) -> Path:
         "osx-concepts",
         "osx-workflow",
         "osx-review-artifacts",
-        "osx-review-test-compliance",
+        "osx-verify-tests",
         "osx-commit",
     ]:
         (env / ".claude" / "skills" / skill).mkdir(parents=True)

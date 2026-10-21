@@ -53,7 +53,7 @@ openspec-extended osx state complete "$1"
 4. Load and use `osc-apply-change` skill for change `<change-name>`. Follow its task execution pattern.
 5. Implement tasks in order. Dispatched via `osx-builder` (`edit: allow`).
 6. **Milestone commits** — 1–5 commits per iteration, invoked via `osx-commit`. Each commit advances `state.json.current_commit` and is logged in `decision-log.json` and `iterations.json`. Cap at the iteration budget.
-7. **End-of-iteration coverage check** — invoke `osx-review-test-compliance` skill. If a `Critical` or unresolved `Warning` finding appears, fix it (re-iterate) or transition (`implementation_incorrect` → PHASE1 with new details). Slash-command equivalent for ad-hoc runs: `/osx-verify-tests <change-name>` — same skill body.
+7. **End-of-iteration coverage check** — invoke `osx-verify-tests` skill. If a `Critical` or unresolved `Warning` finding appears, fix it (re-iterate) or transition (`implementation_incorrect` → PHASE1 with new details). Slash-command equivalent for ad-hoc runs: `/osx-verify-tests <change-name>` — same skill body.
 8. **Validation** — `openspec validate --change "$1" --type all --strict --json`. If invalid, fix and re-iterate.
 9. **Mandatory end** — append `osx log` and `osx iterations` per protocol spine, then `osx state complete "$1"`.
 

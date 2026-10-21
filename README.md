@@ -176,7 +176,7 @@ The default install ships **3 extended skills**. `osx-workflow` (4th skill) requ
 | Skill                        | Purpose                                        | Default? |
 | ---------------------------- | ---------------------------------------------- | -------- |
 | `osx-review-artifacts`       | Reviews artifacts for quality and completeness | yes      |
-| `osx-review-test-compliance` | Review test coverage for OpenSpec changes      | yes      |
+| `osx-verify-tests`             | Review test coverage for OpenSpec changes      | yes      |
 | `osx-commit`                 | Create commits matching project conventions    | yes      |
 | `osx-workflow`               | Explains the 7-phase autonomous workflow       | opt-in (`--with-autonomous`) |
 

@@ -41,7 +41,7 @@ CANONICAL_SKILL_NAMES = frozenset(
         "osx-commit",
         "osx-workflow",
         "osx-review-artifacts",
-        "osx-review-test-compliance",
+        "osx-verify-tests",
     }
 )
 

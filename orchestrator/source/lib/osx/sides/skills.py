@@ -12,7 +12,7 @@ from __future__ import annotations
 
 REQUIRED_SKILLS = [
     "osx-review-artifacts",
-    "osx-review-test-compliance",
+    "osx-verify-tests",
     "osx-commit",
 ]
 # `osx-changelog` and `osx-maintain-docs` are intentionally absent from

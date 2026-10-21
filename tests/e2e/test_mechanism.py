@@ -107,7 +107,7 @@ def e2e_repo(tmp_path):
     for skill in (
         "osx-workflow",
         "osx-review-artifacts",
-        "osx-review-test-compliance",
+        "osx-verify-tests",
         "osx-commit",
         "osc-propose",
         "osc-explore",

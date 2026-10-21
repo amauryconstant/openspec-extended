@@ -1,6 +1,6 @@
 ---
 name: osx-review
-description: Schema-driven pre-implementation artifact audit (read-only) plus routing to the right editor. Use when artifacts exist and you want a routing report before implementation.
+description: Schema-driven pre-implementation artifact audit (read-only) plus routing to the right editor. Mirrors the three-dimension report (Completeness / Correctness / Coherence) and the CRITICAL / WARNING / SUGGESTION severity scale of openspec-verify-change. Use when artifacts exist and you want a routing report before implementation.
 license: MIT
 compatibility: Requires openspec CLI.
 allowed-tools: Bash(openspec:*)
@@ -30,9 +30,9 @@ Schema-driven, **read-only** audit of planning artifacts in a change. Emits a ro
 **Steps**
 
 1. **Select the change** — If a name is provided (as `$1`), use it. Otherwise:
-   - Infer from conversation context if the user mentioned a change
+   - Infer from conversation context
    - Auto-select if only one active change exists
-   - If ambiguous, run `openspec list --json` and ask the user to select one
+   - If ambiguous, run `openspec list --json` and ask the user to select one with `{{ASK_TOOL}}`
 
    Always announce: "Using change: <change-name>" and how to override (e.g., `/osx-review <other>`).
 
@@ -49,6 +49,7 @@ Schema-driven, **read-only** audit of planning artifacts in a change. Emits a ro
 - **Read-only.** Never edit planning artifacts. The routed editor does the writing.
 - **No code edits.** Findings that imply code changes route to `/osc-apply-change`.
 - **No hardcoded artifact names.** Read ids and paths from `openspec status` and `openspec instructions` JSON.
+- **Calibration.** When uncertain, prefer SUGGESTION over WARNING, WARNING over CRITICAL.
 
 ---
 
@@ -57,5 +58,6 @@ Schema-driven, **read-only** audit of planning artifacts in a change. Emits a ro
 - Run after `openspec` reports `isPlanningComplete: true`; reviewing incomplete artifacts wastes the audit on missing files.
 - Re-run after fixes to confirm previously-flagged findings are now clean; the report does not store incremental state.
 - Apply the routed editor (`/osc-update-change` for the typical case) once the routing report chooses.
+- Treat this skill and `osx-verify-tests` as the two gap-filling reviews that bracket `/osc-apply-change`: pre-impl audit (this command), post-impl test coverage (`/osx-verify-tests <change>`), then `/osc-verify-change`.
 
 See `{{PLATFORM_DIR}}/skills/osx-review-artifacts/SKILL.md` for the full contract, output templates, and severity calibration.

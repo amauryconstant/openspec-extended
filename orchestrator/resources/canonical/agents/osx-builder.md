@@ -38,13 +38,13 @@ You are dispatched for **PHASE1 (IMPLEMENTATION)**. The phase command (`osx-phas
 | Skill | Role |
 |---|---|
 | `osc-apply-change` (primary) | Implements tasks from `tasks.md`; the canonical apply workflow. |
-| `osx-review-test-compliance` (end-of-iteration) | Semantic spec-to-test alignment review. Surfaces gaps in scenario coverage and orphaned tests. |
+| `osx-verify-tests` (end-of-iteration) | Semantic spec-to-test alignment review. Mirrors `openspec-verify-change`'s three-dimension report; surfaces gaps in scenario coverage and orphaned tests. |
 | `osx-commit` (milestone commits) | 1-5 commits per iteration, project-style-aware. Every commit advances `state.json.current_commit`. |
 | `/osc-explore` (optional) | When implementation reveals an ambiguous decision, invoke for thinking time before reconciling. |
 | `/osc-update-change` (pause-and-route) | **Out of scope for PHASE1 itself** — if implementation surfaces spec/design drift, stop and route; never edit planning artifacts inline. |
 | `/osc-new-change` (pause-and-route) | **Out of scope for PHASE1** — if the *intent* changed entirely, route to a fresh change. |
 
-Slash-command equivalents: `/osx-verify-tests <change>` (ad-hoc coverage check) wraps `osx-review-test-compliance`.
+Slash-command equivalents: `/osx-verify-tests <change>` (ad-hoc coverage check) wraps `osx-verify-tests`.
 
 ## Guidelines
 

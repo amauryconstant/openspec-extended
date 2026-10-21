@@ -62,7 +62,7 @@ sides (e.g. `validate_skills`) read and merge them.
 | Tree                                         | Scope                                                                                |
 | -------------------------------------------- | ------------------------------------------------------------------------------------ |
 | `orchestrator/resources/canonical/manifest.toml` | Workflow skill, agents, phase commands, `osx-changelog`, `osx-maintain-docs`          |
-| `skills/resources/canonical/manifest.toml`    | `osx-commit`, `osx-review-artifacts`, `osx-review-test-compliance`, `osx-review`, `osx-verify-tests` |
+| `skills/resources/canonical/manifest.toml`    | 3 skills (`osx-commit`, `osx-review-artifacts`, `osx-verify-tests`) and 2 slash commands (`osx-review`, `osx-verify-tests`) |
 
 The two manifests are disjoint; their union is the canonical resource surface (locked by `tests/unit/test_resource_contract.py::TestManifestParity`).
 
@@ -87,8 +87,9 @@ Cross-cutting material that lives once and is reached by multiple skills.
 | `blocker-semantics.md`                                            | osx-phase0..6 (commands)                                      |
 | `osx-decision-logging.md`                                         | osx-phase0..6 (commands)                                      |
 | `shell-argument-safety.md`                                        | osx-phase0..6 (commands)                                      |
-| `scoring-rubric.md`                                               | osx-review-test-compliance                                    |
 | `changelog-format.md`, `doc-structures.md`, `example-output.md`, `proposal-parsing-guide.md`, `update-examples.md`, `update-rules.md` | osx-review-artifacts, osx-changelog, osx-maintain-docs (consumed transitively) |
+
+The shared pool formerly included `scoring-rubric.md` (consumed by `osx-verify-tests`); the rubric content has been inlined into the skill body per the alignment with `openspec-verify-change`'s self-contained posture and the reference is removed.
 
 Shared references are excluded from `mise run version:check` (they don't map to a single manifest entry). The deploy copies each named reference into every consuming skill's own `references/` subdir at the target site, so each skill is self-sufficient.
 

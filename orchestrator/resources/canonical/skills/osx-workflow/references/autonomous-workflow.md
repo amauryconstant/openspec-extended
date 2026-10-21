@@ -149,7 +149,7 @@ Phase commands instruct agents to "load and use" skills:
 | Audit artifacts (schema-driven, read-only) | `osx-review-artifacts` skill | Read skill file, follow instructions; slash command: `/osx-review <change>` |
 | Single- or multi-artifact reconciliation | `osc-update-change` skill | `openspec update "$NAME"` or `/osc-update-change` |
 | Continue creating missing artifacts | `osc-continue-change` skill | `openspec continue "$NAME"` or `/osc-continue-change` |
-| Spec-to-test alignment | `osx-review-test-compliance` skill | Read skill file; slash command: `/osx-verify-tests <change>` |
+| Spec-to-test alignment | `osx-verify-tests` skill | Read skill file; slash command: `/osx-verify-tests <change>` |
 | Maintain project docs | `osx-maintain-docs` command | `/osx-maintain-docs <change>` |
 | Generate release changelog | `osx-changelog` command | `/osx-changelog [--since YYYY-MM-DD | <change>...]` |
 | Detect project commit style | `osx-commit` skill | `/osx-commit` after each phase write |
@@ -330,7 +330,7 @@ openspec-extended osx state complete "$1"
 ### 5.2 PHASE1: Implementation
 
 **Agent**: `osx-builder`
-**Tool**: `osc-apply-change` skill + `osx-review-test-compliance` skill
+**Tool**: `osc-apply-change` skill + `osx-verify-tests` skill
 
 **Purpose**: Implement tasks from `tasks.md`
 
@@ -338,7 +338,7 @@ openspec-extended osx state complete "$1"
 1. Load context and read artifacts
 2. Run `osc-apply-change` skill for implementation
 3. **Milestone commits**: 1-5 commits per iteration (minimum 1)
-4. Run `osx-review-test-compliance` after implementation
+4. Run `osx-verify-tests` after implementation
 5. Fix test gaps until clean
 
 **Milestone commit rules**:
@@ -704,7 +704,7 @@ openspec instructions apply --change "$CHANGE_ID" --json
 | Phase | Agent | Key Skills | Optional Companions | Critical Requirement |
 |--------|---------|-------------|---------------------|---------------------|
 | PHASE0 | osx-analyzer | osx-review-artifacts | `/osc-explore`, `/osc-update-change`, `/osc-continue-change`, `/osc-new-change`, `/osc-archive-change` (routes only) | Read-only — emit routing report, never fix |
-| PHASE1 | osx-builder | osc-apply-change, osx-review-test-compliance | `/osc-explore`, `/osc-update-change` (pause-and-route), `osx-commit` (milestones) | Milestone commits (1-5 per iteration); pause-and-route on drift |
+| PHASE1 | osx-builder | osc-apply-change, osx-verify-tests | `/osc-explore`, `/osc-update-change` (pause-and-route), `osx-commit` (milestones) | Milestone commits (1-5 per iteration); pause-and-route on drift |
 | PHASE2 | osx-reviewer | osc-verify-change | `/osc-explore`, `/osc-update-change` (Case A), `/osc-continue-change` (missing artifact) | Correct transition logic; embeds openspec show --diff appendix (v1.11.0+) |
 | PHASE3 | osx-maintainer | osx-maintain-docs | (none — self-contained) | Update project docs (not inline comments) |
 | PHASE4 | osx-maintainer | osc-sync-specs | `/osc-update-change` (malformed-delta fix upstream), `osc-bulk-archive-change` (conflict) | Merge deltas into main specs; never hand-edit delta |

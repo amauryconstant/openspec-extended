@@ -108,10 +108,15 @@ inside the core package.
 ## Shared references divergence
 
 Upstream skills ship with zero `references/` subdirectories. We
-declare shared cross-cutting material (`scoring-rubric.md`,
-`schema-agnostic-contract.md`, `store-selection.md`, etc.) under
+declare shared cross-cutting material (`schema-agnostic-contract.md`,
+`store-selection.md`, etc.) under
 `orchestrator/resources/canonical/skills/references/` and copy each
 consumed reference into the deploying skill's own `references/`
 subdir so the deployed skill is self-sufficient. The
 `skills-side manifest` declares which references each skill reads
 via the manifest's `references = [...]` list.
+
+Per-skill content that used to live in dedicated reference files
+(such as the `scoring-rubric.md` once consumed by the test-compliance
+skill) has been inlined into the skill body to mirror
+`openspec-verify-change`'s self-contained posture.

@@ -20,7 +20,7 @@ skills/resources/
 │   ├── skills/
 │   │   ├── osx-commit/             # commit message skill
 │   │   ├── osx-review-artifacts/   # pre-implementation review
-│   │   └── osx-review-test-compliance/  # test compliance scoring
+│   │   └── osx-verify-tests/       # post-implementation test compliance
 │   └── commands/
 │       ├── osx-review.md           # slash command for review
 │       └── osx-verify-tests.md     # slash command for test compliance
@@ -37,7 +37,7 @@ hand-maintained `claude/` mirror.
 | ------------------------------ | ------ | ------------------------------------------------------- |
 | `osx-commit`                   | skill  | Write conventional commit messages                      |
 | `osx-review-artifacts`         | skill  | Pre-implementation review (schema-agnostic contract)    |
-| `osx-review-test-compliance`   | skill  | Test compliance scoring (`scoring-rubric.md`)           |
+| `osx-verify-tests`             | skill  | Post-implementation test compliance (mirrors openspec-verify-change shape) |
 | `osx-review`                   | command| Slash command — runs review flow                        |
 | `osx-verify-tests`             | command| Slash command — runs test compliance check              |
 

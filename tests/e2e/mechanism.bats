@@ -96,7 +96,7 @@ teardown() {
     # so the SKILL.md links resolve without depending on a sibling directory.
     [ -f .opencode/skills/osx-review-artifacts/references/store-selection.md ]
     [ -f .opencode/skills/osx-review-artifacts/references/schema-agnostic-contract.md ]
-    [ -f .opencode/skills/osx-review-test-compliance/references/scoring-rubric.md ]
+    [ -f .opencode/skills/osx-verify-tests/SKILL.md ]
 
     # Slash commands with self-contained bodies (osx-changelog, osx-maintain-docs)
     # are deployed as command files; their bodies reference shared-pool references.
@@ -123,7 +123,7 @@ teardown() {
     # Shared references are packaged into the skill's own references/ folder.
     [ -f .claude/skills/osx-review-artifacts/references/store-selection.md ]
     [ -f .claude/skills/osx-review-artifacts/references/schema-agnostic-contract.md ]
-    [ -f .claude/skills/osx-review-test-compliance/references/scoring-rubric.md ]
+    [ -f .claude/skills/osx-verify-tests/SKILL.md ]
 
     # Slash commands dual-emit on Claude as modern skills. The merged
     # changelog/maintain-docs bodies reference shared-pool files; the deploy

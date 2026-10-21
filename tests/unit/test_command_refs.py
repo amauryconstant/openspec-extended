@@ -229,13 +229,13 @@ class TestLogCommandTerminology:
 # installed tree actually exposes — skills and commands must reference the
 # full names so agents can resolve the slash form unambiguously.
 # Source files that are allowed to keep an abbreviated OpenCode form (e.g.
-# ``/osc-verify`` in osx-review-test-compliance, where the hyphenated OpenCode
+# ``/osc-verify`` in osx-verify-tests, where the hyphenated OpenCode
 # command file maps to that exact slash form) are exempted below.
 ALLOWED_ABBREVIATED_FORMS: dict[str, set[str]] = {
-    "skills/resources/canonical/skills/osx-review-test-compliance/SKILL.md": {
+    "skills/resources/canonical/skills/osx-verify-tests/SKILL.md": {
         "/osc-verify"
     },
-    "skills/resources/claude/skills/osx-review-test-compliance/SKILL.md": {
+    "skills/resources/claude/skills/osx-verify-tests/SKILL.md": {
         "/osc-verify"
     },
     # /osc-explore is the full canonical form (no -change suffix); the
@@ -323,7 +323,7 @@ class TestFullCommandNames:
                 ["/osc-archive-change", "/osc-sync-specs"],
             ),
             (
-                "skills/resources/canonical/skills/osx-review-test-compliance/SKILL.md",
+                "skills/resources/canonical/skills/osx-verify-tests/SKILL.md",
                 ["/osc-verify"],
             ),
         ],

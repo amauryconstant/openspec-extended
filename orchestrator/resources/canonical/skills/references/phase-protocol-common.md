@@ -51,7 +51,7 @@ Each phase has a canonical skill it loads (see the table below) plus optional co
 | Phase | Canonical skill | Optional companions |
 |---|---|---|
 | PHASE0 (ARTIFACT_REVIEW) | `osx-review-artifacts` | `/osc-update-change`, `/osc-continue-change`, `/osc-new-change`, `/osc-archive-change` (routing only); `/osc-explore` (ambiguous findings); ad-hoc users: `/osx-review <change>` |
-| PHASE1 (IMPLEMENTATION) | `osc-apply-change` | `osx-review-test-compliance` (end-of-iteration), `osx-commit` (milestone commits); `/osc-explore` (design ambiguity); `/osc-update-change` (pause-and-route on drift); ad-hoc users: `/osx-verify-tests <change>` |
+| PHASE1 (IMPLEMENTATION) | `osc-apply-change` | `osx-verify-tests` (end-of-iteration), `osx-commit` (milestone commits); `/osc-explore` (design ambiguity); `/osc-update-change` (pause-and-route on drift); ad-hoc users: `/osx-verify-tests <change>` |
 | PHASE2 (REVIEW) | `osc-verify-change` | `/osc-explore` (design ambiguity), `/osc-update-change` (Case A default), `/osc-continue-change` (missing-artifact sub-case), `osx-commit` (post-report) |
 | PHASE3 (MAINTAIN_DOCS) | `osx-maintain-docs` | `osx-commit` (post-edit); cross-ref `references/doc-structures.md` |
 | PHASE4 (SYNC) | `osc-sync-specs` | `/osc-update-change` (malformed delta fix upstream); `osc-bulk-archive-change` (multi-change conflict resolution); `osx-commit` |

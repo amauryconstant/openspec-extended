@@ -4,13 +4,15 @@ Contract tests for ``AUTONOMOUS_RESOURCE_NAMES`` and the install grouping.
 
 Locks in:
 
-- The autonomous set is exactly 12 entries (4 agents + 7 phase commands +
+- The autonomous set is exactly 13 entries (5 agents + 7 phase commands +
   ``osx-workflow`` skill).
 - Every name in the autonomous set corresponds to a real resource directory
   or file under ``resources/canonical/``.
 - No autonomous name appears in the utility default.
-- The utility default (24 - 12 = 12) is the complement of the autonomous set
-  within the canonical manifest.
+- The utility default is the complement of the autonomous set within the
+  canonical manifest (by unique name; ``osx-verify-tests`` shares a name
+  across the skills and commands sections, so the unique set has fewer
+  entries than the raw manifest count).
 """
 
 from __future__ import annotations
@@ -70,7 +72,7 @@ class TestAutonomousResourceSet:
         utility_skills = [
             "osx-commit",
             "osx-review-artifacts",
-            "osx-review-test-compliance",
+            "osx-verify-tests",
         ]
         for skill in utility_skills:
             assert skill not in osx.AUTONOMOUS_RESOURCE_NAMES, (
@@ -136,11 +138,20 @@ class TestInstallGrouping:
                 )
 
     def test_utility_set_is_complement(self):
-        """Utility resources are everything declared minus the autonomous set."""
+        """Utility resources are everything declared minus the autonomous set.
+
+        ``osx-verify-tests`` shares a name across the skills and commands
+        sections (skill + slash command), so the unique-name set has one
+        fewer entry than the raw entry count would suggest.
+        """
         resources = _merged_resources()
         all_names = {name for entries in resources.values() for name in entries}
         utility = all_names - osx.AUTONOMOUS_RESOURCE_NAMES
-        assert len(utility) == 7, (
-            f"Utility default should be 7 entries under utility-only install; "
-            f"got {len(utility)}: {sorted(utility)}"
-        )
+        assert utility == {
+            "osx-changelog",
+            "osx-commit",
+            "osx-maintain-docs",
+            "osx-review",
+            "osx-review-artifacts",
+            "osx-verify-tests",
+        }, f"Utility default set changed: {sorted(utility)}"

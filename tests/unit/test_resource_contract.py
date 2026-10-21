@@ -72,7 +72,7 @@ CANONICAL_SKILLS = frozenset(
     {
         "osx-commit",
         "osx-review-artifacts",
-        "osx-review-test-compliance",
+        "osx-verify-tests",
         "osx-workflow",
     }
 )
@@ -86,7 +86,7 @@ EXPECTED_OPENCODE_RESOURCE_IDS: dict[str, list[str]] = {
         "osx-workflow",  # orchestrator side
         "osx-commit",  # skills side
         "osx-review-artifacts",  # skills side
-        "osx-review-test-compliance",  # skills side
+        "osx-verify-tests",  # skills side
     ],
     "agents": [
         "osx-analyzer",
@@ -117,7 +117,7 @@ EXPECTED_OPENCODE_RESOURCE_IDS: dict[str, list[str]] = {
 OPENSPEC_TOOL_SKILLS = frozenset(
     {
         "osx-review-artifacts",
-        "osx-review-test-compliance",
+        "osx-verify-tests",
     }
 )
 
@@ -125,7 +125,7 @@ OPENSPEC_TOOL_SKILLS = frozenset(
 SKILL_HOME = {
     "osx-commit": SK_OPENCODE,
     "osx-review-artifacts": SK_OPENCODE,
-    "osx-review-test-compliance": SK_OPENCODE,
+    "osx-verify-tests": SK_OPENCODE,
     "osx-workflow": ORCH_OPENCODE,
 }
 
@@ -579,8 +579,8 @@ class TestSkillDescriptionLeadingWord:
 
     EXPECTED_LEADING_WORDS = {
         "osx-commit": "Detect",
-        "osx-review-artifacts": "Audit",
-        "osx-review-test-compliance": "Surface",
+        "osx-review-artifacts": "Schema-driven",
+        "osx-verify-tests": "Verify",
         "osx-workflow": "7-phase",
     }
 
