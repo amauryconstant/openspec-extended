@@ -32,7 +32,7 @@ PHASE6 ARCHIVE         → osx-maintainer → osc-archive-change / osc-bulk-arch
 
 PHASE0 dispatches `osx-analyzer` (`edit: deny`) for the read-only audit; when the audit emits an auto-fixable route (`/osc-update-change`), the engine spawns `osx-editor` (`edit: allow`) which applies the fix, then the engine re-enters PHASE0 to verify. Non-auto-fixable routes (`/osc-continue-change`, `/osc-new-change`, `/osc-archive-change`, `/osc-explore`) still halt and surface to the user. PHASE2 and PHASE5 dispatch `osx-reviewer` (`edit: allow`, `hidden: true`) and write `verification-report.md` / `reflections.md` plus a commit.
 
-**Tool**: every state mutation goes through `openspec-extended osx <domain> <action>`. Library lives at `source/lib/osx.py`.
+**Tool**: every state mutation goes through the `openspec-extended osx <domain> <action>` binary subcommand.
 
 ---
 
